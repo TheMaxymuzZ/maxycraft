@@ -4,7 +4,7 @@ import { columnRandom } from './noise';
 import { SEA_LEVEL, type Plot, type World } from './world';
 
 export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido';
-type Species = 'gato' | 'conejo' | 'oso' | 'pato' | 'perro' | 'rana';
+type Species = 'gato' | 'conejo' | 'oso' | 'pato' | 'perro' | 'rana' | 'ardilla';
 
 interface SpeciesLook {
   fur: number;
@@ -20,6 +20,7 @@ const LOOKS: Record<Species, SpeciesLook> = {
   pato: { fur: 0xfbf7ee, belly: 0xffffff, ears: 'ninguna', beak: 0xf5a623 },
   perro: { fur: 0xd8b07a, belly: 0xfff4e0, ears: 'caidas' },
   rana: { fur: 0x7cc46a, belly: 0xe8f5c8, ears: 'ninguna' },
+  ardilla: { fur: 0xb8743a, belly: 0xf4dcb8, ears: 'punta' },
 };
 
 interface Profile {
@@ -31,7 +32,17 @@ interface Profile {
   shirt: number;
   /** Objetos que más le gustan como regalo. */
   likes: 'fruta' | 'conchas' | 'flores' | 'madera';
+  /** Horario propio de sueño; si no, el de su personalidad. */
+  sleep?: [number, number];
+  /** No pasea: se queda en la puerta (la dependienta de la tienda). */
+  stationary?: boolean;
 }
+
+/** La dependienta de la tienda, abierta de 8:00 a 22:00. */
+const SHOPKEEPER: Profile = {
+  name: 'Avellana', species: 'ardilla', personality: 'alegre', catchphrase: 'cric', shirt: 0x3f8f5a,
+  likes: 'fruta', sleep: [22, 8], stationary: true,
+};
 
 const PROFILES: Profile[] = [
   { name: 'Canela', species: 'gato', personality: 'alegre', catchphrase: 'miau', shirt: 0xe86a8a, likes: 'flores' },
@@ -83,6 +94,10 @@ export class Villager {
     return this.profile.name;
   }
 
+  get isShopkeeper() {
+    return !!this.profile.stationary;
+  }
+
   // --- Modelo de bloques: cabeza grande, como los vecinos de Animal Crossing ---
 
   private buildModel() {
@@ -117,6 +132,11 @@ export class Villager {
     box(0.1, 0.06, 0.03, 0xf28a9a, 0.26, headY - 0.08, 0.32);
     if (look.beak) box(0.26, 0.1, 0.16, look.beak, 0, headY - 0.1, 0.36);
     else box(0.08, 0.06, 0.04, 0x5a3a2a, 0, headY - 0.07, 0.34); // nariz
+
+    if (this.profile.species === 'ardilla') {
+      box(0.3, 0.7, 0.24, look.fur, 0, 0.75, -0.34); // cola grande
+      box(0.3, 0.24, 0.3, look.fur, 0, 1.18, -0.42);
+    }
 
     switch (look.ears) {
       case 'punta':
@@ -153,7 +173,7 @@ export class Villager {
   }
 
   isSleepTime(hour: number): boolean {
-    const [from, to] = SLEEP[this.profile.personality];
+    const [from, to] = this.profile.sleep ?? SLEEP[this.profile.personality];
     return from > to ? hour >= from || hour < to : hour >= from && hour < to;
   }
 
@@ -181,7 +201,8 @@ export class Villager {
 
     if (!this.target) {
       this.wait -= dt;
-      if (this.wait <= 0) this.pickTarget();
+      if (this.profile.stationary) this.faceTowards(this.position.x, this.position.z + 1, dt * 4);
+      else if (this.wait <= 0) this.pickTarget();
       this.animate(dt, false);
     } else {
       const to = this.target;
@@ -266,9 +287,11 @@ export class Villager {
 /** Elige vecinos para las casas de la isla, siempre los mismos para cada semilla. */
 export function createVillagers(world: World, memories: Record<string, VillagerMemory>): Villager[] {
   const pool = [...PROFILES];
-  return world.plots.map((plot, i) => {
+  const shop = world.plots.find((p) => p.kind === 'shop');
+  const keeper = shop ? [new Villager(SHOPKEEPER, shop, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
+  return [...keeper, ...world.plots.filter((p) => p.kind === 'house').map((plot, i) => {
     const pick = Math.floor(columnRandom(i, 99, world.seed) * pool.length);
     const profile = pool.splice(pick, 1)[0];
     return new Villager(profile, plot, world, memories[profile.name] ?? { friendship: 0 });
-  });
+  })];
 }

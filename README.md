@@ -6,7 +6,11 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.4 · Vecinos**
+Versión actual: **v0.5 · Bayas y tienda**
+
+- Las bayas son la moneda de la isla; se empieza con 500 y se ven bajo el reloj.
+- La tienda de Avellana (la ardilla) abre de 8:00 a 22:00. Vende herramientas siempre y cinco cosas más que cambian cada día: tejados de colores, paredes, ventanas, flores, piedra…
+- Se puede vender todo lo que llevas. Los precios de venta cambian cada día, menos la fruta de tu isla, que siempre vale 100.
 
 - Tres vecinos animales (de entre seis posibles) con su casa, su personalidad y su coletilla.
 - Pasean de día cerca de casa y por la noche se van a dormir, cada uno a su hora.

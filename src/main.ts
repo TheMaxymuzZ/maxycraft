@@ -5,10 +5,11 @@ import { Dialog } from './dialog';
 import { Drops } from './drops';
 import { Hud } from './hud';
 import { Inventory, starterKit } from './inventory';
-import { SHELLS, breakInfo, dropFor, itemDef, toolNameFor } from './items';
+import { SHELLS, breakInfo, dropFor, fruitItemFor, itemDef, toolNameFor } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
 import { deleteGame, loadGame, saveGame } from './save';
+import { Shop, formatBerries } from './shop';
 import { Sky } from './sky';
 import { type Villager, createVillagers } from './villagers';
 import { WATER_SURFACE, World } from './world';
@@ -92,6 +93,14 @@ const inventory = new Inventory();
 if (save?.inventory) inventory.load(save.inventory);
 else starterKit(inventory);
 
+let wallet = save?.wallet ?? 500;
+const walletEl = document.querySelector<HTMLSpanElement>('#wallet-amount')!;
+function setWallet(n: number) {
+  wallet = n;
+  walletEl.textContent = formatBerries(n);
+}
+setWallet(wallet);
+
 let savedRevision = world.revision;
 let saving = true;
 function persist() {
@@ -107,6 +116,7 @@ function persist() {
     shells: { day: today, taken: [...shellsTaken] },
     branches: { day: today, trees: [...branchTrees] },
     villagers: Object.fromEntries(villagers.map((v) => [v.name, v.memory])),
+    wallet,
   });
   savedRevision = world.revision;
 }
@@ -202,7 +212,7 @@ function take(id: string): boolean {
 // --- Bolsillos, conversaciones y bloqueo del puntero ---
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -231,7 +241,28 @@ const dialog = new Dialog({
     panel = null;
     canvas.requestPointerLock();
   },
+  openShop: () => {
+    panel = 'shop';
+    shop.open();
+  },
 });
+
+const shop = new Shop({
+  inventory,
+  atlas,
+  today,
+  islandFruit: fruitItemFor(world.fruit) ?? '',
+  getWallet: () => wallet,
+  setWallet,
+  toast: (t) => hud.toast(t),
+});
+
+function closeShop() {
+  shop.close();
+  panel = null;
+  canvas.requestPointerLock();
+}
+document.querySelector('#shop-close')!.addEventListener('click', closeShop);
 
 function talkTo(v: Villager) {
   panel = 'dialog';
@@ -243,6 +274,10 @@ function talkTo(v: Villager) {
 window.addEventListener('keydown', (e) => {
   if (panel === 'dialog') {
     if (e.code === 'Escape') dialog.finish();
+    return;
+  }
+  if (panel === 'shop') {
+    if (e.code === 'Escape' || e.code === 'KeyE') closeShop();
     return;
   }
   if (e.code === 'KeyE') {
@@ -295,6 +330,7 @@ document.addEventListener('pointerlockchange', () => {
     overlay.hidden = true;
     if (panel === 'inventory') hud.inventoryEl.hidden = true;
     if (panel === 'dialog') dialog.finish();
+    if (panel === 'shop') shop.close();
     panel = null;
     return;
   }
@@ -359,7 +395,7 @@ function updateBreaking(dt: number) {
   if (y === 0) return; // la capa del fondo no se rompe
 
   const b = world.getBlock(x, y, z);
-  if (HOUSE_BLOCKS.includes(b)) {
+  if (HOUSE_BLOCKS.includes(b) && world.plotAt(x, z)) {
     if (warnedKey !== key) hud.toast('Es la casa de un vecino. Mejor no tocarla');
     warnedKey = key;
     return;
@@ -605,6 +641,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, camera, villagers, talkTo, dialog, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+    game: { world, player, camera, villagers, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
   });
 }

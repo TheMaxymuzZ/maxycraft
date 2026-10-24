@@ -40,11 +40,28 @@
     </div>
     <div id="debug" hidden></div>
     <div id="underwater" hidden></div>
-    <div id="clock" aria-live="off"><span id="clock-time"></span><span id="clock-date"></span></div>
+    <div id="clock" aria-live="off"><span id="clock-time"></span><span id="clock-date"></span><span id="wallet"><i aria-hidden="true"></i><span id="wallet-amount">0</span> bayas</span></div>
+    <div id="shop" hidden>
+      <div class="shop-panel">
+        <header>
+          <h2>Tienda de Avellana</h2>
+          <p>Tienes <b id="shop-wallet">0</b> bayas</p>
+        </header>
+        <section>
+          <h3>A la venta hoy</h3>
+          <ul id="shop-buy" class="shop-list"></ul>
+        </section>
+        <section>
+          <h3>Vender</h3>
+          <ul id="shop-sell" class="shop-list"></ul>
+        </section>
+        <footer><button type="button" id="shop-close">Salir de la tienda</button> <kbd>Esc</kbd></footer>
+      </div>
+    </div>
     <div id="overlay">
       <div class="panel">
         <h1>Maxycraft</h1>
-        <p class="version">v0.4 · Vecinos</p>
+        <p class="version">v0.5 · Bayas y tienda</p>
         <button type="button" id="play">Haz clic para jugar</button>
         <p id="island-info" class="island-info"></p>
         <ul class="controls">

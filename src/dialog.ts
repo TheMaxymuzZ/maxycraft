@@ -63,6 +63,11 @@ const POLITE = [
 ];
 const ALREADY = 'Ya me has dado un regalo hoy. ¡Me vas a malacostumbrar, {c}!';
 const RETURN_GIFT = 'Toma, esto es para ti. ¡Un regalo por otro regalo, {c}!';
+const SHOP_GREETINGS = [
+  '¡{saludo}! ¡Bienvenida, bienvenido a mi tienda! Hoy tengo cosas muy bonitas, {c}.',
+  '¡Hola! Si traes fruta o conchas, te las compro a buen precio, {c}.',
+  '¡{saludo}! Los precios de venta cambian cada día. ¡Mira bien antes de vender, {c}!',
+];
 const GOODBYE = ['¡Hasta luego, {c}!', '¡Nos vemos!', 'Venga, ¡que vaya bien, {c}!'];
 
 const CATEGORY: Record<string, 'fruta' | 'conchas' | 'flores' | 'madera'> = {
@@ -85,6 +90,8 @@ export interface DialogContext {
   toast: (text: string) => void;
   /** Se llama al terminar la conversación. */
   onClose: () => void;
+  /** Abre la tienda (al hablar con la dependienta). */
+  openShop: () => void;
 }
 
 /** Ventana de conversación con un vecino, al estilo de Animal Crossing. */
@@ -122,7 +129,8 @@ export class Dialog {
       v.memory.talkedDay = this.ctx.today;
       v.memory.friendship += 1;
     }
-    this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
+    if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
+    else this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
   }
 
   private say(line: string) {
@@ -158,7 +166,14 @@ export class Dialog {
       b.addEventListener('click', fn);
       this.choicesEl.appendChild(b);
     };
-    add('Charlar', () => this.say(pick(CHATS[v.profile.personality])));
+    if (v.isShopkeeper) {
+      add('Comprar y vender', () => {
+        this.finish(true);
+        this.ctx.openShop();
+      });
+    } else {
+      add('Charlar', () => this.say(pick(CHATS[v.profile.personality])));
+    }
     const slot = this.ctx.selectedSlot();
     const stack = this.ctx.inventory.slots[slot];
     if (stack && !itemDef(stack.id).tool) {
@@ -192,10 +207,17 @@ export class Dialog {
     this.say(pick(liked ? LIKED : POLITE));
   }
 
-  finish() {
+  /** Termina la conversación. Con `quiet` se cierra sin despedida ni avisar (para pasar a la tienda). */
+  finish(quiet = false) {
     const v = this.villager;
     if (!v) return;
     clearInterval(this.typing);
+    if (quiet) {
+      v.talking = false;
+      this.villager = null;
+      this.el.hidden = true;
+      return;
+    }
     this.textEl.textContent = this.fill(pick(GOODBYE));
     this.choicesEl.innerHTML = '';
     v.talking = false;

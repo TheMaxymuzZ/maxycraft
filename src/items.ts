@@ -13,6 +13,10 @@ export interface ItemDef {
   tool?: ToolKind;
   /** Usos antes de romperse (solo herramientas). */
   durability?: number;
+  /** Bayas que paga la tienda (antes del precio del día). */
+  sell: number;
+  /** Bayas que cuesta en la tienda, si se vende allí. */
+  buy?: number;
 }
 
 export interface ItemStack {
@@ -32,21 +36,28 @@ function add(def: ItemDef) {
   if (def.block !== undefined) byBlock.set(def.block, def);
 }
 
-// Bloques que se pueden llevar en el bolsillo y colocar.
-const PLACEABLE: [Block, string][] = [
-  [Block.Dirt, 'tierra'],
-  [Block.Stone, 'piedra'],
-  [Block.Sand, 'arena'],
-  [Block.Log, 'tronco'],
-  [Block.Planks, 'tablones'],
-  [Block.Leaves, 'hojas'],
-  [Block.PalmLog, 'tronco_palmera'],
-  [Block.FlowerRed, 'tulipan'],
-  [Block.FlowerYellow, 'pensamiento'],
-  [Block.FlowerWhite, 'cosmos'],
+// Bloques que se pueden llevar en el bolsillo y colocar: [bloque, id, venta, compra].
+const PLACEABLE: [Block, string, number, number?][] = [
+  [Block.Dirt, 'tierra', 2],
+  [Block.Stone, 'piedra', 15, 40],
+  [Block.Sand, 'arena', 2, 10],
+  [Block.Log, 'tronco', 30],
+  [Block.Planks, 'tablones', 10, 30],
+  [Block.Leaves, 'hojas', 1],
+  [Block.PalmLog, 'tronco_palmera', 30],
+  [Block.FlowerRed, 'tulipan', 40, 120],
+  [Block.FlowerYellow, 'pensamiento', 40, 120],
+  [Block.FlowerWhite, 'cosmos', 40, 120],
+  [Block.Wall, 'pared', 30, 100],
+  [Block.ShopWall, 'pared_madera', 30, 100],
+  [Block.RoofRed, 'tejado_rojo', 25, 80],
+  [Block.RoofBlue, 'tejado_azul', 25, 80],
+  [Block.RoofGreen, 'tejado_verde', 25, 80],
+  [Block.RoofYellow, 'tejado_amarillo', 25, 80],
+  [Block.Window, 'ventana', 40, 150],
 ];
-for (const [block, id] of PLACEABLE) {
-  add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block });
+for (const [block, id, sell, buy] of PLACEABLE) {
+  add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block, sell, buy });
 }
 
 // Frutas: en Animal Crossing se apilan de 10 en 10.
@@ -58,15 +69,20 @@ const FRUIT_ITEMS: [Block, string][] = [
   [Block.Cherry, 'cereza'],
   [Block.Coconut, 'coco'],
 ];
-for (const [block, id] of FRUIT_ITEMS) add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 10 });
+for (const [block, id] of FRUIT_ITEMS) {
+  add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 10, sell: block === Block.Coconut ? 250 : 100 });
+}
 
-add({ id: 'rama', name: 'Rama', tile: Tile.Branch, maxStack: 30 });
-add({ id: 'concha', name: 'Concha', tile: Tile.Shell, maxStack: 10 });
-add({ id: 'caracola', name: 'Caracola', tile: Tile.Conch, maxStack: 10 });
-add({ id: 'estrella', name: 'Estrella de mar', tile: Tile.Starfish, maxStack: 10 });
-add({ id: 'hacha', name: 'Hacha', tile: Tile.Axe, maxStack: 1, tool: 'axe', durability: 40 });
-add({ id: 'pala', name: 'Pala', tile: Tile.Shovel, maxStack: 1, tool: 'shovel', durability: 40 });
-add({ id: 'pico', name: 'Pico', tile: Tile.Pickaxe, maxStack: 1, tool: 'pickaxe', durability: 40 });
+add({ id: 'rama', name: 'Rama', tile: Tile.Branch, maxStack: 30, sell: 5 });
+add({ id: 'concha', name: 'Concha', tile: Tile.Shell, maxStack: 10, sell: 60 });
+add({ id: 'caracola', name: 'Caracola', tile: Tile.Conch, maxStack: 10, sell: 100 });
+add({ id: 'estrella', name: 'Estrella de mar', tile: Tile.Starfish, maxStack: 10, sell: 150 });
+add({ id: 'hacha', name: 'Hacha', tile: Tile.Axe, maxStack: 1, tool: 'axe', durability: 40, sell: 50, buy: 400 });
+add({ id: 'pala', name: 'Pala', tile: Tile.Shovel, maxStack: 1, tool: 'shovel', durability: 40, sell: 50, buy: 400 });
+add({ id: 'pico', name: 'Pico', tile: Tile.Pickaxe, maxStack: 1, tool: 'pickaxe', durability: 40, sell: 50, buy: 500 });
+
+/** Todo lo que la tienda puede tener a la venta. */
+export const CATALOG = defs.filter((d) => d.buy !== undefined).map((d) => d.id);
 
 export const SHELLS = ['concha', 'caracola', 'estrella'] as const;
 
