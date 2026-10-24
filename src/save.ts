@@ -28,6 +28,9 @@ export interface SaveData {
   /** Desde la v0.8: la casa del jugador (nivel, deuda y tejado) y sus muebles. */
   home?: { level: number; debt: number; roof: number };
   furniture?: PlacedFurniture[];
+  /** Desde la v0.9: recetas aprendidas para la mesa de trabajo y la botella del día. */
+  recipes?: string[];
+  bottle?: { day: string; taken: boolean };
 }
 
 // El navegador puede negar el almacenamiento (modo privado, cookies bloqueadas):

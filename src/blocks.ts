@@ -36,6 +36,9 @@ export enum Block {
   GemOre = 31,
   Torch = 32,
   Canvas = 33,
+  Workbench = 34,
+  Fence = 35,
+  WhiteFence = 36,
 }
 
 export const TILE = 16;
@@ -55,11 +58,11 @@ export enum Tile {
   Wall, RoofRed, RoofBlue, RoofGreen, RoofYellow, Window, ShopWall, Berry,
   Rod, Net, MuseumWall,
   CoalOre, IronOre, GoldOre, GemOre, Torch, Coal, IronNugget, GoldNugget, Gem, IronAxe, IronPickaxe, IronShovel,
-  Canvas,
+  Canvas, WorkbenchTop, WorkbenchSide, Bottle, WhiteWood, FenceIcon, WhiteFenceIcon,
 }
 
-/** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. */
-export type Shape = 'cube' | 'cross';
+/** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos. */
+export type Shape = 'cube' | 'cross' | 'fence';
 
 export interface BlockDef {
   name: string;
@@ -71,6 +74,9 @@ export interface BlockDef {
 
 const cube = (name: string, side: Tile, top = side, bottom = top, transparent = false): BlockDef => ({
   name, tiles: [side, top, bottom], transparent, shape: 'cube',
+});
+const fence = (name: string, tile: Tile): BlockDef => ({
+  name, tiles: [tile, tile, tile], transparent: true, shape: 'fence',
 });
 const cross = (name: string, tile: Tile): BlockDef => ({
   name, tiles: [tile, tile, tile], transparent: true, shape: 'cross',
@@ -110,6 +116,9 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.GemOre]: cube('Amatista', Tile.GemOre),
   [Block.Torch]: cross('Antorcha', Tile.Torch),
   [Block.Canvas]: cube('Lona', Tile.Canvas),
+  [Block.Workbench]: cube('Mesa de trabajo', Tile.WorkbenchSide, Tile.WorkbenchTop, Tile.Planks),
+  [Block.Fence]: fence('Valla de madera', Tile.Planks),
+  [Block.WhiteFence]: fence('Valla blanca', Tile.WhiteWood),
 };
 
 /** Bloques que dan luz y cuánta (alcance en bloques). */
@@ -124,7 +133,17 @@ export const ROOFS = [Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.Roof
 export const FRUITS = [Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry] as const;
 
 /** Bloquea el paso del jugador. */
+/** Si choca con el jugador. */
 export function isSolid(b: number): boolean {
+  return b !== Block.Air && BLOCKS[b].shape !== 'cross';
+}
+
+export function isFence(b: number): boolean {
+  return b !== Block.Air && BLOCKS[b].shape === 'fence';
+}
+
+/** Bloque entero (no planta ni valla): da sombra en las esquinas y sostiene lo que se pone encima. */
+export function isFullBlock(b: number): boolean {
   return b !== Block.Air && BLOCKS[b].shape === 'cube';
 }
 
@@ -641,6 +660,60 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     return (x + y) % 6 === 0 ? [96, 160, 112] : r() < 0.2 ? [104, 170, 120] : [110, 176, 126];
   });
 
+  paintTile(ctx, Tile.WorkbenchTop, (x, y, r) => {
+    if (x === 0 || y === 0 || x === 15 || y === 15) return [120, 84, 50];
+    if (x === 7 || x === 8) return [150, 112, 66];
+    return pick(r, WOOD);
+  });
+  paintTile(ctx, Tile.WorkbenchSide, (x, y, r) => {
+    if (y < 3) return y === 2 ? [120, 84, 50] : pick(r, WOOD);
+    // Herramientas colgadas: una sierra y un martillo.
+    if (y >= 5 && y <= 9 && x >= 2 && x <= 6) return y === 5 || x === 2 ? [190, 194, 200] : null;
+    if (x === 11 && y >= 5 && y <= 12) return [116, 82, 50];
+    if (y === 5 && x >= 9 && x <= 13) return [110, 112, 120];
+    if (x === 0 || x === 15 || y === 15) return [120, 84, 50];
+    return (x === 1 || x === 14) ? [150, 112, 66] : y % 4 === 3 ? [150, 112, 66] : pick(r, WOOD);
+  });
+  paintTile(ctx, Tile.WhiteWood, (_x, y, r) => (y % 4 === 3 ? [214, 214, 206] : pick(r, [[246, 246, 240], [238, 238, 230], [250, 250, 246]])));
+  const FENCE = [
+    '................',
+    '................',
+    '..aa...aa...aa..',
+    '..ab...ab...ab..',
+    '..abbbbabbbbab..',
+    '..abbbbabbbbab..',
+    '..ab...ab...ab..',
+    '..ab...ab...ab..',
+    '..ab...ab...ab..',
+    '..abbbbabbbbab..',
+    '..abbbbabbbbab..',
+    '..ab...ab...ab..',
+    '..ab...ab...ab..',
+    '..ab...ab...ab..',
+    '................',
+    '................',
+  ];
+  paintSprite(ctx, Tile.FenceIcon, FENCE, { a: [206, 166, 108], b: [150, 112, 66] });
+  paintSprite(ctx, Tile.WhiteFenceIcon, FENCE, { a: [250, 250, 246], b: [204, 204, 196] });
+  paintSprite(ctx, Tile.Bottle, [
+    '................',
+    '................',
+    '.........cc.....',
+    '........cggc....',
+    '.......cgggc....',
+    '......cggggc....',
+    '.....cggpgc.....',
+    '....cggppgc.....',
+    '...cgpppgc......',
+    '..cgpppgc.......',
+    '..cgppgc........',
+    '..cgggc.........',
+    '...ccc..........',
+    '................',
+    '................',
+    '................',
+  ], { c: [60, 120, 110], g: [150, 210, 196], p: [240, 228, 190] });
+
   // Peces e insectos, una casilla para cada uno.
   CREATURES.forEach((c, i) => {
     paintSprite(ctx, CREATURE_TILE_START + i, CREATURE_SPRITES[c.sprite], { e: [20, 20, 20], c: [255, 255, 200], ...c.colors });
@@ -666,6 +739,8 @@ export function createAtlasTexture(canvas: HTMLCanvasElement): THREE.Texture {
 /** Casilla del atlas que sirve de icono para un bloque. */
 export function blockIconTile(b: Block): number {
   const def = BLOCKS[b];
+  if (b === Block.Fence) return Tile.FenceIcon;
+  if (b === Block.WhiteFence) return Tile.WhiteFenceIcon;
   return def.tiles[b === Block.Grass || def.shape === 'cross' ? 0 : 1];
 }
 

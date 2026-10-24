@@ -33,12 +33,14 @@ const CHATS: Record<Personality, string[]> = {
     'Me encanta pasear junto al río. El sonido del agua me pone contenta, {c}.',
     'Cuando sea mayor quiero tener la casa más bonita de la isla, {c}.',
     'He visto conchas en la playa esta mañana. ¡Cada día salen nuevas, {c}!',
+    'A veces el mar trae botellas con recetas dentro. ¡Mira bien en la playa, {c}!',
   ],
   'gruñón': [
     'La piedra no se rompe con las manos. Necesitas un pico, eso lo sabe cualquiera, {c}.',
     'Antes esta isla era más tranquila. Ahora hay alguien rompiendo bloques todo el día, {c}.',
     'Si vas a construir algo, que no sea delante de mi ventana, {c}.',
     'Las herramientas se gastan. Lleva siempre ramas de sobra, {c}.',
+    'Para fabricar muebles hace falta una mesa de trabajo. Cuatro tablones y listo, {c}.',
   ],
   'dormilón': [
     'La fruta de esta isla está riquísima. Podría comer {fruta} todo el día, {c}.',
@@ -122,6 +124,8 @@ export interface DialogContext {
   donate: (id: string) => boolean;
   openCollection: () => void;
   home: HomeActions;
+  /** Aprende una receta nueva para la mesa de trabajo; devuelve su nombre o null. */
+  learnRecipe: () => string | null;
 }
 
 /** Ventana de conversación con un vecino, al estilo de Animal Crossing. */
@@ -163,6 +167,7 @@ export class Dialog {
     }
     if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
     else if (v.isCurator) this.say(pick(MUSEUM_GREETINGS));
+    else if (first && v.memory.friendship >= 3 && Math.random() < 0.4 && this.teach()) return;
     else this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
   }
 
@@ -227,6 +232,15 @@ export class Dialog {
     }
     add('Adiós', () => this.finish());
     (this.choicesEl.firstElementChild as HTMLButtonElement | null)?.focus();
+  }
+
+  /** El vecino comparte una receta, como en Animal Crossing cuando están haciendo manualidades. */
+  private teach(): boolean {
+    const name = this.ctx.learnRecipe();
+    if (!name) return false;
+    this.say(`¡Hola! Estaba haciendo manualidades y se me ha ocurrido cómo fabricar: ${name.toLowerCase()}. ¡Toma, te regalo la receta, {c}!`);
+    this.ctx.toast(`Receta nueva: ${name.toLowerCase()}. Úsala en la mesa de trabajo`);
+    return true;
   }
 
   private back = () => this.say('¿Algo más, {c}?');

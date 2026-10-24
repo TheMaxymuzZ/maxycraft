@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.8 · Mi casa**
+Versión actual: **v0.9 · Mesa de trabajo**
+
+- Mesa de trabajo (4 tablones, desde los bolsillos). Colócala y haz clic derecho sobre ella para fabricar con las recetas que sepas.
+- 18 recetas: vallas de madera y blancas, muebles (también tres nuevos que solo se fabrican: barril, farol y banco), ventanas, paredes y las herramientas de hierro.
+- Las recetas se aprenden: cada día el mar deja en la playa una botella con un mensaje (clic derecho para leerla), y los vecinos que te tienen cariño a veces te enseñan una al saludarte.
+- Las vallas se unen solas entre sí y con los bloques de al lado, y no se pueden saltar.
 
 - Empiezas delante de tu propia parcela, con una tienda de campaña y una cama.
 - Habla con Avellana y elige «Mi casa» para cambiar la tienda por una casa de verdad: pequeña (5.000 bayas), mediana (15.000) y grande (40.000). Eliges el color del tejado y la pagas poco a poco, sin intereses. Para ampliarla hay que terminar de pagar la anterior.

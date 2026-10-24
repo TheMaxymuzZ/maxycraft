@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, ROOFS, isCross, isOpaque, isSolid } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, ROOFS, isCross, isFence, isFullBlock, isOpaque, isSolid } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 
 export const CHUNK = 16;
@@ -753,6 +753,43 @@ export class World {
             continue;
           }
 
+          if (def.shape === 'fence') {
+            const [u0, v0] = tileUV(def.tiles[0]);
+            const light = this.lightAt(wx, y, wz, torches);
+            // Caja pequeña dentro del bloque; la textura se recorta según su tamaño.
+            const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
+              for (let f = 0; f < 6; f++) {
+                const face = FACES[f];
+                const [nx, ny, nz] = face.dir;
+                const start = positions.length / 3;
+                for (const [cx, cy, cz] of face.corners) {
+                  const px = cx ? x1 : x0;
+                  const py = cy ? y1 : y0;
+                  const pz = cz ? z1 : z0;
+                  positions.push(x + px, y + py, z + pz);
+                  normals.push(nx, ny, nz);
+                  const [a, b2] = nx ? [pz, py] : ny ? [px, pz] : [px, py];
+                  uvs.push(u0 + inset + a * (tileSize - 2 * inset), v0 + inset + b2 * (tileSize - 2 * inset));
+                  const shade = FACE_SHADE[f] * light;
+                  colors.push(shade, shade, shade);
+                }
+                indices.push(start, start + 1, start + 2, start + 2, start + 1, start + 3);
+              }
+            };
+            box(0.375, 0, 0.375, 0.625, 1, 0.625);
+            for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+              const n = this.getBlock(wx + dx, y, wz + dz);
+              if (!isFence(n) && !isFullBlock(n)) continue;
+              const x0 = dx > 0 ? 0.625 : dx < 0 ? 0 : 0.4375;
+              const x1 = dx > 0 ? 1 : dx < 0 ? 0.375 : 0.5625;
+              const z0 = dz > 0 ? 0.625 : dz < 0 ? 0 : 0.4375;
+              const z1 = dz > 0 ? 1 : dz < 0 ? 0.375 : 0.5625;
+              box(x0, 0.375, z0, x1, 0.5625, z1);
+              box(x0, 0.75, z0, x1, 0.9375, z1);
+            }
+            continue;
+          }
+
           for (let f = 0; f < 6; f++) {
             const face = FACES[f];
             const [nx, ny, nz] = face.dir;
@@ -840,9 +877,9 @@ export class World {
     };
     const u = off(axes[0]);
     const v = off(axes[1]);
-    const s1 = isSolid(this.getBlock(px + u[0], py + u[1], pz + u[2])) ? 1 : 0;
-    const s2 = isSolid(this.getBlock(px + v[0], py + v[1], pz + v[2])) ? 1 : 0;
-    const cr = isSolid(this.getBlock(px + u[0] + v[0], py + u[1] + v[1], pz + u[2] + v[2])) ? 1 : 0;
+    const s1 = isFullBlock(this.getBlock(px + u[0], py + u[1], pz + u[2])) ? 1 : 0;
+    const s2 = isFullBlock(this.getBlock(px + v[0], py + v[1], pz + v[2])) ? 1 : 0;
+    const cr = isFullBlock(this.getBlock(px + u[0] + v[0], py + u[1] + v[1], pz + u[2] + v[2])) ? 1 : 0;
     if (s1 && s2) return 0;
     return 3 - (s1 + s2 + cr);
   }
