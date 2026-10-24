@@ -39,7 +39,8 @@ export class Player {
   update(dt: number) {
     const forward = (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0);
     const strafe = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0);
-    this.inWater = this.position.y + 0.8 < WATER_SURFACE;
+    // Solo se nada en agua de verdad (mar o río), no en una cueva por debajo del nivel del mar.
+    this.inWater = this.position.y + 0.8 < WATER_SURFACE && !!this.world.waterKind(Math.floor(this.position.x), Math.floor(this.position.z));
     let speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? SPRINT : WALK;
     if (this.inWater) speed *= 0.55;
 

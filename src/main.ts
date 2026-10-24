@@ -134,17 +134,6 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', persist);
 
-// --- Mar ---
-
-const water = new THREE.Mesh(
-  new THREE.PlaneGeometry(1200, 1200),
-  new THREE.MeshLambertMaterial({ color: 0x3fa9d6, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide }),
-);
-water.rotation.x = -Math.PI / 2;
-water.position.y = WATER_SURFACE;
-water.renderOrder = 1;
-scene.add(water);
-
 // Nubes de bloques que pasan despacio.
 const clouds = new THREE.Group();
 const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, fog: false });
@@ -441,8 +430,7 @@ function updateBreaking(dt: number) {
     return;
   }
   const stack = hud.selectedStack;
-  const tool = stack ? itemDef(stack.id).tool : undefined;
-  const info = breakInfo(b, tool);
+  const info = breakInfo(b, stack ? itemDef(stack.id) : null);
   if (!info.allowed) {
     if (warnedKey !== key) hud.toast(`Necesitas ${toolNameFor(b)} para romper esto`);
     warnedKey = key;
@@ -685,7 +673,7 @@ function frame(now: number) {
   else if (fish === 'escaped') hud.toast('Se ha escapado…');
 
   // Bajo el agua todo se ve azul y cerca.
-  const submerged = camera.position.y < WATER_SURFACE;
+  const submerged = camera.position.y < WATER_SURFACE && !!world.waterKind(Math.floor(camera.position.x), Math.floor(camera.position.z));
   underwater.hidden = !submerged;
   if (submerged) {
     fog.color.setHex(0x2a6d99);
@@ -697,8 +685,6 @@ function frame(now: number) {
     fog.far = FOG_FAR;
   }
 
-  water.position.x = camera.position.x;
-  water.position.z = camera.position.z;
   clouds.position.x = ((now / 1000) * 1.2) % 300;
   cloudMat.color.setScalar(1 - sky.night * 0.6);
 

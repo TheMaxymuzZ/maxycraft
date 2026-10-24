@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.6 · Bichos y peces**
+Versión actual: **v0.7 · Cuevas y minerales**
+
+- Bajo la isla hay túneles y salas. Dos escaleras bajan desde la superficie, y también se puede cavar con el pico.
+- Cuanto más hondo, más oscuro: las antorchas (1 rama + 1 carbón = 4) iluminan alrededor. No hay monstruos.
+- Minerales: carbón, hierro, oro y amatista, más raros cuanto más abajo. Con pepitas de hierro se fabrican pico, hacha y pala de hierro, más rápidos y duraderos.
+- El agua ahora solo está donde hay mar o río de verdad, así que los agujeros en tierra ya no se inundan.
 
 - Caña de pescar y red (se fabrican con 5 ramas o se compran). Con la caña, clic derecho al agua, espera a que pique y vuelve a hacer clic a tiempo.
 - 10 peces (6 de mar y 4 de río) y 7 insectos, cada uno con su sitio y su horario.

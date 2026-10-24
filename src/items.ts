@@ -14,6 +14,8 @@ export interface ItemDef {
   tool?: ToolKind;
   /** Usos antes de romperse (solo herramientas). */
   durability?: number;
+  /** Cuántas veces más rápido rompe con la herramienta adecuada (5 por defecto). */
+  power?: number;
   /** Bayas que paga la tienda (antes del precio del día). */
   sell: number;
   /** Bayas que cuesta en la tienda, si se vende allí. */
@@ -83,6 +85,14 @@ add({ id: 'pala', name: 'Pala', tile: Tile.Shovel, maxStack: 1, tool: 'shovel', 
 add({ id: 'pico', name: 'Pico', tile: Tile.Pickaxe, maxStack: 1, tool: 'pickaxe', durability: 40, sell: 50, buy: 500 });
 add({ id: 'cana', name: 'Caña de pescar', tile: Tile.Rod, maxStack: 1, tool: 'rod', durability: 30, sell: 50, buy: 400 });
 add({ id: 'red', name: 'Red', tile: Tile.Net, maxStack: 1, tool: 'net', durability: 30, sell: 50, buy: 400 });
+add({ id: 'hacha_hierro', name: 'Hacha de hierro', tile: Tile.IronAxe, maxStack: 1, tool: 'axe', durability: 120, power: 8, sell: 200 });
+add({ id: 'pico_hierro', name: 'Pico de hierro', tile: Tile.IronPickaxe, maxStack: 1, tool: 'pickaxe', durability: 120, power: 8, sell: 200 });
+add({ id: 'pala_hierro', name: 'Pala de hierro', tile: Tile.IronShovel, maxStack: 1, tool: 'shovel', durability: 120, power: 8, sell: 200 });
+add({ id: 'antorcha', name: 'Antorcha', tile: blockIconTile(Block.Torch), maxStack: 99, block: Block.Torch, sell: 20, buy: 60 });
+add({ id: 'carbon', name: 'Carbón', tile: Tile.Coal, maxStack: 30, sell: 50 });
+add({ id: 'pepita_hierro', name: 'Pepita de hierro', tile: Tile.IronNugget, maxStack: 30, sell: 375 });
+add({ id: 'pepita_oro', name: 'Pepita de oro', tile: Tile.GoldNugget, maxStack: 30, sell: 1500 });
+add({ id: 'amatista', name: 'Amatista', tile: Tile.Gem, maxStack: 30, sell: 800 });
 add({ id: 'muro_piedra', name: 'Muro de piedra', tile: blockIconTile(Block.MuseumWall), maxStack: 99, block: Block.MuseumWall, sell: 30, buy: 100 });
 
 // Peces e insectos: se pueden vender o donar al museo.
@@ -125,6 +135,14 @@ export function dropFor(b: Block): string | null {
       return 'cereza';
     case Block.Coconut:
       return 'coco';
+    case Block.CoalOre:
+      return 'carbon';
+    case Block.IronOre:
+      return 'pepita_hierro';
+    case Block.GoldOre:
+      return 'pepita_oro';
+    case Block.GemOre:
+      return 'amatista';
     default:
       return byBlock.get(b)?.id ?? null;
   }
@@ -151,6 +169,11 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Dirt]: { time: 0.5, tool: 'shovel' },
   [Block.Sand]: { time: 0.5, tool: 'shovel' },
   [Block.Stone]: { time: 1.5, tool: 'pickaxe', needsTool: true },
+  [Block.CoalOre]: { time: 2.5, tool: 'pickaxe', needsTool: true },
+  [Block.IronOre]: { time: 3.5, tool: 'pickaxe', needsTool: true },
+  [Block.GoldOre]: { time: 4.5, tool: 'pickaxe', needsTool: true },
+  [Block.GemOre]: { time: 4.5, tool: 'pickaxe', needsTool: true },
+  [Block.MuseumWall]: { time: 1.5, tool: 'pickaxe', needsTool: true },
   [Block.Log]: { time: 2.5, tool: 'axe' },
   [Block.PalmLog]: { time: 2.5, tool: 'axe' },
   [Block.Planks]: { time: 1.6, tool: 'axe' },
@@ -158,11 +181,11 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.PalmLeaves]: { time: 0.25 },
 };
 
-export function breakInfo(b: Block, tool: ToolKind | undefined): { seconds: number; allowed: boolean; usesTool: boolean } {
+export function breakInfo(b: Block, toolItem: ItemDef | null): { seconds: number; allowed: boolean; usesTool: boolean } {
   const h = HARDNESS[b] ?? { time: 0 };
-  const usesTool = !!h.tool && h.tool === tool;
+  const usesTool = !!h.tool && h.tool === toolItem?.tool;
   if (h.needsTool && !usesTool) return { seconds: Infinity, allowed: false, usesTool: false };
-  return { seconds: usesTool ? h.time / 5 : h.time, allowed: true, usesTool };
+  return { seconds: usesTool ? h.time / (toolItem?.power ?? 5) : h.time, allowed: true, usesTool };
 }
 
 export function toolNameFor(b: Block): string | null {
@@ -187,4 +210,8 @@ export const RECIPES: Recipe[] = [
   { result: 'pico', count: 1, needs: [['rama', 6]] },
   { result: 'cana', count: 1, needs: [['rama', 5]] },
   { result: 'red', count: 1, needs: [['rama', 5]] },
+  { result: 'antorcha', count: 4, needs: [['rama', 1], ['carbon', 1]] },
+  { result: 'pico_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 3]] },
+  { result: 'hacha_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 3]] },
+  { result: 'pala_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 2]] },
 ];

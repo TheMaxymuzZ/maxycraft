@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, ROOFS, isCross, isOpaque, isSolid } from './blocks';
-import { columnRandom, fbm } from './noise';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, LIGHT_RADIUS, ROOFS, isCross, isOpaque, isSolid } from './blocks';
+import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 
 export const CHUNK = 16;
 export const HEIGHT = 64;
@@ -16,6 +16,8 @@ class Chunk {
   readonly data = new Uint8Array(CHUNK * CHUNK * HEIGHT);
   mesh: THREE.Mesh | null = null;
   dirty = true;
+  /** Altura del bloque opaco más alto de cada columna, para saber qué está bajo tierra. */
+  sky: Int16Array | null = null;
   constructor(readonly cx: number, readonly cz: number) {}
 }
 
@@ -74,6 +76,13 @@ export class World {
   /** Sube cada vez que el jugador cambia un bloque, para saber si hay que guardar. */
   revision = 0;
   readonly plots: Plot[];
+  /** Entradas de cueva: escaleras que bajan desde la superficie. */
+  readonly caveEntrances: { x: number; z: number; y: number }[];
+  /** Posiciones "x,y,z" de las antorchas, que iluminan las cuevas. */
+  private torches = new Map<string, [number, number, number]>();
+
+  /** Material del agua; se pone desde fuera para que coincida con el resto de la escena. */
+  waterMaterial: THREE.Material = new THREE.MeshLambertMaterial({ color: 0x3fa9d6, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
 
   constructor(readonly seed: number, private material: THREE.Material, edits: Edits = {}) {
     this.fruit = FRUITS[Math.floor(columnRandom(1, 1, seed) * FRUITS.length)];
@@ -81,6 +90,56 @@ export class World {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
     }
     this.plots = this.findPlots(5);
+    this.caveEntrances = this.findCaveEntrances(2);
+    // Antorchas que el jugador ya había puesto.
+    for (const [k, m] of this.edits) {
+      const [cx, cz] = k.split(',').map(Number);
+      for (const [i, b] of m) {
+        if (b !== Block.Torch) continue;
+        const x = i % CHUNK;
+        const z = Math.floor(i / CHUNK) % CHUNK;
+        const y = Math.floor(i / (CHUNK * CHUNK));
+        const wx = cx * CHUNK + x;
+        const wz = cz * CHUNK + z;
+        this.torches.set(`${wx},${y},${wz}`, [wx, y, wz]);
+      }
+    }
+  }
+
+  /** Sitios en tierra firme, lejos de casas y del río, para bajar a las cuevas. */
+  private findCaveEntrances(count: number) {
+    const found: { x: number; z: number; y: number }[] = [];
+    for (let tries = 0; tries < 400 && found.length < count; tries++) {
+      const a = columnRandom(tries, 55, this.seed) * Math.PI * 2;
+      const d = 15 + columnRandom(tries, 56, this.seed) * 30;
+      const x = Math.round(Math.cos(a) * d);
+      const z = Math.round(Math.sin(a) * d);
+      const y = this.naturalHeight(x, z);
+      if (y < SEA_LEVEL + 2 || this.river(x, z) < 8) continue;
+      if (this.plotAt(x, z, 8) || this.plotAt(x + 16, z, 8)) continue;
+      if (found.some((e) => Math.hypot(e.x - x, e.z - z) < 30)) continue;
+      found.push({ x, z, y });
+    }
+    return found;
+  }
+
+  /** Escalera de 2 de ancho que baja hacia +x y termina en una sala con un túnel. */
+  private carveEntrance(e: { x: number; z: number; y: number }, put: (x: number, y: number, z: number) => void) {
+    const bottom = 5;
+    const steps = e.y - bottom;
+    for (let i = 0; i <= steps; i++) {
+      const floor = e.y - i;
+      for (let dz = 0; dz < 2; dz++) for (let h = 0; h < 4; h++) put(e.x + i, floor + h, e.z + dz);
+    }
+    const hx = e.x + steps;
+    // Sala al final de la escalera.
+    for (let dx = 1; dx <= 6; dx++) for (let dz = -2; dz <= 3; dz++) for (let h = 0; h < 4; h++) put(hx + dx, bottom + h, e.z + dz);
+    // Túnel que sigue serpenteando.
+    let tz = e.z;
+    for (let dx = 7; dx < 40; dx++) {
+      tz += Math.round(Math.sin((dx + e.x) * 0.3));
+      for (let dz = 0; dz < 3; dz++) for (let h = 0; h < 3; h++) put(hx + dx, bottom + h, tz + dz);
+    }
   }
 
   /** Busca sitios llanos para las casas, lejos del río, de la playa y entre sí. */
@@ -138,7 +197,8 @@ export class World {
 
   /** Qué agua hay en (x, z): río dentro de la isla, mar fuera, o null si es tierra. */
   waterKind(x: number, z: number): 'mar' | 'río' | null {
-    if (this.getBlock(x, SEA_LEVEL, z) !== Block.Air || this.getBlock(x, SEA_LEVEL + 1, z) !== Block.Air) return null;
+    // Hay agua donde el terreno natural queda bajo el nivel del mar y nadie ha tapado el hueco.
+    if (this.naturalHeight(x, z) > SEA_LEVEL || this.getBlock(x, SEA_LEVEL, z) !== Block.Air) return null;
     return this.landMask(x, z) >= 0.26 ? 'río' : 'mar';
   }
 
@@ -194,10 +254,14 @@ export class World {
         const h = this.heightAt(wx, wz);
         heights[z * CHUNK + x] = h;
         const beach = this.isBeach(h);
+        // Bajo la isla hay cuevas, solo donde hay tierra firme encima.
+        const caves = !beach && !this.plotAt(wx, wz, 2);
         for (let y = 0; y <= h; y++) {
           let b: Block;
           if (y === h) b = beach ? Block.Sand : Block.Grass;
           else if (y > h - 4) b = beach ? Block.Sand : Block.Dirt;
+          else if (y > 0 && caves && y < h - 5 && this.isCave(wx, y, wz)) b = Block.Air;
+          else if (y > 0) b = this.oreAt(wx, y, wz);
           else b = Block.Stone;
           d[index(x, y, z)] = b;
         }
@@ -230,6 +294,15 @@ export class World {
         if (kind === 'fruit') this.placeFruitTree(wx, wz, tx, tz, set);
         else if (kind === 'palm') this.placePalm(this.heightAt(wx, wz) + 1, tx, tz, set);
       }
+    }
+
+    // Entradas de cueva.
+    for (const e of this.caveEntrances) {
+      if (e.x + 90 < ox || e.x - 4 >= ox + CHUNK || e.z + 40 < oz || e.z - 40 >= oz + CHUNK) continue;
+      this.carveEntrance(e, (x, y, z) => {
+        // Solo bajo tierra firme: el túnel no se abre al fondo del mar.
+        if (y > 0 && this.naturalHeight(x, z) > SEA_LEVEL + 1) set(x - ox, y, z - oz, Block.Air, true);
+      });
     }
 
     // Casas de los vecinos.
@@ -273,6 +346,24 @@ export class World {
         }
       }
     }
+  }
+
+  /** Túneles (dos ruidos que se cruzan) y alguna sala grande. */
+  private isCave(x: number, y: number, z: number): boolean {
+    const a = valueNoise3(x / 14, y / 7, z / 14, this.seed + 20);
+    const b = valueNoise3(x / 10, y / 6, z / 10, this.seed + 21);
+    if (Math.abs(a - 0.5) < 0.06 && Math.abs(b - 0.5) < 0.12) return true;
+    return y < 12 && valueNoise3(x / 18, y / 9, z / 18, this.seed + 22) > 0.8;
+  }
+
+  /** Piedra o mineral: cuanto más hondo, más raro y valioso. */
+  private oreAt(x: number, y: number, z: number): Block {
+    const r = blockRandom(x, y, z, this.seed);
+    if (y <= 6 && r < 0.004) return Block.GemOre;
+    if (y <= 9 && r < 0.008) return Block.GoldOre;
+    if (y <= 14 && r < 0.02) return Block.IronOre;
+    if (r < 0.035) return Block.CoalOre;
+    return Block.Stone;
   }
 
   private treeAt(x: number, z: number): 'fruit' | 'palm' | null {
@@ -347,8 +438,18 @@ export class World {
     const lx = x - cx * CHUNK;
     const lz = z - cz * CHUNK;
     const i = index(lx, y, lz);
+    const before = c.data[i];
     c.data[i] = b;
     c.dirty = true;
+    c.sky = null;
+
+    // Una antorcha nueva (o quitada) cambia la luz de los chunks de alrededor.
+    if (b === Block.Torch || before === Block.Torch) {
+      const k = `${x},${y},${z}`;
+      if (b === Block.Torch) this.torches.set(k, [x, y, z]);
+      else this.torches.delete(k);
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.markDirty(cx + dx, cz + dz);
+    }
 
     const k = key(cx, cz);
     let m = this.edits.get(k);
@@ -454,9 +555,7 @@ export class World {
       const dx = c.cx - pcx;
       const dz = c.cz - pcz;
       if (dx * dx + dz * dz > far) {
-        this.group.remove(c.mesh);
-        c.mesh.geometry.dispose();
-        c.mesh = null;
+        this.disposeMesh(c);
         c.dirty = true;
       }
     }
@@ -489,6 +588,49 @@ export class World {
     return [x, z];
   }
 
+  // --- Luz ---
+
+  /** Altura del bloque opaco más alto de la columna (x, z). */
+  private skyHeight(x: number, z: number): number {
+    const cx = Math.floor(x / CHUNK);
+    const cz = Math.floor(z / CHUNK);
+    const c = this.getChunk(cx, cz);
+    if (!c.sky) {
+      c.sky = new Int16Array(CHUNK * CHUNK).fill(-1);
+      for (let lz = 0; lz < CHUNK; lz++) {
+        for (let lx = 0; lx < CHUNK; lx++) {
+          for (let y = HEIGHT - 1; y >= 0; y--) {
+            if (isOpaque(c.data[index(lx, y, lz)])) {
+              c.sky[lz * CHUNK + lx] = y;
+              break;
+            }
+          }
+        }
+      }
+    }
+    return c.sky[(z - cz * CHUNK) * CHUNK + (x - cx * CHUNK)];
+  }
+
+  /**
+   * Luz de una casilla de aire, de 0 a 1. Solo oscurece lo que está hondo bajo tierra (las cuevas),
+   * para que el interior de las casas no quede negro. Las antorchas iluminan alrededor.
+   */
+  private lightAt(x: number, y: number, z: number, torches: [number, number, number][]): number {
+    let light = 1;
+    const top = this.skyHeight(x, z);
+    if (y < top && y <= SEA_LEVEL + 1) {
+      light = Math.max(0, Math.min(1, 1 - (top - y - 1) / 5));
+    }
+    if (light < 1) {
+      for (const [tx, ty, tz] of torches) {
+        const r = LIGHT_RADIUS[Block.Torch]!;
+        const dist = Math.hypot(tx + 0.5 - (x + 0.5), ty + 0.5 - (y + 0.5), tz + 0.5 - (z + 0.5));
+        light = Math.max(light, 1 - dist / r);
+      }
+    }
+    return Math.max(0.05, light);
+  }
+
   // --- Malla ---
 
   private buildMesh(c: Chunk) {
@@ -500,6 +642,10 @@ export class World {
 
     const ox = c.cx * CHUNK;
     const oz = c.cz * CHUNK;
+    const torchRange = LIGHT_RADIUS[Block.Torch]!;
+    const torches = [...this.torches.values()].filter(
+      ([tx, , tz]) => tx >= ox - torchRange && tx < ox + CHUNK + torchRange && tz >= oz - torchRange && tz < oz + CHUNK + torchRange,
+    );
     const tileSize = 1 / ATLAS_TILES;
     const inset = 0.0005;
     const tileUV = (tile: number): [number, number] => [
@@ -518,13 +664,14 @@ export class World {
 
           if (def.shape === 'cross') {
             const [u0, v0] = tileUV(def.tiles[0]);
+            const light = b === Block.Torch ? 1 : this.lightAt(wx, y, wz, torches);
             for (const quad of CROSS_QUADS) {
               const start = positions.length / 3;
               for (const [cx, cy, cz, cu, cv] of quad) {
                 positions.push(x + cx, y + cy, z + cz);
                 normals.push(0, 1, 0);
                 uvs.push(u0 + inset + cu * (tileSize - 2 * inset), v0 + inset + cv * (tileSize - 2 * inset));
-                const shade = cy === 0 ? 0.8 : 1;
+                const shade = (cy === 0 ? 0.8 : 1) * light;
                 colors.push(shade, shade, shade);
               }
               indices.push(start, start + 1, start + 2, start + 2, start + 1, start + 3);
@@ -540,6 +687,7 @@ export class World {
             if (nb === b && def.transparent) continue; // hojas contra hojas: una sola capa
 
             const [u0, v0] = tileUV(def.tiles[face.side]);
+            const light = this.lightAt(wx + nx, y + ny, wz + nz, torches);
             const start = positions.length / 3;
             const ao: number[] = [];
             for (const [cx, cy, cz, cu, cv] of face.corners) {
@@ -548,7 +696,7 @@ export class World {
               uvs.push(u0 + inset + cu * (tileSize - 2 * inset), v0 + inset + cv * (tileSize - 2 * inset));
               const a = this.vertexAO(wx, y, wz, face.dir, cx, cy, cz);
               ao.push(a);
-              const shade = FACE_SHADE[f] * AO_CURVE[a];
+              const shade = FACE_SHADE[f] * AO_CURVE[a] * light;
               colors.push(shade, shade, shade);
             }
             // Girar la diagonal del quad evita manchas raras en la oclusión ambiental.
@@ -562,11 +710,7 @@ export class World {
       }
     }
 
-    if (c.mesh) {
-      this.group.remove(c.mesh);
-      c.mesh.geometry.dispose();
-      c.mesh = null;
-    }
+    this.disposeMesh(c);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
@@ -576,9 +720,36 @@ export class World {
     geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, this.material);
     mesh.position.set(ox, 0, oz);
+
+    // Agua: un cuadrado por columna inundada, solo donde de verdad hay mar o río.
+    const water: number[] = [];
+    for (let z = 0; z < CHUNK; z++) {
+      for (let x = 0; x < CHUNK; x++) {
+        if (!this.waterKind(ox + x, oz + z)) continue;
+        const y = WATER_SURFACE;
+        water.push(x, y, z, x + 1, y, z, x, y, z + 1, x, y, z + 1, x + 1, y, z, x + 1, y, z + 1);
+      }
+    }
+    if (water.length) {
+      const wg = new THREE.BufferGeometry();
+      wg.setAttribute('position', new THREE.Float32BufferAttribute(water, 3));
+      wg.computeVertexNormals();
+      const wm = new THREE.Mesh(wg, this.waterMaterial);
+      wm.renderOrder = 1;
+      mesh.add(wm);
+    }
+
     c.mesh = mesh;
     c.dirty = false;
     this.group.add(mesh);
+  }
+
+  private disposeMesh(c: Chunk) {
+    if (!c.mesh) return;
+    this.group.remove(c.mesh);
+    c.mesh.geometry.dispose();
+    for (const child of c.mesh.children) (child as THREE.Mesh).geometry.dispose();
+    c.mesh = null;
   }
 
   /** Oclusión ambiental por vértice: 0 (muy tapado) a 3 (libre). */
