@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maxycraft</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Nunito:wght@600;800&display=swap" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="crosshair" aria-hidden="true"></div>
+    <div id="block-name"></div>
+    <div id="hotbar"></div>
+    <div id="debug" hidden></div>
+    <div id="overlay">
+      <div class="panel">
+        <h1>Maxycraft</h1>
+        <p class="version">v0.1 · Primer bloque</p>
+        <button type="button">Haz clic para jugar</button>
+        <ul class="controls">
+          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> caminar</li>
+          <li><kbd>Espacio</kbd> saltar · <kbd>Mayús</kbd> correr</li>
+          <li><kbd>Clic izq.</kbd> romper · <kbd>Clic der.</kbd> colocar</li>
+          <li><kbd>1</kbd>–<kbd>7</kbd> o rueda: elegir bloque</li>
+          <li><kbd>F</kbd> datos de depuración · <kbd>Esc</kbd> pausa</li>
+        </ul>
+        <p class="note">Por ahora se juega con teclado y ratón. Los controles táctiles llegan en la v1.0.</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
