@@ -1,4 +1,5 @@
 import type { ItemStack } from './items';
+import type { VillagerMemory } from './villagers';
 import type { Edits } from './world';
 
 const KEY = 'maxycraft.isla.v1';
@@ -16,6 +17,8 @@ export interface SaveData {
   shells?: { day: string; taken: number[] };
   /** Día y árboles que ya han soltado su rama ese día. */
   branches?: { day: string; trees: string[] };
+  /** Desde la v0.4: amistad y último día de charla y regalo de cada vecino. */
+  villagers?: Record<string, VillagerMemory>;
 }
 
 // El navegador puede negar el almacenamiento (modo privado, cookies bloqueadas):

@@ -136,3 +136,26 @@ kbd {
 .inv-close { grid-column: 1 / -1; margin: 0; font-size: 13px; color: #6b7466; }
 #cursor-stack { position: fixed; left: 0; top: 0; pointer-events: none; border: 0; z-index: 6; }
 @media (max-width: 860px) { .inv-panel { grid-template-columns: 1fr; } #inv-grid { grid-template-columns: repeat(5, 48px); } }
+
+#labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.name-tag {
+  position: absolute; left: 0; top: 0; padding: 2px 8px; background: rgba(35, 48, 31, 0.6); color: #fff;
+  font: 800 13px var(--body); border-radius: 10px; white-space: nowrap;
+}
+
+#dialog { position: fixed; left: 0; right: 0; bottom: 24px; display: grid; justify-items: center; padding: 0 16px; z-index: 4; }
+#dialog[hidden] { display: none; }
+.dialog-box {
+  position: relative; width: min(640px, 100%); padding: 26px 24px 18px; background: var(--paper); color: var(--ink);
+  border-radius: 28px; box-shadow: 0 6px 0 rgba(0,0,0,.2); display: grid; gap: 12px;
+}
+#dialog-name {
+  position: absolute; left: 22px; top: -16px; padding: 4px 14px; border-radius: 14px; color: #fff;
+  font: 700 18px var(--display); transform: rotate(-3deg);
+}
+#dialog-text { margin: 0; min-height: 3em; font: 700 18px/1.5 var(--body); cursor: pointer; }
+#dialog-choices { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+#dialog-choices button {
+  font: 800 15px var(--body); padding: 8px 16px; border-radius: 18px; border: 2px solid #e2d6b4; background: #fff8e2; color: var(--ink); cursor: pointer;
+}
+#dialog-choices button:hover, #dialog-choices button:focus-visible { background: #ffe9a8; border-color: #e0b84a; outline: none; }

@@ -6,7 +6,11 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.3 · Bolsillos y herramientas**
+Versión actual: **v0.4 · Vecinos**
+
+- Tres vecinos animales (de entre seis posibles) con su casa, su personalidad y su coletilla.
+- Pasean de día cerca de casa y por la noche se van a dormir, cada uno a su hora.
+- Clic derecho sobre un vecino para charlar o darle un regalo. Cada uno tiene sus gustos, y si le caes bien a veces te devuelve el regalo.
 
 - Bolsillos con 30 casillas (la fila de arriba es la barra rápida) y fabricación sencilla: tablones, hacha, pala y pico.
 - Romper bloques lleva tiempo y da objetos. El pico es necesario para la piedra; hacha y pala van más rápido con madera y tierra, y se desgastan.

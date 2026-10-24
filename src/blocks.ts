@@ -21,6 +21,12 @@ export enum Block {
   PalmLog = 17,
   PalmLeaves = 18,
   Coconut = 19,
+  Wall = 20,
+  RoofRed = 21,
+  RoofBlue = 22,
+  RoofGreen = 23,
+  RoofYellow = 24,
+  Window = 25,
 }
 
 export const TILE = 16;
@@ -33,6 +39,7 @@ export enum Tile {
   Apple, Orange, Pear, Peach, Cherry,
   PalmSide, PalmTop, PalmLeaves, Coconut,
   Branch, Shell, Conch, Starfish, Axe, Shovel, Pickaxe,
+  Wall, RoofRed, RoofBlue, RoofGreen, RoofYellow, Window,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. */
@@ -73,7 +80,19 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.PalmLog]: cube('Tronco de palmera', Tile.PalmSide, Tile.PalmTop),
   [Block.PalmLeaves]: cube('Hojas de palmera', Tile.PalmLeaves, Tile.PalmLeaves, Tile.PalmLeaves, true),
   [Block.Coconut]: cross('Coco', Tile.Coconut),
+  [Block.Wall]: cube('Pared', Tile.Wall),
+  [Block.RoofRed]: cube('Tejado rojo', Tile.RoofRed),
+  [Block.RoofBlue]: cube('Tejado azul', Tile.RoofBlue),
+  [Block.RoofGreen]: cube('Tejado verde', Tile.RoofGreen),
+  [Block.RoofYellow]: cube('Tejado amarillo', Tile.RoofYellow),
+  [Block.Window]: cube('Ventana', Tile.Window, Tile.Window, Tile.Window, true),
 };
+
+/** Bloques de las casas de los vecinos: no se pueden romper. */
+export const HOUSE_BLOCKS: readonly Block[] = [
+  Block.Wall, Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow, Block.Window,
+];
+export const ROOFS = [Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow] as const;
 
 export const FRUITS = [Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry] as const;
 
@@ -433,6 +452,29 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   paintSprite(ctx, Tile.Axe, AXE, { s: stick, h: metal });
   paintSprite(ctx, Tile.Shovel, SHOVEL, { s: stick, h: metal });
   paintSprite(ctx, Tile.Pickaxe, PICKAXE, { s: stick, h: metal });
+
+  // Casas de los vecinos.
+  paintTile(ctx, Tile.Wall, (x, y, r) => {
+    if (y === 15 || x === 0) return [214, 204, 186];
+    return r() < 0.15 ? [236, 228, 212] : [246, 240, 228];
+  });
+  const roof = (tile: Tile, base: RGB) =>
+    paintTile(ctx, tile, (x, y, r) => {
+      const row = y % 4 === 3;
+      const k = row ? 0.75 : r() < 0.2 ? 0.9 : 1;
+      const offset = ((y >> 2) % 2) * 4;
+      const seam = (x + offset) % 8 === 0;
+      const f = seam ? 0.8 : k;
+      return [base[0] * f, base[1] * f, base[2] * f].map(Math.round) as RGB;
+    });
+  roof(Tile.RoofRed, [206, 80, 70]);
+  roof(Tile.RoofBlue, [76, 128, 206]);
+  roof(Tile.RoofGreen, [86, 168, 98]);
+  roof(Tile.RoofYellow, [232, 186, 64]);
+  paintTile(ctx, Tile.Window, (x, y) => {
+    if (x === 0 || y === 0 || x === 15 || y === 15 || x === 7 || x === 8 || y === 7 || y === 8) return [140, 104, 66];
+    return null;
+  });
 
   return canvas;
 }

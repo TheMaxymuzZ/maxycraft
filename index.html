@@ -13,7 +13,15 @@
     <div id="crosshair" aria-hidden="true"></div>
     <div id="block-name"></div>
     <div id="hotbar"></div>
+    <div id="labels" aria-hidden="true"></div>
     <div id="toast" role="status"></div>
+    <div id="dialog" hidden>
+      <div class="dialog-box">
+        <span id="dialog-name"></span>
+        <p id="dialog-text"></p>
+        <div id="dialog-choices"></div>
+      </div>
+    </div>
     <div id="break-progress" hidden></div>
     <div id="inventory" hidden>
       <div class="inv-panel">
@@ -36,14 +44,14 @@
     <div id="overlay">
       <div class="panel">
         <h1>Maxycraft</h1>
-        <p class="version">v0.3 · Bolsillos y herramientas</p>
+        <p class="version">v0.4 · Vecinos</p>
         <button type="button" id="play">Haz clic para jugar</button>
         <p id="island-info" class="island-info"></p>
         <ul class="controls">
           <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> caminar</li>
           <li><kbd>Espacio</kbd> saltar · <kbd>Mayús</kbd> correr</li>
           <li><kbd>Clic izq.</kbd> (mantener) romper</li>
-          <li><kbd>Clic der.</kbd> colocar, o sacudir un árbol</li>
+          <li><kbd>Clic der.</kbd> colocar, sacudir un árbol o hablar con un vecino</li>
           <li><kbd>E</kbd> bolsillos · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
           <li><kbd>F</kbd> datos de depuración · <kbd>Esc</kbd> pausa</li>
           <li><kbd>Espacio</kbd> en el agua: nadar hacia arriba</li>

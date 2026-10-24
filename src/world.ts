@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, isCross, isOpaque, isSolid } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, ROOFS, isCross, isOpaque, isSolid } from './blocks';
 import { columnRandom, fbm } from './noise';
 
 export const CHUNK = 16;
@@ -47,6 +47,20 @@ const CROSS_QUADS = [
 const FACE_SHADE = [0.8, 0.8, 0.55, 1, 0.9, 0.9];
 const AO_CURVE = [0.45, 0.65, 0.82, 1];
 
+/** Parcela con la casa de un vecino. La puerta mira hacia +z. */
+export interface Plot {
+  x: number;
+  z: number;
+  /** Altura del suelo (bloque de arriba del terreno). */
+  y: number;
+  roof: Block;
+  /** Casilla de aire justo delante de la puerta, donde el vecino entra y sale. */
+  door: [number, number, number];
+}
+
+/** Medio lado de la parcela que se allana y se deja sin árboles. */
+const PLOT_RADIUS = 5;
+
 /** Cambios del jugador sobre el mundo generado, por chunk: índice local → bloque. */
 export type Edits = Record<string, Record<number, number>>;
 
@@ -58,12 +72,45 @@ export class World {
   readonly fruit: Block;
   /** Sube cada vez que el jugador cambia un bloque, para saber si hay que guardar. */
   revision = 0;
+  readonly plots: Plot[];
 
   constructor(readonly seed: number, private material: THREE.Material, edits: Edits = {}) {
     this.fruit = FRUITS[Math.floor(columnRandom(1, 1, seed) * FRUITS.length)];
     for (const [k, list] of Object.entries(edits)) {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
     }
+    this.plots = this.findPlots(3);
+  }
+
+  /** Busca sitios llanos para las casas, lejos del río, de la playa y entre sí. */
+  private findPlots(count: number): Plot[] {
+    const plots: Plot[] = [];
+    for (let tries = 0; tries < 600 && plots.length < count; tries++) {
+      const a = columnRandom(tries, 77, this.seed) * Math.PI * 2;
+      const d = 12 + columnRandom(tries, 78, this.seed) * 34;
+      const x = Math.round(Math.cos(a) * d);
+      const z = Math.round(Math.sin(a) * d);
+      const h = this.naturalHeight(x, z);
+      if (h <= SEA_LEVEL + 1 || this.river(x, z) < 9) continue;
+      if (plots.some((p) => Math.hypot(p.x - x, p.z - z) < 16)) continue;
+      // Con el tiempo se relaja: al principio se busca un sitio totalmente llano.
+      const tolerance = tries < 300 ? 0 : 1;
+      let flat = true;
+      for (let dz = -PLOT_RADIUS; dz <= PLOT_RADIUS && flat; dz++) {
+        for (let dx = -PLOT_RADIUS; dx <= PLOT_RADIUS && flat; dx++) {
+          const hh = this.naturalHeight(x + dx, z + dz);
+          if (Math.abs(hh - h) > tolerance || hh <= SEA_LEVEL + 1) flat = false;
+        }
+      }
+      if (!flat) continue;
+      plots.push({ x, z, y: h, roof: ROOFS[plots.length % ROOFS.length], door: [x, h + 1, z + 3] });
+    }
+    return plots;
+  }
+
+  private plotAt(x: number, z: number, margin = 0): Plot | undefined {
+    const r = PLOT_RADIUS + margin;
+    return this.plots?.find((p) => Math.abs(p.x - x) <= r && Math.abs(p.z - z) <= r);
   }
 
   exportEdits(): Edits {
@@ -95,6 +142,11 @@ export class World {
   }
 
   heightAt(x: number, z: number): number {
+    const plot = this.plotAt(x, z);
+    return plot ? plot.y : this.naturalHeight(x, z);
+  }
+
+  private naturalHeight(x: number, z: number): number {
     const mask = this.landMask(x, z);
     if (mask < 0.08) {
       const depth = Math.min(6, Math.floor((0.08 - mask) * 120 + Math.hypot(x, z) / 40));
@@ -139,7 +191,7 @@ export class World {
           d[index(x, y, z)] = b;
         }
         // Flores y hierba alta sobre el césped.
-        if (!beach && h + 1 < HEIGHT) {
+        if (!beach && h + 1 < HEIGHT && !this.plotAt(wx, wz)) {
           const r = columnRandom(wx, wz, this.seed + 11);
           const patch = fbm(wx / 12, wz / 12, this.seed + 12, 2);
           let plant: Block = Block.Air;
@@ -169,6 +221,12 @@ export class World {
       }
     }
 
+    // Casas de los vecinos.
+    for (const plot of this.plots) {
+      if (plot.x + 3 < ox || plot.x - 3 >= ox + CHUNK || plot.z + 3 < oz || plot.z - 3 >= oz + CHUNK) continue;
+      this.buildHouse(plot, (x, y, z, b) => set(x - ox, y, z - oz, b, true));
+    }
+
     // Lo que el jugador cambió en este chunk.
     const edits = this.edits.get(key(chunk.cx, chunk.cz));
     if (edits) for (const [i, b] of edits) d[i] = b;
@@ -176,7 +234,36 @@ export class World {
     chunk.dirty = true;
   }
 
+  /** Casita de 5x5 con tejado a cuatro aguas, ventanas y la puerta hacia +z. */
+  private buildHouse(p: Plot, put: (x: number, y: number, z: number, b: Block) => void) {
+    const { x, z, y } = p;
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        put(x + dx, y, z + dz, Block.Planks);
+        const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
+        for (let h = 1; h <= 3; h++) put(x + dx, y + h, z + dz, edge ? Block.Wall : Block.Air);
+      }
+    }
+    // Puerta (hueco de 2 de alto) y ventanas a los lados y detrás.
+    put(x, y + 1, z + 2, Block.Air);
+    put(x, y + 2, z + 2, Block.Air);
+    put(x - 2, y + 2, z, Block.Window);
+    put(x + 2, y + 2, z, Block.Window);
+    put(x, y + 2, z - 2, Block.Window);
+    // Tejado: tres capas que se van cerrando.
+    for (let layer = 0; layer < 3; layer++) {
+      const r = 3 - layer;
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (layer < 2 && Math.abs(dx) < 2 && Math.abs(dz) < 2) continue; // hueco por dentro
+          put(x + dx, y + 4 + layer, z + dz, p.roof);
+        }
+      }
+    }
+  }
+
   private treeAt(x: number, z: number): 'fruit' | 'palm' | null {
+    if (this.plotAt(x, z, 3)) return null;
     const r = columnRandom(x, z, this.seed);
     const h = this.heightAt(x, z);
     if (h === SEA_LEVEL + 1 && r < 0.008) return 'palm';
