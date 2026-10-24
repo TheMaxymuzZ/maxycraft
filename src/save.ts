@@ -1,3 +1,4 @@
+import type { PlacedFurniture } from './furniture';
 import type { ItemStack } from './items';
 import type { VillagerMemory } from './villagers';
 import type { Edits } from './world';
@@ -24,6 +25,9 @@ export interface SaveData {
   /** Desde la v0.6: peces e insectos vistos y donados al museo. */
   caught?: string[];
   donated?: string[];
+  /** Desde la v0.8: la casa del jugador (nivel, deuda y tejado) y sus muebles. */
+  home?: { level: number; debt: number; roof: number };
+  furniture?: PlacedFurniture[];
 }
 
 // El navegador puede negar el almacenamiento (modo privado, cookies bloqueadas):

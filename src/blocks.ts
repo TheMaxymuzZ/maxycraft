@@ -35,12 +35,15 @@ export enum Block {
   GoldOre = 30,
   GemOre = 31,
   Torch = 32,
+  Canvas = 33,
 }
 
 export const TILE = 16;
 export const ATLAS_TILES = 16; // 16x16 casillas de 16x16 píxeles
 /** Las casillas de peces e insectos empiezan aquí, una por criatura. */
 export const CREATURE_TILE_START = 128;
+/** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
+export const FURNITURE_TILE_START = 176;
 
 // Índices de casilla dentro del atlas.
 export enum Tile {
@@ -52,6 +55,7 @@ export enum Tile {
   Wall, RoofRed, RoofBlue, RoofGreen, RoofYellow, Window, ShopWall, Berry,
   Rod, Net, MuseumWall,
   CoalOre, IronOre, GoldOre, GemOre, Torch, Coal, IronNugget, GoldNugget, Gem, IronAxe, IronPickaxe, IronShovel,
+  Canvas,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. */
@@ -105,6 +109,7 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.GoldOre]: cube('Mineral de oro', Tile.GoldOre),
   [Block.GemOre]: cube('Amatista', Tile.GemOre),
   [Block.Torch]: cross('Antorcha', Tile.Torch),
+  [Block.Canvas]: cube('Lona', Tile.Canvas),
 };
 
 /** Bloques que dan luz y cuánta (alcance en bloques). */
@@ -112,7 +117,7 @@ export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 8 }
 
 /** Bloques de construcción: dentro de las parcelas de vecinos y tienda no se pueden romper. */
 export const HOUSE_BLOCKS: readonly Block[] = [
-  Block.Wall, Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow, Block.Window, Block.ShopWall, Block.MuseumWall, Block.Planks,
+  Block.Wall, Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow, Block.Window, Block.ShopWall, Block.MuseumWall, Block.Planks, Block.Canvas,
 ];
 export const ROOFS = [Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow] as const;
 
@@ -630,6 +635,11 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   paintSprite(ctx, Tile.IronAxe, AXE, { s: stick, h: iron });
   paintSprite(ctx, Tile.IronPickaxe, PICKAXE, { s: stick, h: iron });
   paintSprite(ctx, Tile.IronShovel, SHOVEL, { s: stick, h: iron });
+
+  paintTile(ctx, Tile.Canvas, (x, y, r) => {
+    if (y % 8 === 0) return [70, 130, 90];
+    return (x + y) % 6 === 0 ? [96, 160, 112] : r() < 0.2 ? [104, 170, 120] : [110, 176, 126];
+  });
 
   // Peces e insectos, una casilla para cada uno.
   CREATURES.forEach((c, i) => {

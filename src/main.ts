@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import './style.css';
-import { BLOCKS, Block, FRUITS, HOUSE_BLOCKS, createAtlasCanvas, createAtlasTexture, isCross } from './blocks';
+import { BLOCKS, Block, FRUITS, HOUSE_BLOCKS, ROOFS, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
 import { Bugs } from './bugs';
 import { Collection } from './collection';
 import { creature } from './creatures';
-import { Dialog } from './dialog';
+import { Dialog, HOUSE_COSTS, HOUSE_NAMES } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
+import { Furniture, paintFurnitureIcons } from './furniture';
 import { Hud } from './hud';
 import { Inventory, starterKit } from './inventory';
 import { SHELLS, breakInfo, dropFor, fruitItemFor, itemDef, toolNameFor } from './items';
@@ -50,6 +51,7 @@ scene.add(hemi, sunLight);
 const sky = new Sky(scene, hemi, sunLight);
 
 const atlas = createAtlasCanvas();
+paintFurnitureIcons(atlas);
 const material = new THREE.MeshLambertMaterial({
   map: createAtlasTexture(atlas),
   vertexColors: true,
@@ -85,10 +87,22 @@ if (save?.player) {
   player.position.set(save.player.x, save.player.y, save.player.z);
   player.yaw = save.player.yaw;
   player.pitch = save.player.pitch;
+} else if (world.playerPlot) {
+  // Se empieza delante de la tienda de campaña, mirándola.
+  player.spawnAt(world.playerPlot.x, world.playerPlot.z + 4);
 } else {
   const [sx, sz] = world.findSpawn(0, 0);
   player.spawnAt(sx, sz);
 }
+
+// La casa del jugador: nivel (0 es la tienda de campaña), lo que falta por pagar y el tejado.
+const home = { level: 0, debt: 0, roof: 0, ...save?.home };
+if (world.playerPlot && home.level > 0) world.playerPlot.roof = ROOFS[home.roof];
+
+const furniture = new Furniture(save?.furniture ?? []);
+scene.add(furniture.group);
+// En la tienda de campaña hay una cama para empezar.
+if (!save && world.playerPlot) furniture.place('cama', world.playerPlot.x, world.playerPlot.y + 1, world.playerPlot.z, 0);
 
 const villagers = createVillagers(world, save?.villagers ?? {});
 for (const v of villagers) scene.add(v.group);
@@ -125,6 +139,8 @@ function persist() {
     wallet,
     caught: [...collection.caught],
     donated: [...collection.donated],
+    home,
+    furniture: furniture.serialize(),
   });
   savedRevision = world.revision;
 }
@@ -252,6 +268,25 @@ const dialog = new Dialog({
     panel = 'collection';
     collection.open();
   },
+  home: {
+    available: !!world.playerPlot,
+    state: () => ({ level: home.level, debt: home.debt, wallet }),
+    upgrade: (roof) => {
+      if (home.debt > 0 || home.level >= HOUSE_COSTS.length) return;
+      home.debt += HOUSE_COSTS[home.level];
+      home.level++;
+      home.roof = roof;
+      world.buildPlayerHouse(home.level, ROOFS[roof]);
+      hud.toast(`¡Tienes una ${HOUSE_NAMES[home.level]}!`);
+      persist();
+    },
+    pay: (amount) => {
+      if (amount > wallet || amount > home.debt) return;
+      setWallet(wallet - amount);
+      home.debt -= amount;
+      persist();
+    },
+  },
 });
 
 function openCollection() {
@@ -315,6 +350,11 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.code === 'Escape' && panel === 'inventory') {
     closeInventory();
+    return;
+  }
+  if (e.code === 'KeyR' && document.pointerLockElement === canvas) {
+    const f = furnitureInSight();
+    if (f) furniture.rotate(f.furniture);
     return;
   }
   if (/^Digit[0-9]$/.test(e.code)) {
@@ -392,8 +432,9 @@ let warnedKey = '';
 
 canvas.addEventListener('mousedown', (e) => {
   if (document.pointerLockElement !== canvas) return;
-  if (e.button === 0) breaking = true;
-  else if (e.button === 2) useItem();
+  if (e.button === 0) {
+    if (!pickUpFurniture()) breaking = true;
+  } else if (e.button === 2) useItem();
 });
 window.addEventListener('mouseup', (e) => {
   if (e.button === 0) breaking = false;
@@ -401,6 +442,12 @@ window.addEventListener('mouseup', (e) => {
 
 function removeBlock(x: number, y: number, z: number, b: number, burst: boolean) {
   world.setBlock(x, y, z, Block.Air);
+  // Un mueble sin suelo debajo se cae y se puede recoger.
+  const above = furniture.at(x, y + 1, z);
+  if (above) {
+    furniture.remove(above);
+    drops.spawn(above.id, x + 0.5, y + 1.3, z + 0.5, { burst: true });
+  }
   if (isFruit(b)) harvested[posKey(x, y, z)] = Date.now();
   const id = dropFor(b);
   if (id) drops.spawn(id, x + 0.5, y + 0.5, z + 0.5, { burst });
@@ -424,7 +471,8 @@ function updateBreaking(dt: number) {
   if (y === 0) return; // la capa del fondo no se rompe
 
   const b = world.getBlock(x, y, z);
-  if (HOUSE_BLOCKS.includes(b) && world.plotAt(x, z)) {
+  const plot = world.plotAt(x, z);
+  if (HOUSE_BLOCKS.includes(b) && plot && plot.kind !== 'player') {
     if (warnedKey !== key) hud.toast('Es la casa de un vecino. Mejor no tocarla');
     warnedKey = key;
     return;
@@ -498,11 +546,17 @@ function useItem() {
   const [bx, by, bz] = hit.block;
   const target = world.getBlock(bx, by, bz);
 
+  if (def?.furniture) {
+    placeFurniture(def.id, hit);
+    return;
+  }
+
   if (def?.block !== undefined) {
     // Colocar sobre hierba alta o una flor la sustituye, como en Minecraft.
     const replace = isCross(target) && !isFruit(target);
     const [x, y, z] = replace ? hit.block : hit.place;
     if (!isCross(def.block) && player.intersectsBlock(x, y, z)) return;
+    if (furniture.at(x, y, z)) return;
     world.setBlock(x, y, z, def.block);
     delete harvested[posKey(x, y, z)];
     inventory.consume(hud.selected);
@@ -516,6 +570,39 @@ function useItem() {
   if (target === Block.Log || target === Block.PalmLog || target === Block.Leaves || target === Block.PalmLeaves) {
     shakeTree(bx, by, bz);
   }
+}
+
+/** Mueble al que apunta la mira, si está más cerca que el bloque apuntado. */
+function furnitureInSight() {
+  const hit = currentHit();
+  const blockDist = hit ? camera.position.distanceTo(new THREE.Vector3(hit.block[0] + 0.5, hit.block[1] + 0.5, hit.block[2] + 0.5)) : Infinity;
+  return furniture.pick(aimRay(), Math.min(blockDist, REACH));
+}
+
+function pickUpFurniture(): boolean {
+  const f = furnitureInSight();
+  if (!f) return false;
+  if (!take(f.furniture.id)) return true;
+  furniture.remove(f.furniture);
+  return true;
+}
+
+function placeFurniture(id: string, hit: { block: [number, number, number]; place: [number, number, number] }) {
+  // Sobre hierba alta o una flor, el mueble la sustituye.
+  const target = world.getBlock(...hit.block);
+  const [x, y, z] = isCross(target) && !isFruit(target) ? hit.block : hit.place;
+  const here = world.getBlock(x, y, z);
+  if ((here !== Block.Air && !isCross(here)) || isFruit(here) || furniture.at(x, y, z)) return;
+  if (!isSolid(world.getBlock(x, y - 1, z))) {
+    hud.toast('Los muebles tienen que ir sobre el suelo');
+    return;
+  }
+  if (here !== Block.Air) world.setBlock(x, y, z, Block.Air);
+  // El mueble mira hacia quien lo coloca.
+  const rot = ((Math.round(player.yaw / (Math.PI / 2)) % 4) + 4) % 4;
+  furniture.place(id, x, y, z, rot);
+  inventory.consume(hud.selected);
+  persist();
 }
 
 function aimRay(): THREE.Ray {
@@ -667,6 +754,7 @@ function frame(now: number) {
   updateClock(date);
   drops.update(dt, player.position, take, 1 - sky.night * 0.5);
   bugs.update(dt, hour, player.position, 1 - sky.night * 0.5);
+  furniture.setNight(sky.night);
   if (fishing.active && hud.selectedStack?.id !== 'cana') fishing.stop();
   const fish = fishing.update(dt, player.position);
   if (fish === 'bite') hud.toast('¡Ha picado! Clic derecho, ¡rápido!');
@@ -689,8 +777,14 @@ function frame(now: number) {
   cloudMat.color.setScalar(1 - sky.night * 0.6);
 
   const hit = currentHit();
-  if (hit) {
+  const aimed = furnitureInSight();
+  if (aimed) {
+    aimed.box.getCenter(highlight.position);
+    aimed.box.getSize(highlight.scale);
+    highlight.visible = true;
+  } else if (hit) {
     highlight.position.set(hit.block[0] + 0.5, hit.block[1] + 0.5, hit.block[2] + 0.5);
+    highlight.scale.set(1, 1, 1);
     highlight.visible = true;
   } else {
     highlight.visible = false;
@@ -718,6 +812,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+    game: { world, player, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
   });
 }

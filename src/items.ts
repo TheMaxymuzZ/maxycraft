@@ -1,5 +1,6 @@
 import { BLOCKS, Block, CREATURE_TILE_START, Tile, blockIconTile } from './blocks';
 import { CREATURES } from './creatures';
+import { FURNITURE, FURNITURE_TILE } from './furniture';
 
 export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net';
 
@@ -20,6 +21,8 @@ export interface ItemDef {
   sell: number;
   /** Bayas que cuesta en la tienda, si se vende allí. */
   buy?: number;
+  /** Si es un mueble que se coloca en el mundo. */
+  furniture?: boolean;
 }
 
 export interface ItemStack {
@@ -97,6 +100,9 @@ add({ id: 'muro_piedra', name: 'Muro de piedra', tile: blockIconTile(Block.Museu
 
 // Peces e insectos: se pueden vender o donar al museo.
 CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell }));
+
+// Muebles para decorar la casa.
+for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: 1, sell: f.sell, buy: f.buy, furniture: true });
 
 /** Todo lo que la tienda puede tener a la venta. */
 export const CATALOG = defs.filter((d) => d.buy !== undefined).map((d) => d.id);
