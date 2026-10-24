@@ -21,6 +21,9 @@ export interface SaveData {
   villagers?: Record<string, VillagerMemory>;
   /** Desde la v0.5: bayas ahorradas. */
   wallet?: number;
+  /** Desde la v0.6: peces e insectos vistos y donados al museo. */
+  caught?: string[];
+  donated?: string[];
 }
 
 // El navegador puede negar el almacenamiento (modo privado, cookies bloqueadas):

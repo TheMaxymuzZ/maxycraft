@@ -49,7 +49,7 @@ const AO_CURVE = [0.45, 0.65, 0.82, 1];
 
 /** Parcela con la casa de un vecino o la tienda. La puerta mira hacia +z. */
 export interface Plot {
-  kind: 'house' | 'shop';
+  kind: 'house' | 'shop' | 'museum';
   x: number;
   z: number;
   /** Altura del suelo (bloque de arriba del terreno). */
@@ -80,7 +80,7 @@ export class World {
     for (const [k, list] of Object.entries(edits)) {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
     }
-    this.plots = this.findPlots(4);
+    this.plots = this.findPlots(5);
   }
 
   /** Busca sitios llanos para las casas, lejos del río, de la playa y entre sí. */
@@ -104,9 +104,9 @@ export class World {
         }
       }
       if (!flat) continue;
-      // La primera parcela que se encuentra es para la tienda.
-      const kind = plots.length === 0 ? 'shop' : 'house';
-      const roof = kind === 'shop' ? Block.RoofGreen : ROOFS[(plots.length - 1) % ROOFS.length];
+      // Las dos primeras parcelas son para la tienda y el museo.
+      const kind = plots.length === 0 ? 'shop' : plots.length === 1 ? 'museum' : 'house';
+      const roof = kind === 'shop' ? Block.RoofGreen : kind === 'museum' ? Block.RoofBlue : ROOFS[(plots.length - 2) % ROOFS.length];
       plots.push({ kind, x, z, y: h, roof, door: [x, h + 1, z + 3] });
     }
     return plots;
@@ -134,6 +134,12 @@ export class World {
     const d = Math.hypot(x, z) / (ISLAND_RADIUS * (1 + wobble * 0.5));
     const v = 1 - (d + coast * 0.25 - 0.55) / 0.45;
     return Math.max(0, Math.min(1, v));
+  }
+
+  /** Qué agua hay en (x, z): río dentro de la isla, mar fuera, o null si es tierra. */
+  waterKind(x: number, z: number): 'mar' | 'río' | null {
+    if (this.getBlock(x, SEA_LEVEL, z) !== Block.Air || this.getBlock(x, SEA_LEVEL + 1, z) !== Block.Air) return null;
+    return this.landMask(x, z) >= 0.26 ? 'río' : 'mar';
   }
 
   /** Distancia en bloques al centro del río, que cruza la isla serpenteando. */
@@ -247,7 +253,7 @@ export class World {
         put(x + dx, y, z + dz, Block.Planks);
         const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
         // La tienda es de madera, para distinguirla de las casas.
-        const wall = p.kind === 'shop' ? Block.ShopWall : Block.Wall;
+        const wall = p.kind === 'shop' ? Block.ShopWall : p.kind === 'museum' ? Block.MuseumWall : Block.Wall;
         for (let h = 1; h <= 3; h++) put(x + dx, y + h, z + dz, edge ? wall : Block.Air);
       }
     }

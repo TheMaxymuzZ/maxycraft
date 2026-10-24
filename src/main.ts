@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 import './style.css';
 import { BLOCKS, Block, FRUITS, HOUSE_BLOCKS, createAtlasCanvas, createAtlasTexture, isCross } from './blocks';
+import { Bugs } from './bugs';
+import { Collection } from './collection';
+import { creature } from './creatures';
 import { Dialog } from './dialog';
 import { Drops } from './drops';
+import { Fishing } from './fishing';
 import { Hud } from './hud';
 import { Inventory, starterKit } from './inventory';
 import { SHELLS, breakInfo, dropFor, fruitItemFor, itemDef, toolNameFor } from './items';
@@ -93,6 +97,8 @@ const inventory = new Inventory();
 if (save?.inventory) inventory.load(save.inventory);
 else starterKit(inventory);
 
+const collection = new Collection(save?.caught ?? [], save?.donated ?? [], atlas);
+
 let wallet = save?.wallet ?? 500;
 const walletEl = document.querySelector<HTMLSpanElement>('#wallet-amount')!;
 function setWallet(n: number) {
@@ -117,6 +123,8 @@ function persist() {
     branches: { day: today, trees: [...branchTrees] },
     villagers: Object.fromEntries(villagers.map((v) => [v.name, v.memory])),
     wallet,
+    caught: [...collection.caught],
+    donated: [...collection.donated],
   });
   savedRevision = world.revision;
 }
@@ -167,6 +175,10 @@ scene.add(highlight);
 
 const drops = new Drops(world, atlas);
 scene.add(drops.group);
+const bugs = new Bugs(world, atlas);
+scene.add(bugs.group);
+const fishing = new Fishing(world);
+scene.add(fishing.bobber);
 
 // Cada día real aparecen conchas nuevas en la playa.
 {
@@ -212,7 +224,7 @@ function take(id: string): boolean {
 // --- Bolsillos, conversaciones y bloqueo del puntero ---
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -245,7 +257,26 @@ const dialog = new Dialog({
     panel = 'shop';
     shop.open();
   },
+  donatable: () => collection.donatable(inventory),
+  donate: (id) => collection.donate(inventory, id),
+  openCollection: () => {
+    panel = 'collection';
+    collection.open();
+  },
 });
+
+function openCollection() {
+  panel = 'collection';
+  collection.open();
+  document.exitPointerLock();
+}
+
+function closeCollection() {
+  collection.close();
+  panel = null;
+  canvas.requestPointerLock();
+}
+document.querySelector('#collection-close')!.addEventListener('click', closeCollection);
 
 const shop = new Shop({
   inventory,
@@ -278,6 +309,14 @@ window.addEventListener('keydown', (e) => {
   }
   if (panel === 'shop') {
     if (e.code === 'Escape' || e.code === 'KeyE') closeShop();
+    return;
+  }
+  if (panel === 'collection') {
+    if (e.code === 'Escape' || e.code === 'KeyC') closeCollection();
+    return;
+  }
+  if (e.code === 'KeyC' && document.pointerLockElement === canvas) {
+    openCollection();
     return;
   }
   if (e.code === 'KeyE') {
@@ -331,6 +370,7 @@ document.addEventListener('pointerlockchange', () => {
     if (panel === 'inventory') hud.inventoryEl.hidden = true;
     if (panel === 'dialog') dialog.finish();
     if (panel === 'shop') shop.close();
+    if (panel === 'collection') collection.close();
     panel = null;
     return;
   }
@@ -454,11 +494,21 @@ function useItem() {
     talkTo(villager);
     return;
   }
+  const stack = hud.selectedStack;
+  const def = stack ? itemDef(stack.id) : null;
+
+  if (def?.tool === 'rod') {
+    useRod(blockDist);
+    return;
+  }
+  if (def?.tool === 'net') {
+    useNet();
+    return;
+  }
+
   if (!hit) return;
   const [bx, by, bz] = hit.block;
   const target = world.getBlock(bx, by, bz);
-  const stack = hud.selectedStack;
-  const def = stack ? itemDef(stack.id) : null;
 
   if (def?.block !== undefined) {
     // Colocar sobre hierba alta o una flor la sustituye, como en Minecraft.
@@ -478,6 +528,42 @@ function useItem() {
   if (target === Block.Log || target === Block.PalmLog || target === Block.Leaves || target === Block.PalmLeaves) {
     shakeTree(bx, by, bz);
   }
+}
+
+function aimRay(): THREE.Ray {
+  camera.getWorldDirection(dir);
+  return ray.set(camera.position, dir);
+}
+
+/** Mete una criatura en los bolsillos y la apunta en la enciclopedia. */
+function keepCreature(id: string, verb: string, tool: string) {
+  const c = creature(id)!;
+  if (inventory.add(id) > 0) {
+    hud.toast(`No te cabe en los bolsillos. Lo dejas ir`);
+    return;
+  }
+  const first = collection.register(id);
+  hud.toast(`¡${verb} ${c.name.toLowerCase()}!${first ? ' Nuevo en la enciclopedia.' : ''}`);
+  if (inventory.wearTool(hud.selected)) hud.toast(`¡Tu ${itemDef(tool).name.toLowerCase()} se ha roto!`);
+}
+
+function useRod(blockDist: number) {
+  const r = fishing.use(aimRay(), currentHour);
+  // Si hay un bloque delante más cerca que el agua, no se puede lanzar ahí.
+  if (r.kind === 'cast' && fishing.bobber.position.distanceTo(camera.position) > blockDist) {
+    fishing.stop();
+    hud.toast('Apunta al agua para pescar');
+    return;
+  }
+  if (r.kind === 'no-water') hud.toast('Apunta al agua para pescar');
+  else if (r.kind === 'too-early') hud.toast('Has tirado demasiado pronto…');
+  else if (r.kind === 'caught') keepCreature(r.creature.id, 'Has pescado:', 'cana');
+}
+
+function useNet() {
+  const c = bugs.catch(aimRay(), 4.5);
+  if (c) keepCreature(c.id, 'Has atrapado:', 'red');
+  else hud.toast('No hay ningún insecto ahí');
 }
 
 /** Sacudir un árbol, como en Animal Crossing: cae la fruta y, una vez al día, una rama. */
@@ -592,6 +678,11 @@ function frame(now: number) {
   updateLabels();
   updateClock(date);
   drops.update(dt, player.position, take, 1 - sky.night * 0.5);
+  bugs.update(dt, hour, player.position, 1 - sky.night * 0.5);
+  if (fishing.active && hud.selectedStack?.id !== 'cana') fishing.stop();
+  const fish = fishing.update(dt, player.position);
+  if (fish === 'bite') hud.toast('¡Ha picado! Clic derecho, ¡rápido!');
+  else if (fish === 'escaped') hud.toast('Se ha escapado…');
 
   // Bajo el agua todo se ve azul y cerca.
   const submerged = camera.position.y < WATER_SURFACE;
@@ -641,6 +732,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, camera, villagers, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+    game: { world, player, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
   });
 }
