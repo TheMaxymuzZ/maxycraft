@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { isSolid } from './blocks';
+import { isTargetable } from './blocks';
 import type { World } from './world';
 
 export interface Hit {
@@ -27,7 +27,7 @@ export function raycast(world: World, origin: THREE.Vector3, dir: THREE.Vector3,
   let prev: [number, number, number] = [x, y, z];
   let t = 0;
   while (t <= maxDist) {
-    if (isSolid(world.getBlock(x, y, z))) {
+    if (isTargetable(world.getBlock(x, y, z))) {
       return { block: [x, y, z], place: prev };
     }
     prev = [x, y, z];

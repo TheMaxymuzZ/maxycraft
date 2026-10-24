@@ -65,3 +65,19 @@ kbd {
   font: 600 12px var(--body); background: #fff; border: 2px solid #c9c1a6; border-bottom-width: 3px; border-radius: 4px;
 }
 .note { margin: 0; font-size: 13px; color: #6b7466; }
+
+#clock {
+  position: fixed; right: 16px; top: 12px; display: grid; justify-items: end; gap: 0;
+  color: #fff; text-shadow: 2px 2px 0 rgba(0,0,0,.35); pointer-events: none;
+}
+#clock-time { font: 700 30px/1 var(--display); font-variant-numeric: tabular-nums; }
+#clock-date { font: 800 14px var(--body); text-transform: capitalize; }
+
+#underwater { position: fixed; inset: 0; background: rgba(30, 90, 140, 0.35); pointer-events: none; }
+
+.island-info { margin: -4px 0 0; font-size: 14px; color: var(--grass-deep); font-weight: 800; }
+.panel button.secondary {
+  font: 600 14px var(--body); padding: 8px; background: transparent; color: #6b7466;
+  box-shadow: none; border: 2px dashed #c9c1a6;
+}
+.panel button.secondary.danger { color: #a3322b; border-color: #a3322b; }
