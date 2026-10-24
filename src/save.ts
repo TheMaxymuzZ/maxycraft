@@ -1,3 +1,4 @@
+import type { ItemStack } from './items';
 import type { Edits } from './world';
 
 const KEY = 'maxycraft.isla.v1';
@@ -7,6 +8,14 @@ export interface SaveData {
   seed: number;
   edits: Edits;
   player: { x: number; y: number; z: number; yaw: number; pitch: number } | null;
+  /** Desde la v0.3. */
+  inventory?: (ItemStack | null)[];
+  /** Cuándo se cogió cada fruta ("x,y,z" → milisegundos), para que vuelva a crecer. */
+  harvested?: Record<string, number>;
+  /** Día (AAAA-MM-DD) y conchas de ese día ya recogidas. */
+  shells?: { day: string; taken: number[] };
+  /** Día y árboles que ya han soltado su rama ese día. */
+  branches?: { day: string; trees: string[] };
 }
 
 // El navegador puede negar el almacenamiento (modo privado, cookies bloqueadas):

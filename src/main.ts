@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import './style.css';
-import { BLOCKS, Block, FRUITS, HOTBAR, blockIcon, createAtlasCanvas, createAtlasTexture, isCross } from './blocks';
+import { BLOCKS, Block, FRUITS, createAtlasCanvas, createAtlasTexture, isCross } from './blocks';
+import { Drops } from './drops';
+import { Hud } from './hud';
+import { Inventory, starterKit } from './inventory';
+import { SHELLS, breakInfo, dropFor, itemDef, toolNameFor } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
 import { deleteGame, loadGame, saveGame } from './save';
@@ -11,6 +15,9 @@ const RENDER_RADIUS = 6;
 const REACH = 6;
 const FOG_NEAR = RENDER_RADIUS * 16 * 0.55;
 const FOG_FAR = RENDER_RADIUS * 16 * 0.95;
+/** Días reales que tarda en volver a salir la fruta de un árbol, como en Animal Crossing. */
+const FRUIT_REGROW_DAYS = 3;
+const SHELLS_PER_DAY = 7;
 
 // Para probar otras horas: ?hora=21.5
 const params = new URLSearchParams(location.search);
@@ -50,6 +57,22 @@ const seed = save?.seed ?? Math.floor(Math.random() * 1e9);
 const world = new World(seed, material, save?.edits ?? {});
 scene.add(world.group);
 
+const today = (() => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+})();
+
+// La fruta cogida hace días vuelve a crecer en el mismo sitio.
+const harvested: Record<string, number> = { ...(save?.harvested ?? {}) };
+for (const [k, t] of Object.entries(harvested)) {
+  if (Date.now() - t < FRUIT_REGROW_DAYS * 86_400_000) continue;
+  const [x, y, z] = k.split(',').map(Number);
+  world.clearEdit(x, y, z);
+  delete harvested[k];
+}
+const shellsTaken = new Set(save?.shells?.day === today ? save.shells.taken : []);
+const branchTrees = new Set(save?.branches?.day === today ? save.branches.trees : []);
+
 const player = new Player(world, camera);
 if (save?.player) {
   player.position.set(save.player.x, save.player.y, save.player.z);
@@ -59,6 +82,10 @@ if (save?.player) {
   const [sx, sz] = world.findSpawn(0, 0);
   player.spawnAt(sx, sz);
 }
+
+const inventory = new Inventory();
+if (save?.inventory) inventory.load(save.inventory);
+else starterKit(inventory);
 
 let savedRevision = world.revision;
 let saving = true;
@@ -70,6 +97,10 @@ function persist() {
     seed,
     edits: world.exportEdits(),
     player: { x: p.x, y: p.y, z: p.z, yaw: player.yaw, pitch: player.pitch },
+    inventory: inventory.serialize(),
+    harvested,
+    shells: { day: today, taken: [...shellsTaken] },
+    branches: { day: today, trees: [...branchTrees] },
   });
   savedRevision = world.revision;
 }
@@ -116,14 +147,31 @@ const highlight = new THREE.LineSegments(
 highlight.visible = false;
 scene.add(highlight);
 
+// --- Objetos por el suelo ---
+
+const drops = new Drops(world, atlas);
+scene.add(drops.group);
+
+// Cada día real aparecen conchas nuevas en la playa.
+{
+  let s = (seed ^ Number(today.replace(/-/g, ''))) >>> 0;
+  const random = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  world.beachSpots(SHELLS_PER_DAY, random).forEach(([x, y, z], i) => {
+    if (shellsTaken.has(i)) return;
+    const id = SHELLS[Math.floor(random() * SHELLS.length)];
+    drops.spawn(id, x + 0.5, y + 0.3, z + 0.5, { onPickup: () => shellsTaken.add(i) });
+  });
+}
+
 // --- Interfaz ---
 
 const overlay = document.querySelector<HTMLDivElement>('#overlay')!;
 const playButton = document.querySelector<HTMLButtonElement>('#play')!;
 const newIslandButton = document.querySelector<HTMLButtonElement>('#new-island')!;
 const islandInfo = document.querySelector<HTMLParagraphElement>('#island-info')!;
-const hotbarEl = document.querySelector<HTMLDivElement>('#hotbar')!;
-const blockName = document.querySelector<HTMLDivElement>('#block-name')!;
 const debugEl = document.querySelector<HTMLDivElement>('#debug')!;
 const clockTime = document.querySelector<HTMLSpanElement>('#clock-time')!;
 const clockDate = document.querySelector<HTMLSpanElement>('#clock-date')!;
@@ -132,30 +180,50 @@ const underwater = document.querySelector<HTMLDivElement>('#underwater')!;
 playButton.textContent = save ? 'Volver a la isla' : 'Haz clic para jugar';
 islandInfo.textContent = `Fruta de la isla: ${BLOCKS[world.fruit].name.toLowerCase()}`;
 
-let selected = 0;
-const slots = HOTBAR.map((b, i) => {
-  const slot = document.createElement('div');
-  slot.className = 'slot';
-  slot.innerHTML = `<img alt="" src="${blockIcon(atlas, b)}"><span>${i + 1}</span>`;
-  slot.title = BLOCKS[b].name;
-  hotbarEl.appendChild(slot);
-  return slot;
-});
+const hud = new Hud(inventory, atlas);
+hud.select(0);
 
-let nameTimer = 0;
-function select(i: number) {
-  selected = (i + HOTBAR.length) % HOTBAR.length;
-  slots.forEach((s, j) => s.classList.toggle('active', j === selected));
-  blockName.textContent = BLOCKS[HOTBAR[selected]].name;
-  blockName.classList.add('show');
-  clearTimeout(nameTimer);
-  nameTimer = window.setTimeout(() => blockName.classList.remove('show'), 1200);
+/** Mete un objeto en los bolsillos y lo anuncia. Devuelve false si no cabe. */
+function take(id: string): boolean {
+  if (inventory.add(id) > 0) {
+    hud.toast('No te caben más cosas en los bolsillos');
+    return false;
+  }
+  hud.toast(`Has conseguido: ${itemDef(id).name.toLowerCase()}`);
+  return true;
 }
-select(0);
+
+// --- Bolsillos y bloqueo del puntero ---
+
+let inventoryOpen = false;
+
+function openInventory() {
+  inventoryOpen = true;
+  hud.openInventory();
+  document.exitPointerLock();
+}
+
+function closeInventory() {
+  hud.closeInventory();
+  if (!hud.inventoryEl.hidden) return; // aún lleva algo en la mano
+  inventoryOpen = false;
+  canvas.requestPointerLock();
+}
 
 window.addEventListener('keydown', (e) => {
-  const n = Number(e.key);
-  if (n >= 1 && n <= HOTBAR.length) select(n - 1);
+  if (e.code === 'KeyE') {
+    if (inventoryOpen) closeInventory();
+    else if (document.pointerLockElement === canvas) openInventory();
+    return;
+  }
+  if (e.code === 'Escape' && inventoryOpen) {
+    closeInventory();
+    return;
+  }
+  if (/^Digit[0-9]$/.test(e.code)) {
+    const n = Number(e.code.slice(5));
+    hud.select(n === 0 ? 9 : n - 1);
+  }
   if (e.code === 'F3' || e.code === 'KeyF') {
     e.preventDefault();
     debugEl.hidden = !debugEl.hidden;
@@ -163,7 +231,7 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('wheel', (e) => {
   if (document.pointerLockElement !== canvas) return;
-  select(selected + (e.deltaY > 0 ? 1 : -1));
+  hud.select(hud.selected + (e.deltaY > 0 ? 1 : -1));
 });
 
 // Empezar una isla nueva pide un segundo clic para confirmar.
@@ -186,41 +254,161 @@ newIslandButton.addEventListener('click', (e) => {
   location.reload();
 });
 
-// --- Ratón y bloqueo del puntero ---
-
 overlay.addEventListener('click', () => canvas.requestPointerLock());
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
-  overlay.hidden = locked;
-  if (!locked) {
-    persist();
-    playButton.textContent = 'Volver a la isla';
-    resetNewIslandButton();
+  if (locked) {
+    overlay.hidden = true;
+    inventoryOpen = false;
+    hud.inventoryEl.hidden = true;
+    return;
   }
+  breaking = false;
+  if (inventoryOpen) return; // se ve la pantalla de bolsillos en vez del menú
+  overlay.hidden = false;
+  persist();
+  playButton.textContent = 'Volver a la isla';
+  resetNewIslandButton();
+});
+// Si el navegador no deja volver a bloquear el ratón enseguida, se muestra el menú.
+document.addEventListener('pointerlockerror', () => {
+  if (!inventoryOpen) overlay.hidden = false;
 });
 document.addEventListener('mousemove', (e) => {
   if (document.pointerLockElement === canvas) player.look(e.movementX, e.movementY);
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
+// --- Romper, colocar y sacudir ---
+
 const isFruit = (b: number) => (FRUITS as readonly number[]).includes(b) || b === Block.Coconut;
+const posKey = (x: number, y: number, z: number) => `${x},${y},${z}`;
+
+let breaking = false;
+let breakKey = '';
+let breakProgress = 0;
+let breakCooldown = 0;
+let warnedKey = '';
 
 canvas.addEventListener('mousedown', (e) => {
   if (document.pointerLockElement !== canvas) return;
+  if (e.button === 0) breaking = true;
+  else if (e.button === 2) useItem();
+});
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 0) breaking = false;
+});
+
+function removeBlock(x: number, y: number, z: number, b: number, burst: boolean) {
+  world.setBlock(x, y, z, Block.Air);
+  if (isFruit(b)) harvested[posKey(x, y, z)] = Date.now();
+  const id = dropFor(b);
+  if (id) drops.spawn(id, x + 0.5, y + 0.5, z + 0.5, { burst });
+}
+
+function updateBreaking(dt: number) {
+  breakCooldown = Math.max(0, breakCooldown - dt);
+  const hit = breaking ? currentHit() : null;
+  if (!hit || breakCooldown > 0) {
+    breakProgress = 0;
+    breakKey = '';
+    hud.setProgress(null);
+    return;
+  }
+  const [x, y, z] = hit.block;
+  const key = posKey(x, y, z);
+  if (key !== breakKey) {
+    breakKey = key;
+    breakProgress = 0;
+  }
+  if (y === 0) return; // la capa del fondo no se rompe
+
+  const b = world.getBlock(x, y, z);
+  const stack = hud.selectedStack;
+  const tool = stack ? itemDef(stack.id).tool : undefined;
+  const info = breakInfo(b, tool);
+  if (!info.allowed) {
+    if (warnedKey !== key) hud.toast(`Necesitas ${toolNameFor(b)} para romper esto`);
+    warnedKey = key;
+    hud.setProgress(null);
+    return;
+  }
+
+  breakProgress += info.seconds > 0 ? dt / info.seconds : 1;
+  hud.setProgress(info.seconds > 0.15 ? Math.min(breakProgress, 1) : null);
+  if (breakProgress < 1) return;
+
+  removeBlock(x, y, z, b, false);
+  breakProgress = 0;
+  breakKey = '';
+  breakCooldown = 0.15;
+  hud.setProgress(null);
+  if (info.usesTool && stack && inventory.wearTool(hud.selected)) {
+    hud.toast(`¡Tu ${itemDef(stack.id).name.toLowerCase()} se ha roto!`);
+  }
+}
+
+function useItem() {
   const hit = currentHit();
   if (!hit) return;
   const [bx, by, bz] = hit.block;
-  if (e.button === 0) {
-    if (by > 0) world.setBlock(bx, by, bz, Block.Air); // la capa del fondo no se rompe
-  } else if (e.button === 2) {
+  const target = world.getBlock(bx, by, bz);
+  const stack = hud.selectedStack;
+  const def = stack ? itemDef(stack.id) : null;
+
+  if (def?.block !== undefined) {
     // Colocar sobre hierba alta o una flor la sustituye, como en Minecraft.
-    const target = world.getBlock(bx, by, bz);
     const replace = isCross(target) && !isFruit(target);
     const [x, y, z] = replace ? hit.block : hit.place;
-    const block = HOTBAR[selected];
-    if (isCross(block) || !player.intersectsBlock(x, y, z)) world.setBlock(x, y, z, block);
+    if (!isCross(def.block) && player.intersectsBlock(x, y, z)) return;
+    world.setBlock(x, y, z, def.block);
+    delete harvested[posKey(x, y, z)];
+    inventory.consume(hud.selected);
+    return;
   }
-});
+
+  if (isFruit(target)) {
+    removeBlock(bx, by, bz, target, true);
+    return;
+  }
+  if (target === Block.Log || target === Block.PalmLog || target === Block.Leaves || target === Block.PalmLeaves) {
+    shakeTree(bx, by, bz);
+  }
+}
+
+/** Sacudir un árbol, como en Animal Crossing: cae la fruta y, una vez al día, una rama. */
+function shakeTree(x: number, y: number, z: number) {
+  const fruits = world.treeFruitsNear(x, y, z);
+  for (const [fx, fy, fz] of fruits) removeBlock(fx, fy, fz, world.getBlock(fx, fy, fz), true);
+
+  const trunk = findTrunk(x, y, z);
+  let branch = false;
+  if (trunk && !branchTrees.has(trunk.key)) {
+    branchTrees.add(trunk.key);
+    drops.spawn('rama', trunk.x + 0.5, trunk.y + 0.5, trunk.z + 0.5, { burst: true });
+    branch = true;
+  }
+  if (!fruits.length && !branch) hud.toast('No ha caído nada');
+}
+
+/** Tronco de árbol frutal más cercano, para saber qué árbol se ha sacudido. */
+function findTrunk(x: number, y: number, z: number) {
+  for (let r = 0; r <= 3; r++) {
+    for (let dy = -6; dy <= 2; dy++) {
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          if (world.getBlock(x + dx, y + dy, z + dz) !== Block.Log) continue;
+          // Bajar hasta la base del tronco para que todo el árbol cuente como uno.
+          let by = y + dy;
+          while (world.getBlock(x + dx, by - 1, z + dz) === Block.Log) by--;
+          return { x: x + dx, y: by, z: z + dz, key: `${x + dx},${z + dz}` };
+        }
+      }
+    }
+  }
+  return null;
+}
 
 const dir = new THREE.Vector3();
 function currentHit() {
@@ -267,12 +455,14 @@ function frame(now: number) {
     spawned = true;
   }
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0);
+  updateBreaking(dt);
 
   const date = new Date();
   if (hourOverride !== null) date.setHours(Math.floor(hourOverride), (hourOverride % 1) * 60, 0);
   const hour = Sky.hourOf(date);
   sky.update(hour, camera);
   updateClock(date);
+  drops.update(dt, player.position, take, 1 - sky.night * 0.5);
 
   // Bajo el agua todo se ve azul y cerca.
   const submerged = camera.position.y < WATER_SURFACE;
@@ -320,4 +510,8 @@ function frame(now: number) {
 requestAnimationFrame(frame);
 
 // Acceso desde la consola del navegador mientras se desarrolla.
-if (import.meta.env.DEV) Object.assign(window, { game: { world, player, camera, persist } });
+if (import.meta.env.DEV) {
+  Object.assign(window, {
+    game: { world, player, camera, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+  });
+}

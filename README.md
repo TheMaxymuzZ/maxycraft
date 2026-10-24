@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.2 · La isla**
+Versión actual: **v0.3 · Bolsillos y herramientas**
+
+- Bolsillos con 30 casillas (la fila de arriba es la barra rápida) y fabricación sencilla: tablones, hacha, pala y pico.
+- Romper bloques lleva tiempo y da objetos. El pico es necesario para la piedra; hacha y pala van más rápido con madera y tierra, y se desgastan.
+- Sacudir árboles (clic derecho) hace caer la fruta y, una vez al día por árbol, una rama. La fruta vuelve a salir a los 3 días reales.
+- Cada día aparecen conchas, caracolas y estrellas de mar nuevas en la playa.
 
 - Una isla rodeada de mar, con playas, río, terrazas con acantilados, palmeras y flores.
 - Árboles frutales con la fruta propia de tu isla (manzana, naranja, pera, melocotón o cereza).
@@ -23,9 +28,10 @@ Versión actual: **v0.2 · La isla**
 | W A S D | Caminar |
 | Espacio | Saltar |
 | Mayús | Correr |
-| Clic izquierdo | Romper bloque |
-| Clic derecho | Colocar bloque |
-| 1–9 o rueda | Elegir bloque |
+| Clic izquierdo (mantener) | Romper bloque |
+| Clic derecho | Colocar bloque o sacudir un árbol |
+| E | Bolsillos y fabricar |
+| 1–0 o rueda | Elegir casilla |
 | Espacio en el agua | Nadar hacia arriba |
 | F | Datos de depuración |
 | Esc | Pausa |

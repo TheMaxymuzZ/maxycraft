@@ -13,20 +13,38 @@
     <div id="crosshair" aria-hidden="true"></div>
     <div id="block-name"></div>
     <div id="hotbar"></div>
+    <div id="toast" role="status"></div>
+    <div id="break-progress" hidden></div>
+    <div id="inventory" hidden>
+      <div class="inv-panel">
+        <section class="inv-pockets">
+          <h2>Bolsillos</h2>
+          <p class="inv-help">Clic para coger y soltar. Clic derecho coge la mitad. La fila de arriba es tu barra rápida.</p>
+          <div id="inv-grid"></div>
+        </section>
+        <section class="inv-craft">
+          <h2>Fabricar</h2>
+          <ul id="recipes"></ul>
+        </section>
+        <p class="inv-close"><kbd>E</kbd> o <kbd>Esc</kbd> para volver</p>
+      </div>
+      <div id="cursor-stack" class="slot"></div>
+    </div>
     <div id="debug" hidden></div>
     <div id="underwater" hidden></div>
     <div id="clock" aria-live="off"><span id="clock-time"></span><span id="clock-date"></span></div>
     <div id="overlay">
       <div class="panel">
         <h1>Maxycraft</h1>
-        <p class="version">v0.2 · La isla</p>
+        <p class="version">v0.3 · Bolsillos y herramientas</p>
         <button type="button" id="play">Haz clic para jugar</button>
         <p id="island-info" class="island-info"></p>
         <ul class="controls">
           <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> caminar</li>
           <li><kbd>Espacio</kbd> saltar · <kbd>Mayús</kbd> correr</li>
-          <li><kbd>Clic izq.</kbd> romper · <kbd>Clic der.</kbd> colocar</li>
-          <li><kbd>1</kbd>–<kbd>9</kbd> o rueda: elegir bloque</li>
+          <li><kbd>Clic izq.</kbd> (mantener) romper</li>
+          <li><kbd>Clic der.</kbd> colocar, o sacudir un árbol</li>
+          <li><kbd>E</kbd> bolsillos · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
           <li><kbd>F</kbd> datos de depuración · <kbd>Esc</kbd> pausa</li>
           <li><kbd>Espacio</kbd> en el agua: nadar hacia arriba</li>
         </ul>
