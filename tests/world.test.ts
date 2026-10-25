@@ -125,3 +125,60 @@ describe('romper bloques', () => {
     expect(breaker.progress).toBe(0);
   });
 });
+
+describe('mundo vivo', () => {
+  // Varias islas, para no depender de la suerte de una sola semilla.
+  const worlds = [1, 2, 3, 4, 5, 6].map((s) => new World(s * 7919, material));
+
+  it('hay bosquecillos de bambú y praderas de flores en alguna isla', () => {
+    const zones = new Set<string>();
+    for (const w of worlds) {
+      for (let x = -60; x <= 60; x += 3) for (let z = -60; z <= 60; z += 3) zones.add(String(w.zoneAt(x, z)));
+    }
+    expect(zones).toContain('bambu');
+    expect(zones).toContain('pradera');
+  });
+
+  it('el bambú crece sobre hierba y no en la playa', () => {
+    let found = 0;
+    for (const w of worlds) {
+      for (let x = -60; x <= 60 && found < 20; x++) {
+        for (let z = -60; z <= 60 && found < 20; z++) {
+          if (w.zoneAt(x, z) !== 'bambu') continue;
+          const h = w.heightAt(x, z);
+          if (w.getBlock(x, h + 1, z) !== Block.Bamboo) continue;
+          expect(w.getBlock(x, h, z)).toBe(Block.Grass);
+          found++;
+        }
+      }
+    }
+    expect(found).toBeGreaterThan(0);
+  });
+
+  it('las cascadas caen de un acantilado alto hacia un sitio más bajo', () => {
+    let total = 0;
+    for (const w of worlds) {
+      for (const s of w.waterfallSpots(2)) {
+        total++;
+        expect(s.top - s.bottom).toBeGreaterThanOrEqual(4);
+        expect(Math.abs(s.dx) + Math.abs(s.dz)).toBe(1);
+        expect(w.heightAt(s.x, s.z)).toBe(s.top);
+      }
+    }
+    expect(total).toBeGreaterThan(0);
+  });
+});
+
+describe('pradera de flores', () => {
+  it('tiene flores de muchos colores', () => {
+    const kinds = new Set<number>();
+    const w = new World(7919 * 3, material);
+    for (let x = -60; x <= 60; x++) {
+      for (let z = -60; z <= 60; z++) {
+        if (w.zoneAt(x, z) !== 'pradera') continue;
+        kinds.add(w.getBlock(x, w.heightAt(x, z) + 1, z));
+      }
+    }
+    for (const b of [Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink]) expect(kinds).toContain(b);
+  });
+});

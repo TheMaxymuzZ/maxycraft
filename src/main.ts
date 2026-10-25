@@ -8,6 +8,7 @@ import './style.css';
 import { Sound, materialOf } from './audio';
 import { BLOCKS, Block, FRUITS, ROOFS, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
 import { Breaker } from './breaking';
+import { Birds } from './birds';
 import { Bugs } from './bugs';
 import { dailyRandom, dayKey, gameDate as dateWith, timeOverrides } from './clock';
 import { Clouds } from './clouds';
@@ -38,6 +39,8 @@ import { type Villager, createVillagers } from './villagers';
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { Water } from './water';
+import { Waterfalls } from './waterfall';
+import { Wind } from './wind';
 import { WATER_SURFACE, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
@@ -99,6 +102,11 @@ const world = new World(seed, material, save?.edits ?? {});
 scene.add(world.group);
 const water = new Water();
 world.waterMaterial = water.material;
+const wind = new Wind(material);
+const waterfalls = new Waterfalls(world.waterfallSpots(2));
+scene.add(waterfalls.group);
+const birds = new Birds();
+scene.add(birds.group);
 
 const today = dayKey(startDate);
 
@@ -947,6 +955,9 @@ function frame(now: number) {
   sky.color.lerp(gloomColor.setRGB(0.55, 0.6, 0.65).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.75);
   sky.syncDome(weather.gloom);
   water.update(now / 1000, settings.quality !== 'baja', (1 - sky.night) * (1 - weather.gloom));
+  wind.update(now / 1000, 1 + weather.gloom * 1.5);
+  waterfalls.update(now / 1000);
+  birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), (x, z) => world.waterKind(x, z) === 'mar');
   for (const v of villagers) v.update(dt, hour, player.position);
   nameTags.update(camera, player.position);
   updateClock(date);
@@ -1019,6 +1030,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, player, birds, waterfalls, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

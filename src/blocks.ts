@@ -39,6 +39,9 @@ export enum Block {
   Workbench = 34,
   Fence = 35,
   WhiteFence = 36,
+  Bamboo = 37,
+  FlowerBlue = 38,
+  FlowerPink = 39,
 }
 
 export const TILE = 16;
@@ -59,6 +62,7 @@ export enum Tile {
   Rod, Net, MuseumWall,
   CoalOre, IronOre, GoldOre, GemOre, Torch, Coal, IronNugget, GoldNugget, Gem, IronAxe, IronPickaxe, IronShovel,
   Canvas, WorkbenchTop, WorkbenchSide, Bottle, WhiteWood, FenceIcon, WhiteFenceIcon,
+  Bamboo, FlowerBlue, FlowerPink,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos. */
@@ -119,7 +123,15 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.Workbench]: cube('Mesa de trabajo', Tile.WorkbenchSide, Tile.WorkbenchTop, Tile.Planks),
   [Block.Fence]: fence('Valla de madera', Tile.Planks),
   [Block.WhiteFence]: fence('Valla blanca', Tile.WhiteWood),
+  [Block.Bamboo]: cross('Bambú', Tile.Bamboo),
+  [Block.FlowerBlue]: cross('Nomeolvides azul', Tile.FlowerBlue),
+  [Block.FlowerPink]: cross('Clavel rosa', Tile.FlowerPink),
 };
+
+/** Plantas que se mueven con el viento. */
+export const SWAYING: ReadonlySet<number> = new Set([
+  Block.TallGrass, Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink, Block.Bamboo,
+]);
 
 /** Bloques que dan luz y cuánta (alcance en bloques). */
 export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 8 };
@@ -471,6 +483,18 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   paintSprite(ctx, Tile.FlowerYellow, FLOWER, { a: [240, 196, 52], b: [252, 226, 110], s: STEM, l: leaf });
   paintSprite(ctx, Tile.FlowerWhite, DAISY, { a: [248, 248, 240], b: [240, 196, 52], s: STEM, l: leaf });
   paintSprite(ctx, Tile.TallGrass, TALL_GRASS, { a: [116, 190, 76], b: [90, 160, 58] });
+  paintSprite(ctx, Tile.FlowerBlue, DAISY, { a: [110, 150, 236], b: [250, 230, 120], s: STEM, l: leaf });
+  paintSprite(ctx, Tile.FlowerPink, FLOWER, { a: [240, 130, 180], b: [252, 190, 214], s: STEM, l: leaf });
+  // Bambú: dos cañas con nudos y alguna hoja, para que al apilarlo se vea un bosquecillo.
+  paintTile(ctx, Tile.Bamboo, (x, y, r) => {
+    const cane = x === 4 || x === 5 || x === 10 || x === 11;
+    if (cane) {
+      const knot = (x < 8 ? y === 3 : y === 10);
+      return knot ? [96, 142, 52] : x === 5 || x === 11 ? [128, 176, 70] : pick(r, [[150, 198, 86], [140, 190, 80]]);
+    }
+    const leafy = (x === 6 || x === 7) && (y === 2 || y === 3) || (x === 12 || x === 13) && (y === 9 || y === 10) || (x === 2 || x === 3) && y === 12;
+    return leafy ? pick(r, [[110, 180, 70], [96, 166, 60]]) : null;
+  });
 
   const fruit = (tile: Tile, main: RGB, shade: RGB) =>
     paintSprite(ctx, tile, FRUIT, { a: main, b: shade, h: [255, 255, 240], s: [110, 76, 44], l: leaf });

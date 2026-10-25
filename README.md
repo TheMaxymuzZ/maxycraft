@@ -6,7 +6,14 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.5**
+Versión actual: **v1.6**
+
+- **Bosquecillos de bambú**: zonas de cañas de 3 a 5 bloques sin árboles. El bambú se puede romper y vender.
+- **Praderas de flores** llenas de flores de cinco colores, con dos nuevas: nomeolvides azul y clavel rosa (también en la tienda).
+- **Cascadas** donde el río pasa junto a un acantilado alto, con espuma al pie.
+- **Viento**: la hierba alta, las flores y el bambú se balancean, más fuerte cuando llueve.
+- **Pájaros** volando en círculos sobre la isla y **gaviotas** sobre el mar. De noche y con lluvia se van.
+- Las zonas nuevas solo cambian plantas, no el terreno, así que las islas guardadas siguen encajando.
 
 - **Cielo con degradado**: más azul arriba que en el horizonte, con un resplandor naranja junto al sol al amanecer y al atardecer. El sol se vuelve anaranjado cuando está bajo y la luz también.
 - **Agua animada**: olas suaves (en calidad media y alta), manchas de luz que se mueven y brillos pixelados que se apagan de noche y con lluvia.
