@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { Block } from '../src/blocks';
+import { Fluids } from '../src/fluids';
 import { treeKindOfSapling } from '../src/orchard';
 import { pineShape } from '../src/trees';
 import { BIG_ISLAND_RADIUS, ISLAND_RADIUS, SEA_LEVEL, World } from '../src/world';
@@ -43,17 +44,32 @@ describe('islas grandes con biomas', () => {
     expect(peak).toBeGreaterThanOrEqual(SEA_LEVEL + 2 + 3 * 4);
   });
 
-  it('el río baja por terrazas y forma cascadas de agua sobre agua', () => {
-    const falls = world.waterfallSpots(2);
-    expect(falls.length).toBeGreaterThan(0);
-    for (const f of falls) {
-      expect(f.river).toBe(true);
-      expect(f.top).toBeGreaterThan(f.bottom);
-      // Arriba y abajo de la cascada hay agua del río.
-      const up = [Math.floor(f.x + 0.5 - f.dx * 2), Math.floor(f.z + 0.5 - f.dz * 2)];
-      const down = [Math.floor(f.x + 0.5 + f.dx * 3), Math.floor(f.z + 0.5 + f.dz * 3)];
-      expect(world.waterLevel(up[0], up[1])).toBe(f.top);
-      expect(world.waterLevel(down[0], down[1])).toBe(f.bottom);
+  it('el río baja por terrazas y forma cascadas de agua de verdad (v3.9)', () => {
+    const w = new World(20261025, material, {}, { terrain: 2 });
+    const fluids = new Fluids({ getBlock: (x, y, z) => w.getBlock(x, y, z), setBlock: (x, y, z, b) => w.setBlock(x, y, z, b), loaded: (x, z) => w.hasColumn(x, z) });
+    w.onBlockChange = (x, y, z) => fluids.wake(x, y, z);
+    // Cargar la isla entera, como al ir andando por ella.
+    for (let cx = -12; cx < 12; cx++) for (let cz = -12; cz < 12; cz++) w.getBlock(cx * 16, 0, cz * 16);
+    const spills = w.takeSpills();
+    expect(spills.length).toBeGreaterThan(0);
+    for (const [x, y, z] of spills) fluids.wake(x, y, z);
+    for (let i = 0; i < 80 && fluids.busy; i++) fluids.step();
+    // Al lado de cada borde, el agua cae hasta la terraza de abajo.
+    let falling = 0;
+    for (const [x, y, z] of spills) {
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (w.getBlock(x + dx, y - 1, z + dz) === Block.WaterFall) falling++;
+      }
+    }
+    expect(falling).toBeGreaterThan(0);
+    // Y llega al agua del río de abajo: debajo del agua que cae siempre hay más agua o suelo.
+    for (const [x, y, z] of spills) {
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        let fy = y - 1;
+        if (w.getBlock(x + dx, fy, z + dz) !== Block.WaterFall) continue;
+        while (w.getBlock(x + dx, fy, z + dz) === Block.WaterFall) fy--;
+        expect(w.getBlock(x + dx, fy, z + dz)).not.toBe(Block.Air);
+      }
     }
   });
 

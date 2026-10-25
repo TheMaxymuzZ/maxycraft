@@ -132,6 +132,8 @@ export interface Airport {
   dz: number;
 }
 
+const SIDES: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
 export interface WaterfallSpot {
   x: number;
   z: number;
@@ -139,10 +141,6 @@ export interface WaterfallSpot {
   bottom: number;
   dx: number;
   dz: number;
-  /** Ancho de la lámina de agua (2 si no se dice). */
-  width?: number;
-  /** Cascada del río entre dos terrazas: `top` y `bottom` son los niveles del agua, no del suelo. */
-  river?: boolean;
 }
 
 export class World {
@@ -176,6 +174,14 @@ export class World {
    * También al cargar un trozo de isla, por cada hueco que hizo el jugador, por si toca el agua.
    */
   onBlockChange: ((x: number, y: number, z: number) => void) | null = null;
+
+  /**
+   * Bordes de agua que se asoman a un hueco, de los trozos de isla recién generados (v3.9).
+   * El agua de ahí tiene que moverse para que las cascadas caigan de verdad: ver `takeSpills`.
+   */
+  private spills: [number, number, number][] = [];
+  /** Manantiales de los acantilados de las islas de antes (se buscan una vez, al hacer falta). */
+  private springs: WaterfallSpot[] | null = null;
 
   /** Material del agua; se pone desde fuera para que coincida con el resto de la escena. */
   waterMaterial: THREE.Material = new THREE.MeshLambertMaterial({ color: 0x3fa9d6, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
@@ -725,6 +731,14 @@ export class World {
       }
     }
 
+    // Manantiales (v3.9): en las islas de antes, el agua sale del borde de un acantilado alto y cae hasta el río.
+    for (const s of this.springSpots()) {
+      const x = s.x - ox;
+      const z = s.z - oz;
+      if (x >= 0 && x < CHUNK && z >= 0 && z < CHUNK) d[index(x, s.top, z)] = Block.Water;
+    }
+    this.findSpills(ox, oz);
+
     // Lo que el jugador cambió en este chunk.
     const edits = this.edits.get(key(chunk.cx, chunk.cz));
     if (edits) {
@@ -737,6 +751,45 @@ export class World {
     }
 
     chunk.dirty = true;
+  }
+
+  /**
+   * Las cascadas (v3.9) son agua de verdad: donde el río baja de terraza o sale un manantial, el agua de arriba
+   * queda junto a un hueco. Esos bordes se apuntan para que el agua corra y caiga como cualquier otra.
+   * Se miran también las columnas de alrededor del trozo, por si el agua de un trozo ya cargado cae en este.
+   */
+  private findSpills(ox: number, oz: number) {
+    const springs = this.springSpots();
+    for (let z = -1; z <= CHUNK; z++) {
+      for (let x = -1; x <= CHUNK; x++) {
+        const wx = ox + x;
+        const wz = oz + z;
+        const inside = x >= 0 && x < CHUNK && z >= 0 && z < CHUNK;
+        if (!inside && !this.hasColumn(wx, wz)) continue;
+        const spring = springs.find((s) => s.x === wx && s.z === wz);
+        const level = spring ? spring.top : this.waterLevel(wx, wz);
+        if (!spring && this.naturalHeight(wx, wz) >= level) continue; // aquí no hay agua
+        if (SIDES.some(([dx, dz]) => this.openAt(wx + dx, level, wz + dz))) this.spills.push([wx, level, wz]);
+      }
+    }
+  }
+
+  /** Si en (x, y, z) el terreno generado deja un hueco sin agua (por donde el agua de al lado se derramaría). */
+  private openAt(x: number, y: number, z: number): boolean {
+    if (this.heightAt(x, z) >= y) return false;
+    return !(this.naturalHeight(x, z) < this.waterLevel(x, z) && this.waterLevel(x, z) >= y);
+  }
+
+  /** Los bordes de agua que hay que mover desde la última vez (y se olvidan). */
+  takeSpills(): [number, number, number][] {
+    const s = this.spills;
+    this.spills = [];
+    return s;
+  }
+
+  private springSpots(): WaterfallSpot[] {
+    if (!this.springs) this.springs = this.terrain >= 2 || this.mystery ? [] : this.waterfallSpots(2);
+    return this.springs;
   }
 
   /** Casita de 5x5 con tejado a cuatro aguas, ventanas y la puerta hacia +z. La parcela del jugador empieza con una tienda de campaña. */
@@ -1075,12 +1128,12 @@ export class World {
   }
 
   /**
-   * Sitios para cascadas: donde el río pasa pegado a un acantilado alto.
+   * Sitios para cascadas en las islas de antes: donde el río pasa pegado a un acantilado alto.
+   * Ahí sale un manantial (v3.9). En las islas grandes las cascadas las hace el río al bajar de terraza.
    * Devuelve la columna del acantilado (x, z), su altura (`top`), la del suelo al pie (`bottom`)
    * y hacia dónde cae el agua (`dx`, `dz`: del acantilado al río).
    */
   waterfallSpots(count: number): WaterfallSpot[] {
-    if (this.terrain >= 2 && !this.mystery) return this.riverFalls();
     const found: WaterfallSpot[] = [];
     const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (let tries = 0; tries < 3000 && found.length < count; tries++) {
@@ -1100,40 +1153,6 @@ export class World {
         found.push({ x: cx, z: cz, top, bottom, dx, dz });
         break;
       }
-    }
-    return found;
-  }
-
-  /**
-   * Cascadas del río de las islas grandes: donde el río baja de una terraza a otra,
-   * el agua de arriba cae sobre la de abajo.
-   */
-  private riverFalls(): WaterfallSpot[] {
-    const found: WaterfallSpot[] = [];
-    const a = columnRandom(2, 2, this.seed) * Math.PI;
-    const reach = Math.ceil(this.radius * 1.6);
-    for (let u = -reach; u < reach && found.length < 8; u++) {
-      const here = this.riverLevel(u);
-      const next = this.riverLevel(u + 1);
-      if (here === next) continue;
-      let [bx, bz] = this.riverPoint(u + 0.5);
-      if (this.landMask(bx, bz) < 0.26) continue;
-      // El agua cae hacia donde el río está más bajo.
-      const sign = next < here ? 1 : -1;
-      const dx = Math.cos(a) * sign;
-      const dz = Math.sin(a) * sign;
-      // Ajustar la lámina al escalón de verdad, que va por bloques enteros.
-      const low = Math.min(here, next);
-      for (let t = -2.5; t <= 2.5; t += 0.1) {
-        const px = bx + dx * t;
-        const pz = bz + dz * t;
-        if (this.waterLevel(Math.floor(px), Math.floor(pz)) !== low) continue;
-        bx = px;
-        bz = pz;
-        break;
-      }
-      // La lámina se dibuja en (x + 0.5 + dx * 0.52, z + 0.5 + dz * 0.52): que quede justo en el escalón.
-      found.push({ x: bx - 0.5 - dx * 0.52, z: bz - 0.5 - dz * 0.52, top: Math.max(here, next), bottom: Math.min(here, next), dx, dz, width: 5, river: true });
     }
     return found;
   }

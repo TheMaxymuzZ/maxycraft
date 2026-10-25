@@ -50,6 +50,17 @@ describe('romper bloques', () => {
     expect(shovel.seconds).toBeLessThan(hand.seconds);
   });
 
+  it('a mano se tarda mucho; con herramienta, lo normal; con la de hierro, menos', () => {
+    const hand = breakInfo(Block.Log, null).seconds;
+    const axe = breakInfo(Block.Log, itemDef('hacha')).seconds;
+    const iron = breakInfo(Block.Log, itemDef('hacha_hierro')).seconds;
+    expect(axe).toBe(2.5);
+    expect(hand).toBe(axe * 5);
+    expect(iron).toBeLessThan(axe);
+    // Lo que no pide herramienta (hojas, cristal) tarda lo mismo a mano.
+    expect(breakInfo(Block.Leaves, null).seconds).toBe(0.25);
+  });
+
   it('la herramienta equivocada no se desgasta', () => {
     expect(breakInfo(Block.Dirt, itemDef('hacha')).usesTool).toBe(false);
   });

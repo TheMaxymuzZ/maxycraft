@@ -102,8 +102,10 @@ export class Fluids {
   }
 
   private tick(x: number, y: number, z: number) {
+    // Sin mirar el bloque si su trozo aún no existe, que si no se crearía aquí.
+    if (!this.w.loaded(x, z)) return;
     const b = this.w.getBlock(x, y, z);
-    if (!isWater(b) || !this.w.loaded(x, z)) return;
+    if (!isWater(b)) return;
 
     // El agua que corre o cae se recalcula: crece, se seca o se vuelve fuente. Si cambia, se volverá a mirar.
     if (!isWaterSource(b)) {

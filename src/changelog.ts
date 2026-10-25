@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.9',
+    title: 'Cascadas de verdad y picar con calma',
+    items: [
+      'Las cascadas del río son agua de verdad: el agua de la terraza de arriba se derrama y cae hasta la de abajo. Ya no hay lámina de cascada pintada.',
+      'En las islas de antes, la cascada del acantilado sale de un manantial y cae por la roca.',
+      'A mano se rompe muy despacio (5 veces más lento). Con la herramienta adecuada se rompe a la velocidad de antes a mano, y con las de hierro, más rápido.',
+    ],
+  },
+  {
     version: '3.8',
     title: 'Agua de verdad',
     items: [
