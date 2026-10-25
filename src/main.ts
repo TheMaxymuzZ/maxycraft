@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, HOUSE_BLOCKS, ROOFS, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
+import { Breaker } from './breaking';
 import { Bugs } from './bugs';
+import { dailyRandom, dayKey, gameDate as dateWith, timeOverrides } from './clock';
+import { Clouds } from './clouds';
 import { Collection } from './collection';
 import { calendar, creature } from './creatures';
 import { Dialog, HOUSE_COSTS, HOUSE_NAMES } from './dialog';
@@ -10,15 +13,17 @@ import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, paintFurnitureIcons } from './furniture';
 import { Hud } from './hud';
+import { NameTags } from './labels';
 import { Inventory, starterKit } from './inventory';
-import { SHELLS, breakInfo, dropFor, fruitItemFor, itemDef, toolNameFor } from './items';
+import { SHELLS, dropFor, fruitItemFor, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
 import { deleteGame, loadGame, saveGame } from './save';
 import { Shop, formatBerries } from './shop';
-import { WEATHER_TEXT, dateOverride, holidayOf, seasonOf, weatherAt } from './seasons';
+import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
 import { Sky } from './sky';
 import { TouchControls } from './touch';
+import { findTrunk } from './trees';
 import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { type Villager, createVillagers } from './villagers';
 import { WeatherFx } from './weather';
@@ -36,19 +41,10 @@ const FOG_FAR = RENDER_RADIUS * 16 * 0.95;
 const FRUIT_REGROW_DAYS = 3;
 const SHELLS_PER_DAY = 7;
 
-// Para probar otras horas: ?hora=21.5
+// Para probar otras horas y días: ?hora=21.5 y ?fecha=2026-12-24
 const params = new URLSearchParams(location.search);
-const hourOverride = params.has('hora') && Number.isFinite(Number(params.get('hora'))) ? Number(params.get('hora')) : null;
-// Y otros días: ?fecha=2026-12-24
-const dayOverride = dateOverride(params);
-
-/** Fecha y hora del juego: las reales, salvo que se hayan cambiado para probar. */
-function gameDate(): Date {
-  const d = new Date();
-  if (dayOverride) d.setFullYear(dayOverride.getFullYear(), dayOverride.getMonth(), dayOverride.getDate());
-  if (hourOverride !== null) d.setHours(Math.floor(hourOverride), (hourOverride % 1) * 60, 0);
-  return d;
-}
+const overrides = timeOverrides(params);
+const gameDate = () => dateWith(overrides);
 const startDate = gameDate();
 const season = seasonOf(startDate);
 const holiday = holidayOf(startDate);
@@ -91,10 +87,7 @@ const sound = new Sound(seed);
 const world = new World(seed, material, save?.edits ?? {});
 scene.add(world.group);
 
-const today = (() => {
-  const d = startDate;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-})();
+const today = dayKey(startDate);
 
 // La fruta cogida hace días vuelve a crecer en el mismo sitio.
 const harvested: Record<string, number> = { ...(save?.harvested ?? {}) };
@@ -198,23 +191,8 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', persist);
 
-// Nubes de bloques que pasan despacio.
-const clouds = new THREE.Group();
-const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, fog: false });
-{
-  const geo = new THREE.BoxGeometry(1, 1, 1);
-  const r = (n: number) => {
-    const x = Math.sin(n * 12.9898) * 43758.5453;
-    return x - Math.floor(x);
-  };
-  for (let i = 0; i < 40; i++) {
-    const c = new THREE.Mesh(geo, cloudMat);
-    c.scale.set(8 + r(i) * 14, 2, 6 + r(i + 50) * 10);
-    c.position.set((r(i + 100) - 0.5) * 300, 70 + r(i + 200) * 6, (r(i + 300) - 0.5) * 300);
-    clouds.add(c);
-  }
-}
-scene.add(clouds);
+const clouds = new Clouds();
+scene.add(clouds.group);
 
 // Contorno del bloque al que apuntas.
 const highlight = new THREE.LineSegments(
@@ -238,11 +216,7 @@ scene.add(fishing.bobber);
 
 // Cada día real aparecen conchas nuevas en la playa.
 {
-  let s = (seed ^ Number(today.replace(/-/g, ''))) >>> 0;
-  const random = () => {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
+  const random = dailyRandom(seed, today);
   world.beachSpots(SHELLS_PER_DAY, random).forEach(([x, y, z], i) => {
     if (shellsTaken.has(i)) return;
     const id = SHELLS[Math.floor(random() * SHELLS.length)];
@@ -266,6 +240,7 @@ const clockTime = document.querySelector<HTMLSpanElement>('#clock-time')!;
 const clockDate = document.querySelector<HTMLSpanElement>('#clock-date')!;
 const underwater = document.querySelector<HTMLDivElement>('#underwater')!;
 
+document.querySelector('#version')!.textContent = `v${__APP_VERSION__}`;
 playButton.textContent = save ? 'Volver a la isla' : touchMode ? 'Toca para jugar' : 'Haz clic para jugar';
 islandInfo.textContent = `Fruta de la isla: ${BLOCKS[world.fruit].name.toLowerCase()}`;
 
@@ -359,7 +334,7 @@ const workbench = new Workbench({ inventory, atlas, toast: (t) => hud.toast(t) }
 
 function openWorkbench() {
   panel = 'workbench';
-  breaking = false;
+  breaker.active = false;
   workbench.open();
   unlockInput();
 }
@@ -459,7 +434,7 @@ const touch = touchMode
       use: () => useItem(),
       setBreaking: (on) => {
         if (on && pickUpFurniture()) return;
-        breaking = on;
+        breaker.active = on;
       },
       inventory: () => openInventory(),
       collection: () => openCollection(),
@@ -475,7 +450,7 @@ if (touch) document.body.appendChild(touch.el);
 function talkTo(v: Villager) {
   tutorial.complete('hablar');
   panel = 'dialog';
-  breaking = false;
+  breaker.active = false;
   dialog.start(v);
   unlockInput();
 }
@@ -571,7 +546,7 @@ function onInputChange() {
     panel = null;
     return;
   }
-  breaking = false;
+  breaker.active = false;
   if (panel) return; // se ve la ventana abierta en vez del menú
   overlay.hidden = false;
   persist();
@@ -593,20 +568,30 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 const isFruit = (b: number) => (FRUITS as readonly number[]).includes(b) || b === Block.Coconut;
 const posKey = (x: number, y: number, z: number) => `${x},${y},${z}`;
 
-let breaking = false;
-let breakKey = '';
-let breakProgress = 0;
-let breakCooldown = 0;
-let warnedKey = '';
+const breaker = new Breaker({
+  getBlock: (x, y, z) => world.getBlock(x, y, z),
+  plotAt: (x, z) => world.plotAt(x, z),
+  held: () => hud.selectedStack,
+  toast: (t) => hud.toast(t),
+  progress: (p) => hud.setProgress(p),
+  broken: (x, y, z, b, usedTool) => {
+    const stack = hud.selectedStack;
+    removeBlock(x, y, z, b, false);
+    tutorial.complete('romper');
+    if (usedTool && stack && inventory.wearTool(hud.selected)) {
+      hud.toast(`¡Tu ${itemDef(stack.id).name.toLowerCase()} se ha roto!`);
+    }
+  },
+});
 
 canvas.addEventListener('mousedown', (e) => {
   if (!isPlaying()) return;
   if (e.button === 0) {
-    if (!pickUpFurniture()) breaking = true;
+    if (!pickUpFurniture()) breaker.active = true;
   } else if (e.button === 2) useItem();
 });
 window.addEventListener('mouseup', (e) => {
-  if (e.button === 0) breaking = false;
+  if (e.button === 0) breaker.active = false;
 });
 
 function removeBlock(x: number, y: number, z: number, b: number, burst: boolean) {
@@ -621,54 +606,6 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
   if (isFruit(b)) harvested[posKey(x, y, z)] = Date.now();
   const id = dropFor(b);
   if (id) drops.spawn(id, x + 0.5, y + 0.5, z + 0.5, { burst });
-}
-
-function updateBreaking(dt: number) {
-  breakCooldown = Math.max(0, breakCooldown - dt);
-  const hit = breaking ? currentHit() : null;
-  if (!hit || breakCooldown > 0) {
-    breakProgress = 0;
-    breakKey = '';
-    hud.setProgress(null);
-    return;
-  }
-  const [x, y, z] = hit.block;
-  const key = posKey(x, y, z);
-  if (key !== breakKey) {
-    breakKey = key;
-    breakProgress = 0;
-  }
-  if (y === 0) return; // la capa del fondo no se rompe
-
-  const b = world.getBlock(x, y, z);
-  const plot = world.plotAt(x, z);
-  if (HOUSE_BLOCKS.includes(b) && plot && plot.kind !== 'player') {
-    if (warnedKey !== key) hud.toast('Es la casa de un vecino. Mejor no tocarla');
-    warnedKey = key;
-    return;
-  }
-  const stack = hud.selectedStack;
-  const info = breakInfo(b, stack ? itemDef(stack.id) : null);
-  if (!info.allowed) {
-    if (warnedKey !== key) hud.toast(`Necesitas ${toolNameFor(b)} para romper esto`);
-    warnedKey = key;
-    hud.setProgress(null);
-    return;
-  }
-
-  breakProgress += info.seconds > 0 ? dt / info.seconds : 1;
-  hud.setProgress(info.seconds > 0.15 ? Math.min(breakProgress, 1) : null);
-  if (breakProgress < 1) return;
-
-  removeBlock(x, y, z, b, false);
-  tutorial.complete('romper');
-  breakProgress = 0;
-  breakKey = '';
-  breakCooldown = 0.15;
-  hud.setProgress(null);
-  if (info.usesTool && stack && inventory.wearTool(hud.selected)) {
-    hud.toast(`¡Tu ${itemDef(stack.id).name.toLowerCase()} se ha roto!`);
-  }
 }
 
 const villagerBox = new THREE.Box3();
@@ -844,7 +781,7 @@ function shakeTree(x: number, y: number, z: number) {
   const fruits = world.treeFruitsNear(x, y, z);
   for (const [fx, fy, fz] of fruits) removeBlock(fx, fy, fz, world.getBlock(fx, fy, fz), true);
 
-  const trunk = findTrunk(x, y, z);
+  const trunk = findTrunk(world, x, y, z);
   let branch = false;
   if (trunk && !branchTrees.has(trunk.key)) {
     branchTrees.add(trunk.key);
@@ -852,25 +789,6 @@ function shakeTree(x: number, y: number, z: number) {
     branch = true;
   }
   if (!fruits.length && !branch) hud.toast('No ha caído nada');
-}
-
-/** Tronco de árbol frutal más cercano, para saber qué árbol se ha sacudido. */
-function findTrunk(x: number, y: number, z: number) {
-  for (let r = 0; r <= 3; r++) {
-    for (let dy = -6; dy <= 2; dy++) {
-      for (let dz = -r; dz <= r; dz++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
-          if (world.getBlock(x + dx, y + dy, z + dz) !== Block.Log) continue;
-          // Bajar hasta la base del tronco para que todo el árbol cuente como uno.
-          let by = y + dy;
-          while (world.getBlock(x + dx, by - 1, z + dz) === Block.Log) by--;
-          return { x: x + dx, y: by, z: z + dz, key: `${x + dx},${z + dz}` };
-        }
-      }
-    }
-  }
-  return null;
 }
 
 // Pasos: un sonido cada poco más de un bloque andado, según lo que haya bajo los pies.
@@ -906,27 +824,7 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Nombre encima de cada vecino cercano.
-const labelsEl = document.querySelector<HTMLDivElement>('#labels')!;
-const labels = villagers.map((v) => {
-  const el = document.createElement('div');
-  el.className = 'name-tag';
-  el.textContent = v.name;
-  labelsEl.appendChild(el);
-  return el;
-});
-const projected = new THREE.Vector3();
-function updateLabels() {
-  villagers.forEach((v, i) => {
-    const el = labels[i];
-    const dist = v.position.distanceTo(player.position);
-    projected.copy(v.position).setY(v.position.y + 1.85).project(camera);
-    const show = v.group.visible && dist < 8 && projected.z < 1 && Math.abs(projected.x) < 1.1 && Math.abs(projected.y) < 1.1;
-    el.hidden = !show;
-    if (!show) return;
-    el.style.transform = `translate(${((projected.x + 1) / 2) * window.innerWidth}px, ${((1 - projected.y) / 2) * window.innerHeight}px) translate(-50%, -100%)`;
-  });
-}
+const nameTags = new NameTags(villagers, document.querySelector<HTMLDivElement>('#labels')!);
 
 // --- Reloj con la hora local, como en Animal Crossing ---
 
@@ -963,7 +861,7 @@ function frame(now: number) {
     spawned = true;
   }
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0);
-  updateBreaking(dt);
+  breaker.update(dt, breaker.active ? currentHit()?.block ?? null : null);
   updateSteps(dt);
 
   const date = gameDate();
@@ -978,7 +876,7 @@ function frame(now: number) {
   sunLight.intensity *= 1 - weather.gloom * 0.7;
   sky.color.lerp(gloomColor.setRGB(0.55, 0.6, 0.65).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.75);
   for (const v of villagers) v.update(dt, hour, player.position);
-  updateLabels();
+  nameTags.update(camera, player.position);
   updateClock(date);
   drops.update(dt, player.position, take, 1 - sky.night * 0.5);
   bugs.update(dt, hour, player.position, 1 - sky.night * 0.5);
@@ -1010,9 +908,7 @@ function frame(now: number) {
     fog.far = FOG_FAR;
   }
 
-  clouds.position.x = ((now / 1000) * 1.2) % 300;
-  cloudMat.color.setScalar((1 - sky.night * 0.6) * (1 - weather.gloom * 0.35));
-  cloudMat.opacity = 0.8 + weather.gloom * 0.2;
+  clouds.update(now / 1000, sky.night, weather.gloom);
 
   const hit = currentHit();
   const aimed = furnitureInSight();
@@ -1050,6 +946,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+    game: { world, player, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }
