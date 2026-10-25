@@ -249,6 +249,8 @@ kbd {
 .card b { font-size: 14px; }
 .card small { font-size: 12px; color: #6b7466; }
 .card.unknown img { filter: brightness(0); opacity: 0.25; }
+.card.villager-card img { width: 72px; height: 72px; image-rendering: auto; justify-self: center; }
+.card.villager-card { justify-items: center; text-align: center; }
 .card .badge { position: absolute; right: 8px; top: 8px; font: 700 10px var(--display); background: #4a6aa8; color: #fff; padding: 2px 6px; border-radius: 6px; }
 #collection-close { font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: #4a6aa8; color: #fff; }
 #collection-close:focus-visible { outline: 3px solid var(--dirt); outline-offset: 2px; }

@@ -1,6 +1,10 @@
 import { CREATURE_TILE_START, tileCanvas } from './blocks';
 import { CREATURES, HABITAT_TEXT, hoursText, monthsText } from './creatures';
 import type { Inventory } from './inventory';
+import type { ModelSpec } from './villagerModel';
+import { ALL_PROFILES, PERSONALITY_NAMES, SPECIES_NAMES } from './villagers';
+
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 /** Enciclopedia de peces e insectos y lo donado al museo. */
 export class Collection {
@@ -10,9 +14,15 @@ export class Collection {
   private summaryEl = document.querySelector<HTMLParagraphElement>('#collection-summary')!;
   private fishEl = document.querySelector<HTMLDivElement>('#collection-fish')!;
   private bugsEl = document.querySelector<HTMLDivElement>('#collection-bugs')!;
+  private villagersEl = document.querySelector<HTMLDivElement>('#collection-villagers')!;
+  /** Vecinos con los que ya se ha hablado, para el álbum. */
+  readonly met: Set<string>;
+  /** Dibuja el retrato de un vecino (lo pone main.ts, que tiene el renderer). */
+  portrait: ((name: string, spec: ModelSpec) => string) | null = null;
   private icons: string[];
 
-  constructor(caught: string[], donated: string[], atlas: HTMLCanvasElement) {
+  constructor(caught: string[], donated: string[], atlas: HTMLCanvasElement, met: string[] = []) {
+    this.met = new Set(met);
     this.caught = new Set(caught);
     this.donated = new Set(donated);
     this.icons = CREATURES.map((_, i) => tileCanvas(atlas, CREATURE_TILE_START + i).toDataURL());
@@ -52,7 +62,7 @@ export class Collection {
     const count = (list: typeof CREATURES) => list.filter((c) => this.caught.has(c.id)).length;
     this.summaryEl.textContent =
       `Peces ${count(fish)} de ${fish.length} · Insectos ${count(bugs)} de ${bugs.length} · ` +
-      `En el museo ${this.donated.size} de ${CREATURES.length}`;
+      `En el museo ${this.donated.size} de ${CREATURES.length} · Vecinos ${this.met.size} de ${ALL_PROFILES.length}`;
 
     const fill = (el: HTMLElement, list: typeof CREATURES) => {
       el.innerHTML = '';
@@ -68,5 +78,22 @@ export class Collection {
     };
     fill(this.fishEl, fish);
     fill(this.bugsEl, bugs);
+    this.renderVillagers();
+  }
+
+  /** Álbum de vecinos: ficha de cada personaje con el que has hablado; los demás salen en silueta. */
+  private renderVillagers() {
+    this.villagersEl.innerHTML = '';
+    for (const p of ALL_PROFILES) {
+      const known = this.met.has(p.name);
+      const card = document.createElement('div');
+      card.className = `card villager-card${known ? '' : ' unknown'}`;
+      const img = this.portrait ? `<img alt="" src="${this.portrait(p.name, p)}">` : '';
+      const info = known
+        ? `${SPECIES_NAMES[p.species]} · ${PERSONALITY_NAMES[p.personality]}<br>Cumple: ${p.birthday[1]} ${MONTHS[p.birthday[0] - 1]} · Le gusta ${p.hobby}`
+        : 'Aún no os conocéis';
+      card.innerHTML = `${img}<b>${known ? p.name : '???'}</b><small>${info}</small>`;
+      this.villagersEl.appendChild(card);
+    }
   }
 }
