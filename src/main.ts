@@ -675,7 +675,9 @@ const dialog = new Dialog({
       const residents = [...villagers.filter((v) => !v.profile.role).map((v) => v.name), ...guests.map((g) => g.name)];
       // Se mira antes de salir cuántas casas nuevas caben, para no invitar a quien no podrá mudarse.
       const room = Math.min(MAX_GUESTS, guests.length + world.findGuestSpots(MAX_GUESTS - guests.length).length);
-      saveTrip(planTrip(activeSlot(), world.fruit, pickVisitor(residents, Math.random), room));
+      const trip = planTrip(activeSlot(), world.fruit, null, room);
+      trip.visitor = pickVisitor(residents, Math.random, trip.kind);
+      saveTrip(trip);
       takeOff('Volando a una isla misteriosa…', () => {});
     },
     goHome: () => takeOff('Volviendo a casa…', () => saveTrip(null)),

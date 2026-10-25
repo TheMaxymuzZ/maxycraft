@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.9',
+    title: 'Islas misteriosas nuevas',
+    items: [
+      'Las islas misteriosas son más grandes y hay cuatro nuevas: volcán, cristales, nieve y setas gigantes.',
+      'El volcán tiene ríos de magma que brillan de noche; la isla de cristal, agujas de amatista.',
+      'Bloques nuevos para llevarte: basalto, roca de magma, cristales, hielo, setas y amatista.',
+      'Cada isla atrae a sus vecinos favoritos: pingüinos en la nieve, ranas entre las setas…',
+    ],
+  },
+  {
     version: '2.8',
     title: 'Calles y decoración',
     items: [

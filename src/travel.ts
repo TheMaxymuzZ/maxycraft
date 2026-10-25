@@ -22,6 +22,10 @@ export const MYSTERY_NAMES: Record<MysteryKind, string> = {
   flores: 'Isla de las flores',
   minerales: 'Isla de las rocas',
   bambu: 'Isla del bambú',
+  volcan: 'Isla del volcán',
+  cristal: 'Isla de los cristales',
+  nieve: 'Isla nevada',
+  setas: 'Isla de las setas',
 };
 
 /** Prepara una isla misteriosa al azar: su tipo y una fruta que no es la de casa. */
