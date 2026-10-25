@@ -6,7 +6,7 @@ import '@fontsource/pixelify-sans/latin-500.css';
 import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isSolid, toggled } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isSolid, isStairs, stairsFacing, toggled } from './blocks';
 import { Breaker } from './breaking';
 import { Birds } from './birds';
 import { Bugs } from './bugs';
@@ -758,6 +758,8 @@ function talkTo(v: Villager) {
 }
 
 window.addEventListener('keydown', (e) => {
+  // Escribiendo en un buscador, las letras no son atajos del juego.
+  if (e.target instanceof HTMLInputElement && e.target.type !== 'checkbox' && e.code !== 'Escape') return;
   const keys = settings.keys;
   if (!menu.hidden) {
     if (e.code === 'Escape' && menu.view !== 'main') menu.back();
@@ -1204,7 +1206,11 @@ function useItem() {
       orchard.plant(x, y, z, def.id, dayKey(gameDate()));
       sound.rustle();
     }
-    sync.setBlock(x, y, z, def.block);
+    // Las escaleras suben hacia donde mira quien las pone.
+    const fx = -Math.sin(player.yaw);
+    const fz = -Math.cos(player.yaw);
+    const facing = Math.abs(fz) > Math.abs(fx) ? (fz < 0 ? 0 : 2) : fx > 0 ? 1 : 3;
+    sync.setBlock(x, y, z, isStairs(def.block) ? stairsFacing(def.block, facing) : def.block);
     delete harvested[posKey(x, y, z)];
     inventory.consume(hud.selected);
     sound.place();

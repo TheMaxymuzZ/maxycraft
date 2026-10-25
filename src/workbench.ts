@@ -1,6 +1,7 @@
 import { tileCanvas } from './blocks';
 import type { Inventory } from './inventory';
 import { DIY_RECIPES, type Recipe, STARTER_DIY, itemDef } from './items';
+import { RecipeBrowser } from './recipeBrowser';
 
 export interface WorkbenchContext {
   inventory: Inventory;
@@ -14,10 +15,17 @@ export class Workbench {
   private listEl = document.querySelector<HTMLUListElement>('#workbench-list')!;
   private countEl = document.querySelector<HTMLParagraphElement>('#workbench-count')!;
   readonly known: Set<string>;
+  private browser: RecipeBrowser;
 
   constructor(private ctx: WorkbenchContext, known: string[] | undefined) {
     // Las recetas básicas nuevas (como las puertas) se saben también en las partidas antiguas.
     this.known = new Set([...(known ?? []), ...STARTER_DIY]);
+    this.browser = new RecipeBrowser(this.listEl, {
+      id: 'mesa',
+      recipes: () => DIY_RECIPES.filter((r) => this.known.has(r.result)),
+      canCraft: (r) => ctx.inventory.canCraft(r),
+      row: (r) => this.row(r),
+    });
     ctx.inventory.onChange(() => {
       if (!this.el.hidden) this.render();
     });
@@ -44,8 +52,7 @@ export class Workbench {
   private render() {
     const recipes = DIY_RECIPES.filter((r) => this.known.has(r.result));
     this.countEl.textContent = `Recetas aprendidas: ${recipes.length} de ${DIY_RECIPES.length}`;
-    this.listEl.innerHTML = '';
-    for (const r of recipes) this.listEl.appendChild(this.row(r));
+    this.browser.render();
   }
 
   private row(r: Recipe): HTMLLIElement {

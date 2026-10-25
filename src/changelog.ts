@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.3',
+    title: 'Más bloques y menús ordenados',
+    items: [
+      'Ladrillo, adoquín, piedra pulida, cristal, tablones de palmera y bloque de luz.',
+      'Losas y escaleras de madera, adoquín y ladrillo: se suben andando, sin saltar.',
+      'Recetas por grupos, con buscador, favoritas (★) y "solo lo que puedo fabricar".',
+      'Botón Ordenar en los bolsillos: agrupa y junta los montones de la mochila.',
+    ],
+  },
+  {
     version: '2.2',
     title: 'Árboles, vallas y puertas',
     items: [

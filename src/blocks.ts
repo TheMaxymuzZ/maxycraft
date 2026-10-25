@@ -53,6 +53,14 @@ export enum Block {
   Door = 56, DoorTop = 57, DoorOpen = 58, DoorTopOpen = 59,
   // Brotes de árbol para replantar (v2.2).
   Sapling = 60, PalmSapling = 61,
+  // Bloques de construcción (v2.3).
+  Brick = 62, Cobble = 63, PolishedStone = 64, Glass = 65, PalmPlanks = 66, LightBlock = 67,
+  // Losas: medio bloque de alto.
+  PlanksSlab = 68, CobbleSlab = 69, BrickSlab = 70, PolishedSlab = 71,
+  // Escaleras, una por orientación (hacia dónde queda la parte alta: -z, +x, +z, -x).
+  PlanksStairs = 72, PlanksStairs1 = 73, PlanksStairs2 = 74, PlanksStairs3 = 75,
+  CobbleStairs = 76, CobbleStairs1 = 77, CobbleStairs2 = 78, CobbleStairs3 = 79,
+  BrickStairs = 80, BrickStairs1 = 81, BrickStairs2 = 82, BrickStairs3 = 83,
 }
 
 export const TILE = 16;
@@ -78,13 +86,14 @@ export enum Tile {
   Seeds, SeedsCarrot, SeedsTomato, WheatItem, CarrotItem, TomatoItem, WateringCan, Egg, Milk, Bread, Omelette, Soup, Cake, ChickenIcon, CowIcon,
   Ticket,
   DoorLower, DoorUpper, DoorIcon, GateIcon, Sapling, PalmSapling,
+  Brick, Cobble, PolishedStone, Glass, PalmPlanks, LightBlock,
 }
 
 /**
  * cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos.
  * gate: puerta de valla. door: puerta de casa (una tabla fina que se orienta según las paredes de los lados).
  */
-export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door';
+export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door' | 'slab' | 'stairs';
 
 export interface BlockDef {
   name: string;
@@ -92,6 +101,8 @@ export interface BlockDef {
   tiles: [number, number, number];
   transparent: boolean;
   shape: Shape;
+  /** Escaleras: lado de la parte alta (0: -z, 1: +x, 2: +z, 3: -x). */
+  facing?: number;
 }
 
 const cube = (name: string, side: Tile, top = side, bottom = top, transparent = false): BlockDef => ({
@@ -105,6 +116,12 @@ const gate = (name: string): BlockDef => ({
 });
 const door = (name: string, tile: Tile): BlockDef => ({
   name, tiles: [tile, tile, tile], transparent: true, shape: 'door',
+});
+const slab = (name: string, tile: Tile): BlockDef => ({
+  name, tiles: [tile, tile, tile], transparent: true, shape: 'slab',
+});
+const stairs = (name: string, tile: Tile, facing: number): BlockDef => ({
+  name, tiles: [tile, tile, tile], transparent: true, shape: 'stairs', facing,
 });
 const cross = (name: string, tile: Tile): BlockDef => ({
   name, tiles: [tile, tile, tile], transparent: true, shape: 'cross',
@@ -172,7 +189,52 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.DoorTopOpen]: door('Puerta', Tile.DoorUpper),
   [Block.Sapling]: cross('Brote de árbol frutal', Tile.Sapling),
   [Block.PalmSapling]: cross('Brote de palmera', Tile.PalmSapling),
+  [Block.Brick]: cube('Ladrillo', Tile.Brick),
+  [Block.Cobble]: cube('Adoquín', Tile.Cobble),
+  [Block.PolishedStone]: cube('Piedra pulida', Tile.PolishedStone),
+  [Block.Glass]: cube('Cristal', Tile.Glass, Tile.Glass, Tile.Glass, true),
+  [Block.PalmPlanks]: cube('Tablones de palmera', Tile.PalmPlanks),
+  [Block.LightBlock]: cube('Bloque de luz', Tile.LightBlock),
+  [Block.PlanksSlab]: slab('Losa de madera', Tile.Planks),
+  [Block.CobbleSlab]: slab('Losa de adoquín', Tile.Cobble),
+  [Block.BrickSlab]: slab('Losa de ladrillo', Tile.Brick),
+  [Block.PolishedSlab]: slab('Losa de piedra pulida', Tile.PolishedStone),
 };
+/** Material de cada juego de escaleras: su primer bloque (mirando a -z), nombre y textura. */
+export const STAIRS: [Block, string, Tile][] = [
+  [Block.PlanksStairs, 'Escalera de madera', Tile.Planks],
+  [Block.CobbleStairs, 'Escalera de adoquín', Tile.Cobble],
+  [Block.BrickStairs, 'Escalera de ladrillo', Tile.Brick],
+];
+for (const [first, name, tile] of STAIRS) for (let f = 0; f < 4; f++) BLOCKS[first + f] = stairs(name, tile, f);
+
+/** Escalera girada hacia `facing` (0..3) del mismo material que `b`. */
+export function stairsFacing(b: number, facing: number): Block {
+  const first = STAIRS.find(([s]) => b >= s && b < s + 4)![0];
+  return (first + (((facing % 4) + 4) % 4)) as Block;
+}
+
+export function isStairs(b: number): boolean {
+  return b !== Block.Air && BLOCKS[b]?.shape === 'stairs';
+}
+
+/** Caja de choque dentro del bloque: [x0, y0, z0, x1, y1, z1]. */
+export type Box = [number, number, number, number, number, number];
+const FULL: Box[] = [[0, 0, 0, 1, 1, 1]];
+// Vallas y puertas de valla cerradas: bloque y medio, para que no se puedan saltar.
+const TALL: Box[] = [[0, 0, 0, 1, 1.5, 1]];
+const HALF: Box[] = [[0, 0, 0, 1, 0.5, 1]];
+const STAIR_BACK: Box[] = [[0, 0.5, 0, 1, 1, 0.5], [0.5, 0.5, 0, 1, 1, 1], [0, 0.5, 0.5, 1, 1, 1], [0, 0.5, 0, 0.5, 1, 1]];
+
+/** Con qué choca quien anda por el bloque. */
+export function collisionBoxes(b: number): Box[] {
+  if (!isSolid(b)) return [];
+  const def = BLOCKS[b];
+  if (isFence(b)) return TALL;
+  if (def.shape === 'slab') return HALF;
+  if (def.shape === 'stairs') return [HALF[0], STAIR_BACK[def.facing ?? 0]];
+  return FULL;
+}
 
 /** Puertas abiertas: se ven, pero se pasa a través. */
 const OPEN: ReadonlySet<number> = new Set([Block.GateOpen, Block.DoorOpen, Block.DoorTopOpen]);
@@ -211,7 +273,7 @@ export const SWAYING: ReadonlySet<number> = new Set([
 ]);
 
 /** Bloques que dan luz y cuánta (alcance en bloques). */
-export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 8 };
+export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 8, [Block.LightBlock]: 8 };
 
 /** Bloques de construcción: dentro de las parcelas de vecinos y tienda no se pueden romper. */
 export const HOUSE_BLOCKS: readonly Block[] = [
@@ -678,6 +740,35 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     '.ab...bb.....ab.', '.ab....bb....ab.', '.ab.....bb...ab.', '.abbbbbbbbbbbab.', '.abbbbbbbbbbbab.', '.ab..........ab.',
     '.ab..........ab.', '.ab..........ab.', '................', '................',
   ], { a: [206, 166, 108], b: [150, 112, 66] });
+  // Materiales de construcción (v2.3).
+  paintTile(ctx, Tile.Brick, (x, y, r) => {
+    const row = Math.floor(y / 4);
+    const off = row % 2 ? 4 : 0;
+    if (y % 4 === 3 || (x + off) % 8 === 7) return [214, 204, 190];
+    return pick(r, [[176, 86, 62], [164, 78, 56], [188, 96, 70]]);
+  });
+  paintTile(ctx, Tile.Cobble, (x, y, r) => {
+    // Piedras redondeadas: bordes oscuros en una cuadrícula irregular.
+    const cx = (x + (Math.floor(y / 5) % 2) * 3) % 6;
+    if (cx === 5 || y % 5 === 4) return [104, 106, 112];
+    return pick(r, [[150, 152, 156], [138, 140, 146], [162, 164, 168]]);
+  });
+  paintTile(ctx, Tile.PolishedStone, (x, y, r) => {
+    if (x === 0 || y === 0) return [196, 198, 202];
+    if (x === 15 || y === 15) return [132, 134, 140];
+    return pick(r, [[172, 174, 178], [168, 170, 174], [176, 178, 182]]);
+  });
+  paintTile(ctx, Tile.Glass, (x, y) => {
+    if (x === 0 || y === 0 || x === 15 || y === 15) return [196, 230, 240];
+    if ((x === y + 3 && x > 4 && x < 9) || (x === y + 4 && x > 5 && x < 10)) return [236, 250, 255];
+    return null;
+  });
+  paintTile(ctx, Tile.PalmPlanks, (_x, y, r) => (y % 4 === 3 ? [178, 142, 92] : pick(r, [[226, 196, 140], [218, 186, 130], [232, 204, 150]])));
+  paintTile(ctx, Tile.LightBlock, (x, y, r) => {
+    if (x === 0 || y === 0 || x === 15 || y === 15) return [196, 150, 70];
+    const d = Math.abs(x - 7.5) + Math.abs(y - 7.5);
+    return d < 4 ? [255, 250, 220] : d < 8 ? [255, 228, 150] : pick(r, [[246, 200, 110], [240, 190, 96]]);
+  });
   // Brotes: un tallito con hojas; el de palmera, con hojas largas.
   paintSprite(ctx, Tile.Sapling, [
     '................', '................', '.....ll..ll.....', '....lLLllLLl....', '....lLLLLLLl....', '.....lLLLLl.....',
@@ -1027,6 +1118,7 @@ export function blockIconTile(b: Block): number {
   if (b === Block.WhiteFence) return Tile.WhiteFenceIcon;
   if (isDoor(b)) return Tile.DoorIcon;
   if (isGate(b)) return Tile.GateIcon;
+  if (def.shape === 'slab' || def.shape === 'stairs') return def.tiles[0];
   return def.tiles[b === Block.Grass || def.shape === 'cross' ? 0 : 1];
 }
 

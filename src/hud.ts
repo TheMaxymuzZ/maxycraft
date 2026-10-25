@@ -1,6 +1,7 @@
 import { tileCanvas } from './blocks';
 import { HOTBAR_SIZE, INVENTORY_SIZE, type Inventory } from './inventory';
-import { type ItemStack, RECIPES, itemDef } from './items';
+import { type ItemStack, RECIPES, type Recipe, itemDef } from './items';
+import { RecipeBrowser } from './recipeBrowser';
 
 /** Barra rápida, pantalla de bolsillos, avisos y progreso al romper. */
 export class Hud {
@@ -21,8 +22,16 @@ export class Hud {
   private gridEl = document.querySelector<HTMLDivElement>('#inv-grid')!;
   private recipesEl = document.querySelector<HTMLUListElement>('#recipes')!;
   private cursorEl = document.querySelector<HTMLDivElement>('#cursor-stack')!;
+  private recipes: RecipeBrowser;
 
   constructor(private inv: Inventory, private atlas: HTMLCanvasElement) {
+    this.recipes = new RecipeBrowser(this.recipesEl, {
+      id: 'bolsillos',
+      recipes: () => RECIPES,
+      canCraft: (r) => this.inv.canCraft(r),
+      row: (r) => this.recipeRow(r),
+    });
+    document.querySelector('#inv-sort')?.addEventListener('click', () => this.inv.sort());
     for (let i = 0; i < HOTBAR_SIZE; i++) {
       const el = document.createElement('div');
       el.className = 'slot';
@@ -170,21 +179,21 @@ export class Hud {
   }
 
   private renderRecipes() {
-    this.recipesEl.innerHTML = '';
-    for (const r of RECIPES) {
-      const li = document.createElement('li');
-      const can = this.inv.canCraft(r);
-      const needs = r.needs.map(([id, n]) => `${n} ${itemDef(id).name.toLowerCase()}`).join(' + ');
-      li.innerHTML = `<img alt="" src="${this.icon(r.result)}"><div><b>${itemDef(r.result).name}${r.count > 1 ? ` ×${r.count}` : ''}</b><small>${needs}</small></div>`;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = 'Fabricar';
-      btn.disabled = !can;
-      btn.addEventListener('click', () => {
-        if (this.inv.craft(r)) this.toast(`Has fabricado: ${itemDef(r.result).name.toLowerCase()}`);
-      });
-      li.appendChild(btn);
-      this.recipesEl.appendChild(li);
-    }
+    this.recipes.render();
+  }
+
+  private recipeRow(r: Recipe): HTMLLIElement {
+    const li = document.createElement('li');
+    const needs = r.needs.map(([id, n]) => `${n} ${itemDef(id).name.toLowerCase()}`).join(' + ');
+    li.innerHTML = `<img alt="" src="${this.icon(r.result)}"><div><b>${itemDef(r.result).name}${r.count > 1 ? ` ×${r.count}` : ''}</b><small>${needs}</small></div>`;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Fabricar';
+    btn.disabled = !this.inv.canCraft(r);
+    btn.addEventListener('click', () => {
+      if (this.inv.craft(r)) this.toast(`Has fabricado: ${itemDef(r.result).name.toLowerCase()}`);
+    });
+    li.appendChild(btn);
+    return li;
   }
 }

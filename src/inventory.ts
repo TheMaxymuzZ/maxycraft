@@ -1,3 +1,4 @@
+import { compareItems } from './categories';
 import { type ItemStack, type Recipe, itemDef } from './items';
 
 export const HOTBAR_SIZE = 10;
@@ -105,6 +106,28 @@ export class Inventory {
 
   serialize(): (ItemStack | null)[] {
     return this.slots.map((s) => (s ? { ...s } : null));
+  }
+
+  /** Ordena la mochila por grupos (la barra rápida no se toca) y junta los montones repetidos. */
+  sort() {
+    const bag = this.slots.slice(HOTBAR_SIZE).filter((s): s is ItemStack => !!s);
+    const merged: ItemStack[] = [];
+    for (const s of bag) {
+      const def = itemDef(s.id);
+      let left = s.count;
+      if (!def.durability) {
+        for (const m of merged) {
+          if (m.id !== s.id || m.count >= def.maxStack) continue;
+          const n = Math.min(def.maxStack - m.count, left);
+          m.count += n;
+          left -= n;
+        }
+      }
+      if (left > 0) merged.push({ ...s, count: left });
+    }
+    merged.sort((a, b) => compareItems(a.id, b.id) || b.count - a.count);
+    for (let i = HOTBAR_SIZE; i < INVENTORY_SIZE; i++) this.slots[i] = merged[i - HOTBAR_SIZE] ?? null;
+    this.changed();
   }
 
   load(slots: (ItemStack | null)[]) {
