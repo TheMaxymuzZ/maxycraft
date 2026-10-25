@@ -278,8 +278,10 @@ export const SWAYING: ReadonlySet<number> = new Set([
   Block.Wheat1, Block.Wheat2, Block.Wheat3, Block.Carrot1, Block.Carrot2, Block.Carrot3, Block.Tomato1, Block.Tomato2, Block.Tomato3,
 ]);
 
-/** Bloques que dan luz y cuánta (alcance en bloques). */
-export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 8, [Block.LightBlock]: 8 };
+/** Bloques que dan luz y cuánta (nivel de 1 a 15: la luz baja uno por cada bloque que avanza). */
+export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 13, [Block.LightBlock]: 15 };
+/** Nivel máximo de luz. */
+export const MAX_LIGHT = 15;
 
 /** Bloques de construcción: dentro de las parcelas de vecinos y tienda no se pueden romper. */
 export const HOUSE_BLOCKS: readonly Block[] = [

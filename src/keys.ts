@@ -2,7 +2,7 @@
 
 export type Action =
   | 'forward' | 'back' | 'left' | 'right' | 'jump' | 'sprint'
-  | 'inventory' | 'collection' | 'missions' | 'rotate' | 'sound' | 'help' | 'debug';
+  | 'inventory' | 'offhand' | 'collection' | 'missions' | 'rotate' | 'sound' | 'help' | 'debug';
 
 export type KeyMap = Record<Action, string>;
 
@@ -14,6 +14,7 @@ export const ACTIONS: { id: Action; name: string; key: string }[] = [
   { id: 'jump', name: 'Saltar y nadar', key: 'Space' },
   { id: 'sprint', name: 'Correr', key: 'ShiftLeft' },
   { id: 'inventory', name: 'Bolsillos', key: 'KeyE' },
+  { id: 'offhand', name: 'Cambiar de mano', key: 'KeyQ' },
   { id: 'collection', name: 'Enciclopedia', key: 'KeyC' },
   { id: 'missions', name: 'Tareas', key: 'KeyT' },
   { id: 'rotate', name: 'Girar un mueble', key: 'KeyR' },
