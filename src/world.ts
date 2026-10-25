@@ -154,7 +154,7 @@ export class World {
     for (const [k, m] of this.edits) {
       const [cx, cz] = k.split(',').map(Number);
       for (const [i, b] of m) {
-        if (b !== Block.Torch) continue;
+        if (!LIGHT_RADIUS[b as Block]) continue;
         const x = i % CHUNK;
         const z = Math.floor(i / CHUNK) % CHUNK;
         const y = Math.floor(i / (CHUNK * CHUNK));
@@ -651,9 +651,9 @@ export class World {
     c.sky = null;
 
     // Una antorcha nueva (o quitada) cambia la luz de los chunks de alrededor.
-    if (b === Block.Torch || before === Block.Torch) {
+    if (LIGHT_RADIUS[b] || LIGHT_RADIUS[before as Block]) {
       const k = `${x},${y},${z}`;
-      if (b === Block.Torch) this.torches.set(k, [x, y, z]);
+      if (LIGHT_RADIUS[b]) this.torches.set(k, [x, y, z]);
       else this.torches.delete(k);
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.markDirty(cx + dx, cz + dz);
     }
@@ -947,7 +947,7 @@ export class World {
             continue;
           }
 
-          if (def.shape === 'fence' || def.shape === 'gate' || def.shape === 'door') {
+          if (def.shape !== 'cube') {
             const [u0, v0] = tileUV(def.tiles[0]);
             const light = this.lightAt(wx, y, wz, torches);
             // Caja pequeña dentro del bloque; la textura se recorta según su tamaño.
@@ -993,6 +993,14 @@ export class World {
               const alongX = this.doorAlongX(wx, isDoorTop(b) ? y - 1 : y, wz);
               if (isOpen(b)) along(!alongX, 0, 0, 0, 1, 1, 0.1875);
               else along(alongX, 0, 0, 0.40625, 1, 1, 0.59375);
+              continue;
+            }
+            if (def.shape === 'slab' || def.shape === 'stairs') {
+              box(0, 0, 0, 1, 0.5, 1);
+              if (def.shape === 'stairs') {
+                const f = def.facing ?? 0;
+                along(f % 2 === 0, 0, 0.5, f === 0 || f === 3 ? 0 : 0.5, 1, 1, f === 0 || f === 3 ? 0.5 : 1);
+              }
               continue;
             }
             box(0.375, 0, 0.375, 0.625, 1, 0.625);

@@ -1,4 +1,4 @@
-import { BLOCKS, Block, CREATURE_TILE_START, Tile, blockIconTile } from './blocks';
+import { BLOCKS, Block, CREATURE_TILE_START, STAIRS, Tile, blockIconTile } from './blocks';
 import { CREATURES } from './creatures';
 import { FURNITURE, FURNITURE_TILE } from './furniture';
 import { TREE_KINDS } from './orchard';
@@ -72,6 +72,20 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.Workbench, 'mesa_trabajo', 60],
   [Block.Fence, 'valla', 15],
   [Block.WhiteFence, 'valla_blanca', 25],
+  // Construcción (v2.3).
+  [Block.Brick, 'ladrillo', 20],
+  [Block.Cobble, 'adoquin', 15],
+  [Block.PolishedStone, 'piedra_pulida', 20],
+  [Block.Glass, 'cristal', 20],
+  [Block.PalmPlanks, 'tablones_palmera', 10],
+  [Block.LightBlock, 'bloque_luz', 80],
+  [Block.PlanksSlab, 'losa_madera', 5],
+  [Block.CobbleSlab, 'losa_adoquin', 8],
+  [Block.BrickSlab, 'losa_ladrillo', 10],
+  [Block.PolishedSlab, 'losa_piedra_pulida', 10],
+  [Block.PlanksStairs, 'escalera_madera', 10],
+  [Block.CobbleStairs, 'escalera_adoquin', 15],
+  [Block.BrickStairs, 'escalera_ladrillo', 20],
 ];
 for (const [block, id, sell, buy] of PLACEABLE) {
   add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block, sell, buy });
@@ -202,8 +216,11 @@ export function dropFor(b: Block): string | null {
       return 'pepita_oro';
     case Block.GemOre:
       return 'amatista';
-    default:
-      return byBlock.get(b)?.id ?? null;
+    default: {
+      // Las escaleras giradas dan la misma escalera.
+      const stairs = STAIRS.find(([first]) => b > first && b < first + 4);
+      return byBlock.get(stairs ? stairs[0] : b)?.id ?? null;
+    }
   }
 }
 
@@ -245,6 +262,16 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Fence]: { time: 0.8, tool: 'axe' },
   [Block.WhiteFence]: { time: 0.8, tool: 'axe' },
   [Block.Gate]: { time: 0.8, tool: 'axe' },
+  [Block.Brick]: { time: 1.5, tool: 'pickaxe', needsTool: true },
+  [Block.Cobble]: { time: 1.5, tool: 'pickaxe', needsTool: true },
+  [Block.PolishedStone]: { time: 1.5, tool: 'pickaxe', needsTool: true },
+  [Block.Glass]: { time: 0.4 },
+  [Block.PalmPlanks]: { time: 1.6, tool: 'axe' },
+  [Block.LightBlock]: { time: 0.5 },
+  [Block.PlanksSlab]: { time: 1, tool: 'axe' },
+  [Block.CobbleSlab]: { time: 1, tool: 'pickaxe', needsTool: true },
+  [Block.BrickSlab]: { time: 1, tool: 'pickaxe', needsTool: true },
+  [Block.PolishedSlab]: { time: 1, tool: 'pickaxe', needsTool: true },
   [Block.GateOpen]: { time: 0.8, tool: 'axe' },
   [Block.Door]: { time: 1.2, tool: 'axe' },
   [Block.DoorTop]: { time: 1.2, tool: 'axe' },
@@ -255,6 +282,12 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Leaves]: { time: 0.25 },
   [Block.PalmLeaves]: { time: 0.25 },
 };
+
+// Las escaleras se rompen como su material.
+for (const [first, , tile] of STAIRS) {
+  const like = tile === Tile.Planks ? HARDNESS[Block.PlanksSlab] : HARDNESS[Block.CobbleSlab];
+  for (let f = 0; f < 4; f++) HARDNESS[(first + f) as Block] = like;
+}
 
 export function breakInfo(b: Block, toolItem: ItemDef | null): { seconds: number; allowed: boolean; usesTool: boolean } {
   const h = HARDNESS[b] ?? { time: 0 };
@@ -324,7 +357,24 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'pared', count: 4, needs: [['piedra', 2], ['arena', 2]] },
   { result: 'puerta', count: 1, needs: [['tablones', 6]] },
   { result: 'puerta_valla', count: 1, needs: [['tablones', 2], ['rama', 2]] },
+  // Construcción (v2.3): se saben desde el principio.
+  { result: 'ladrillo', count: 4, needs: [['tierra', 3], ['piedra', 1]] },
+  { result: 'adoquin', count: 4, needs: [['piedra', 3]] },
+  { result: 'piedra_pulida', count: 4, needs: [['piedra', 4]] },
+  { result: 'cristal', count: 2, needs: [['arena', 3], ['carbon', 1]] },
+  { result: 'tablones_palmera', count: 4, needs: [['tronco_palmera', 1]] },
+  { result: 'bloque_luz', count: 1, needs: [['cristal', 1], ['antorcha', 2]] },
+  { result: 'losa_madera', count: 6, needs: [['tablones', 3]] },
+  { result: 'losa_adoquin', count: 6, needs: [['adoquin', 3]] },
+  { result: 'losa_ladrillo', count: 6, needs: [['ladrillo', 3]] },
+  { result: 'losa_piedra_pulida', count: 6, needs: [['piedra_pulida', 3]] },
+  { result: 'escalera_madera', count: 4, needs: [['tablones', 6]] },
+  { result: 'escalera_adoquin', count: 4, needs: [['adoquin', 6]] },
+  { result: 'escalera_ladrillo', count: 4, needs: [['ladrillo', 6]] },
 ];
 
+/** Recetas de construcción que se saben sin aprenderlas. */
+const BUILDING_DIY = ['ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo'];
+
 /** Las que ya se saben al empezar. */
-export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'puerta', 'puerta_valla'];
+export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'puerta', 'puerta_valla', ...BUILDING_DIY];

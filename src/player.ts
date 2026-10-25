@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { isFence, isSolid } from './blocks';
+import { type Box, collisionBoxes, isSolid } from './blocks';
 import { type KeyMap, defaultKeys } from './keys';
 import { WATER_SURFACE, type World } from './world';
 
@@ -10,6 +10,8 @@ const GRAVITY = 28;
 const JUMP_SPEED = 8.6;
 const WALK = 4.3;
 const SPRINT = 6.2;
+/** Altura que se sube andando, sin saltar (una losa o un escalón). */
+const STEP = 0.55;
 
 export class Player {
   /** Posición de los pies. */
@@ -90,11 +92,13 @@ export class Player {
     // Pasos pequeños para no atravesar bloques con fotogramas lentos.
     const steps = Math.ceil(dt / 0.016);
     const sdt = dt / steps;
+    const wasOnGround = this.onGround;
     this.onGround = false;
     for (let i = 0; i < steps; i++) {
-      this.moveAxis(0, this.velocity.x * sdt);
-      this.moveAxis(1, this.velocity.y * sdt);
-      this.moveAxis(2, this.velocity.z * sdt);
+      const grounded = wasOnGround || this.onGround;
+      this.moveAxis(0, this.velocity.x * sdt, grounded);
+      this.moveAxis(2, this.velocity.z * sdt, grounded);
+      this.moveAxis(1, this.velocity.y * sdt, grounded);
     }
 
     // Si cae fuera del mundo, vuelve arriba.
@@ -123,39 +127,51 @@ export class Player {
     );
   }
 
-  private moveAxis(axis: 0 | 1 | 2, delta: number) {
+  /** Primera caja del mundo que se mete dentro del cuerpo del jugador, o null si no choca con nada. */
+  private overlap(): Box | null {
+    const p = this.position;
+    const x0 = p.x - HALF_WIDTH, x1 = p.x + HALF_WIDTH;
+    const y0 = p.y, y1 = p.y + HEIGHT;
+    const z0 = p.z - HALF_WIDTH, z1 = p.z + HALF_WIDTH;
+    // Se mira un bloque más abajo: las vallas miden bloque y medio.
+    for (let y = Math.floor(y0) - 1; y <= Math.floor(y1 - 1e-6); y++) {
+      for (let z = Math.floor(z0); z <= Math.floor(z1 - 1e-6); z++) {
+        for (let x = Math.floor(x0); x <= Math.floor(x1 - 1e-6); x++) {
+          for (const [bx0, by0, bz0, bx1, by1, bz1] of collisionBoxes(this.world.getBlock(x, y, z))) {
+            if (x + bx1 > x0 && x + bx0 < x1 && y + by1 > y0 && y + by0 < y1 && z + bz1 > z0 && z + bz0 < z1) {
+              return [x + bx0, y + by0, z + bz0, x + bx1, y + by1, z + bz1];
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private moveAxis(axis: 0 | 1 | 2, delta: number, grounded: boolean) {
     if (delta === 0) return;
     const p = this.position;
     p.setComponent(axis, p.getComponent(axis) + delta);
-
-    const minX = Math.floor(p.x - HALF_WIDTH);
-    const maxX = Math.floor(p.x + HALF_WIDTH - 1e-6);
-    const minY = Math.floor(p.y);
-    const maxY = Math.floor(p.y + HEIGHT - 1e-6);
-    const minZ = Math.floor(p.z - HALF_WIDTH);
-    const maxZ = Math.floor(p.z + HALF_WIDTH - 1e-6);
-
-    // Las vallas miden bloque y medio de alto para los lados: no se pueden saltar.
-    const startY = axis === 1 ? minY : Math.floor(p.y - 0.5);
-    for (let y = startY; y <= maxY; y++) {
-      for (let z = minZ; z <= maxZ; z++) {
-        for (let x = minX; x <= maxX; x++) {
-          const b = this.world.getBlock(x, y, z);
-          if (y < minY ? !isFence(b) : !isSolid(b)) continue;
-          const eps = 1e-4;
-          if (axis === 0) p.x = delta > 0 ? x - HALF_WIDTH - eps : x + 1 + HALF_WIDTH + eps;
-          else if (axis === 2) p.z = delta > 0 ? z - HALF_WIDTH - eps : z + 1 + HALF_WIDTH + eps;
-          else {
-            if (delta > 0) p.y = y - HEIGHT - eps;
-            else {
-              p.y = y + 1;
-              this.onGround = true;
-            }
-          }
-          this.velocity.setComponent(axis, 0);
-          return;
-        }
+    for (let tries = 0; tries < 4; tries++) {
+      const hit = this.overlap();
+      if (!hit) return;
+      const [x0, y0, z0, x1, y1, z1] = hit;
+      // Medio bloque (losas y escalones) se sube andando, sin saltar.
+      if (axis !== 1 && grounded && y1 - p.y > 0 && y1 - p.y <= STEP) {
+        const before = p.y;
+        p.y = y1;
+        if (!this.overlap()) return;
+        p.y = before;
       }
+      const eps = 1e-4;
+      if (axis === 0) p.x = delta > 0 ? x0 - HALF_WIDTH - eps : x1 + HALF_WIDTH + eps;
+      else if (axis === 2) p.z = delta > 0 ? z0 - HALF_WIDTH - eps : z1 + HALF_WIDTH + eps;
+      else if (delta > 0) p.y = y0 - HEIGHT - eps;
+      else {
+        p.y = y1;
+        this.onGround = true;
+      }
+      this.velocity.setComponent(axis, 0);
     }
   }
 }
