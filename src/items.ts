@@ -279,7 +279,7 @@ export function fruitItemFor(b: Block): string | null {
 // --- Romper bloques: dureza y herramienta adecuada ---
 
 interface Hardness {
-  /** Segundos a mano. */
+  /** Segundos con la herramienta normal (la de ramas). A mano, si el bloque pide herramienta, tarda HAND_SLOWNESS veces más. */
   time: number;
   tool?: ToolKind;
   /** Sin la herramienta no se puede romper. */
@@ -345,11 +345,18 @@ for (const [first, , tile] of STAIRS) {
   for (let f = 0; f < 4; f++) HARDNESS[(first + f) as Block] = like;
 }
 
+/** Fuerza de las herramientas normales; las de hierro tienen más y rompen antes. */
+const BASIC_POWER = 5;
+/** Cuántas veces más se tarda a mano en romper un bloque que pide herramienta (tierra, troncos, piedra...). */
+export const HAND_SLOWNESS = 5;
+
 export function breakInfo(b: Block, toolItem: ItemDef | null): { seconds: number; allowed: boolean; usesTool: boolean } {
   const h = HARDNESS[b] ?? { time: 0 };
   const usesTool = !!h.tool && h.tool === toolItem?.tool;
   if (h.needsTool && !usesTool) return { seconds: Infinity, allowed: false, usesTool: false };
-  return { seconds: usesTool ? h.time / (toolItem?.power ?? 5) : h.time, allowed: true, usesTool };
+  // Como en Minecraft: a mano se tarda mucho; con la herramienta de ramas, lo normal; con la de hierro, menos.
+  const seconds = usesTool ? (h.time * BASIC_POWER) / (toolItem?.power ?? BASIC_POWER) : h.tool ? h.time * HAND_SLOWNESS : h.time;
+  return { seconds, allowed: true, usesTool };
 }
 
 export function toolNameFor(b: Block): string | null {

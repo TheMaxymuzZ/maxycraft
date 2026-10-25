@@ -48,7 +48,8 @@ export class WeatherFx {
 
   update(dt: number, center: THREE.Vector3) {
     this.time += dt;
-    const target = this.kind === 'lluvia' ? 1 : this.kind === 'nieve' ? 0.6 : this.kind === 'nubes' ? 0.35 : 0;
+    // Con lluvia o nieve el cielo se cubre del todo (v3.9); con nubes, solo un poco.
+    const target = this.kind === 'lluvia' || this.kind === 'nieve' ? 1 : this.kind === 'nubes' ? 0.35 : 0;
     this.gloom += (target - this.gloom) * Math.min(1, dt * 0.5);
     const falling = this.kind === 'lluvia' || this.kind === 'nieve';
     this.points.visible = falling;

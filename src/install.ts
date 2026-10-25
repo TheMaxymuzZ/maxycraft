@@ -17,10 +17,47 @@ export function isIOS(ua = navigator.userAgent, touchPoints = navigator.maxTouch
   return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1);
 }
 
+/** Pone la versión nueva que ya está descargada y recarga el juego (null si no hay app guardada). */
+let applyUpdate: ((reload?: boolean) => Promise<void>) | null = null;
+
+/**
+ * Busca ahora mismo si hay versión nueva (v3.9, botón de Opciones). Si la hay, la pone y el juego se recarga solo
+ * (la partida se guarda al recargar). Dice 'al-dia' si ya está la última y 'sin-internet' si no se pudo mirar.
+ */
+export async function checkForUpdates(): Promise<'nueva' | 'al-dia' | 'sin-internet'> {
+  const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+  if (!registration) {
+    // Sin app guardada (en desarrollo, o el navegador no la deja): basta con recargar la página.
+    if (!navigator.onLine) return 'sin-internet';
+    location.reload();
+    return 'nueva';
+  }
+  try {
+    await registration.update();
+  } catch {
+    return 'sin-internet';
+  }
+  // La versión nueva tarda un momento en bajarse; se espera a que esté lista.
+  const fresh = registration.installing ?? registration.waiting;
+  if (!fresh) return 'al-dia';
+  if (fresh.state !== 'installed' && fresh.state !== 'activated') {
+    await new Promise<void>((done) => {
+      const check = () => {
+        if (fresh.state === 'installed' || fresh.state === 'activated' || fresh.state === 'redundant') done();
+      };
+      fresh.addEventListener('statechange', check);
+      check();
+    });
+  }
+  if (applyUpdate) await applyUpdate(true);
+  else location.reload();
+  return 'nueva';
+}
+
 export function setupInstall(toast: (text: string) => void) {
   // Solo en la versión publicada: en desarrollo el guardado sin internet molestaría.
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-    registerSW({
+    applyUpdate = registerSW({
       immediate: true,
       onOfflineReady: () => toast('Listo: ya puedes jugar sin internet'),
       // Con el juego abierto mucho rato (o la app en segundo plano) también se busca versión nueva cada media hora.

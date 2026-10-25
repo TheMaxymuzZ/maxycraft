@@ -167,6 +167,20 @@ describe('mundo vivo', () => {
     }
     expect(total).toBeGreaterThan(0);
   });
+
+  it('en el acantilado sale un manantial y el agua cae de verdad (v3.9)', async () => {
+    const { Fluids } = await import('../src/fluids');
+    const w = worlds.find((x) => x.waterfallSpots(2).length)!;
+    const fluids = new Fluids({ getBlock: (x, y, z) => w.getBlock(x, y, z), setBlock: (x, y, z, b) => w.setBlock(x, y, z, b), loaded: (x, z) => w.hasColumn(x, z) });
+    w.onBlockChange = (x, y, z) => fluids.wake(x, y, z);
+    const [s] = w.waterfallSpots(2);
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) w.getBlock(s.x + dx * 16, 0, s.z + dz * 16);
+    expect(w.getBlock(s.x, s.top, s.z)).toBe(Block.Water);
+    for (const [x, y, z] of w.takeSpills()) fluids.wake(x, y, z);
+    for (let i = 0; i < 80 && fluids.busy; i++) fluids.step();
+    // Delante del manantial, el agua baja por la cara del acantilado.
+    expect(w.getBlock(s.x + s.dx, s.top - 1, s.z + s.dz)).toBe(Block.WaterFall);
+  });
 });
 
 describe('pradera de flores', () => {

@@ -22,7 +22,7 @@ import { Furniture, type PlacedFurniture, paintFurnitureIcons } from './furnitur
 import { HeldItem } from './held';
 import { ItemModels } from './itemModels';
 import { Hud } from './hud';
-import { setupInstall } from './install';
+import { checkForUpdates, setupInstall } from './install';
 import { Islands } from './islands';
 import { NameTags } from './labels';
 import { WorldSync } from './net/actions';
@@ -63,7 +63,6 @@ import { type Guest, PILOT, type Villager, createVillagers, createVisitor, pickV
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { Water } from './water';
-import { Waterfalls } from './waterfall';
 import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
@@ -217,8 +216,6 @@ const water = new Water();
 world.waterMaterial = water.material;
 const wind = new Wind(material);
 const lighting = new Lighting(material);
-const waterfalls = new Waterfalls(world.waterfallSpots(2));
-scene.add(waterfalls.group);
 const birds = new Birds();
 scene.add(birds.group);
 
@@ -573,6 +570,22 @@ const hud = new Hud(inventory, atlas);
 hud.select(0);
 const held = new HeldItem(itemModels);
 setupInstall((t) => hud.toast(t));
+// Buscar versión nueva ahora mismo, desde Opciones (v3.9).
+const updateButton = document.querySelector<HTMLButtonElement>('#check-update')!;
+const updateHint = document.querySelector<HTMLParagraphElement>('#check-update-hint')!;
+updateButton.addEventListener('click', async () => {
+  updateButton.disabled = true;
+  updateHint.textContent = 'Buscando…';
+  // Se guarda antes, por si hay versión nueva y el juego se recarga.
+  persist();
+  const result = await checkForUpdates();
+  if (result === 'nueva') {
+    updateHint.textContent = '¡Hay versión nueva! Recargando…';
+    return;
+  }
+  updateButton.disabled = false;
+  updateHint.textContent = result === 'al-dia' ? `Ya tienes la última versión (v${__APP_VERSION__}).` : 'No se ha podido mirar: comprueba que tienes internet.';
+});
 
 /** Mete un objeto en los bolsillos y lo anuncia. Devuelve false si no cabe. */
 function take(id: string): boolean {
@@ -2122,6 +2135,8 @@ function frame(now: number) {
   // El reloj de la isla solo corre mientras se juega (no en la portada ni en pausa).
   if (menu.hidden && clock.tick(dt)) newDay();
   // El agua también se para en la pausa.
+  // Las cascadas de los trozos de isla recién cargados empiezan a caer (v3.9).
+  for (const [x, y, z] of world.takeSpills()) fluids.wake(x, y, z);
   if (menu.hidden) fluids.update(dt);
   const date = gameDate();
   const hour = Sky.hourOf(date);
@@ -2132,15 +2147,15 @@ function frame(now: number) {
   weather.set(nowWeather && nowWeather in WEATHER_TEXT ? nowWeather : weatherAt(date, seed));
   weather.update(dt, camera.position);
   hemi.intensity *= 1 - weather.gloom * 0.3;
-  sunLight.intensity *= 1 - weather.gloom * 0.7;
-  sky.color.lerp(gloomColor.setRGB(0.55, 0.6, 0.65).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.75);
+  // Encapotado (v3.9): sin sol directo casi no hay sombras, y el cielo se vuelve gris del todo.
+  sunLight.intensity *= 1 - weather.gloom * 0.85;
+  sky.color.lerp(gloomColor.setRGB(0.52, 0.55, 0.58).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.95);
   sky.syncDome(weather.gloom);
   shadows.update(dt, player.position, sky.lightDir);
   lighting.update(now / 1000);
   adaptEyes(dt);
   water.update(now / 1000, settings.quality !== 'baja', (1 - sky.night) * (1 - weather.gloom));
   wind.update(now / 1000, 1 + weather.gloom * 1.5);
-  waterfalls.update(now / 1000);
   birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), (x, z) => world.waterKind(x, z) === 'mar');
   for (const v of villagers) v.update(dt, hour, player.position);
   plane.update(dt, now / 1000);
@@ -2201,7 +2216,7 @@ function frame(now: number) {
     fog.far = fogFar();
   }
 
-  clouds.update(now / 1000, sky.night, weather.gloom, sky.glow, sky.glowColor);
+  clouds.update(now / 1000, sky.night, weather.gloom, sky.glow * (1 - weather.gloom), sky.glowColor);
 
   const hit = currentHit();
   const aimed = furnitureInSight();
@@ -2279,6 +2294,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

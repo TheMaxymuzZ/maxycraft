@@ -185,6 +185,8 @@ kbd {
 .name-tag {
   position: absolute; left: 0; top: 0; padding: 2px 8px; background: rgba(35, 48, 31, 0.6); color: #fff;
   font: 800 13px var(--body); border-radius: 10px; white-space: nowrap;
+  /* Crece con el tamaño de la interfaz con scale (no con zoom, que también movería el sitio donde se pone). */
+  transform-origin: 0 0;
 }
 
 #dialog { position: fixed; left: 0; right: 0; bottom: 24px; display: grid; justify-items: center; padding: 0 16px; z-index: 4; }
@@ -509,7 +511,7 @@ fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template
    El zoom va en las cajas, no en los fondos de pantalla completa, y se les quita lo que crecen para que quepan. */
 :root { --ui: 1; --tg: 1; --tg-bar: 1; --hud: calc(var(--ui) * var(--tg)); --bar: calc(var(--ui) * var(--tg-bar)); }
 .texto-grande { --tg: 1.25; --tg-bar: 1.15; }
-.ui-escalada :is(#block-name, #notices, .dialog-box, #tutorial, #clock, #labels .name-tag, .touch-actions, .touch-menu) { zoom: var(--hud); }
+.ui-escalada :is(#block-name, #notices, .dialog-box, #tutorial, #clock, .touch-actions, .touch-menu) { zoom: var(--hud); }
 .ui-escalada #hotbar { zoom: var(--bar); }
 .ui-escalada :is(.inv-panel, .shop-panel, .collection-panel) { zoom: var(--hud); max-height: calc((100dvh - 32px) / var(--hud)); }
 .ui-escalada .inv-panel { max-width: calc((100vw - 32px) / var(--hud)); }
