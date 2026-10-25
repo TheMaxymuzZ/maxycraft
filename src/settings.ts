@@ -1,5 +1,6 @@
 // Opciones del jugador: volumen, ratón, calidad gráfica, campo de visión, teclas y accesibilidad. Se guardan en el navegador.
 
+import { DAY_LENGTHS } from './clock';
 import { type KeyMap, defaultKeys, normalizeKeys } from './keys';
 
 const KEY = 'maxycraft.ajustes';
@@ -21,6 +22,8 @@ export interface Settings {
   bigText: boolean;
   /** Colores que se distinguen bien con daltonismo (azul y naranja en vez de verde y rojo). */
   colorblind: boolean;
+  /** Minutos reales que dura un día de juego; 0 es la hora real (desde la v2.4). */
+  dayLength: number;
 }
 
 export const QUALITIES: { id: Quality; name: string; hint: string }[] = [
@@ -35,7 +38,7 @@ export const RENDER_RADIUS: Record<Quality, number> = { baja: 4, media: 6, alta:
 export const PIXEL_RATIO: Record<Quality, number> = { baja: 1, media: 1.5, alta: 2 };
 
 export function defaultSettings(touch: boolean): Settings {
-  return { music: 70, sfx: 80, sensitivity: 1, quality: touch ? 'baja' : 'media', fov: 75, keys: defaultKeys(), bigText: false, colorblind: false };
+  return { music: 70, sfx: 80, sensitivity: 1, quality: touch ? 'baja' : 'media', fov: 75, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24 };
 }
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) =>
@@ -54,6 +57,7 @@ export function normalizeSettings(raw: unknown, touch: boolean): Settings {
     keys: normalizeKeys(r.keys),
     bigText: r.bigText === true,
     colorblind: r.colorblind === true,
+    dayLength: DAY_LENGTHS.some((l) => l.minutes === r.dayLength) ? (r.dayLength as number) : d.dayLength,
   };
 }
 

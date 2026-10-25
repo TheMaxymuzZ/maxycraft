@@ -278,6 +278,12 @@ export class Furniture {
     return this.entries.find((e) => e.data.x === x && e.data.y === y && e.data.z === z)?.data;
   }
 
+  /** Quita todos los muebles (los adornos de una fiesta que se acaba, por ejemplo). */
+  clear() {
+    for (const e of this.entries) this.group.remove(e.model);
+    this.entries = [];
+  }
+
   remove(f: PlacedFurniture) {
     const i = this.entries.findIndex((e) => e.data === f);
     if (i < 0) return;

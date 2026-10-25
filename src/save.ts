@@ -1,4 +1,6 @@
+import type { ClockSave } from './clock';
 import type { PlantedTree } from './orchard';
+import type { StorageSave } from './storage';
 import type { AnimalSave } from './animals';
 import type { FarmSave } from './farm';
 import type { MissionsSave } from './missions';
@@ -49,6 +51,10 @@ export interface SaveData {
   farm?: FarmSave;
   /** Desde la v2.2: árboles plantados con brotes. */
   orchard?: PlantedTree[];
+  /** Desde la v2.4: el reloj de la isla (día de juego y minuto). */
+  clock?: ClockSave;
+  /** Desde la v2.4: lo guardado en cofres, baúles y cajas. */
+  storage?: StorageSave;
   animals?: AnimalSave[];
   /** Desde la v1.9: vecinos invitados desde las islas misteriosas. */
   guests?: Guest[];

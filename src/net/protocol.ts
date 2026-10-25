@@ -1,3 +1,4 @@
+import type { ClockSave } from '../clock';
 import type { Edits, WorldOptions } from '../world';
 import { type WorldAction, isWorldAction } from './actions';
 
@@ -25,6 +26,8 @@ export interface Snapshot {
   seed: number;
   edits: Edits;
   options: WorldOptions;
+  /** Día y hora de la isla del anfitrión (desde la v2.4). */
+  clock?: ClockSave;
 }
 
 export type Message =

@@ -480,3 +480,20 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
   font: 700 12px var(--display); padding: 4px 8px; margin-left: 8px; border: 0; cursor: pointer; background: var(--dirt); color: #fff; vertical-align: middle;
 }
 .inv-sort:focus-visible { outline: 3px solid var(--grass-deep); outline-offset: 2px; }
+
+/* Cofres, baúles y cajas (v2.4). */
+#storage {
+  position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+  background: rgba(30, 50, 30, 0.5); z-index: 5;
+}
+#storage[hidden] { display: none; }
+.shop-panel.storage-panel { grid-template-columns: 1fr; width: min(600px, 100%); }
+.storage-panel h3 { margin: 4px 0 0; }
+.storage-grid { display: grid; grid-template-columns: repeat(auto-fill, 48px); gap: 4px; }
+.storage-grid .slot { background: rgba(139, 90, 53, 0.18); border-color: rgba(139, 90, 53, 0.3); cursor: pointer; padding: 0; }
+.storage-grid .slot:hover, .storage-grid .slot:focus-visible { border-color: var(--dirt); outline: none; }
+.storage-grid .slot .count { color: #fff; }
+.storage-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.storage-panel footer button { font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: var(--grass); color: #fff; }
+#storage-close { background: #8b5a35; }
+@media (max-width: 760px) { #storage { padding: 8px; } }

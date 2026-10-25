@@ -13,6 +13,7 @@ interface Drop {
   full?: boolean;
   retry?: number;
   onPickup?: () => void;
+  tag?: string;
 }
 
 const PICKUP_RADIUS = 0.9;
@@ -41,7 +42,16 @@ export class Drops {
     return m;
   }
 
-  spawn(id: string, x: number, y: number, z: number, opts: { burst?: boolean; onPickup?: () => void } = {}) {
+  /** Quita los objetos con esa etiqueta que nadie ha recogido (las conchas de ayer, por ejemplo). */
+  clear(tag: string) {
+    this.drops = this.drops.filter((d) => {
+      if (d.tag !== tag) return true;
+      this.group.remove(d.sprite);
+      return false;
+    });
+  }
+
+  spawn(id: string, x: number, y: number, z: number, opts: { burst?: boolean; onPickup?: () => void; tag?: string } = {}) {
     const sprite = new THREE.Sprite(this.material(id));
     sprite.scale.setScalar(0.45);
     sprite.position.set(x, y, z);
@@ -49,7 +59,7 @@ export class Drops {
     const velocity = opts.burst
       ? new THREE.Vector3((Math.random() - 0.5) * 2.5, 3 + Math.random() * 1.5, (Math.random() - 0.5) * 2.5)
       : new THREE.Vector3();
-    this.drops.push({ id, sprite, velocity, age: 0, resting: false, onPickup: opts.onPickup });
+    this.drops.push({ id, sprite, velocity, age: 0, resting: false, onPickup: opts.onPickup, tag: opts.tag });
   }
 
   /** Mueve los objetos y entrega los que el jugador toca. `take` devuelve false si no caben. */
