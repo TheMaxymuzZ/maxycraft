@@ -8,6 +8,7 @@ export interface TouchActions {
   setBreaking: (on: boolean) => void;
   inventory: () => void;
   collection: () => void;
+  missions: () => void;
   rotate: () => void;
   pause: () => void;
 }
@@ -65,6 +66,7 @@ export class TouchControls {
     button('Bolsillos', 'top inv', () => a.inventory());
     button('Enciclopedia', 'top col', () => a.collection());
     button('Girar', 'top rot', () => a.rotate());
+    button('Tareas', 'top tasks', () => a.missions());
     button('Pausa', 'top pause', () => a.pause());
   }
 

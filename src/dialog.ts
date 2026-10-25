@@ -140,6 +140,8 @@ export interface DialogContext {
   voice?: (v: Villager) => void;
   /** Viajes en avioneta con el piloto. */
   travel: TravelActions;
+  /** Se ha hecho un regalo (para las tareas del día). */
+  gifted?: () => void;
   /** Invitar a vivir en tu isla a quien está de vacaciones. */
   invite: (v: Villager) => 'ok' | 'full' | 'already';
 }
@@ -381,6 +383,7 @@ export class Dialog {
     const liked = CATEGORY[stack.id] === v.profile.likes;
     this.ctx.inventory.consume(slot);
     v.memory.giftDay = this.ctx.today;
+    this.ctx.gifted?.();
     if (this.ctx.isBirthday(v)) {
       // En su cumpleaños cualquier regalo hace mucha ilusión, y siempre devuelve uno.
       v.memory.friendship += 5;

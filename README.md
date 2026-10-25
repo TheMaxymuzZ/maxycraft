@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.9**
+Versión actual: **v1.10**
+
+- **Tareas del día** (tecla T, o el botón Tareas en el móvil): cada día salen tres tareas nuevas, como pescar 2 peces, regar 3 plantas o hablar con 3 vecinos. Cada una da puntos.
+- **Premios**: los puntos se canjean por billetes de avioneta, semillas, minerales y dos muebles que solo salen de aquí: la fuente y el trofeo de oro.
+- **Logros**: 17 logros para siempre (primera pesca, trotamundos, millonaria o millonario…) que dan muchos puntos.
+- **Valoración de la isla de 1 a 5 estrellas**: cuentan las flores, vallas y antorchas que pongas, los muebles, el tamaño de tu casa, los vecinos invitados, el museo y el huerto o la granja. Siempre da un consejo para subir de nota.
 
 - **Avioneta**: en una playa de la isla espera Plumas, el piloto, con su hidroavión. Con un **billete de avioneta** (1.500 bayas, siempre en la tienda) te lleva a una **isla misteriosa**.
 - **Islas misteriosas**: pequeñas y sin casas, cada vez una distinta: de frutales, de flores, de bambú o de rocas con hierro, oro y amatistas asomando. Allí crece una fruta que no es la de tu isla, y la tienda paga por ella cinco veces más.
@@ -119,6 +124,7 @@ En móvil o tableta se juega con el mando en pantalla. Con teclado y ratón:
 | H | Plegar los primeros pasos |
 | E | Bolsillos y fabricar |
 | C | Enciclopedia de peces e insectos |
+| T | Tareas, premios, logros y estrellas de la isla |
 | 1–0 o rueda | Elegir casilla |
 | Espacio en el agua | Nadar hacia arriba |
 | F | Datos de depuración |

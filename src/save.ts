@@ -1,5 +1,6 @@
 import type { AnimalSave } from './animals';
 import type { FarmSave } from './farm';
+import type { MissionsSave } from './missions';
 import type { PlacedFurniture } from './furniture';
 import type { ItemStack } from './items';
 import type { StepId } from './tutorial';
@@ -48,6 +49,8 @@ export interface SaveData {
   animals?: AnimalSave[];
   /** Desde la v1.9: vecinos invitados desde las islas misteriosas. */
   guests?: Guest[];
+  /** Desde la v1.10: tareas del día, puntos y logros. */
+  missions?: MissionsSave;
 }
 
 export function slotKey(slot: number): string {

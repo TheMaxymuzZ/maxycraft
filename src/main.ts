@@ -27,6 +27,9 @@ import { Menu } from './menu';
 import { Animals, MAX_ANIMALS, type AnimalKind } from './animals';
 import { Farm, cropForSeed, cropOfBlock, isFarmland } from './farm';
 import { Inventory, starterKit } from './inventory';
+import { type MissionEvent, Missions } from './missions';
+import { MissionsPanel } from './missionsPanel';
+import { countPlaced, rateIsland } from './rating';
 import { SHELLS, dropFor, fruitItemFor, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
@@ -225,12 +228,26 @@ else starterKit(inventory);
 
 const collection = new Collection(save?.caught ?? [], save?.donated ?? [], atlas);
 
+// Tareas del día, puntos y logros.
+const missions = new Missions(seed, save?.missions, today);
+/** Apunta algo para las tareas y avisa de lo que se acaba de cumplir. */
+function record(event: MissionEvent, n = 1) {
+  const r = missions.record(event, n);
+  for (const t of r.tasks) hud.toast(`¡Tarea cumplida: ${t.text.toLowerCase()}! +${t.points} puntos`);
+  for (const a of r.achievements) hud.toast(`🏆 ¡Logro: ${a.name}! +${a.points} puntos`);
+  if (r.tasks.length || r.achievements.length) sound.fanfare();
+  if (panel === 'missions') missionsPanel.render();
+}
+
 let wallet = save?.wallet ?? 500;
 const walletEl = document.querySelector<HTMLSpanElement>('#wallet-amount')!;
 function setWallet(n: number) {
   if (n !== wallet) sound.coin();
   // Vender en la tienda cuenta para el tutorial.
-  if (n > wallet && panel === 'shop') tutorial.complete('vender');
+  if (n > wallet && panel === 'shop') {
+    tutorial.complete('vender');
+    record('vender', n - wallet);
+  }
   wallet = n;
   walletEl.textContent = formatBerries(n);
 }
@@ -266,6 +283,7 @@ function persist() {
     tutorialDone: tutorial.finished,
     recipes: [...workbench.known],
     guests,
+    missions: missions.serialize(),
     savedAt: 0,
   } : {
     version: 1,
@@ -289,6 +307,7 @@ function persist() {
     farm: farm.serialize(),
     animals: animals.serialize(),
     guests,
+    missions: missions.serialize(),
     savedAt: 0,
   };
   const text = JSON.stringify(data);
@@ -339,7 +358,12 @@ scene.add(fishing.bobber);
   world.beachSpots(SHELLS_PER_DAY, random).forEach(([x, y, z], i) => {
     if (shellsTaken.has(i)) return;
     const id = SHELLS[Math.floor(random() * SHELLS.length)];
-    drops.spawn(id, x + 0.5, y + 0.3, z + 0.5, { onPickup: () => shellsTaken.add(i) });
+    drops.spawn(id, x + 0.5, y + 0.3, z + 0.5, {
+      onPickup: () => {
+        shellsTaken.add(i);
+        record('concha');
+      },
+    });
   });
   // Y una botella con una receta dentro.
   const [bottle] = world.beachSpots(1, random);
@@ -423,7 +447,7 @@ function unlockInput() {
 }
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -501,6 +525,7 @@ const dialog = new Dialog({
     tickets: () => inventory.countOf('billete'),
     fly: () => {
       if (!inventory.remove('billete', 1)) return;
+      record('viajar');
       const residents = [...villagers.filter((v) => !v.profile.role).map((v) => v.name), ...guests.map((g) => g.name)];
       // Se mira antes de salir cuántas casas nuevas caben, para no invitar a quien no podrá mudarse.
       const room = Math.min(MAX_GUESTS, guests.length + world.findGuestSpots(MAX_GUESTS - guests.length).length);
@@ -538,7 +563,12 @@ const dialog = new Dialog({
     shop.open();
   },
   donatable: () => collection.donatable(inventory),
-  donate: (id) => collection.donate(inventory, id),
+  donate: (id) => {
+    const ok = collection.donate(inventory, id);
+    if (ok) record('donar');
+    return ok;
+  },
+  gifted: () => record('regalar'),
   openCollection: () => {
     panel = 'collection';
     collection.open();
@@ -563,6 +593,53 @@ const dialog = new Dialog({
     },
   },
 });
+
+/** Valoración de la isla de casa (de viaje se mira lo guardado). */
+function islandRating() {
+  const saved = trip ? save : null;
+  return rateIsland({
+    ...countPlaced(saved ? saved.edits : world.exportEdits()),
+    furniture: saved ? saved.furniture?.length ?? 0 : furniture.serialize().length,
+    house: saved ? saved.home?.level ?? 0 : home.level,
+    guests: guests.length,
+    donated: collection.donated.size,
+    farm: saved ? Object.keys(saved.farm ?? {}).length + (saved.animals?.length ?? 0) : farm.crops.size + animals.list.length,
+  });
+}
+
+const missionsPanel = new MissionsPanel({
+  missions,
+  inventory,
+  atlas,
+  rating: islandRating,
+  toast: (t) => hud.toast(t),
+  redeemed: () => {
+    sound.coin();
+    persist();
+  },
+});
+
+function openMissions() {
+  panel = 'missions';
+  breaker.active = false;
+  missionsPanel.open();
+  unlockInput();
+}
+
+function closeMissions() {
+  missionsPanel.close();
+  panel = null;
+  lockInput();
+}
+document.querySelector('#missions-close')!.addEventListener('click', closeMissions);
+
+// Fabricar (en los bolsillos o en la mesa de trabajo) cuenta para las tareas.
+const craft = inventory.craft.bind(inventory);
+inventory.craft = (r) => {
+  const ok = craft(r);
+  if (ok) record('fabricar');
+  return ok;
+};
 
 function openCollection() {
   panel = 'collection';
@@ -605,6 +682,7 @@ const touch = touchMode
       },
       inventory: () => openInventory(),
       collection: () => openCollection(),
+      missions: () => openMissions(),
       rotate: () => {
         const f = furnitureInSight();
         if (f) furniture.rotate(f.furniture);
@@ -615,6 +693,7 @@ const touch = touchMode
 if (touch) document.body.appendChild(touch.el);
 
 function talkTo(v: Villager) {
+  if (!v.profile.role && v.memory.talkedDay !== dayKey(gameDate())) record('charlar');
   tutorial.complete('hablar');
   panel = 'dialog';
   breaker.active = false;
@@ -638,6 +717,14 @@ window.addEventListener('keydown', (e) => {
   }
   if (panel === 'collection') {
     if (e.code === 'Escape' || e.code === 'KeyC') closeCollection();
+    return;
+  }
+  if (panel === 'missions') {
+    if (e.code === 'Escape' || e.code === 'KeyT') closeMissions();
+    return;
+  }
+  if (e.code === 'KeyT' && isPlaying()) {
+    openMissions();
     return;
   }
   if (panel === 'workbench') {
@@ -722,6 +809,7 @@ function onInputChange() {
     if (panel === 'shop') shop.close();
     if (panel === 'collection') collection.close();
     if (panel === 'workbench') workbench.close();
+    if (panel === 'missions') missionsPanel.close();
     panel = null;
     return;
   }
@@ -756,6 +844,7 @@ const breaker = new Breaker({
     const stack = hud.selectedStack;
     removeBlock(x, y, z, b, false);
     tutorial.complete('romper');
+    record('romper');
     if (usedTool && stack && inventory.wearTool(hud.selected)) {
       hud.toast(`¡Tu ${itemDef(stack.id).name.toLowerCase()} se ha roto!`);
     }
@@ -803,7 +892,10 @@ function harvestCrop(x: number, y: number, z: number, burst: boolean) {
   // Al cosechar a veces sale una semilla de más.
   const seeds = h.seeds + (h.produce && Math.random() < 0.3 ? 1 : 0);
   for (let i = 0; i < seeds; i++) drops.spawn(h.seed, x + 0.5, y + 0.5, z + 0.5, { burst: burst || !!h.produce });
-  if (h.produce) hud.toast(`¡Has cosechado ${h.count} ${itemDef(h.produce).name.toLowerCase()}!`);
+  if (h.produce) {
+    hud.toast(`¡Has cosechado ${h.count} ${itemDef(h.produce).name.toLowerCase()}!`);
+    record('cosechar');
+  }
 }
 
 /** Usar algo en el huerto: labrar con la pala, plantar semillas, regar o cosechar. Devuelve si ha hecho algo. */
@@ -831,6 +923,7 @@ function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z
       return true;
     }
     farm.sync(world, day);
+    record('regar');
     if (inventory.wearTool(hud.selected)) hud.toast('¡Tu regadera se ha roto!');
     return true;
   }
@@ -927,6 +1020,7 @@ function useItem() {
     if (!product) hud.toast(animal.data.kind === 'gallina' ? 'Ya ha puesto su huevo hoy. ¡Vuelve mañana!' : 'Ya te ha dado su leche hoy. ¡Vuelve mañana!');
     else {
       drops.spawn(product, animal.position.x, animal.position.y + 0.6, animal.position.z, { burst: true });
+      record('granja');
       sound.coin();
     }
     return;
@@ -1023,6 +1117,7 @@ function placeFurniture(id: string, hit: { block: [number, number, number]; plac
   inventory.consume(hud.selected);
   sound.place();
   tutorial.complete('mueble');
+  record('mueble');
   persist();
 }
 
@@ -1049,6 +1144,7 @@ function keepCreature(id: string, verb: string, tool: string) {
     return;
   }
   const first = collection.register(id);
+  record(tool === 'cana' ? 'pescar' : 'insecto');
   sound.fanfare();
   tutorial.complete('criatura');
   hud.toast(`¡${verb} ${c.name.toLowerCase()}!${first ? ' Nuevo en la enciclopedia.' : ''}`);
@@ -1078,6 +1174,7 @@ function useNet() {
 function shakeTree(x: number, y: number, z: number) {
   sound.rustle();
   tutorial.complete('sacudir');
+  record('sacudir');
   const fruits = world.treeFruitsNear(x, y, z);
   for (const [fx, fy, fz] of fruits) removeBlock(fx, fy, fz, world.getBlock(fx, fy, fz), true);
 
@@ -1225,6 +1322,7 @@ function frame(now: number) {
     farmTimer = 1;
     const day = dayKey(date);
     if (weather.raining) farm.waterAll(day);
+    missions.setDay(day);
     farm.sync(world, day);
   }
   nameTags.update(camera, player.position);
@@ -1307,6 +1405,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, farm, animals, useItem, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

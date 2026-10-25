@@ -150,6 +150,28 @@ export const FURNITURE: FurnitureDef[] = [
       [0.16, 0.16, 0.16, 0xffd84a, 0, 1.1, 0],
     ],
   },
+  // Premios de las tareas del día (v1.10): no se compran ni se fabrican.
+  {
+    id: 'trofeo', name: 'Trofeo de oro', sell: 1000,
+    parts: [
+      [0.5, 0.12, 0.5, 0x6a4a2a, 0, 0, 0],
+      [0.36, 0.14, 0.36, 0x6a4a2a, 0, 0.12, 0],
+      [0.1, 0.24, 0.1, 0xe8b830, 0, 0.26, 0],
+      [0.44, 0.34, 0.44, 0xf2c94c, 0, 0.5, 0],
+      [0.08, 0.2, 0.08, 0xe8b830, -0.28, 0.6, 0],
+      [0.08, 0.2, 0.08, 0xe8b830, 0.28, 0.6, 0],
+    ],
+  },
+  {
+    id: 'fuente', name: 'Fuente', sell: 800,
+    parts: [
+      [0.96, 0.3, 0.96, 0xb8b8b0, 0, 0, 0],
+      [0.8, 0.06, 0.8, 0x4aa6d8, 0, 0.3, 0],
+      [0.16, 0.5, 0.16, 0xa8a8a0, 0, 0.3, 0],
+      [0.4, 0.08, 0.4, 0xb8b8b0, 0, 0.72, 0],
+      [0.24, 0.16, 0.24, 0x8fd0f0, 0, 0.8, 0],
+    ],
+  },
 ];
 
 export const FURNITURE_TILE = (id: string) => FURNITURE_TILE_START + FURNITURE.findIndex((f) => f.id === id);

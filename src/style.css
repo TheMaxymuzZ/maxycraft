@@ -183,6 +183,24 @@ kbd {
   background: rgba(30, 50, 30, 0.5); z-index: 5;
 }
 #workbench[hidden] { display: none; }
+#missions {
+  position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+  background: rgba(30, 50, 30, 0.5); z-index: 5;
+}
+#missions[hidden] { display: none; }
+#missions-close { font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: #8b5a35; color: #fff; }
+.missions-panel h3 + * { margin-bottom: 14px; }
+#missions-rating .stars { font-size: 30px; color: #e8b830; letter-spacing: 2px; text-shadow: 0 2px 0 rgba(0,0,0,.15); }
+#missions-rating p { margin: 2px 0 0; color: #6b7466; font-size: 13px; }
+.task-list, .ach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.task-list li { display: grid; gap: 4px; }
+.task-list b, .ach-list b { display: block; font-size: 15px; }
+.task-list small, .ach-list small { color: #6b7466; font-size: 12px; }
+.task-list progress { width: 100%; height: 10px; accent-color: var(--grass); }
+.task-list li.done b { color: var(--grass-deep); }
+.ach-list li { opacity: .55; }
+.ach-list li.got { opacity: 1; }
+#missions-ach-count { font: 700 13px var(--body); color: #6b7466; }
 .shop-panel.workbench-panel { grid-template-columns: 1fr; width: min(600px, 100%); }
 .workbench-panel .missing { color: #b0473a; }
 #workbench-close { font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: #8b5a35; color: #fff; }
@@ -285,11 +303,12 @@ kbd {
 .touch-btn.col { left: 50%; transform: translateX(4px); }
 .touch-btn.rot { right: 50%; top: 56px; transform: translateX(-4px); }
 .touch-btn.pause { left: 50%; top: 56px; transform: translateX(4px); }
+.touch-btn.tasks { right: 50%; top: 100px; transform: translateX(-4px); }
 
 /* Que las ventanas quepan en pantallas bajas (móvil en horizontal) y se puedan desplazar. */
 .inv-panel, .shop-panel, .collection-panel { max-height: calc(100dvh - 32px); }
 @media (max-height: 500px) {
-  #inventory, #shop, #collection, #workbench { padding: 8px; }
+  #inventory, #shop, #collection, #workbench, #missions { padding: 8px; }
   .inv-panel, .shop-panel, .collection-panel { max-height: calc(100dvh - 16px); padding: 12px; }
   #tutorial { font-size: 12px; }
   /* El botón de cerrar arriba, a mano, en vez de al final de la lista. */
