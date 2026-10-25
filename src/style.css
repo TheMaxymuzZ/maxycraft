@@ -354,3 +354,37 @@ fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template
 .quality-choices label:has(input:checked) { border-color: var(--grass-deep); background: var(--grass); color: #fff; }
 .quality-choices label:has(input:focus-visible) { outline: 3px solid var(--dirt); outline-offset: 2px; }
 .option-hint { margin: 6px 0 0; font-size: 13px; color: #6b7466; }
+
+/* --- Mis islas --- */
+.islands { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.island-card { display: grid; gap: 6px; padding: 12px; background: #fff; border: 2px solid #c9c1a6; }
+.island-card.active { border-color: var(--grass-deep); box-shadow: 4px 4px 0 var(--grass); }
+.island-card.empty { background: transparent; border-style: dashed; }
+.island-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.island-head strong { font: 700 20px var(--display); color: var(--grass-deep); }
+.island-badge { font: 800 11px var(--body); text-transform: uppercase; letter-spacing: .05em; padding: 2px 6px; background: var(--grass); color: #fff; }
+.island-summary { margin: 0; font-size: 14px; color: #5d6b57; }
+.island-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.panel button.island-btn {
+  font: 700 13px var(--body); padding: 6px 10px; background: #f4efdf; color: var(--ink);
+  border: 2px solid #c9c1a6; box-shadow: none;
+}
+.panel button.island-btn.primary { background: var(--grass); border-color: var(--grass-deep); color: #fff; }
+.panel button.island-btn.danger { background: transparent; color: #a3322b; border-color: #e3b3ae; }
+
+/* Aviso de guardado, arriba en el centro (abajo están la barra y los botones táctiles). */
+#save-indicator {
+  position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 11; padding: 6px 12px 6px 30px; white-space: nowrap;
+  font: 800 13px var(--body); color: #fff; background: rgba(35, 48, 31, .7); border-radius: 4px;
+  opacity: 0; pointer-events: none;
+}
+#save-indicator::before {
+  content: ''; position: absolute; left: 10px; top: 50%; width: 12px; height: 12px; transform: translateY(-50%);
+  background: var(--grass); box-shadow: inset -3px -3px 0 rgba(0,0,0,.25);
+}
+#save-indicator.error { background: #a3322b; }
+#save-indicator.error::before { background: #fff; }
+#save-indicator.show { animation: saved 2.4s ease-out; }
+@keyframes saved { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #save-indicator.show { animation-timing-function: steps(1, end); } }
+#toast { z-index: 11; }

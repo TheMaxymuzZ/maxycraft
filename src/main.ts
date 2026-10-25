@@ -13,13 +13,14 @@ import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, paintFurnitureIcons } from './furniture';
 import { Hud } from './hud';
+import { Islands } from './islands';
 import { NameTags } from './labels';
 import { Menu } from './menu';
 import { Inventory, starterKit } from './inventory';
 import { SHELLS, dropFor, fruitItemFor, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
-import { deleteGame, loadGame, saveGame } from './save';
+import { type SaveData, activeSlot, loadGame, saveGame, setActiveSlot } from './save';
 import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
 import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings } from './settings';
@@ -163,10 +164,21 @@ setWallet(wallet);
 
 let savedRevision = world.revision;
 let saving = true;
+/** Lo último que se guardó, para avisar solo cuando de verdad hay algo nuevo. */
+let lastSaved = save ? JSON.stringify({ ...save, savedAt: 0 }) : '';
+let saveFailed = false;
+const saveIndicator = document.querySelector<HTMLDivElement>('#save-indicator')!;
+function showSaveIndicator(text: string, error = false) {
+  saveIndicator.textContent = text;
+  saveIndicator.classList.toggle('error', error);
+  saveIndicator.classList.remove('show');
+  void saveIndicator.offsetWidth; // para que la animación vuelva a empezar
+  saveIndicator.classList.add('show');
+}
 function persist() {
   if (!saving) return;
   const p = player.position;
-  saveGame({
+  const data: SaveData = {
     version: 1,
     seed,
     edits: world.exportEdits(),
@@ -185,8 +197,20 @@ function persist() {
     tutorialDone: tutorial.finished,
     recipes: [...workbench.known],
     bottle: { day: today, taken: bottleTaken },
-  });
+    savedAt: 0,
+  };
+  const text = JSON.stringify(data);
+  if (text === lastSaved) return;
+  data.savedAt = Date.now();
+  if (!saveGame(data)) {
+    // Solo se avisa una vez: el navegador no deja guardar (modo privado o sin espacio).
+    if (!saveFailed) showSaveIndicator('No se puede guardar en este navegador', true);
+    saveFailed = true;
+    return;
+  }
+  lastSaved = text;
   savedRevision = world.revision;
+  showSaveIndicator('Guardado');
 }
 setInterval(persist, 10_000);
 document.addEventListener('visibilitychange', () => {
@@ -235,7 +259,6 @@ scene.add(fishing.bobber);
 // --- Interfaz ---
 
 const playButton = document.querySelector<HTMLButtonElement>('#play')!;
-const newIslandButton = document.querySelector<HTMLButtonElement>('#new-island')!;
 const islandInfo = document.querySelector<HTMLParagraphElement>('#island-info')!;
 const debugEl = document.querySelector<HTMLDivElement>('#debug')!;
 const clockTime = document.querySelector<HTMLSpanElement>('#clock-time')!;
@@ -532,25 +555,23 @@ window.addEventListener('wheel', (e) => {
   hud.select(hud.selected + (e.deltaY > 0 ? 1 : -1));
 });
 
-// Empezar una isla nueva pide un segundo clic para confirmar.
-let confirmNew = false;
-function resetNewIslandButton() {
-  confirmNew = false;
-  newIslandButton.textContent = 'Empezar una isla nueva';
-  newIslandButton.classList.remove('danger');
-}
-newIslandButton.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (!confirmNew) {
-    confirmNew = true;
-    newIslandButton.textContent = 'Se borrará tu isla. Pulsa otra vez para confirmar';
-    newIslandButton.classList.add('danger');
-    return;
-  }
-  saving = false;
-  deleteGame();
-  location.reload();
+// Varias islas y copias de seguridad.
+const islands = new Islands({
+  active: activeSlot(),
+  flush: persist,
+  stopSaving: () => (saving = false),
+  switchTo: (slot) => {
+    persist();
+    saving = false;
+    setActiveSlot(slot);
+    location.reload();
+  },
+  toast: (t) => hud.toast(t),
 });
+menu.onView = (v) => {
+  islands.reset();
+  if (v === 'islands') islands.render();
+};
 
 playButton.addEventListener('click', () => lockInput());
 function onInputChange() {
@@ -571,7 +592,6 @@ function onInputChange() {
   menu.open();
   persist();
   playButton.textContent = 'Volver a la isla';
-  resetNewIslandButton();
 }
 document.addEventListener('pointerlockchange', onInputChange);
 // Si el navegador no deja volver a bloquear el ratón enseguida, se muestra el menú.

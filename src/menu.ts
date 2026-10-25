@@ -1,6 +1,6 @@
 import { QUALITIES, type Settings, defaultSettings, saveSettings } from './settings';
 
-type View = 'main' | 'options' | 'controls';
+export type View = 'main' | 'options' | 'islands' | 'controls';
 
 /** El menú: portada al abrir el juego, pausa durante la partida, opciones y controles. */
 export class Menu {
@@ -10,6 +10,8 @@ export class Menu {
   private sliders: { key: 'music' | 'sfx' | 'sensitivity' | 'fov'; input: HTMLInputElement; out: HTMLOutputElement; format: (n: number) => string }[];
   private qualityInputs: HTMLInputElement[] = [];
   view: View = 'main';
+  /** Se llama al cambiar de pantalla dentro del menú. */
+  onView: (v: View) => void = () => {};
 
   constructor(
     readonly settings: Settings,
@@ -90,6 +92,7 @@ export class Menu {
   show(view: View) {
     this.view = view;
     for (const v of this.views) v.hidden = v.dataset.view !== view;
+    this.onView(view);
     const first = this.views.find((v) => !v.hidden)?.querySelector<HTMLElement>('button, input');
     first?.focus({ preventScroll: true });
   }
