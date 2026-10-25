@@ -2,6 +2,7 @@ import { type WorldAction, WorldSync } from './actions';
 import { type Gesture, type GiftItem, MAX_CHAT, MAX_PLAYERS, type Message, PROTOCOL, type PeerInfo, type Pose, type Snapshot } from './protocol';
 import type { Transport } from './transport';
 import type { ClockSave } from '../clock';
+import type { PlayerHome } from '../homes';
 
 /** Veces por segundo que cada jugador cuenta dónde está. */
 export const POSE_RATE = 10;
@@ -24,6 +25,8 @@ export interface SessionEvents {
   travel?(text: string): void;
   /** Alguien se ha metido en la cama (o se ha levantado, con null). */
   bed?(id: string, wake: number | null): void;
+  /** El anfitrión ha dado casa a alguien. */
+  home?(home: PlayerHome): void;
   /** Llega el reloj del anfitrión; `slept` si se acaba de dormir todo el mundo. */
   time?(clock: ClockSave, slept: boolean): void;
 }
@@ -43,6 +46,7 @@ export class NetSession {
   /** El invitado ya sabe que se acabó la partida (para avisar una sola vez). */
   private ended = false;
   private poseTimer = 0;
+  private started = false;
   private now = 0;
   private hostId: string | null;
 
@@ -117,6 +121,12 @@ export class NetSession {
 
   /** Cada fotograma: cuenta dónde estás y da por idos a los que llevan rato sin dar señales. */
   update(now: number, pose: Pose) {
+    // La primera vez, el reloj empieza ahora: si entrar ha tardado más que PEER_TIMEOUT (buscando la isla por
+    // internet), los que ya estaban no se dan por idos nada más llegar (v4.3).
+    if (!this.started) {
+      this.started = true;
+      for (const p of this.peers.values()) p.seen = now;
+    }
     this.now = now;
     if (now - this.poseTimer >= 1000 / POSE_RATE) {
       this.poseTimer = now;
@@ -146,6 +156,11 @@ export class NetSession {
   /** Te metes en la cama (o te levantas, con null). */
   bed(wake: number | null) {
     this.broadcast({ t: 'cama', id: this.self.id, wake });
+  }
+
+  /** El anfitrión cuenta a todos dónde vive alguien. */
+  sendHome(home: PlayerHome) {
+    if (this.role === 'anfitrion') this.transport.send({ t: 'casa', home });
   }
 
   /** El anfitrión cuenta a todos qué hora es en la isla. */
@@ -299,6 +314,9 @@ export class NetSession {
         return;
       case 'hora':
         this.events.time?.(msg.clock, msg.slept);
+        return;
+      case 'casa':
+        this.events.home?.(msg.home);
         return;
       case 'viaje':
         // Mientras dure el viaje no se da por ido al anfitrión: volverá a abrir la isla con el mismo código.

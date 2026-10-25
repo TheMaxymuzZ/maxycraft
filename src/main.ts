@@ -27,7 +27,7 @@ import { Islands } from './islands';
 import { NameTags } from './labels';
 import { WorldSync } from './net/actions';
 import { loadIdentity, renameIdentity, tabIdentity } from './net/identity';
-import type { Snapshot } from './net/protocol';
+import type { PeerInfo, Snapshot } from './net/protocol';
 import { NetSession, type SessionEvents } from './net/session';
 import { TabTransport } from './net/transport';
 import { newInviteCode, normalizeCode } from './net/code';
@@ -66,6 +66,7 @@ import { Water } from './water';
 import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
+import { MAX_HOMES, type PlayerHome, buildHome, isPlayerHome, pickHomeSpot } from './homes';
 import { Beds, WAKE_CHOICES, hourText, wakeClock } from './sleep';
 import { MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals';
 import { VitalsHud } from './vitalsHud';
@@ -130,7 +131,9 @@ const netTest = params.get('pruebared');
 const inviteCode = normalizeCode(params.get('isla') ?? '');
 /** Servidores de señalización propios (?rele=wss://…), por si los públicos no funcionan. */
 const relays = (params.get('rele') ?? '').split(',').filter((u) => /^wss?:\/\//.test(u));
-const identity = netTest ? tabIdentity(loadIdentity()) : null;
+/** En las pestañas de prueba cada pestaña es un jugador distinto, también para su casa. */
+const withUid = (p: PeerInfo): PeerInfo => ({ ...p, uid: p.id });
+const identity = netTest ? withUid(tabIdentity(loadIdentity())) : null;
 /** Lo que pasa en la partida con amigos; se rellena cuando ya existen el HUD y los jugadores. */
 const netEvents: SessionEvents = {};
 let netError = '';
@@ -141,7 +144,7 @@ async function joinIsland(): Promise<{ session: NetSession; snapshot: Snapshot }
     if (inviteCode) {
       const transport = await openRoom(inviteCode, relays);
       // Hay que dar tiempo a que los dos ordenadores se encuentren por internet.
-      return await NetSession.join(transport, { ...loadIdentity(), id: transport.selfId }, netEvents, 30_000);
+      return await NetSession.join(transport, { ...loadIdentity(), id: transport.selfId, uid: loadIdentity().id }, netEvents, 30_000);
     }
     return await NetSession.join(new TabTransport(identity!.id), identity!, netEvents);
   } catch (e) {
@@ -173,6 +176,8 @@ const guests: Guest[] = (joined?.snapshot.guests ?? save?.guests ?? []).map((g) 
 /** Casas que construye el jugador para vecinos nuevos (v2.10). */
 const lots: Lot[] = (joined?.snapshot.lots ?? save?.lots ?? []).map((l) => ({ ...l }));
 /** Casas terminadas en las que aún no vive nadie. */
+/** Casas de los amigos en esta isla (v4.3): las de tu isla si eres anfitrión, o las de la isla del amigo. */
+const friendHomes: PlayerHome[] = trip ? [] : (joined?.snapshot.homes ?? save?.homes ?? []).filter(isPlayerHome).map((h) => ({ ...h }));
 const freeLots = () => lots.filter((l) => l.done && !guests.some((g) => g.lot && g.x === l.x && g.z === l.z));
 /** El reloj de la isla: días de unos minutos y estaciones de una semana de juego (v2.4). */
 const clock = new GameClock(joined?.snapshot.clock ?? save?.clock, overrides, settings.dayLength);
@@ -486,6 +491,7 @@ function persist() {
     animals: animals.serialize(),
     guests,
     lots,
+    homes: friendHomes,
     missions: missions.serialize(),
     clock: clock.serialize(),
     savedAt: 0,
@@ -1682,6 +1688,9 @@ function faint(cause: HurtCause) {
 
 /** Sitio donde se despierta tras desmayarse: delante de tu casa (de viaje, donde aterrizaste). */
 function homeSpot(): [number, number] {
+  // De visita en la isla de un amigo, en tu casa de allí (v4.3).
+  const mine = myFriendHome();
+  if (mine) return [mine.x, mine.z + 3];
   if (trip || joined) return [spawnPoint.x, spawnPoint.z];
   const plot = world.playerPlot;
   return plot ? [plot.x, plot.z + home.level + 3] : [spawnPoint.x, spawnPoint.z];
@@ -2103,6 +2112,7 @@ scene.add(remotes.group);
 Object.assign(netEvents, {
   join: (p) => {
     remotes.add(p);
+    giveHome(p);
     hud.toast(`${p.name} ha llegado a la isla`);
     sound.coin();
     friendsChanged();
@@ -2122,6 +2132,12 @@ Object.assign(netEvents, {
     if (wake !== null && who) hud.toast(`${who.name} se ha ido a dormir. Para que pase la noche tenéis que dormir todos`);
     updateBedText();
     checkBeds();
+  },
+  home: (h) => {
+    const i = friendHomes.findIndex((o) => o.uid === h.uid);
+    if (i >= 0) friendHomes[i] = h;
+    else friendHomes.push(h);
+    if (h.uid === myUid()) hud.toast('Tienes casa en esta isla: la tienda de campaña con tu nombre en el cartel. Ahí duermes y despiertas');
   },
   time: (c, slept) => {
     const before = clock.day;
@@ -2167,6 +2183,50 @@ Object.assign(netEvents, {
   },
 } satisfies SessionEvents);
 
+/** Tu id de siempre, para saber cuál es tu casa en la isla de un amigo. */
+function myUid(): string | undefined {
+  return net?.self.uid ?? identity?.uid;
+}
+
+/** Tu casa en esta isla, si estás de visita en la de un amigo. */
+function myFriendHome(): PlayerHome | undefined {
+  const uid = myUid();
+  return joined && uid ? friendHomes.find((h) => h.uid === uid) : undefined;
+}
+
+/**
+ * El anfitrión da casa a quien llega (v4.3): si ya tenía, se la recuerda; si no, le monta una tienda de campaña
+ * con su cama y un cartel con su nombre. En las islas misteriosas no hay casas para nadie.
+ */
+function giveHome(p: PeerInfo) {
+  if (!net || net.role !== 'anfitrion' || trip || !p.uid) return;
+  let home = friendHomes.find((h) => h.uid === p.uid);
+  if (!home) {
+    if (friendHomes.length >= MAX_HOMES) {
+      // Sin sitio para más: la casa más antigua de quien no esté jugando se le da al nuevo.
+      const playing = new Set([...net.peers.values()].map((o) => o.uid));
+      const old = friendHomes.findIndex((h) => !playing.has(h.uid));
+      if (old < 0) return;
+      home = { ...friendHomes[old], uid: p.uid, name: p.name };
+      friendHomes[old] = home;
+      sync.placeFurniture('cartel', home.x + 1, home.y, home.z + 3, 0, `Casa de ${p.name}`);
+    } else {
+      const spot = pickHomeSpot(world, friendHomes);
+      if (!spot) return;
+      home = { uid: p.uid, name: p.name, x: spot[0], y: spot[1], z: spot[2] };
+      friendHomes.push(home);
+      buildHome(world, home, (x, y, z, b) => sync.setBlock(x, y, z, b), (id, x, y, z, rot, text) => sync.placeFurniture(id, x, y, z, rot, text));
+      hud.toast(`${p.name} tiene casa nueva en tu isla: una tienda de campaña con su nombre`);
+    }
+  } else if (home.name !== p.name) {
+    // Se ha cambiado el nombre: el cartel también.
+    home.name = p.name;
+    sync.placeFurniture('cartel', home.x + 1, home.y, home.z + 3, 0, `Casa de ${p.name}`);
+  }
+  net.sendHome(home);
+  persist();
+}
+
 /** Vuelve a cargar el juego entrando en la isla del código (tras un corte o un viaje en grupo). */
 function rejoin(code: string) {
   const url = new URL(location.href);
@@ -2186,6 +2246,7 @@ function islandSnapshot(): Snapshot {
     lots: trip ? [] : lots,
     visitor: trip?.visitor ?? null,
     spawn: [Math.floor(player.position.x), Math.floor(player.position.z)],
+    homes: friendHomes,
   };
 }
 
@@ -2221,7 +2282,7 @@ async function hostIsland(again?: string) {
   try {
     const code = again ?? newInviteCode();
     const transport = await openRoom(code, relays);
-    startSession(NetSession.host(transport, { ...loadIdentity(), id: transport.selfId }, islandSnapshot, netEvents), code);
+    startSession(NetSession.host(transport, { ...loadIdentity(), id: transport.selfId, uid: loadIdentity().id }, islandSnapshot, netEvents), code);
     hud.toast(`Isla abierta. Código: ${code}`);
   } catch {
     hud.toast('No se ha podido abrir la isla. ¿Hay conexión a internet?');
@@ -2639,6 +2700,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

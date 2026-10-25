@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.3',
+    title: 'Cada amigo con su casa',
+    items: [
+      'La primera vez que entras en la isla de un amigo tienes tu propia casa: una tienda de campaña con cama y un cartel con tu nombre, en un sitio llano.',
+      'Ahí duermes, y ahí despiertas si te desmayas en su isla.',
+      'Quien invita recuerda la casa de cada amigo para la próxima vez (hasta 5 casas).',
+      'Arreglado: si tardabas mucho en encontrar la isla de un amigo, al entrar el juego creía que se había ido y te devolvía a tu isla.',
+    ],
+  },
+  {
     version: '4.2',
     title: 'Dormir',
     items: [

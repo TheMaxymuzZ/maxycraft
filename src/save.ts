@@ -11,6 +11,7 @@ import type { StepId } from './tutorial';
 import type { Guest, VillagerMemory } from './villagers';
 import type { Edits } from './world';
 import type { VitalsSave } from './vitals';
+import type { PlayerHome } from './homes';
 
 /** La primera isla usa la clave de siempre, para que las partidas de antes sigan ahí. */
 const KEY = 'maxycraft.isla.v1';
@@ -46,6 +47,8 @@ export interface SaveData {
   met?: string[];
   /** Desde la v4.0: lo que te ha contado cada vecino de sí mismo (álbum de vecinos). */
   learned?: Record<string, number>;
+  /** Desde la v4.3: casas de los amigos que han jugado en tu isla. */
+  homes?: PlayerHome[];
   /** Desde la v4.1: vida y hambre. */
   vitals?: VitalsSave;
   /** Desde la v0.8: la casa del jugador (nivel, deuda y tejado) y sus muebles. */

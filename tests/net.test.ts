@@ -110,6 +110,7 @@ describe('partida con amigos', () => {
 
   it('quien deja de dar señales se da por ido', async () => {
     const { host } = await party(1);
+    host.update(1000, pose(0));
     host.update(PEER_TIMEOUT + 5000, pose(0));
     expect(host.peers.size).toBe(0);
   });
