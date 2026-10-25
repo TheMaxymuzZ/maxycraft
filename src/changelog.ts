@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.10',
+    title: 'Casas para vecinos nuevos',
+    items: [
+      'Compra un plano de casa en la tienda y úsalo en el suelo para marcar un solar: la puerta mira hacia ti.',
+      'Unos bloques fantasma te enseñan dónde va cada pared, la puerta y el tejado. Valen ladrillos, piedra, madera, cristal…',
+      'Arriba ves cuántos bloques faltan. Si te equivocas, usa otra vez el plano en el solar para quitarlo.',
+      'Una casa terminada se queda libre: ve a una isla misteriosa e invita a quien quieras que viva en ella.',
+      'Ya no se construyen casas solas: sin una casa libre, los vecinos de vacaciones no pueden mudarse.',
+    ],
+  },
+  {
     version: '2.9',
     title: 'Islas misteriosas nuevas',
     items: [

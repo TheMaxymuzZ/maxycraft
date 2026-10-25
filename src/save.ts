@@ -3,6 +3,7 @@ import type { PlantedTree } from './orchard';
 import type { StorageSave } from './storage';
 import type { AnimalSave } from './animals';
 import type { FarmSave } from './farm';
+import type { Lot } from './lots';
 import type { MissionsSave } from './missions';
 import type { PlacedFurniture } from './furniture';
 import type { ItemStack } from './items';
@@ -64,6 +65,8 @@ export interface SaveData {
   animals?: AnimalSave[];
   /** Desde la v1.9: vecinos invitados desde las islas misteriosas. */
   guests?: Guest[];
+  /** Desde la v2.10: casas que construye el jugador para vecinos nuevos. */
+  lots?: Lot[];
   /** Desde la v1.10: tareas del día, puntos y logros. */
   missions?: MissionsSave;
 }

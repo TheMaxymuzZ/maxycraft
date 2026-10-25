@@ -310,7 +310,6 @@ export class Villager {
 
 /** Todos los vecinos que pueden vivir en una isla (los de siempre y los de las islas misteriosas). */
 export const RESIDENT_NAMES = [...PROFILES, ...VISITORS].map((p) => p.name);
-export const MAX_GUESTS = 3;
 
 /** Todos los personajes, con la dependienta, la conservadora y el piloto, para el álbum de vecinos. */
 export const ALL_PROFILES: Profile[] = [SHOPKEEPER, CURATOR, PILOT, ...PROFILES, ...VISITORS];
@@ -354,13 +353,16 @@ export interface Guest {
   name: string;
   x?: number;
   z?: number;
+  /** Vive en una casa que construyó el jugador (v2.10), en el solar con ese centro. */
+  lot?: boolean;
 }
 
 /**
  * Elige vecinos para las casas de la isla, siempre los mismos para cada semilla.
  * `guests`: los invitados desde islas misteriosas, cada uno en su parcela nueva.
+ * `built`: las casas que construyó el jugador (v2.10), para los invitados que viven en ellas.
  */
-export function createVillagers(world: World, memories: Record<string, VillagerMemory>, guests: Guest[] = []): Villager[] {
+export function createVillagers(world: World, memories: Record<string, VillagerMemory>, guests: Guest[] = [], built: Plot[] = []): Villager[] {
   const pool = [...PROFILES];
   const shop = world.plots.find((p) => p.kind === 'shop');
   const keeper = shop ? [new Villager(SHOPKEEPER, shop, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
@@ -373,7 +375,7 @@ export function createVillagers(world: World, memories: Record<string, VillagerM
   });
   const newcomers = guests.flatMap((g) => {
     const profile = profileNamed(g.name);
-    const plot = world.plots.find((p) => p.guest && p.x === g.x && p.z === g.z);
+    const plot = (g.lot ? built : world.plots).find((p) => p.guest && p.x === g.x && p.z === g.z);
     return profile && plot ? [new Villager(profile, plot, world, memories[profile.name] ?? { friendship: 0 })] : [];
   });
   return [...keeper, ...curator, ...locals, ...newcomers];
