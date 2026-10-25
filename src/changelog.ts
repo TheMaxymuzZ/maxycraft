@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.2',
+    title: 'Dormir',
+    items: [
+      'Haz clic derecho en una cama (en el móvil, Usar) y elige a qué hora quieres despertarte, o pon la hora exacta con la barra.',
+      'El reloj salta hasta esa hora y te despiertas con la vida llena. Se puede dormir a cualquier hora, también la siesta.',
+      'Con amigos: el reloj solo avanza cuando estáis todos en la cama, y os despertáis a la hora más temprana que haya elegido alguien. Mientras, ves cuántos estáis acostados.',
+      'Con amigos el reloj de todos se pone en hora con el del anfitrión cada poco, para que nunca vaya distinto.',
+    ],
+  },
+  {
     version: '4.1',
     title: 'Vida y hambre',
     items: [

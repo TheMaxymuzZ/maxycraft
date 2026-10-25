@@ -666,3 +666,32 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
 #faint li { font-weight: 700; }
 #faint button { font: 700 18px var(--display); padding: 12px 22px; }
 @keyframes faint-in { from { opacity: 0; } }
+
+/* Dormir (v4.2). */
+#sleep { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: rgba(20, 24, 50, .5); }
+#sleep[hidden] { display: none; }
+#sleep .panel { max-width: 460px; }
+#sleep-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+#sleep-choices button { display: grid; gap: 2px; padding: 10px 6px; }
+#sleep-choices b { font: 700 20px var(--display); }
+#sleep-choices small { font: 600 12px var(--body); opacity: .85; }
+.sleep-custom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 700; }
+.sleep-custom input { flex: 1; min-width: 120px; }
+.sleep-custom b { min-width: 48px; font: 700 18px var(--display); }
+#sleeping {
+  position: fixed; inset: 0; z-index: 29; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 16px;
+  background: radial-gradient(ellipse at center, rgba(20, 24, 60, .75), rgba(5, 6, 20, .92)); color: #e8ecff; text-align: center;
+  transition: background 1.2s;
+}
+#sleeping[hidden] { display: none; }
+#sleeping.morning { background: radial-gradient(ellipse at center, rgba(255, 220, 150, .55), rgba(255, 170, 90, .35)); color: #3a2a10; }
+#sleeping p { margin: 0; font: 700 20px var(--display); max-width: 420px; }
+#sleeping button { font: 700 18px var(--display); padding: 12px 22px; border: 0; border-radius: 10px; background: #fff; color: #2d3a6a; cursor: pointer; }
+#sleeping .zzz { font: 700 56px var(--display); letter-spacing: 4px; }
+#sleeping .zzz span { display: inline-block; animation: zzz 1.8s infinite; }
+#sleeping .zzz span:nth-child(2) { animation-delay: .4s; }
+#sleeping.morning .zzz { visibility: hidden; }
+@keyframes zzz { 50% { transform: translateY(-10px); opacity: .5; } }
+#night-fade { position: fixed; inset: 0; z-index: 31; background: #05060f; opacity: 0; pointer-events: none; transition: opacity 1.2s; }
+#night-fade.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #sleeping .zzz span { animation: none; } #night-fade { transition: none; } }
