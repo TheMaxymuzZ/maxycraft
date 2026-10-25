@@ -149,4 +149,6 @@ npm run build   # comprueba tipos y genera dist/
 
 Para ver otra hora del día sin esperar, añade `?hora=21` (o cualquier hora) a la dirección.
 
+Para probar el multijugador en un solo ordenador, abre el juego en una pestaña con `?pruebared=anfitrion` y en otra con `?pruebared=invitado`. El invitado entra en la isla del anfitrión (sin guardar nada suyo) y cada uno ve al otro moverse y construir. Los cambios del mundo pasan por `src/net/` (mensajes, anfitrión e invitados); en la v2.11 el canal entre pestañas se cambia por una conexión directa entre ordenadores.
+
 Hecho con [Three.js](https://threejs.org/), TypeScript y Vite. Cada push a `main` pasa las pruebas y se publica solo en GitHub Pages.

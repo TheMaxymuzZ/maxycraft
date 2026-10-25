@@ -499,14 +499,15 @@ export class World {
   /**
    * Rehace la casa del jugador con el tamaño de su nivel (1: 5x5, 2: 7x7, 3: 9x9).
    * Se guarda como cambios del jugador, igual que si la hubiera construido a mano.
+   * `put` permite que los bloques pasen por WorldSync y lleguen también a los demás jugadores.
    */
-  buildPlayerHouse(level: number, roof: Block) {
+  buildPlayerHouse(level: number, roof: Block, put: (x: number, y: number, z: number, b: Block) => void = (x, y, z, b) => this.setBlock(x, y, z, b)) {
     const p = this.playerPlot;
     if (!p) return;
     const { x, y, z } = p;
     const half = level + 1;
     const set = (bx: number, by: number, bz: number, b: Block) => {
-      if (this.getBlock(bx, by, bz) !== b) this.setBlock(bx, by, bz, b);
+      if (this.getBlock(bx, by, bz) !== b) put(bx, by, bz, b);
     };
     // Quitar lo que hubiera (la tienda de campaña o la casa anterior, que siempre es más pequeña).
     for (let dy = 1; dy <= half + 6; dy++) {

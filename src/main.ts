@@ -23,6 +23,12 @@ import { Hud } from './hud';
 import { setupInstall } from './install';
 import { Islands } from './islands';
 import { NameTags } from './labels';
+import { WorldSync } from './net/actions';
+import { loadIdentity, tabIdentity } from './net/identity';
+import type { Snapshot } from './net/protocol';
+import { NetSession, type SessionEvents } from './net/session';
+import { TabTransport } from './net/transport';
+import { RemotePlayers } from './remotePlayers';
 import { Menu } from './menu';
 import { Animals, MAX_ANIMALS, type AnimalKind } from './animals';
 import { Farm, cropForSeed, cropOfBlock, isFarmland } from './farm';
@@ -102,21 +108,46 @@ const material = new THREE.MeshLambertMaterial({
   side: THREE.DoubleSide, // las plantas se ven por los dos lados
 });
 
+// --- Jugar con amigos ---
+// De momento se prueba entre pestañas del mismo navegador: ?pruebared=anfitrion en una y ?pruebared=invitado en otra.
+// El invitado juega en la isla del anfitrión y no guarda nada suyo.
+
+const netTest = params.get('pruebared');
+const identity = netTest ? tabIdentity(loadIdentity()) : null;
+/** Lo que pasa en la partida con amigos; se rellena cuando ya existen el HUD y los jugadores. */
+const netEvents: SessionEvents = {};
+let netError = '';
+async function joinTestIsland(): Promise<{ session: NetSession; snapshot: Snapshot } | null> {
+  const text = document.querySelector('#splash-text');
+  if (text) text.textContent = 'Buscando la isla del anfitrión…';
+  try {
+    return await NetSession.join(new TabTransport(identity!.id), identity!, netEvents);
+  } catch (e) {
+    netError = (e as Error).message;
+    return null;
+  }
+}
+const joined = netTest === 'invitado' ? await joinTestIsland() : null;
+
 // --- Partida guardada ---
 
-const save = loadGame();
-const seed = save?.seed ?? Math.floor(Math.random() * 1e9);
+const save = joined ? null : loadGame();
+const seed = joined?.snapshot.seed ?? save?.seed ?? Math.floor(Math.random() * 1e9);
 // De viaje en una isla misteriosa: se juega en otra isla, pero los bolsillos y las bayas son los de casa.
 const trip = save ? loadTrip(activeSlot()) : null;
 /** Vecinos invitados desde las islas misteriosas, que viven (o vivirán) en la isla de casa. */
 const guests: Guest[] = (save?.guests ?? []).map((g) => ({ ...g }));
 const sound = new Sound(seed);
 sound.season = season;
-const world = trip
+const world = joined
+  ? new World(joined.snapshot.seed, material, joined.snapshot.edits, joined.snapshot.options)
+  : trip
   ? new World(trip.seed, material, {}, { mystery: { kind: trip.kind, fruit: trip.fruit } })
   : new World(seed, material, save?.edits ?? {}, { guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) });
+/** Todos los cambios de bloques pasan por aquí, para poder compartirlos con otros jugadores. */
+const sync = new WorldSync(world);
 // Los recién invitados se mudan al volver a casa: se les busca sitio una vez y se guarda.
-if (!trip) {
+if (!trip && !joined) {
   for (const g of guests) {
     if (g.x !== undefined) continue;
     const [spot] = world.findGuestSpots(1);
@@ -141,7 +172,7 @@ const harvested: Record<string, number> = { ...(save?.harvested ?? {}) };
 for (const [k, t] of Object.entries(harvested)) {
   if (Date.now() - t < FRUIT_REGROW_DAYS * 86_400_000) continue;
   const [x, y, z] = k.split(',').map(Number);
-  world.clearEdit(x, y, z);
+  sync.clearEdit(x, y, z);
   delete harvested[k];
 }
 let bottleTaken = save?.bottle?.day === today && save.bottle.taken;
@@ -150,7 +181,7 @@ const branchTrees = new Set(save?.branches?.day === today ? save.branches.trees 
 
 // El huerto y la granja.
 const farm = new Farm(trip ? {} : save?.farm);
-farm.sync(world, today);
+farm.sync(sync, today);
 const animals = new Animals(world, trip ? [] : save?.animals);
 scene.add(animals.group);
 
@@ -205,7 +236,7 @@ for (const p of world.plots) {
   if (holiday?.id === 'navidad' && p.kind === 'shop') decor.place('arbol_navidad', dx + 3, dy, dz + 1, 0);
 }
 // En la tienda de campaña hay una cama para empezar.
-if (!save && world.playerPlot) furniture.place('cama', world.playerPlot.x, world.playerPlot.y + 1, world.playerPlot.z, 0);
+if (!save && !joined && world.playerPlot) furniture.place('cama', world.playerPlot.x, world.playerPlot.y + 1, world.playerPlot.z, 0);
 
 const villagers = createVillagers(world, save?.villagers ?? {}, guests);
 // El piloto espera en la playa junto a la avioneta; en las islas misteriosas hay alguien de vacaciones.
@@ -269,7 +300,8 @@ function showSaveIndicator(text: string, error = false) {
   saveIndicator.classList.add('show');
 }
 function persist() {
-  if (!saving) return;
+  // El invitado juega en la isla de otro: no se guarda nada en su navegador.
+  if (!saving || joined) return;
   const p = player.position;
   const memories = Object.fromEntries(villagers.map((v) => [v.name, v.memory]));
   // De viaje solo se guarda lo que te llevas: la isla de casa se queda como estaba.
@@ -596,7 +628,7 @@ const dialog = new Dialog({
       home.debt += HOUSE_COSTS[home.level];
       home.level++;
       home.roof = roof;
-      world.buildPlayerHouse(home.level, ROOFS[roof]);
+      world.buildPlayerHouse(home.level, ROOFS[roof], (x, y, z, b) => sync.setBlock(x, y, z, b));
       hud.toast(`¡Tienes una ${HOUSE_NAMES[home.level]}!`);
       persist();
     },
@@ -881,11 +913,11 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
   // Quitar la tierra de cultivo arranca lo que hubiera plantado encima.
   if (isFarmland(b) && farm.has(x, y + 1, z)) harvestCrop(x, y + 1, z, true);
   if (cropOfBlock(b)) {
-    world.setBlock(x, y, z, Block.Air);
+    sync.setBlock(x, y, z, Block.Air);
     harvestCrop(x, y, z, burst);
     return;
   }
-  world.setBlock(x, y, z, Block.Air);
+  sync.setBlock(x, y, z, Block.Air);
   if (!burst) sound.dig(materialOf(BLOCKS[b].name));
   // Un mueble sin suelo debajo se cae y se puede recoger.
   const above = furniture.at(x, y + 1, z);
@@ -901,7 +933,7 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
 /** Recoge una planta del huerto: la cosecha si está madura o la semilla si no. */
 function harvestCrop(x: number, y: number, z: number, burst: boolean) {
   const h = farm.harvest(x, y, z, dayKey(gameDate()));
-  if (world.getBlock(x, y, z) !== Block.Air) world.setBlock(x, y, z, Block.Air);
+  if (world.getBlock(x, y, z) !== Block.Air) sync.setBlock(x, y, z, Block.Air);
   if (!h) return;
   sound.rustle();
   for (let i = 0; i < h.count; i++) drops.spawn(h.produce!, x + 0.5, y + 0.5, z + 0.5, { burst: true });
@@ -938,7 +970,7 @@ function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z
       hud.toast('Ya está regada hoy. ¡Mañana habrá crecido!');
       return true;
     }
-    farm.sync(world, day);
+    farm.sync(sync, day);
     record('regar');
     if (inventory.wearTool(hud.selected)) hud.toast('¡Tu regadera se ha roto!');
     return true;
@@ -952,8 +984,8 @@ function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z
       hud.toast('Aquí no se puede hacer un huerto');
       return true;
     }
-    if (above === Block.TallGrass) world.setBlock(x, y + 1, z, Block.Air);
-    world.setBlock(x, y, z, Block.Farmland);
+    if (above === Block.TallGrass) sync.setBlock(x, y + 1, z, Block.Air);
+    sync.setBlock(x, y, z, Block.Farmland);
     sound.dig('hierba');
     if (inventory.wearTool(hud.selected)) hud.toast('¡Tu pala se ha roto!');
     return true;
@@ -965,8 +997,8 @@ function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z
       return true;
     }
     farm.plant(x, y + 1, z, seed.id);
-    world.setBlock(x, y + 1, z, seed.stages[0]);
-    farm.sync(world, day);
+    sync.setBlock(x, y + 1, z, seed.stages[0]);
+    farm.sync(sync, day);
     inventory.consume(hud.selected);
     sound.place();
     return true;
@@ -1085,7 +1117,7 @@ function useItem() {
     const [x, y, z] = replace ? hit.block : hit.place;
     if (!isCross(def.block) && player.intersectsBlock(x, y, z)) return;
     if (furniture.at(x, y, z)) return;
-    world.setBlock(x, y, z, def.block);
+    sync.setBlock(x, y, z, def.block);
     delete harvested[posKey(x, y, z)];
     inventory.consume(hud.selected);
     sound.place();
@@ -1126,7 +1158,7 @@ function placeFurniture(id: string, hit: { block: [number, number, number]; plac
     hud.toast('Los muebles tienen que ir sobre el suelo');
     return;
   }
-  if (here !== Block.Air) world.setBlock(x, y, z, Block.Air);
+  if (here !== Block.Air) sync.setBlock(x, y, z, Block.Air);
   // El mueble mira hacia quien lo coloca.
   const rot = ((Math.round(player.yaw / (Math.PI / 2)) % 4) + 4) % 4;
   furniture.place(id, x, y, z, rot);
@@ -1255,6 +1287,37 @@ window.addEventListener('resize', () => {
 
 const nameTags = new NameTags(villagers, document.querySelector<HTMLDivElement>('#labels')!);
 
+// Los demás jugadores de la partida.
+const remotes = new RemotePlayers(nameTags);
+scene.add(remotes.group);
+Object.assign(netEvents, {
+  join: (p) => {
+    remotes.add(p);
+    hud.toast(`${p.name} ha llegado a la isla`);
+  },
+  leave: (p) => {
+    remotes.remove(p.id);
+    hud.toast(`${p.name} se ha ido`);
+  },
+  pose: (id, pose) => remotes.setPose(id, pose),
+  chat: (p, text) => hud.toast(`${p.name}: ${text}`),
+} satisfies SessionEvents);
+const net = joined?.session
+  ?? (netTest === 'anfitrion' ? NetSession.host(new TabTransport(identity!.id), identity!, () => ({
+    seed: world.seed,
+    edits: world.exportEdits(),
+    options: trip ? { mystery: { kind: trip.kind, fruit: trip.fruit } } : { guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) },
+  }), netEvents) : null);
+if (net) {
+  // Los que ya estaban en la isla al entrar.
+  for (const p of net.peers.values()) remotes.add(p);
+  net.attach(sync);
+  window.addEventListener('pagehide', () => net.close());
+  hud.toast(net.role === 'anfitrion' ? 'Isla abierta: abre otra pestaña con ?pruebared=invitado' : `Has entrado como ${net.self.name}`);
+} else if (netError) {
+  hud.toast(`${netError}. Juegas en tu isla.`);
+}
+
 // --- Reloj con la hora local, como en Animal Crossing ---
 
 const timeFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
@@ -1339,8 +1402,10 @@ function frame(now: number) {
     const day = dayKey(date);
     if (weather.raining) farm.waterAll(day);
     missions.setDay(day);
-    farm.sync(world, day);
+    farm.sync(sync, day);
   }
+  if (net) net.update(now, { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.yaw, pitch: player.pitch });
+  remotes.update(dt);
   nameTags.update(camera, player.position);
   updateClock(date);
   drops.update(dt, player.position, take, 1 - sky.night * 0.5);
@@ -1421,6 +1486,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, sync, net, remotes, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

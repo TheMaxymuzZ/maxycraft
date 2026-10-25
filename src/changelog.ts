@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.1',
+    title: 'Preparados para jugar juntos',
+    items: [
+      'Por dentro, cada cambio de la isla ya es un mensaje que se puede enviar a otros jugadores.',
+      'Prueba temprana: abre el juego en dos pestañas con ?pruebared=anfitrion y ?pruebared=invitado y os veréis construir.',
+      'Los demás jugadores tienen cuerpo de bloques, color de ropa y su nombre encima.',
+      'El multijugador con código para jugar con amigos llega en la versión 2.11.',
+    ],
+  },
+  {
     version: '2.0',
     title: 'Gran actualización',
     items: [

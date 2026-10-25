@@ -10,6 +10,8 @@ export default defineConfig({
   // El número de versión sale de package.json y se ve en el menú del juego.
   define: { __APP_VERSION__: JSON.stringify(version) },
   build: {
+    // El juego espera a conectar con la isla del anfitrión antes de arrancar (await al principio de main.ts).
+    target: 'es2022',
     rollupOptions: {
       // Three.js va en su propio archivo: cambia poco, así el navegador lo guarda entre versiones.
       output: { manualChunks: { three: ['three'] } },
