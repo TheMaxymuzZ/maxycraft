@@ -10,8 +10,8 @@ export class Lighting {
     /** Antorcha en la mano: posición y alcance en bloques (0 = no llevas luz). */
     uHand: { value: new THREE.Vector4(0, 0, 0, 0) },
     uTorchColor: { value: new THREE.Color(1.15, 0.92, 0.62) },
-    // En espacio lineal: 0.05 se ve como un gris oscuro, no negro.
-    uMinLight: { value: 0.05 },
+    // En espacio lineal: así de poco se ve como un gris oscuro azulado, no negro.
+    uMinLight: { value: new THREE.Color(0.045, 0.05, 0.068) },
   };
 
   constructor(material: THREE.Material) {
@@ -41,14 +41,16 @@ varying vec2 vLight;
 varying vec3 vWorldPos;
 uniform vec4 uHand;
 uniform vec3 uTorchColor;
-uniform float uMinLight;`,
+uniform vec3 uMinLight;`,
         )
         .replace(
           '#include <opaque_fragment>',
           `float hand = uHand.w > 0.0 ? clamp(1.0 - distance(vWorldPos, uHand.xyz) / uHand.w, 0.0, 1.0) : 0.0;
 float glow = max(vLight.y, hand);
+// Cada nivel de luz que se pierde se nota igual: la boca de una cueva se oscurece poco a poco (v3.1).
+float sky = vLight.x * sqrt(vLight.x);
 // La luz de las antorchas no se suma a la del sol: se queda con la más fuerte, como en Minecraft.
-outgoingLight = max(outgoingLight * vLight.x, diffuseColor.rgb * (glow * glow * uTorchColor + uMinLight));
+outgoingLight = max(outgoingLight * sky, diffuseColor.rgb * (glow * glow * uTorchColor + uMinLight));
 #include <opaque_fragment>`,
         );
     };

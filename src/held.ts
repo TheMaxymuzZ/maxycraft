@@ -51,7 +51,7 @@ export class HeldItem {
 
   /**
    * `id`: objeto en la mano (o null). `offId`: lo de la otra mano. `busy`: se está rompiendo algo (se golpea sin parar).
-   * `walking`: velocidad al andar, para que la mano se mueva un poco. `light`: luz del día, de 0 a 1.
+   * `walking`: velocidad al andar, para que la mano se mueva un poco. `light`: lo iluminado que está el sitio donde estás, de 0 a 1.
    */
   update(dt: number, camera: THREE.Camera, id: string | null, offId: string | null, busy: boolean, walking: number, light: number) {
     if (id !== this.main.currentId) this.setItem(this.main, id);
@@ -70,8 +70,9 @@ export class HeldItem {
     // La otra mano no golpea: solo se mece al andar, al revés que la derecha.
     this.off.pivot.position.set(-0.48 - bobX, -0.38 + bobY, -0.8);
 
-    this.ambient.intensity = 0.7 + light * 0.9;
-    this.sun.intensity = 0.4 + light * 0.8;
+    // En una cueva sin antorcha la mano también se ve a oscuras (v3.1).
+    this.ambient.intensity = 0.1 + light * 1.5;
+    this.sun.intensity = light * 1.2;
   }
 
   private setItem(hand: Hand, id: string | null) {
