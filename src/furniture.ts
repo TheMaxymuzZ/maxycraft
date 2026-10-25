@@ -7,7 +7,8 @@ export interface FurnitureDef {
   id: string;
   name: string;
   sell: number;
-  buy: number;
+  /** Si no tiene precio de compra, solo se consigue fabricándolo. */
+  buy?: number;
   /** Las piezas: [ancho, alto, fondo, color, x, y, z] con (x, z) en el centro y y en la base. */
   parts: [number, number, number, number, number, number, number][];
   /** Si brilla de noche (las lámparas). */
@@ -95,6 +96,34 @@ export const FURNITURE: FurnitureDef[] = [
       [0.98, 0.04, 0.98, 0x3f7f9f, 0, 0, 0],
       [0.7, 0.045, 0.7, 0xe8d8a8, 0, 0, 0],
       [0.4, 0.05, 0.4, 0xc8553d, 0, 0, 0],
+    ],
+  },
+  // Solo se fabrican en la mesa de trabajo.
+  {
+    id: 'barril', name: 'Barril', sell: 240,
+    parts: [
+      [0.7, 0.86, 0.7, 0x9a6a3c, 0, 0, 0],
+      [0.74, 0.08, 0.74, 0x5d5d5d, 0, 0.14, 0],
+      [0.74, 0.08, 0.74, 0x5d5d5d, 0, 0.64, 0],
+      [0.6, 0.02, 0.6, 0x7a5233, 0, 0.86, 0],
+    ],
+  },
+  {
+    id: 'farol', name: 'Farol', sell: 450, glow: 0xffc864,
+    parts: [
+      [0.36, 0.06, 0.36, 0x3a3a3a, 0, 0, 0],
+      [0.06, 0.06, 0.06, 0x3a3a3a, 0, 0.42, 0],
+      [0.36, 0.06, 0.36, 0x3a3a3a, 0, 0.4, 0],
+      [0.28, 0.34, 0.28, 0xffe9a8, 0, 0.06, 0],
+    ],
+  },
+  {
+    id: 'banco', name: 'Banco', sell: 180,
+    parts: [
+      [0.96, 0.08, 0.4, WOOD, 0, 0.4, 0.1],
+      [0.96, 0.3, 0.08, WOOD, 0, 0.56, -0.12],
+      [0.08, 0.4, 0.36, DARK, -0.4, 0, 0.1],
+      [0.08, 0.4, 0.36, DARK, 0.4, 0, 0.1],
     ],
   },
 ];

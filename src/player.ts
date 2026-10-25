@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { isSolid } from './blocks';
+import { isFence, isSolid } from './blocks';
 import { WATER_SURFACE, type World } from './world';
 
 const HALF_WIDTH = 0.3;
@@ -121,10 +121,13 @@ export class Player {
     const minZ = Math.floor(p.z - HALF_WIDTH);
     const maxZ = Math.floor(p.z + HALF_WIDTH - 1e-6);
 
-    for (let y = minY; y <= maxY; y++) {
+    // Las vallas miden bloque y medio de alto para los lados: no se pueden saltar.
+    const startY = axis === 1 ? minY : Math.floor(p.y - 0.5);
+    for (let y = startY; y <= maxY; y++) {
       for (let z = minZ; z <= maxZ; z++) {
         for (let x = minX; x <= maxX; x++) {
-          if (!isSolid(this.world.getBlock(x, y, z))) continue;
+          const b = this.world.getBlock(x, y, z);
+          if (y < minY ? !isFence(b) : !isSolid(b)) continue;
           const eps = 1e-4;
           if (axis === 0) p.x = delta > 0 ? x - HALF_WIDTH - eps : x + 1 + HALF_WIDTH + eps;
           else if (axis === 2) p.z = delta > 0 ? z - HALF_WIDTH - eps : z + 1 + HALF_WIDTH + eps;

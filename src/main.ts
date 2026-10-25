@@ -17,6 +17,7 @@ import { deleteGame, loadGame, saveGame } from './save';
 import { Shop, formatBerries } from './shop';
 import { Sky } from './sky';
 import { type Villager, createVillagers } from './villagers';
+import { Workbench } from './workbench';
 import { WATER_SURFACE, World } from './world';
 
 const RENDER_RADIUS = 6;
@@ -79,6 +80,7 @@ for (const [k, t] of Object.entries(harvested)) {
   world.clearEdit(x, y, z);
   delete harvested[k];
 }
+let bottleTaken = save?.bottle?.day === today && save.bottle.taken;
 const shellsTaken = new Set(save?.shells?.day === today ? save.shells.taken : []);
 const branchTrees = new Set(save?.branches?.day === today ? save.branches.trees : []);
 
@@ -141,6 +143,8 @@ function persist() {
     donated: [...collection.donated],
     home,
     furniture: furniture.serialize(),
+    recipes: [...workbench.known],
+    bottle: { day: today, taken: bottleTaken },
   });
   savedRevision = world.revision;
 }
@@ -197,6 +201,11 @@ scene.add(fishing.bobber);
     const id = SHELLS[Math.floor(random() * SHELLS.length)];
     drops.spawn(id, x + 0.5, y + 0.3, z + 0.5, { onPickup: () => shellsTaken.add(i) });
   });
+  // Y una botella con una receta dentro.
+  const [bottle] = world.beachSpots(1, random);
+  if (bottle && !bottleTaken) {
+    drops.spawn('botella', bottle[0] + 0.5, bottle[1] + 0.3, bottle[2] + 0.5, { onPickup: () => (bottleTaken = true) });
+  }
 }
 
 // --- Interfaz ---
@@ -229,7 +238,7 @@ function take(id: string): boolean {
 // --- Bolsillos, conversaciones y bloqueo del puntero ---
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -245,7 +254,24 @@ function closeInventory() {
   canvas.requestPointerLock();
 }
 
+const workbench = new Workbench({ inventory, atlas, toast: (t) => hud.toast(t) }, save?.recipes);
+
+function openWorkbench() {
+  panel = 'workbench';
+  breaking = false;
+  workbench.open();
+  document.exitPointerLock();
+}
+
+function closeWorkbench() {
+  workbench.close();
+  panel = null;
+  canvas.requestPointerLock();
+}
+document.querySelector('#workbench-close')!.addEventListener('click', closeWorkbench);
+
 const dialog = new Dialog({
+  learnRecipe: () => workbench.learnRandom(),
   inventory,
   selectedSlot: () => hud.selected,
   today,
@@ -339,6 +365,10 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === 'KeyC') closeCollection();
     return;
   }
+  if (panel === 'workbench') {
+    if (e.code === 'Escape' || e.code === 'KeyE') closeWorkbench();
+    return;
+  }
   if (e.code === 'KeyC' && document.pointerLockElement === canvas) {
     openCollection();
     return;
@@ -400,6 +430,7 @@ document.addEventListener('pointerlockchange', () => {
     if (panel === 'dialog') dialog.finish();
     if (panel === 'shop') shop.close();
     if (panel === 'collection') collection.close();
+    if (panel === 'workbench') workbench.close();
     panel = null;
     return;
   }
@@ -533,6 +564,11 @@ function useItem() {
   const stack = hud.selectedStack;
   const def = stack ? itemDef(stack.id) : null;
 
+  if (def?.id === 'botella') {
+    readBottle();
+    return;
+  }
+
   if (def?.tool === 'rod') {
     useRod(blockDist);
     return;
@@ -545,6 +581,11 @@ function useItem() {
   if (!hit) return;
   const [bx, by, bz] = hit.block;
   const target = world.getBlock(bx, by, bz);
+
+  if (target === Block.Workbench) {
+    openWorkbench();
+    return;
+  }
 
   if (def?.furniture) {
     placeFurniture(def.id, hit);
@@ -603,6 +644,16 @@ function placeFurniture(id: string, hit: { block: [number, number, number]; plac
   furniture.place(id, x, y, z, rot);
   inventory.consume(hud.selected);
   persist();
+}
+
+function readBottle() {
+  const name = workbench.learnRandom();
+  if (!name) {
+    hud.toast('Ya te sabes todas las recetas de las botellas');
+    return;
+  }
+  inventory.consume(hud.selected);
+  hud.toast(`¡Una receta dentro de la botella! Has aprendido: ${name.toLowerCase()}`);
 }
 
 function aimRay(): THREE.Ray {
@@ -812,6 +863,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+    game: { world, player, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
   });
 }

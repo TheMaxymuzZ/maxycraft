@@ -61,6 +61,9 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.RoofGreen, 'tejado_verde', 25, 80],
   [Block.RoofYellow, 'tejado_amarillo', 25, 80],
   [Block.Window, 'ventana', 40, 150],
+  [Block.Workbench, 'mesa_trabajo', 60],
+  [Block.Fence, 'valla', 15],
+  [Block.WhiteFence, 'valla_blanca', 25],
 ];
 for (const [block, id, sell, buy] of PLACEABLE) {
   add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block, sell, buy });
@@ -79,6 +82,7 @@ for (const [block, id] of FRUIT_ITEMS) {
   add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 10, sell: block === Block.Coconut ? 250 : 100 });
 }
 
+add({ id: 'botella', name: 'Mensaje en una botella', tile: Tile.Bottle, maxStack: 10, sell: 10 });
 add({ id: 'rama', name: 'Rama', tile: Tile.Branch, maxStack: 30, sell: 5 });
 add({ id: 'concha', name: 'Concha', tile: Tile.Shell, maxStack: 10, sell: 60 });
 add({ id: 'caracola', name: 'Caracola', tile: Tile.Conch, maxStack: 10, sell: 100 });
@@ -183,6 +187,9 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Log]: { time: 2.5, tool: 'axe' },
   [Block.PalmLog]: { time: 2.5, tool: 'axe' },
   [Block.Planks]: { time: 1.6, tool: 'axe' },
+  [Block.Workbench]: { time: 1.6, tool: 'axe' },
+  [Block.Fence]: { time: 0.8, tool: 'axe' },
+  [Block.WhiteFence]: { time: 0.8, tool: 'axe' },
   [Block.Leaves]: { time: 0.25 },
   [Block.PalmLeaves]: { time: 0.25 },
 };
@@ -201,7 +208,7 @@ export function toolNameFor(b: Block): string | null {
   return names[h.tool];
 }
 
-// --- Recetas sencillas (la mesa de trabajo llegará en la v0.9) ---
+// --- Recetas ---
 
 export interface Recipe {
   result: string;
@@ -209,15 +216,39 @@ export interface Recipe {
   needs: [string, number][];
 }
 
+/** Lo que se fabrica en cualquier sitio, con los bolsillos. */
 export const RECIPES: Recipe[] = [
   { result: 'tablones', count: 4, needs: [['tronco', 1]] },
+  { result: 'mesa_trabajo', count: 1, needs: [['tablones', 4]] },
   { result: 'hacha', count: 1, needs: [['rama', 5]] },
   { result: 'pala', count: 1, needs: [['rama', 5]] },
   { result: 'pico', count: 1, needs: [['rama', 6]] },
   { result: 'cana', count: 1, needs: [['rama', 5]] },
   { result: 'red', count: 1, needs: [['rama', 5]] },
   { result: 'antorcha', count: 4, needs: [['rama', 1], ['carbon', 1]] },
+];
+
+/** Recetas de la mesa de trabajo. Hay que aprenderlas: de los vecinos o de las botellas de la playa. */
+export const DIY_RECIPES: Recipe[] = [
+  { result: 'valla', count: 4, needs: [['tablones', 2], ['rama', 2]] },
+  { result: 'silla', count: 1, needs: [['tablones', 4]] },
+  { result: 'banco', count: 1, needs: [['tablones', 3], ['rama', 2]] },
   { result: 'pico_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 3]] },
   { result: 'hacha_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 3]] },
   { result: 'pala_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 2]] },
+  { result: 'valla_blanca', count: 4, needs: [['tablones', 2], ['concha', 1]] },
+  { result: 'mesa', count: 1, needs: [['tablones', 6]] },
+  { result: 'cama', count: 1, needs: [['tablones', 6], ['cosmos', 3]] },
+  { result: 'estanteria', count: 1, needs: [['tablones', 8]] },
+  { result: 'sofa', count: 1, needs: [['tablones', 6], ['tulipan', 3]] },
+  { result: 'lampara', count: 1, needs: [['pepita_hierro', 2], ['antorcha', 1]] },
+  { result: 'planta', count: 1, needs: [['tierra', 2], ['pensamiento', 1]] },
+  { result: 'alfombra', count: 1, needs: [['pensamiento', 3], ['cosmos', 3]] },
+  { result: 'barril', count: 1, needs: [['tronco', 3]] },
+  { result: 'farol', count: 1, needs: [['pepita_hierro', 1], ['antorcha', 2]] },
+  { result: 'ventana', count: 2, needs: [['tablones', 2], ['arena', 2]] },
+  { result: 'pared', count: 4, needs: [['piedra', 2], ['arena', 2]] },
 ];
+
+/** Las que ya se saben al empezar. */
+export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro'];
