@@ -26,9 +26,21 @@ const GREETINGS: Record<Personality, string[]> = {
     '¡Hola! Hoy estoy radiante, como siempre, {c}.',
     '{saludo}. Una isla tan bonita se merece vecinos con estilo, {c}.',
   ],
+  deportista: [
+    '¡{saludo}! ¿Echamos una carrera hasta la playa? ¡Uno, dos y tres, {c}!',
+    '¡Eh! Llevo cien sentadillas esta mañana. ¿Y tú cuántas, {c}?',
+    '{saludo}. ¡Hoy hace un día perfecto para entrenar, {c}!',
+  ],
+  dulce: [
+    '{saludo}. Qué bien que hayas venido, ¿te apetece un té, {c}?',
+    '¡Hola! Te veo muy bien hoy. ¿Has dormido a gusto, {c}?',
+    '{saludo}. Estaba pensando en ti, fíjate qué casualidad, {c}.',
+  ],
 };
 
 const CHATS: Record<Personality, string[]> = {
+  deportista: [],
+  dulce: [],
   alegre: [
     'Si sacudes los árboles cae fruta. ¡A veces también una rama, {c}!',
     'Me encanta pasear junto al río. El sonido del agua me pone contenta, {c}.',
@@ -56,6 +68,33 @@ const CHATS: Record<Personality, string[]> = {
     'Los tejados de colores son lo más. El mío es el más elegante, claro, {c}.',
   ],
 };
+
+// Charlas de las personalidades nuevas (v2.7).
+const MORE_CHATS: Partial<Record<Personality, string[]>> = {
+  deportista: [
+    'Subir a la montaña es el mejor ejercicio. ¡Y desde arriba se ven las cascadas, {c}!',
+    'Nadar en el río contracorriente pone fuerte a cualquiera, {c}.',
+    'Si te cansas, come fruta. ¡Es energía de la buena, {c}!',
+    'Talar árboles es buen ejercicio, pero planta otro brote después, ¿eh, {c}?',
+  ],
+  dulce: [
+    'Me encanta cuando alguien pone flores junto a los caminos. Alegran el día, {c}.',
+    'Si alguna vez estás triste, ven a verme y charlamos un rato, {c}.',
+    'En el bosque hay árboles muy viejos. Me gusta pensar que nos cuidan, {c}.',
+    'He hecho galletas de más. La próxima vez te guardo unas, {c}.',
+  ],
+};
+for (const [k, lines] of Object.entries(MORE_CHATS)) CHATS[k as Personality] = lines!;
+
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const LIKES_TEXT: Record<Villager['profile']['likes'], string> = { fruta: 'la fruta', conchas: 'las conchas', flores: 'las flores', madera: 'las cosas de madera' };
+
+/** El vecino se presenta: especie, cumpleaños, lo que le gusta hacer y lo que le gusta que le regalen. */
+export function introLine(v: Villager): string {
+  const p = v.profile;
+  const [m, d] = p.birthday;
+  return `Soy ${p.name}. Me encanta ${p.hobby}, y si algún día me quieres regalar algo, me chiflan ${LIKES_TEXT[p.likes]}. Mi cumpleaños es el ${d} de ${MONTHS[m - 1]}, ¡apúntalo, {c}!`;
+}
 
 const LIKED = [
   '¡¿Para mí?! ¡Es justo lo que quería! Muchas gracias, {c}.',
@@ -144,6 +183,8 @@ export interface DialogContext {
   gifted?: () => void;
   /** Invitar a vivir en tu isla a quien está de vacaciones. */
   invite: (v: Villager) => 'ok' | 'full' | 'already';
+  /** Se ha hablado con este vecino (para el álbum de vecinos). */
+  met?: (v: Villager) => void;
 }
 
 export interface TravelActions {
@@ -182,6 +223,7 @@ export class Dialog {
 
   start(v: Villager) {
     this.villager = v;
+    this.ctx.met?.(v);
     v.talking = true;
     this.el.hidden = false;
     this.nameEl.textContent = v.name;
@@ -261,6 +303,7 @@ export class Dialog {
       });
     } else {
       add('Charlar', () => this.say(pick(CHATS[v.profile.personality])));
+      add('Háblame de ti', () => this.say(introLine(v)));
     }
     const slot = this.ctx.selectedSlot();
     const stack = this.ctx.inventory.slots[slot];

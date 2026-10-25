@@ -40,6 +40,8 @@ export interface SaveData {
   /** Desde la v0.6: peces e insectos vistos y donados al museo. */
   caught?: string[];
   donated?: string[];
+  /** Desde la v2.7: vecinos con los que has hablado (álbum de vecinos). */
+  met?: string[];
   /** Desde la v0.8: la casa del jugador (nivel, deuda y tejado) y sus muebles. */
   home?: { level: number; debt: number; roof: number };
   furniture?: PlacedFurniture[];

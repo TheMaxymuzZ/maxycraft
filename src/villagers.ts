@@ -1,30 +1,23 @@
 import * as THREE from 'three';
 import { Block, isBarrier, isSolid } from './blocks';
 import { columnRandom } from './noise';
+import { type Species, buildVillagerModel } from './villagerModel';
 import { SEA_LEVEL, type Plot, type World } from './world';
 
-export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido';
-type Species = 'gato' | 'conejo' | 'oso' | 'pato' | 'perro' | 'rana' | 'ardilla' | 'tortuga';
+export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido' | 'deportista' | 'dulce';
+export type { Species };
 
-interface SpeciesLook {
-  fur: number;
-  belly: number;
-  ears: 'punta' | 'largas' | 'redondas' | 'caidas' | 'ninguna';
-  beak?: number;
-}
-
-const LOOKS: Record<Species, SpeciesLook> = {
-  gato: { fur: 0xf2a65a, belly: 0xfff1dc, ears: 'punta' },
-  conejo: { fur: 0xf4f0ec, belly: 0xffd9e0, ears: 'largas' },
-  oso: { fur: 0x9a6a44, belly: 0xd9b48a, ears: 'redondas' },
-  pato: { fur: 0xfbf7ee, belly: 0xffffff, ears: 'ninguna', beak: 0xf5a623 },
-  perro: { fur: 0xd8b07a, belly: 0xfff4e0, ears: 'caidas' },
-  rana: { fur: 0x7cc46a, belly: 0xe8f5c8, ears: 'ninguna' },
-  ardilla: { fur: 0xb8743a, belly: 0xf4dcb8, ears: 'punta' },
-  tortuga: { fur: 0x9cc48a, belly: 0xf0ecc8, ears: 'ninguna' },
+/** Cómo se dice cada personalidad, para la ficha del vecino. */
+export const PERSONALITY_NAMES: Record<Personality, string> = {
+  alegre: 'Alegre', 'gruñón': 'Gruñón', 'dormilón': 'Dormilón', presumido: 'Presumido', deportista: 'Deportista', dulce: 'Dulce',
 };
 
-interface Profile {
+export const SPECIES_NAMES: Record<Species, string> = {
+  gato: 'Gato', conejo: 'Conejo', oso: 'Oso', pato: 'Pato', perro: 'Perro', rana: 'Rana', ardilla: 'Ardilla', tortuga: 'Tortuga',
+  oveja: 'Oveja', cerdo: 'Cerdo', 'pingüino': 'Pingüino', koala: 'Koala', zorro: 'Zorro', elefante: 'Elefante',
+};
+
+export interface Profile {
   name: string;
   species: Species;
   personality: Personality;
@@ -40,44 +33,64 @@ interface Profile {
   role?: 'shop' | 'museum' | 'pilot';
   /** Cumpleaños: [mes, día]. */
   birthday: [number, number];
+  /** Lo que más le gusta hacer. */
+  hobby: string;
+  /** Color de pelo propio (si no, el de su especie). */
+  fur?: number;
+  pattern?: 'rayas' | 'lunares';
 }
 
 /** La conservadora del museo, que está siempre abierto. */
 const CURATOR: Profile = {
   name: 'Matilde', species: 'tortuga', personality: 'dormilón', catchphrase: 'ejem', shirt: 0x6a5acd,
-  likes: 'conchas', sleep: [0, 0], stationary: true, role: 'museum', birthday: [6, 5],
+  likes: 'conchas', sleep: [0, 0], stationary: true, role: 'museum', birthday: [6, 5], hobby: 'ordenar fósiles',
 };
 
 /** La dependienta de la tienda, abierta de 8:00 a 22:00. */
 const SHOPKEEPER: Profile = {
   name: 'Avellana', species: 'ardilla', personality: 'alegre', catchphrase: 'cric', shirt: 0x3f8f5a,
-  likes: 'fruta', sleep: [22, 8], stationary: true, role: 'shop', birthday: [9, 18],
+  likes: 'fruta', sleep: [22, 8], stationary: true, role: 'shop', birthday: [9, 18], hobby: 'contar bayas',
 };
 
 /** El piloto de la avioneta, que espera siempre junto al avión. */
 export const PILOT: Profile = {
   name: 'Plumas', species: 'pato', personality: 'alegre', catchphrase: 'vrum', shirt: 0x2f6fb0,
-  likes: 'conchas', sleep: [0, 0], stationary: true, role: 'pilot', birthday: [7, 17],
+  likes: 'conchas', sleep: [0, 0], stationary: true, role: 'pilot', birthday: [7, 17], hobby: 'mirar las nubes',
 };
 
 /** Vecinos que solo se encuentran de vacaciones en las islas misteriosas. */
 const VISITORS: Profile[] = [
-  { name: 'Nube', species: 'conejo', personality: 'dormilón', catchphrase: 'puf', shirt: 0x8fc6e8, likes: 'flores', birthday: [5, 8] },
-  { name: 'Trufa', species: 'perro', personality: 'gruñón', catchphrase: 'grr', shirt: 0x7a5a8a, likes: 'madera', birthday: [12, 3] },
-  { name: 'Mora', species: 'gato', personality: 'presumido', catchphrase: 'chic', shirt: 0xd04a7a, likes: 'conchas', birthday: [2, 19] },
-  { name: 'Bombón', species: 'oso', personality: 'alegre', catchphrase: 'mmm', shirt: 0xf0b040, likes: 'fruta', birthday: [6, 24] },
-  { name: 'Saltarín', species: 'rana', personality: 'alegre', catchphrase: 'hop', shirt: 0x4ab0a0, likes: 'flores', birthday: [4, 1] },
-  { name: 'Castaña', species: 'ardilla', personality: 'presumido', catchphrase: 'tic', shirt: 0xb05a3a, likes: 'fruta', birthday: [10, 12] },
-  { name: 'Lenta', species: 'tortuga', personality: 'dormilón', catchphrase: 'zzz', shirt: 0x6a9a5a, likes: 'madera', birthday: [8, 30] },
+  { name: 'Nube', species: 'conejo', personality: 'dormilón', catchphrase: 'puf', shirt: 0x8fc6e8, likes: 'flores', birthday: [5, 8], hobby: 'echarse la siesta al sol' },
+  { name: 'Trufa', species: 'perro', personality: 'gruñón', catchphrase: 'grr', shirt: 0x7a5a8a, fur: 0x8a6a52, likes: 'madera', birthday: [12, 3], hobby: 'arreglar cosas' },
+  { name: 'Mora', species: 'gato', personality: 'presumido', catchphrase: 'chic', shirt: 0xd04a7a, fur: 0x4a4250, pattern: 'lunares', likes: 'conchas', birthday: [2, 19], hobby: 'probarse ropa' },
+  { name: 'Bombón', species: 'oso', personality: 'alegre', catchphrase: 'mmm', shirt: 0xf0b040, likes: 'fruta', birthday: [6, 24], hobby: 'hacer pasteles' },
+  { name: 'Saltarín', species: 'rana', personality: 'alegre', catchphrase: 'hop', shirt: 0x4ab0a0, likes: 'flores', birthday: [4, 1], hobby: 'saltar charcos' },
+  { name: 'Castaña', species: 'ardilla', personality: 'presumido', catchphrase: 'tic', shirt: 0xb05a3a, likes: 'fruta', birthday: [10, 12], hobby: 'decorar su casa' },
+  { name: 'Lenta', species: 'tortuga', personality: 'dormilón', catchphrase: 'zzz', shirt: 0x6a9a5a, fur: 0xb4cc96, likes: 'madera', birthday: [8, 30], hobby: 'mirar el mar' },
+  // Personajes nuevos (v2.7): se encuentran de vacaciones en las islas misteriosas.
+  { name: 'Algodón', species: 'oveja', personality: 'dulce', catchphrase: 'bee', shirt: 0xf0a0c0, likes: 'flores', birthday: [3, 3], hobby: 'tejer bufandas' },
+  { name: 'Rizos', species: 'oveja', personality: 'presumido', catchphrase: 'divino', shirt: 0x6a4ab0, likes: 'conchas', birthday: [11, 21], hobby: 'peinarse', pattern: 'rayas' },
+  { name: 'Chispa', species: 'zorro', personality: 'deportista', catchphrase: 'zas', shirt: 0x3a7ad0, likes: 'madera', birthday: [7, 4], hobby: 'escalar montañas', pattern: 'rayas' },
+  { name: 'Rubí', species: 'zorro', personality: 'presumido', catchphrase: 'ay', shirt: 0xc83a4a, likes: 'conchas', birthday: [1, 12], hobby: 'hacerse fotos', fur: 0xd0603a },
+  { name: 'Rosita', species: 'cerdo', personality: 'alegre', catchphrase: 'oinc', shirt: 0x7ad0c0, likes: 'fruta', birthday: [5, 20], hobby: 'cantar', pattern: 'lunares' },
+  { name: 'Pancho', species: 'cerdo', personality: 'gruñón', catchphrase: 'grunf', shirt: 0x5a6a3a, likes: 'madera', birthday: [9, 2], hobby: 'cocinar', fur: 0xe0a0a8 },
+  { name: 'Hielo', species: 'pingüino', personality: 'deportista', catchphrase: 'brr', shirt: 0xe04a3a, likes: 'conchas', birthday: [1, 25], hobby: 'nadar en agua fría' },
+  { name: 'Copito', species: 'pingüino', personality: 'dulce', catchphrase: 'pío', shirt: 0x8ad0f0, likes: 'flores', birthday: [12, 18], hobby: 'hacer muñecos de nieve', fur: 0x3a4a6a, pattern: 'lunares' },
+  { name: 'Eucalipto', species: 'koala', personality: 'dormilón', catchphrase: 'mmh', shirt: 0x7aa05a, likes: 'madera', birthday: [8, 15], hobby: 'abrazar árboles' },
+  { name: 'Kiwi', species: 'koala', personality: 'alegre', catchphrase: 'yuju', shirt: 0xf0c040, likes: 'fruta', birthday: [4, 9], hobby: 'pintar', fur: 0xb0a8a0, pattern: 'rayas' },
+  { name: 'Trompi', species: 'elefante', personality: 'dulce', catchphrase: 'tuuu', shirt: 0xf09a50, likes: 'fruta', birthday: [6, 11], hobby: 'regar flores' },
+  { name: 'Duque', species: 'elefante', personality: 'presumido', catchphrase: 'oh là', shirt: 0x3a3a6a, likes: 'conchas', birthday: [10, 3], hobby: 'leer poesía', fur: 0xc0b0d0 },
+  { name: 'Rayo', species: 'perro', personality: 'deportista', catchphrase: 'guay', shirt: 0xf05a3a, likes: 'madera', birthday: [3, 28], hobby: 'correr', fur: 0xf0e0c8, pattern: 'rayas' },
+  { name: 'Bigotes', species: 'gato', personality: 'gruñón', catchphrase: 'mrr', shirt: 0x4a5a7a, likes: 'conchas', birthday: [2, 2], hobby: 'pescar de noche', fur: 0x9a9aa4 },
 ];
 
 const PROFILES: Profile[] = [
-  { name: 'Canela', species: 'gato', personality: 'alegre', catchphrase: 'miau', shirt: 0xe86a8a, likes: 'flores', birthday: [3, 14] },
-  { name: 'Bruno', species: 'oso', personality: 'dormilón', catchphrase: 'ñam', shirt: 0x5b8bd6, likes: 'fruta', birthday: [11, 2] },
-  { name: 'Pelusa', species: 'conejo', personality: 'presumido', catchphrase: 'boing', shirt: 0x9b6bd6, likes: 'conchas', birthday: [4, 22] },
-  { name: 'Ramón', species: 'rana', personality: 'gruñón', catchphrase: 'croac', shirt: 0xd9a441, likes: 'madera', birthday: [8, 9] },
-  { name: 'Lola', species: 'perro', personality: 'alegre', catchphrase: 'guau', shirt: 0x5fb07a, likes: 'fruta', birthday: [10, 27] },
-  { name: 'Toto', species: 'pato', personality: 'dormilón', catchphrase: 'cuac', shirt: 0xe0704a, likes: 'conchas', birthday: [1, 30] },
+  { name: 'Canela', species: 'gato', personality: 'alegre', catchphrase: 'miau', shirt: 0xe86a8a, likes: 'flores', birthday: [3, 14], hobby: 'bailar' },
+  { name: 'Bruno', species: 'oso', personality: 'dormilón', catchphrase: 'ñam', shirt: 0x5b8bd6, likes: 'fruta', birthday: [11, 2], hobby: 'comer fruta' },
+  { name: 'Pelusa', species: 'conejo', personality: 'presumido', catchphrase: 'boing', shirt: 0x9b6bd6, likes: 'conchas', birthday: [4, 22], hobby: 'coleccionar conchas' },
+  { name: 'Ramón', species: 'rana', personality: 'gruñón', catchphrase: 'croac', shirt: 0xd9a441, likes: 'madera', birthday: [8, 9], hobby: 'pescar' },
+  { name: 'Lola', species: 'perro', personality: 'alegre', catchphrase: 'guau', shirt: 0x5fb07a, pattern: 'rayas', likes: 'fruta', birthday: [10, 27], hobby: 'correr por la playa' },
+  { name: 'Toto', species: 'pato', personality: 'dormilón', catchphrase: 'cuac', shirt: 0xe0704a, likes: 'conchas', birthday: [1, 30], hobby: 'dormir la siesta' },
 ];
 
 /** Horas en las que cada personalidad está en casa durmiendo. */
@@ -86,6 +99,8 @@ const SLEEP: Record<Personality, [number, number]> = {
   'gruñón': [0, 8],
   'dormilón': [20, 10],
   presumido: [23, 9],
+  deportista: [22, 6],
+  dulce: [21, 7],
 };
 
 export interface VillagerMemory {
@@ -103,6 +118,9 @@ export class Villager {
   private wait = 0;
   private legs: THREE.Mesh[] = [];
   private arms: THREE.Mesh[] = [];
+  private eyes: THREE.Object3D[] = [];
+  /** Segundos hasta el próximo parpadeo. */
+  private blink = 2 + Math.random() * 3;
   private walkPhase = 0;
   private facing = 0;
   /** Está hablando con el jugador: se para y le mira. */
@@ -151,76 +169,14 @@ export class Villager {
     this.group.add(hat, pom);
   }
 
-  // --- Modelo de bloques: cabeza grande, como los vecinos de Animal Crossing ---
+  // --- Modelo de bloques: cabeza grande, como los vecinos de Animal Crossing (villagerModel.ts) ---
 
   private buildModel() {
-    const look = LOOKS[this.profile.species];
-    const mat = (c: number) => new THREE.MeshLambertMaterial({ color: c });
-    const box = (w: number, h: number, d: number, color: number, x: number, y: number, z: number) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color));
-      m.position.set(x, y, z);
-      this.group.add(m);
-      return m;
-    };
-    // Las piernas y los brazos giran desde arriba, así que la geometría cuelga del punto de giro.
-    const limb = (w: number, h: number, color: number, x: number, y: number) => {
-      const g = new THREE.BoxGeometry(w, h, w);
-      g.translate(0, -h / 2, 0);
-      const m = new THREE.Mesh(g, mat(color));
-      m.position.set(x, y, 0);
-      this.group.add(m);
-      return m;
-    };
-
-    this.legs.push(limb(0.18, 0.32, look.fur, -0.12, 0.32), limb(0.18, 0.32, look.fur, 0.12, 0.32));
-    box(0.5, 0.42, 0.34, this.profile.shirt, 0, 0.53, 0);
-    this.arms.push(limb(0.14, 0.34, this.profile.shirt, -0.32, 0.72), limb(0.14, 0.34, this.profile.shirt, 0.32, 0.72));
-
-    const headY = 1.05;
-    box(0.72, 0.62, 0.62, look.fur, 0, headY, 0);
-    box(0.4, 0.22, 0.04, look.belly, 0, headY - 0.14, 0.31); // hocico
-    box(0.08, 0.12, 0.03, 0x1d1d1d, -0.16, headY + 0.04, 0.32);
-    box(0.08, 0.12, 0.03, 0x1d1d1d, 0.16, headY + 0.04, 0.32);
-    box(0.1, 0.06, 0.03, 0xf28a9a, -0.26, headY - 0.08, 0.32); // mejillas
-    box(0.1, 0.06, 0.03, 0xf28a9a, 0.26, headY - 0.08, 0.32);
-    if (look.beak) box(0.26, 0.1, 0.16, look.beak, 0, headY - 0.1, 0.36);
-    else box(0.08, 0.06, 0.04, 0x5a3a2a, 0, headY - 0.07, 0.34); // nariz
-
-    if (this.profile.species === 'tortuga') {
-      box(0.62, 0.5, 0.26, 0x6b8e4e, 0, 0.6, -0.28); // caparazón
-      box(0.5, 0.06, 0.2, 0x4f6e38, 0, 0.7, -0.42);
-    }
-    if (this.profile.species === 'ardilla') {
-      box(0.3, 0.7, 0.24, look.fur, 0, 0.75, -0.34); // cola grande
-      box(0.3, 0.24, 0.3, look.fur, 0, 1.18, -0.42);
-    }
-
-    switch (look.ears) {
-      case 'punta':
-        box(0.16, 0.18, 0.1, look.fur, -0.22, headY + 0.38, 0);
-        box(0.16, 0.18, 0.1, look.fur, 0.22, headY + 0.38, 0);
-        break;
-      case 'largas':
-        box(0.12, 0.42, 0.08, look.fur, -0.14, headY + 0.5, 0);
-        box(0.12, 0.42, 0.08, look.fur, 0.14, headY + 0.5, 0);
-        box(0.06, 0.3, 0.02, look.belly, -0.14, headY + 0.5, 0.05);
-        box(0.06, 0.3, 0.02, look.belly, 0.14, headY + 0.5, 0.05);
-        break;
-      case 'redondas':
-        box(0.18, 0.16, 0.1, look.fur, -0.28, headY + 0.34, 0);
-        box(0.18, 0.16, 0.1, look.fur, 0.28, headY + 0.34, 0);
-        break;
-      case 'caidas':
-        box(0.12, 0.34, 0.2, 0x8a5a36, -0.42, headY, 0);
-        box(0.12, 0.34, 0.2, 0x8a5a36, 0.42, headY, 0);
-        break;
-      case 'ninguna':
-        if (this.profile.species === 'rana') {
-          box(0.2, 0.16, 0.2, look.fur, -0.2, headY + 0.36, 0.12);
-          box(0.2, 0.16, 0.2, look.fur, 0.2, headY + 0.36, 0.12);
-        }
-        break;
-    }
+    const model = buildVillagerModel(this.profile);
+    this.group.add(...model.group.children);
+    this.legs = model.legs;
+    this.arms = model.arms;
+    this.eyes = model.eyes;
   }
 
   /** Caja para saber si el jugador está apuntando al vecino. */
@@ -319,11 +275,11 @@ export class Villager {
     const bz = Math.floor(z);
     for (let y = Math.floor(fromY) + 1; y >= Math.floor(fromY) - 2; y--) {
       if (!isSolid(this.world.getBlock(bx, y, bz))) continue;
-      if (y < SEA_LEVEL + 1) return null; // no se meten en el agua
+      if (y < SEA_LEVEL + 1 || this.world.waterKind(bx, bz)) return null; // no se meten en el agua
       if (isSolid(this.world.getBlock(bx, y + 1, bz)) || isSolid(this.world.getBlock(bx, y + 2, bz))) return null;
       const top = this.world.getBlock(bx, y, bz);
       // No se suben a los árboles ni saltan vallas o puertas cerradas.
-      if (top === Block.Leaves || top === Block.PalmLeaves || isBarrier(top)) return null;
+      if (top === Block.Leaves || top === Block.PalmLeaves || top === Block.PineLeaves || isBarrier(top)) return null;
       return y + 1;
     }
     return null;
@@ -345,12 +301,19 @@ export class Villager {
     this.legs[1].rotation.x = -swing;
     this.arms[0].rotation.x = -swing * 0.8;
     this.arms[1].rotation.x = swing * 0.8;
+    // Parpadea de vez en cuando.
+    this.blink -= dt;
+    if (this.blink < -0.12) this.blink = 2 + Math.random() * 4;
+    for (const e of this.eyes) e.scale.y = this.blink < 0 ? 0.15 : 1;
   }
 }
 
 /** Todos los vecinos que pueden vivir en una isla (los de siempre y los de las islas misteriosas). */
 export const RESIDENT_NAMES = [...PROFILES, ...VISITORS].map((p) => p.name);
 export const MAX_GUESTS = 3;
+
+/** Todos los personajes, con la dependienta, la conservadora y el piloto, para el álbum de vecinos. */
+export const ALL_PROFILES: Profile[] = [SHOPKEEPER, CURATOR, PILOT, ...PROFILES, ...VISITORS];
 
 function profileNamed(name: string): Profile | undefined {
   return [...PROFILES, ...VISITORS].find((p) => p.name === name);

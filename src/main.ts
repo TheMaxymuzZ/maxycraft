@@ -57,6 +57,7 @@ import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { Water } from './water';
 import { Waterfalls } from './waterfall';
+import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
 import { BIOME_NAMES, type Biome, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
@@ -276,7 +277,9 @@ if (save?.inventory) inventory.load(save.inventory);
 else starterKit(inventory);
 inventory.loadOffhand(save?.offhand);
 
-const collection = new Collection(save?.caught ?? [], save?.donated ?? [], atlas);
+const collection = new Collection(save?.caught ?? [], save?.donated ?? [], atlas, save?.met);
+const portraits = new Portraits(renderer);
+collection.portrait = (name, spec) => portraits.get(name, spec);
 
 // Tareas del día, puntos y logros.
 const missions = new Missions(seed, save?.missions, today);
@@ -330,6 +333,7 @@ function persist() {
     villagers: { ...homeSave.villagers, ...memories },
     wallet,
     caught: [...collection.caught],
+    met: [...collection.met],
     donated: [...collection.donated],
     tutorial: tutorial.serialize(),
     tutorialDone: tutorial.finished,
@@ -352,6 +356,7 @@ function persist() {
     villagers: memories,
     wallet,
     caught: [...collection.caught],
+    met: [...collection.met],
     donated: [...collection.donated],
     home,
     furniture: furniture.serialize(),
@@ -599,7 +604,10 @@ function closeWorkbench() {
 document.querySelector('#workbench-close')!.addEventListener('click', closeWorkbench);
 
 // Voz de cada especie, más aguda o más grave.
-const VOICES: Record<string, number> = { gato: 760, oso: 260, conejo: 900, rana: 380, perro: 560, pato: 820, ardilla: 1050, tortuga: 220 };
+const VOICES: Record<string, number> = {
+  gato: 760, oso: 260, conejo: 900, rana: 380, perro: 560, pato: 820, ardilla: 1050, tortuga: 220,
+  oveja: 680, cerdo: 420, 'pingüino': 940, koala: 330, zorro: 720, elefante: 180,
+};
 
 /** Despega la avioneta, funde la pantalla y recarga en la otra isla. */
 function takeOff(text: string, next: () => void) {
@@ -644,6 +652,11 @@ const dialog = new Dialog({
     return holiday;
   },
   isBirthday: (v) => v.isBirthday(gameDate()),
+  met: (v) => {
+    if (collection.met.has(v.name)) return;
+    collection.met.add(v.name);
+    hud.toast(`${v.name} se ha añadido a tu álbum de vecinos (C)`);
+  },
   inventory,
   selectedSlot: () => hud.selected,
   get today() {

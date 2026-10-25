@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.7',
+    title: 'Vecinos con personalidad',
+    items: [
+      'Vecinos rediseñados: más monos, con ojos que parpadean, colas, hocicos y orejas de su especie.',
+      '14 personajes nuevos y 6 especies nuevas: oveja, cerdo, pingüino, koala, zorro y elefante.',
+      'Dos personalidades nuevas, deportista y dulce, cada una con sus charlas.',
+      'Pregúntales "Háblame de ti" para saber su afición, su cumpleaños y lo que les gusta.',
+      'Álbum de vecinos en la enciclopedia (C): cada personaje con el que hablas, con su retrato.',
+      'Los personajes nuevos aparecen al azar de vacaciones en las islas misteriosas.',
+    ],
+  },
+  {
     version: '2.6',
     title: 'Islas grandes y biomas',
     items: [
