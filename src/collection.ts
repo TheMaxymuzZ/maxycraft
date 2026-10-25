@@ -2,8 +2,20 @@ import { CREATURE_TILE_START } from './blocks';
 import { CREATURES, HABITAT_TEXT, hoursText, monthsText } from './creatures';
 import type { Inventory } from './inventory';
 import type { ModelSpec } from './villagerModel';
-import { ALL_PROFILES, PERSONALITY_NAMES, SPECIES_NAMES } from './villagers';
+import { ALL_PROFILES, PERSONALITY_NAMES, type Profile, SPECIES_NAMES } from './villagers';
+import { KNOW, seasonOfBirthday } from './dialog';
 import { tileIcon } from './icons';
+
+/** Lo que pone la ficha del álbum según lo que te ha contado el vecino. */
+export function albumInfo(p: Profile, known: number): string {
+  const birthday = known >= KNOW.birthday ? `${p.birthday[1]} ${MONTHS[p.birthday[0] - 1]}`
+    : known >= KNOW.birthdaySeason ? `en ${seasonOfBirthday(p.birthday[0])}` : '???';
+  const hobby = known >= KNOW.hobby ? p.hobby : '???';
+  const likes = known >= KNOW.likes ? LIKES_SHORT[p.likes] : known >= KNOW.likesHint ? 'tienes una pista…' : '???';
+  return `${SPECIES_NAMES[p.species]} · ${PERSONALITY_NAMES[p.personality]}<br>Cumple: ${birthday} · Afición: ${hobby}<br>Regalos: ${likes}`;
+}
+
+const LIKES_SHORT: Record<Profile['likes'], string> = { fruta: 'fruta', conchas: 'conchas', flores: 'flores', madera: 'madera' };
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -18,12 +30,16 @@ export class Collection {
   private villagersEl = document.querySelector<HTMLDivElement>('#collection-villagers')!;
   /** Vecinos con los que ya se ha hablado, para el álbum. */
   readonly met: Set<string>;
+  /** Lo que sabes de cada vecino (KNOW en dialog.ts): el álbum solo enseña lo que te han contado (v4.0). */
+  readonly learned: Record<string, number>;
   /** Dibuja el retrato de un vecino (lo pone main.ts, que tiene el renderer). */
   portrait: ((name: string, spec: ModelSpec) => string) | null = null;
   private icons: string[];
 
-  constructor(caught: string[], donated: string[], atlas: HTMLCanvasElement, met: string[] = []) {
+  constructor(caught: string[], donated: string[], atlas: HTMLCanvasElement, met: string[] = [], learned?: Record<string, number>) {
     this.met = new Set(met);
+    // En las partidas de antes de la v4.0 los vecinos que ya conocías te han dicho al menos cómo se llaman.
+    this.learned = learned ? { ...learned } : Object.fromEntries(met.map((n) => [n, KNOW.met]));
     this.caught = new Set(caught);
     this.donated = new Set(donated);
     this.icons = CREATURES.map((_, i) => tileIcon(atlas, CREATURE_TILE_START + i));
@@ -90,9 +106,7 @@ export class Collection {
       const card = document.createElement('div');
       card.className = `card villager-card${known ? '' : ' unknown'}`;
       const img = this.portrait ? `<img alt="" src="${this.portrait(p.name, p)}">` : '';
-      const info = known
-        ? `${SPECIES_NAMES[p.species]} · ${PERSONALITY_NAMES[p.personality]}<br>Cumple: ${p.birthday[1]} ${MONTHS[p.birthday[0] - 1]} · Le gusta ${p.hobby}`
-        : 'Aún no os conocéis';
+      const info = known ? albumInfo(p, p.role ? KNOW.birthday : this.learned[p.name] ?? KNOW.met) : 'Aún no os conocéis';
       card.innerHTML = `${img}<b>${known ? p.name : '???'}</b><small>${info}</small>`;
       this.villagersEl.appendChild(card);
     }

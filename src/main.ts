@@ -12,10 +12,10 @@ import { Breaker } from './breaking';
 import { Birds } from './birds';
 import { Bugs } from './bugs';
 import { GameClock, dailyRandom, dayKey, timeOverrides } from './clock';
-import { Clouds } from './clouds';
+import { Clouds, cloudCover } from './clouds';
 import { Collection } from './collection';
 import { calendar, creature } from './creatures';
-import { Dialog, HOUSE_COSTS, HOUSE_NAMES } from './dialog';
+import { Dialog, HOUSE_COSTS, HOUSE_NAMES, KNOW } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, type PlacedFurniture, paintFurnitureIcons } from './furniture';
@@ -43,7 +43,7 @@ import { hasUnseenNews, markNewsSeen } from './changelog';
 import { type MissionEvent, Missions } from './missions';
 import { MissionsPanel } from './missionsPanel';
 import { countPlaced, rateIsland } from './rating';
-import { SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
+import { LEAF_BRANCH_CHANCE, SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
 import { type SaveData, activeSlot, loadGame, saveGame, setActiveSlot } from './save';
@@ -66,7 +66,7 @@ import { Water } from './water';
 import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
-import { BIOME_NAMES, type Biome, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
+import { BIOME_NAMES, type Biome, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
 const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
@@ -217,6 +217,37 @@ world.waterMaterial = water.material;
 const wind = new Wind(material);
 const lighting = new Lighting(material);
 const birds = new Birds();
+/** Lo alto de cada columna, para los pájaros; se vuelve a mirar cada poco por si alguien ha construido. */
+const tops = new Map<number, number>();
+let topsAge = 0;
+const birdWorld = {
+  topAt(x: number, z: number): number {
+    if (!world.hasColumn(x, z)) return SEA_LEVEL + 30; // donde aún no hay isla, ni se acercan
+    const k = (x + 4096) * 8192 + (z + 4096);
+    let top = tops.get(k);
+    if (top === undefined) {
+      top = HEIGHT - 1;
+      while (top > 0 && !isSolid(world.getBlock(x, top, z)) && !isWater(world.getBlock(x, top, z))) top--;
+      tops.set(k, top);
+    }
+    return top;
+  },
+  seaAt: (x: number, z: number) => world.waterKind(x, z) === 'mar',
+  waterAt: (x: number, z: number) => world.waterTop(x, z) !== null,
+};
+/** Dónde está cada ser vivo de la isla: tú, tus amigos, los vecinos y los animales (los pájaros se espantan). */
+function livingBeings(): THREE.Vector3[] {
+  topsAge += 1;
+  if (topsAge > 120) {
+    topsAge = 0;
+    tops.clear();
+  }
+  const out = [player.position];
+  for (const r of remotes.players.values()) out.push(r.position);
+  for (const v of villagers) if (v.group.visible) out.push(v.position);
+  for (const a of animals.list) out.push(a.position);
+  return out;
+}
 scene.add(birds.group);
 
 let today = dayKey(startDate);
@@ -339,7 +370,7 @@ if (pockets?.inventory) inventory.load(pockets.inventory);
 else starterKit(inventory);
 inventory.loadOffhand(pockets?.offhand);
 
-const collection = new Collection(pockets?.caught ?? [], pockets?.donated ?? [], atlas, pockets?.met);
+const collection = new Collection(pockets?.caught ?? [], pockets?.donated ?? [], atlas, pockets?.met, pockets?.learned);
 const portraits = new Portraits(renderer);
 collection.portrait = (name, spec) => portraits.get(name, spec);
 
@@ -397,6 +428,7 @@ function persist() {
     wallet,
     caught: [...collection.caught],
     met: [...collection.met],
+    learned: { ...collection.learned },
     donated: [...collection.donated],
     recipes: [...workbench.known],
     savedAt: 0,
@@ -408,6 +440,7 @@ function persist() {
     wallet,
     caught: [...collection.caught],
     met: [...collection.met],
+    learned: { ...collection.learned },
     donated: [...collection.donated],
     tutorial: tutorial.serialize(),
     tutorialDone: tutorial.finished,
@@ -431,6 +464,7 @@ function persist() {
     wallet,
     caught: [...collection.caught],
     met: [...collection.met],
+    learned: { ...collection.learned },
     donated: [...collection.donated],
     home,
     furniture: furniture.serialize(),
@@ -807,6 +841,10 @@ const dialog = new Dialog({
     return holiday;
   },
   isBirthday: (v) => v.isBirthday(gameDate()),
+  known: (v) => (collection.met.has(v.name) ? collection.learned[v.name] ?? KNOW.met : 0),
+  learn: (v, step) => {
+    collection.learned[v.name] = Math.max(collection.learned[v.name] ?? 0, step);
+  },
   met: (v) => {
     if (collection.met.has(v.name)) return;
     collection.met.add(v.name);
@@ -1127,6 +1165,7 @@ function onInputChange() {
     return;
   }
   breaker.active = false;
+  player.releaseKeys();
   if (panel) return; // se ve la ventana abierta en vez del menú
   menu.open();
   persist();
@@ -1212,6 +1251,11 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
   if (isFruit(b)) harvested[posKey(x, y, z)] = clock.dayNumber();
   const id = dropFor(b);
   if (id) drops.spawn(id, x + 0.5, y + 0.5, z + 0.5, { burst });
+  else if (isLeaves(b) && Math.random() < LEAF_BRANCH_CHANCE) drops.spawn('rama', x + 0.5, y + 0.5, z + 0.5, { burst });
+}
+
+function isLeaves(b: number): boolean {
+  return b === Block.Leaves || b === Block.PalmLeaves || b === Block.PineLeaves;
 }
 
 /** Tala el árbol desde el tronco (x, y, z): todo lo de encima cae y suelta madera, fruta y un brote. */
@@ -1230,10 +1274,14 @@ function fell(x: number, y: number, z: number) {
     const id = dropFor(fb);
     if (id) drops.spawn(id, bx + 0.5, by + 0.5, bz + 0.5, { burst: true });
   }
-  // Un árbol entero (con copa) da brotes para replantarlo.
+  // Un árbol entero (con copa) da brotes para replantarlo, y de la copa caen unas ramas (v4.0).
   if (felled.leaves.length && kind) {
     const n = 1 + (Math.random() < 0.5 ? 1 : 0);
     for (let i = 0; i < n; i++) drops.spawn(kind.sapling, x + 0.5, y + 0.5, z + 0.5, { burst: true });
+  }
+  if (felled.leaves.length) {
+    const n = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) drops.spawn('rama', x + 0.5, y + 1.5, z + 0.5, { burst: true });
   }
   // La fruta que se cogió de este árbol ya no vuelve a salir: no hay árbol.
   for (const k of Object.keys(harvested)) {
@@ -1720,7 +1768,9 @@ function shakeTree(x: number, y: number, z: number) {
   let branch = false;
   if (trunk && !branchTrees.has(trunk.key)) {
     branchTrees.add(trunk.key);
-    drops.spawn('rama', trunk.x + 0.5, trunk.y + 0.5, trunk.z + 0.5, { burst: true });
+    // Una o dos ramas por árbol y día (v4.0: antes solo una).
+    const n = Math.random() < 0.5 ? 2 : 1;
+    for (let i = 0; i < n; i++) drops.spawn('rama', trunk.x + 0.5, trunk.y + 0.5, trunk.z + 0.5, { burst: true });
     branch = true;
   }
   if (!fruits.length && !branch) hud.toast('No ha caído nada');
@@ -2121,7 +2171,7 @@ function frame(now: number) {
     player.spawnAt(player.position.x, player.position.z);
     spawned = true;
   }
-  player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0);
+  player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0, isPlaying());
   if (spawned) checkBiome(dt);
   // En la portada la cámara da vueltas despacio por encima de la isla.
   if (!menu.hidden && menu.isTitle) {
@@ -2156,7 +2206,7 @@ function frame(now: number) {
   adaptEyes(dt);
   water.update(now / 1000, settings.quality !== 'baja', (1 - sky.night) * (1 - weather.gloom));
   wind.update(now / 1000, 1 + weather.gloom * 1.5);
-  birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), (x, z) => world.waterKind(x, z) === 'mar');
+  birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), birdWorld, livingBeings());
   for (const v of villagers) v.update(dt, hour, player.position);
   plane.update(dt, now / 1000);
   animals.update(dt, player.position);
@@ -2216,7 +2266,7 @@ function frame(now: number) {
     fog.far = fogFar();
   }
 
-  clouds.update(now / 1000, sky.night, weather.gloom, sky.glow * (1 - weather.gloom), sky.glowColor);
+  clouds.update(now / 1000, sky.night, weather.gloom, sky.glow * (1 - weather.gloom), sky.glowColor, camera.position, cloudCover(clock.dayNumber(), hour, seed));
 
   const hit = currentHit();
   const aimed = furnitureInSight();

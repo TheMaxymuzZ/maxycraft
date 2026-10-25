@@ -1,4 +1,4 @@
-import { HOUSE_BLOCKS } from './blocks';
+import { HOUSE_BLOCKS, isDoor } from './blocks';
 import { type ItemStack, breakInfo, itemDef, toolNameFor } from './items';
 import type { Plot } from './world';
 
@@ -42,7 +42,7 @@ export class Breaker {
 
     const b = this.ctx.getBlock(x, y, z);
     const plot = this.ctx.plotAt(x, z);
-    if (HOUSE_BLOCKS.includes(b) && plot && plot.kind !== 'player') {
+    if ((HOUSE_BLOCKS.includes(b) || isDoor(b)) && plot && plot.kind !== 'player') {
       this.warn(key, 'Es la casa de un vecino. Mejor no tocarla');
       return;
     }

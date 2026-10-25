@@ -7,6 +7,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.0',
+    title: 'Arreglos: pájaros, nubes, puertas y ríos',
+    items: [
+      'Escribir en el chat con amigos ya no mueve a tu personaje.',
+      'Las nubes van con el viento y, al dar la vuelta, vuelven con otra forma. Unos días hay pocas y otros el cielo está más cubierto.',
+      'Más ramas: con 2 tablones salen 4 ramas, las hojas a veces sueltan una, al talar un árbol caen unas cuantas y al sacudirlo pueden caer dos.',
+      'Las casas de los vecinos, la tienda, el museo y tu casa tienen puerta de verdad.',
+      'Los pájaros vuelan alto y esquivan árboles, casas y montañas. De vez en cuando bajan a picotear al suelo, y si se acerca alguien (tú, un amigo, un vecino o un animal) se espantan.',
+      'Los vecinos se presentan solo con su nombre y te van contando sus cosas poco a poco: su afición, pistas de lo que les gusta y de su cumpleaños, y al final el día exacto. Cuanto más amigos, más te cuentan. Tienen muchas más frases.',
+      'El álbum de vecinos solo enseña lo que ya te han contado.',
+      'Los ríos solo son hondos por el medio y la playa se hace honda poco a poco.',
+    ],
+  },
+  {
     version: '3.9',
     title: 'Cascadas de verdad, picar con calma y cielo de tormenta',
     items: [

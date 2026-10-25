@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { waterFlow } from './fluids';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid, isWater, waterHeight, waterLevel as fluidLevel } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoor, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid, isWater, waterHeight, waterLevel as fluidLevel } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 import { fruitTreeShape, palmShape, pineShape } from './trees';
 
@@ -380,6 +380,15 @@ export class World {
     return Math.max(0, Math.min(1, v));
   }
 
+  /** Como landMask, pero sin cortar en 0: mar adentro sigue bajando, para saber lo lejos que está la costa. */
+  private landMaskRaw(x: number, z: number): number {
+    const angle = Math.atan2(z, x);
+    const wobble = fbm(Math.cos(angle) * 2 + 10, Math.sin(angle) * 2 + 10, this.seed + 3, 3) - 0.5;
+    const coast = fbm(x / 22, z / 22, this.seed + 4, 2) - 0.5;
+    const d = Math.hypot(x, z) / (this.radius * (1 + wobble * 0.5));
+    return 1 - (d + coast * 0.25 - 0.55) / 0.45;
+  }
+
   /**
    * Qué agua hay arriba del todo en (x, z): río dentro de la isla, mar fuera, o null si es tierra.
    * Desde la v3.8 el agua son bloques: cuenta la que haya (también la que eche el jugador con un cubo).
@@ -520,18 +529,21 @@ export class World {
 
   private naturalHeight(x: number, z: number): number {
     const mask = this.landMask(x, z);
-    if (mask < 0.08) {
-      const depth = Math.min(6, Math.floor((0.08 - mask) * 120 + Math.hypot(x, z) / 40));
-      return SEA_LEVEL - 3 - depth;
+    if (mask < 0.14) {
+      // El fondo del mar baja poco a poco desde la orilla (v4.0): un bloque más hondo cada dos o tres bloques.
+      const out = (0.14 - this.landMaskRaw(x, z)) * this.radius * 0.45;
+      if (out < 1.5) return SEA_LEVEL; // orilla, justo a ras del agua
+      return SEA_LEVEL - Math.min(10, 1 + Math.floor((out - 1.5) / 3));
     }
-    if (mask < 0.14) return SEA_LEVEL; // orilla poco profunda
     if (mask < 0.26) return SEA_LEVEL + 1; // playa
 
     if (this.terrain >= 2) {
       const { dist, u } = this.riverAt(x, z);
       if (dist < 6) {
         const level = this.riverLevel(u);
-        if (dist < 2.2) return level - 2;
+        // Hondo solo por el medio; hacia las orillas cubre cada vez menos (v4.0).
+        if (dist < 1.2) return level - 2;
+        if (dist < 2.6) return level - 1;
         if (dist < 3.6) return level + 1;
         // La orilla nunca queda por debajo del agua, para que el río no se derrame.
         return Math.max(level + 2, this.landHeight(x, z, mask));
@@ -540,7 +552,8 @@ export class World {
     }
 
     const r = this.river(x, z);
-    if (r < 2.2) return SEA_LEVEL - 2;
+    if (r < 1.2) return SEA_LEVEL - 2;
+    if (r < 2.4) return SEA_LEVEL - 1;
     if (r < 3.6) return SEA_LEVEL + 1;
     if (this.mystery?.kind === 'volcan') return this.volcanoHeight(x, z, mask);
     return this.landHeight(x, z, mask);
@@ -808,9 +821,9 @@ export class World {
         for (let h = 1; h <= 3; h++) put(x + dx, y + h, z + dz, edge ? wall : Block.Air);
       }
     }
-    // Puerta (hueco de 2 de alto) y ventanas a los lados y detrás.
-    put(x, y + 1, z + 2, Block.Air);
-    put(x, y + 2, z + 2, Block.Air);
+    // Puerta de verdad (v4.0: antes era solo un hueco) y ventanas a los lados y detrás.
+    put(x, y + 1, z + 2, Block.Door);
+    put(x, y + 2, z + 2, Block.DoorTop);
     put(x - 2, y + 2, z, Block.Window);
     put(x + 2, y + 2, z, Block.Window);
     put(x, y + 2, z - 2, Block.Window);
@@ -848,7 +861,8 @@ export class World {
     for (let dy = 1; dy <= half + 6; dy++) {
       for (let dz = -half - 1; dz <= half + 1; dz++) {
         for (let dx = -half - 1; dx <= half + 1; dx++) {
-          if (HOUSE_BLOCKS.includes(this.getBlock(x + dx, y + dy, z + dz))) set(x + dx, y + dy, z + dz, Block.Air);
+          const old = this.getBlock(x + dx, y + dy, z + dz);
+          if (HOUSE_BLOCKS.includes(old) || (isDoor(old) && dx === 0 && dz === half - 1)) set(x + dx, y + dy, z + dz, Block.Air);
         }
       }
     }
@@ -860,8 +874,8 @@ export class World {
       }
     }
     // Puerta delante y ventanas repartidas por las paredes.
-    set(x, y + 1, z + half, Block.Air);
-    set(x, y + 2, z + half, Block.Air);
+    set(x, y + 1, z + half, Block.Door);
+    set(x, y + 2, z + half, Block.DoorTop);
     for (let o = -half + 1; o < half; o++) {
       if (o % 2 !== 0) continue;
       set(x - half, y + 2, z + o, Block.Window);

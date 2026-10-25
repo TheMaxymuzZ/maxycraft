@@ -210,6 +210,9 @@ export function hasItem(id: string): boolean {
   return byId.has(id);
 }
 
+/** Probabilidad de que unas hojas suelten una rama al romperlas (v4.0). */
+export const LEAF_BRANCH_CHANCE = 0.2;
+
 /** Lo que suelta un bloque al romperlo. */
 export function dropFor(b: Block): string | null {
   switch (b) {
@@ -221,7 +224,7 @@ export function dropFor(b: Block): string | null {
     case Block.Leaves:
     case Block.PalmLeaves:
     case Block.PineLeaves:
-      return null; // las hojas se deshacen; las ramas salen al sacudir árboles
+      return null; // las hojas se deshacen (a veces sueltan una rama: LEAF_BRANCH_CHANCE)
     case Block.Apple:
       return 'manzana';
     case Block.Orange:
@@ -377,6 +380,8 @@ export interface Recipe {
 /** Lo que se fabrica en cualquier sitio, con los bolsillos. */
 export const RECIPES: Recipe[] = [
   { result: 'tablones', count: 4, needs: [['tronco', 1]] },
+  // Como en Minecraft: con dos tablones salen cuatro ramas (v4.0), para no depender solo de sacudir árboles.
+  { result: 'rama', count: 4, needs: [['tablones', 2]] },
   { result: 'mesa_trabajo', count: 1, needs: [['tablones', 4]] },
   { result: 'hacha', count: 1, needs: [['rama', 5]] },
   { result: 'pala', count: 1, needs: [['rama', 5]] },

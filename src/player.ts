@@ -16,6 +16,11 @@ const STEP = 0.55;
 /** Fuerza con la que arrastra la corriente del agua (v3.8): unos 2 bloques por segundo si no te mueves. */
 const FLOW_PUSH = 36;
 
+/** Si la tecla se ha pulsado escribiendo en un cuadro de texto. */
+function isTyping(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+}
+
 export class Player {
   /** Posición de los pies. */
   readonly position = new THREE.Vector3();
@@ -35,9 +40,21 @@ export class Player {
   readonly touch = { forward: 0, strafe: 0, jump: false };
 
   constructor(private world: World, readonly camera: THREE.PerspectiveCamera) {
-    window.addEventListener('keydown', (e) => this.keys.add(e.code));
+    window.addEventListener('keydown', (e) => {
+      // Lo que se escribe en el chat o en un cartel no mueve al jugador (v4.0).
+      if (isTyping(e.target)) return;
+      this.keys.add(e.code);
+    });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
+  }
+
+  /** Suelta todas las teclas, por ejemplo al abrir el chat o cualquier ventana. */
+  releaseKeys() {
+    this.keys.clear();
+    this.touch.forward = 0;
+    this.touch.strafe = 0;
+    this.touch.jump = false;
   }
 
   look(dx: number, dy: number) {
@@ -48,21 +65,26 @@ export class Player {
     this.pitch = Math.max(-limit, Math.min(limit, this.pitch));
   }
 
-  update(dt: number) {
+  /**
+   * `controls` es false mientras hay una ventana abierta (el chat, los bolsillos…): el jugador sigue
+   * cayendo y nadando, pero no anda aunque se pulsen teclas.
+   */
+  update(dt: number, controls = true) {
     const keys = this.bindings;
-    const down = (code: string, arrow: string) => this.keys.has(code) || this.keys.has(arrow);
-    const forward = (down(keys.forward, 'ArrowUp') ? 1 : 0) - (down(keys.back, 'ArrowDown') ? 1 : 0) + this.touch.forward;
-    const strafe = (down(keys.right, 'ArrowRight') ? 1 : 0) - (down(keys.left, 'ArrowLeft') ? 1 : 0) + this.touch.strafe;
-    const jump = this.keys.has(keys.jump) || this.touch.jump;
+    const down = (code: string, arrow: string) => controls && (this.keys.has(code) || this.keys.has(arrow));
+    const stick = controls ? this.touch : { forward: 0, strafe: 0 };
+    const forward = (down(keys.forward, 'ArrowUp') ? 1 : 0) - (down(keys.back, 'ArrowDown') ? 1 : 0) + stick.forward;
+    const strafe = (down(keys.right, 'ArrowRight') ? 1 : 0) - (down(keys.left, 'ArrowLeft') ? 1 : 0) + stick.strafe;
+    const jump = controls && (this.keys.has(keys.jump) || this.touch.jump);
     // Con la palanca táctil casi al tope también se corre.
-    const pushed = Math.hypot(this.touch.forward, this.touch.strafe) > 0.92;
+    const pushed = Math.hypot(stick.forward, stick.strafe) > 0.92;
     // Se nada con el agua por la cintura (v3.8: el agua son bloques, también la que corre o la que echas con un cubo).
     const p = this.position;
     this.inWater = this.world.inWater(p.x, p.y + 0.8, p.z);
     const surface = this.world.waterSurfaceAbove(p.x, p.y + 0.8, p.z);
     // Con los pies en agua que corre, la corriente te lleva; el agua que cae te empuja hacia abajo.
     const feet = this.world.inWater(p.x, p.y + 0.1, p.z) ? waterFlow((x, y, z) => this.world.getBlock(x, y, z), Math.floor(p.x), Math.floor(p.y + 0.1), Math.floor(p.z)) : null;
-    let speed = this.keys.has(keys.sprint) || pushed ? SPRINT : WALK;
+    let speed = controls && (this.keys.has(keys.sprint) || pushed) ? SPRINT : WALK;
     if (this.inWater) speed *= 0.55;
 
     const sin = Math.sin(this.yaw);
