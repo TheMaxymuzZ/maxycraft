@@ -100,8 +100,8 @@ export function islandFruit(seed: number): Block {
 }
 
 /** Tipos de isla misteriosa: cada una tiene algo de más. */
-export type MysteryKind = 'frutas' | 'flores' | 'minerales' | 'bambu';
-export const MYSTERY_KINDS: MysteryKind[] = ['frutas', 'flores', 'minerales', 'bambu'];
+export type MysteryKind = 'frutas' | 'flores' | 'minerales' | 'bambu' | 'volcan' | 'cristal' | 'nieve' | 'setas';
+export const MYSTERY_KINDS: MysteryKind[] = ['frutas', 'flores', 'minerales', 'bambu', 'volcan', 'cristal', 'nieve', 'setas'];
 
 export interface WorldOptions {
   /** Isla misteriosa, pequeña y sin casas, a la que se llega en avioneta. */
@@ -166,7 +166,9 @@ export class World {
   constructor(readonly seed: number, private material: THREE.Material, edits: Edits = {}, options: WorldOptions = {}) {
     this.mystery = options.mystery;
     this.terrain = this.mystery ? 1 : options.terrain ?? 1;
-    this.radius = this.mystery ? 30 : this.terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS;
+    // Las islas misteriosas miden entre 40 y 54 bloques de radio; la del volcán, algo más.
+    const mysteryRadius = 40 + Math.floor(columnRandom(5, 5, seed) * 14) + (this.mystery?.kind === 'volcan' ? 6 : 0);
+    this.radius = this.mystery ? mysteryRadius : this.terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS;
     this.spread = this.terrain >= 2 ? 1.5 : 1;
     if (this.terrain >= 2) {
       this.biomeOrder = [...INLAND_BIOMES].sort((a, b) => columnRandom(a.length, 41, seed + a.charCodeAt(1)) - columnRandom(b.length, 41, seed + b.charCodeAt(1)));
@@ -470,7 +472,22 @@ export class World {
     const r = this.river(x, z);
     if (r < 2.2) return SEA_LEVEL - 2;
     if (r < 3.6) return SEA_LEVEL + 1;
+    if (this.mystery?.kind === 'volcan') return this.volcanoHeight(x, z, mask);
     return this.landHeight(x, z, mask);
+  }
+
+  /** El volcán: un cono en el centro de la isla con el cráter lleno de magma. */
+  private volcanoHeight(x: number, z: number, mask: number): number {
+    const base = this.landHeight(x, z, mask);
+    const d = Math.hypot(x, z) + (fbm(x / 9, z / 9, this.seed + 61, 2) - 0.5) * 6;
+    const cone = Math.round(26 - d * 1.1);
+    if (d < 5) return SEA_LEVEL + 2 + 26 - 8; // cráter, más bajo que el borde
+    return Math.max(base, SEA_LEVEL + 2 + cone);
+  }
+
+  /** Columna de roca volcánica (la ladera del volcán). */
+  private isVolcanic(x: number, z: number): boolean {
+    return this.mystery?.kind === 'volcan' && Math.hypot(x, z) < 24;
   }
 
   /** Terrazas con acantilados, como los niveles de Animal Crossing. En la montaña hay más pisos. */
@@ -516,6 +533,19 @@ export class World {
     // Arena en la playa y en el fondo y las orillas del río (también el de las terrazas altas).
     const beach = this.isBeach(h) || (this.terrain >= 2 && h <= this.waterLevel(x, z) + 1 && this.river(x, z) < 3.6);
     if (beach) return { top: Block.Sand, under: Block.Sand, beach };
+    const kind = this.mystery?.kind;
+    if (this.isVolcanic(x, z)) {
+      const crater = Math.hypot(x, z) < 5 + (fbm(x / 9, z / 9, this.seed + 61, 2) - 0.5) * 6;
+      // Ríos de lava que bajan por la ladera.
+      const a = Math.atan2(z, x);
+      const lava = fbm(Math.cos(a) * 3 + 7, Math.sin(a) * 3 + 7, this.seed + 66, 2) > 0.68 && Math.hypot(x, z) < 18;
+      return { top: crater || lava ? Block.Magma : Block.Basalt, under: Block.Basalt, beach };
+    }
+    if (kind === 'nieve') {
+      // Charcas heladas en las zonas bajas.
+      const ice = h === SEA_LEVEL + 2 && fbm(x / 10, z / 10, this.seed + 62, 2) > 0.62;
+      return { top: ice ? Block.Ice : Block.SnowGrass, under: Block.Dirt, beach };
+    }
     // En la montaña los acantilados son de roca y las cumbres tienen nieve.
     if (this.terrain >= 2 && !this.plotAt(x, z) && this.biomeAt(x, z) === 'montaña') {
       const low = Math.min(this.heightAt(x + 1, z), this.heightAt(x - 1, z), this.heightAt(x, z + 1), this.heightAt(x, z - 1));
@@ -551,12 +581,17 @@ export class World {
           d[index(x, y, z)] = b;
         }
         // Flores y hierba alta sobre el césped. Hay zonas especiales: bosquecillos de bambú y praderas de flores.
-        if (!beach && top === Block.Grass && h + 1 < HEIGHT && !this.plotAt(wx, wz)) {
+        if (!beach && top === Block.Grass && h + 1 < HEIGHT && !this.plotAt(wx, wz) && this.mystery?.kind !== 'nieve') {
           const r = columnRandom(wx, wz, this.seed + 11);
           const patch = fbm(wx / 12, wz / 12, this.seed + 12, 2);
           const zone = this.zoneAt(wx, wz);
           let plant: Block = Block.Air;
-          if (zone === 'bambu' && r < 0.2) {
+          const kind = this.mystery?.kind;
+          if (kind === 'cristal' && r < 0.035) {
+            plant = Block.CrystalCluster;
+          } else if (kind === 'setas' && r < 0.06) {
+            plant = Block.SmallMushroom;
+          } else if (zone === 'bambu' && r < 0.2) {
             // Cañas de 3 a 5 bloques.
             const tall = Math.min(3 + Math.floor(blockRandom(wx, 13, wz, this.seed) * 3), HEIGHT - h - 1);
             for (let k = 1; k <= tall; k++) d[index(x, h + k, z)] = Block.Bamboo;
@@ -588,6 +623,8 @@ export class World {
         else if (kind === 'palm') this.placePalm(this.heightAt(wx, wz) + 1, tx, tz, set);
         else if (kind === 'pine') for (const [dx, dy, dz, b, replace] of pineShape()) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
         else if (kind === 'boulder') this.placeBoulder(wx, wz, tx, tz, set);
+        else if (kind === 'mushroom') this.placeMushroom(wx, wz, tx, tz, set);
+        else if (kind === 'spire') this.placeSpire(wx, wz, tx, tz, set);
         else if (kind === 'rock') this.placeRock(wx, wz, tx, tz, set);
       }
     }
@@ -741,7 +778,7 @@ export class World {
     return null;
   }
 
-  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | null {
+  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | 'mushroom' | 'spire' | null {
     if (this.plotAt(x, z, 3) || this.zoneAt(x, z) === 'bambu') return null;
     const r = columnRandom(x, z, this.seed);
     const h = this.heightAt(x, z);
@@ -757,6 +794,14 @@ export class World {
     }
     if (h === SEA_LEVEL + 1 && r < 0.008) return 'palm';
     const kind = this.mystery?.kind;
+    if (kind === 'volcan' || kind === 'nieve' || kind === 'setas' || kind === 'cristal') {
+      if (h === SEA_LEVEL + 1) return r < 0.01 && kind !== 'nieve' ? 'palm' : null;
+      if (this.isVolcanic(x, z) || this.surfaceAt(x, z, h).top === Block.Ice) return null;
+      if (kind === 'nieve') return r < 0.012 ? 'pine' : null;
+      if (kind === 'setas') return r < 0.016 ? 'mushroom' : r < 0.02 ? 'fruit' : null;
+      if (kind === 'cristal') return r < 0.006 ? 'fruit' : r > 0.99 ? 'rock' : r > 0.978 ? 'spire' : null;
+      return r < 0.008 ? 'fruit' : r > 0.99 ? 'rock' : null;
+    }
     // Las islas misteriosas de fruta están llenas de árboles; las de minerales, de rocas con vetas.
     const fruit = kind === 'frutas' ? 0.03 : 0.006;
     if (h > SEA_LEVEL + 1 && this.river(x, z) > 6 && r < fruit) return 'fruit';
@@ -776,6 +821,32 @@ export class World {
           set(tx + dx, base + dy, tz + dz, b, true);
         }
       }
+    }
+  }
+
+  /** Seta gigante: tallo de 3 a 5 y un sombrero rojo con lunares. */
+  private placeMushroom(wx: number, wz: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
+    const base = this.heightAt(wx, wz) + 1;
+    const tall = 3 + Math.floor(columnRandom(wx, wz, this.seed + 63) * 3);
+    for (let y = 0; y < tall; y++) set(tx, base + y, tz, Block.MushroomStem, true);
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
+        set(tx + dx, base + tall, tz + dz, Block.MushroomCap, false);
+        if (Math.abs(dx) <= 1 && Math.abs(dz) <= 1) set(tx + dx, base + tall + 1, tz + dz, Block.MushroomCap, false);
+      }
+    }
+  }
+
+  /** Aguja de amatista que brilla, con cristales más pequeños alrededor. */
+  private placeSpire(wx: number, wz: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
+    const base = this.heightAt(wx, wz) + 1;
+    const tall = 3 + Math.floor(columnRandom(wx, wz, this.seed + 64) * 5);
+    for (let y = 0; y < tall; y++) set(tx, base + y, tz, Block.Amethyst, true);
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const h = Math.floor(blockRandom(wx + dx, base, wz + dz, this.seed + 65) * 3);
+      for (let y = 0; y < h; y++) set(tx + dx, base + y, tz + dz, Block.Amethyst, true);
+      set(tx + dx, base + h, tz + dz, Block.CrystalCluster, false);
     }
   }
 
@@ -803,8 +874,25 @@ export class World {
       c = new Chunk(cx, cz);
       this.generate(c);
       this.chunks.set(k, c);
+      this.findGeneratedLights(c);
     }
     return c;
+  }
+
+  /** La roca de magma y los cristales que salen al generar la isla también alumbran. */
+  private findGeneratedLights(c: Chunk) {
+    const kind = this.mystery?.kind;
+    if (kind !== 'volcan' && kind !== 'cristal') return;
+    let found = false;
+    for (let i = 0; i < c.data.length; i++) {
+      if (!LIGHT_RADIUS[c.data[i] as Block]) continue;
+      const x = c.cx * CHUNK + (i % CHUNK);
+      const z = c.cz * CHUNK + (Math.floor(i / CHUNK) % CHUNK);
+      const y = Math.floor(i / (CHUNK * CHUNK));
+      this.torches.set(`${x},${y},${z}`, [x, y, z]);
+      found = true;
+    }
+    if (found) for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (dx || dz) this.markDirty(c.cx + dx, c.cz + dz);
   }
 
   // --- Acceso a bloques ---

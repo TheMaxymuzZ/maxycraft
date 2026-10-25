@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { Block, FRUITS } from '../src/blocks';
 import { loadTrip, planTrip, saveTrip } from '../src/travel';
-import { RESIDENT_NAMES, pickVisitor } from '../src/villagers';
+import { RESIDENT_NAMES, pickVisitor, profileNamed } from '../src/villagers';
 import { MYSTERY_KINDS, SEA_LEVEL, World } from '../src/world';
 
 const material = new THREE.MeshBasicMaterial();
@@ -35,13 +35,26 @@ describe('islas misteriosas', () => {
     expect(pickVisitor(RESIDENT_NAMES, Math.random)).toBeNull();
   });
 
+  it('en la isla nevada se ven más pingüinos y osos', () => {
+    let seed = 7;
+    const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const cold = new Set(['pingüino', 'oso', 'oveja']);
+    let snow = 0;
+    let plain = 0;
+    for (let i = 0; i < 400; i++) {
+      if (cold.has(profileNamed(pickVisitor([], random, 'nieve')!)!.species)) snow++;
+      if (cold.has(profileNamed(pickVisitor([], random)!)!.species)) plain++;
+    }
+    expect(snow).toBeGreaterThan(plain * 2);
+  });
+
   it('la isla misteriosa es pequeña, sin casas ni río, y tiene sitio para la avioneta', () => {
     for (const kind of MYSTERY_KINDS) {
       const w = new World(SEED, material, {}, { mystery: { kind, fruit: Block.Cherry } });
       expect(w.plots).toEqual([]);
       expect(w.fruit).toBe(Block.Cherry);
       expect(w.heightAt(0, 0)).toBeGreaterThan(SEA_LEVEL);
-      expect(w.heightAt(45, 0)).toBeLessThan(SEA_LEVEL); // a 45 bloques ya es mar
+      expect(w.heightAt(75, 0)).toBeLessThan(SEA_LEVEL); // a 75 bloques ya es mar
       const a = w.findAirport(0);
       expect(a).not.toBeNull();
       expect(w.heightAt(a!.x, a!.z)).toBe(SEA_LEVEL + 1);
@@ -59,6 +72,26 @@ describe('islas misteriosas', () => {
       }
     }
     expect(found).toBeGreaterThan(3);
+  });
+
+  it('las islas nuevas tienen su propio paisaje', () => {
+    const count = (kind: (typeof MYSTERY_KINDS)[number], blocks: number[]) => {
+      const w = new World(SEED, material, {}, { mystery: { kind, fruit: Block.Cherry } });
+      let n = 0;
+      for (let x = -40; x <= 40; x += 2) {
+        for (let z = -40; z <= 40; z += 2) {
+          for (let y = 0; y < 60; y++) if (blocks.includes(w.getBlock(x, y, z))) n++;
+        }
+      }
+      return { w, n };
+    };
+    const volcan = count('volcan', [Block.Magma]);
+    expect(volcan.n).toBeGreaterThan(5);
+    expect(volcan.w.heightAt(0, 0)).toBeGreaterThan(SEA_LEVEL + 15); // un volcán de verdad
+    expect((volcan.w as unknown as { torches: Map<string, unknown> }).torches.size).toBeGreaterThan(0); // el magma alumbra
+    expect(count('cristal', [Block.CrystalCluster, Block.Amethyst]).n).toBeGreaterThan(5);
+    expect(count('nieve', [Block.SnowGrass, Block.Ice]).n).toBeGreaterThan(50);
+    expect(count('setas', [Block.MushroomCap, Block.SmallMushroom]).n).toBeGreaterThan(5);
   });
 });
 

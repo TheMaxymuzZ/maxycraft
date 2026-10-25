@@ -67,6 +67,9 @@ export enum Block {
   PineLeaves = 87, PineSapling = 88, SnowGrass = 89,
   // Caminos y calles (v2.8): sustituyen al suelo, no se ponen encima.
   DirtPath = 90, StonePath = 91, Street = 92, Tiles = 93,
+  // Islas misteriosas nuevas (v2.9): volcán, cristales, nieve y setas.
+  Basalt = 94, Magma = 95, CrystalCluster = 96, Ice = 97, MushroomStem = 98, MushroomCap = 99, SmallMushroom = 100,
+  Amethyst = 101,
 }
 
 export const TILE = 16;
@@ -96,6 +99,7 @@ export enum Tile {
   ChestFront, ChestTop, TrunkFront, TrunkTop, CrateSide,
   PineLeaves, PineSapling, SnowTop, SnowSide,
   DirtPathTop, StonePathTop, StreetTop, TilesTop,
+  Basalt, Magma, CrystalCluster, Ice, MushroomStem, MushroomCap, SmallMushroom, Amethyst,
 }
 
 /**
@@ -218,6 +222,14 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.StonePath]: cube('Camino de losas', Tile.Dirt, Tile.StonePathTop, Tile.Dirt),
   [Block.Street]: cube('Calle empedrada', Tile.Cobble, Tile.StreetTop, Tile.Cobble),
   [Block.Tiles]: cube('Baldosas', Tile.Brick, Tile.TilesTop, Tile.Brick),
+  [Block.Basalt]: cube('Basalto', Tile.Basalt),
+  [Block.Magma]: cube('Roca de magma', Tile.Magma),
+  [Block.CrystalCluster]: cross('Cristal brillante', Tile.CrystalCluster),
+  [Block.Ice]: cube('Hielo', Tile.Ice),
+  [Block.MushroomStem]: cube('Tallo de seta', Tile.MushroomStem),
+  [Block.MushroomCap]: cube('Sombrero de seta', Tile.MushroomCap),
+  [Block.SmallMushroom]: cross('Seta', Tile.SmallMushroom),
+  [Block.Amethyst]: cube('Bloque de amatista', Tile.Amethyst),
 };
 /** Material de cada juego de escaleras: su primer bloque (mirando a -z), nombre y textura. */
 export const STAIRS: [Block, string, Tile][] = [
@@ -292,7 +304,7 @@ export const SWAYING: ReadonlySet<number> = new Set([
 ]);
 
 /** Bloques que dan luz y cuánta (nivel de 1 a 15: la luz baja uno por cada bloque que avanza). */
-export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 13, [Block.LightBlock]: 15 };
+export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 13, [Block.LightBlock]: 15, [Block.Magma]: 11, [Block.CrystalCluster]: 8, [Block.Amethyst]: 10 };
 /** Nivel máximo de luz. */
 export const MAX_LIGHT = 15;
 
@@ -933,6 +945,35 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     const dark = (Math.floor(x / 8) + Math.floor(y / 8)) % 2 === 0;
     return pick(r, dark ? [[192, 108, 72], [184, 100, 66]] : [[212, 132, 88], [204, 124, 82]]);
   });
+  // Islas misteriosas (v2.9).
+  paintTile(ctx, Tile.Basalt, (x, _y, r) => (x % 5 === 0 ? [70, 70, 80] : pick(r, [[96, 96, 106], [106, 106, 116], [88, 88, 98]])));
+  paintTile(ctx, Tile.Amethyst, (x, y, r) => {
+    // Facetas: diagonales claras sobre morado.
+    if ((x + y) % 8 === 0 || (x - y + 16) % 8 === 0) return [226, 196, 255];
+    return pick(r, [[150, 92, 214], [164, 108, 226], [138, 82, 200]]);
+  });
+  paintTile(ctx, Tile.Magma, (x, y, r) => {
+    // Grietas de lava brillante entre piedra oscura.
+    const crack = Math.sin(x * 1.3 + y * 0.7) + Math.cos(y * 1.1 - x * 0.5) > 1.1;
+    return crack ? pick(r, [[255, 150, 40], [255, 196, 70], [240, 110, 30]]) : pick(r, [[74, 40, 34], [86, 46, 38], [64, 34, 30]]);
+  });
+  paintSprite(ctx, Tile.CrystalCluster, [
+    '................', '................', '.......c........', '......cCc.......', '......cCc...c...', '..c...cCc..cCc..',
+    '.cCc..cCc..cCc..', '.cCc.cCCCc.cCc..', '.cCc.cCwCc.cCc..', '.cCcccCwCcccCc..', '..cCCCCwCCCCc...', '..cCCCCCCCCCc...',
+    '...ssssssssss...', '................', '................', '................',
+  ], { c: [150, 90, 220], C: [196, 140, 250], w: [246, 232, 255], s: [110, 110, 120] });
+  paintTile(ctx, Tile.Ice, (x, y, r) => ((x + y) % 7 === 0 ? [236, 248, 255] : (x * 3 + y) % 11 === 0 ? [150, 196, 236] : pick(r, [[176, 214, 244], [186, 222, 248], [168, 206, 238]])));
+  paintTile(ctx, Tile.MushroomStem, (x, y, r) => ((x + y * 2) % 9 === 0 ? [214, 206, 186] : pick(r, [[236, 230, 214], [228, 222, 204], [242, 238, 224]])));
+  paintTile(ctx, Tile.MushroomCap, (x, y, r) => {
+    // Rojo con lunares blancos, como las setas de los cuentos.
+    const dot = [[3, 3], [11, 4], [7, 9], [2, 12], [12, 12]].some(([dx, dy]) => Math.abs(x - dx) + Math.abs(y - dy) <= 1);
+    return dot ? [250, 246, 240] : pick(r, [[214, 52, 52], [200, 44, 46], [226, 64, 60]]);
+  });
+  paintSprite(ctx, Tile.SmallMushroom, [
+    ...Array(6).fill('................'),
+    '.....rrrrrr.....', '....rrwrrrwr....', '...rrrrrrwrrr...', '...rwrrrrrrrr...', '......ssss......', '......ssss......',
+    '......ssss......', '.....ssssss.....', '................', '................',
+  ], { r: [214, 52, 52], w: [250, 246, 240], s: [236, 230, 214] });
   // Agujas de pino: verde oscuro, en franjas, con pocos huecos.
   paintTile(ctx, Tile.PineLeaves, (x, y, r) => ((x + y * 3) % 7 === 0 && r() < 0.5 ? null : y % 4 === 0 ? pick(r, PINE_LEAF.slice(2)) : pick(r, PINE_LEAF)));
   paintTile(ctx, Tile.SnowTop, (_x, _y, r) => pick(r, SNOW));

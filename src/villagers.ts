@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Block, isBarrier, isSolid } from './blocks';
 import { columnRandom } from './noise';
 import { type Species, buildVillagerModel } from './villagerModel';
-import { SEA_LEVEL, type Plot, type World } from './world';
+import { type MysteryKind, SEA_LEVEL, type Plot, type World } from './world';
 
 export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido' | 'deportista' | 'dulce';
 export type { Species };
@@ -315,15 +315,29 @@ export const MAX_GUESTS = 3;
 /** Todos los personajes, con la dependienta, la conservadora y el piloto, para el álbum de vecinos. */
 export const ALL_PROFILES: Profile[] = [SHOPKEEPER, CURATOR, PILOT, ...PROFILES, ...VISITORS];
 
-function profileNamed(name: string): Profile | undefined {
+export function profileNamed(name: string): Profile | undefined {
   return [...PROFILES, ...VISITORS].find((p) => p.name === name);
 }
 
 /** Elige quién está de vacaciones en una isla misteriosa: alguien que no viva ya en tu isla. */
-export function pickVisitor(residents: string[], random: () => number): string | null {
+export function pickVisitor(residents: string[], random: () => number, kind?: MysteryKind): string | null {
   const pool = RESIDENT_NAMES.filter((n) => !residents.includes(n));
+  // Cada isla especial tiene sus visitantes favoritos: pingüinos en la nevada, ranas en la de las setas…
+  const likes = kind ? ISLAND_SPECIES[kind] : undefined;
+  const fans = likes ? pool.filter((n) => likes.includes(profileNamed(n)!.species)) : [];
+  if (fans.length && random() < 0.6) return fans[Math.floor(random() * fans.length)];
   return pool.length ? pool[Math.floor(random() * pool.length)] : null;
 }
+
+/** Especies a las que más les gusta cada tipo de isla misteriosa. */
+const ISLAND_SPECIES: Partial<Record<MysteryKind, Species[]>> = {
+  nieve: ['pingüino', 'oso', 'oveja'],
+  setas: ['rana', 'ardilla', 'koala'],
+  cristal: ['gato', 'zorro', 'conejo'],
+  volcan: ['elefante', 'perro', 'cerdo'],
+  flores: ['conejo', 'oveja'],
+  bambu: ['koala', 'oso'],
+};
 
 /** Un vecino que espera en un sitio concreto (el piloto, o quien está de vacaciones), sin casa. */
 export function createVisitor(world: World, name: string, x: number, y: number, z: number, memory: VillagerMemory): Villager | null {
