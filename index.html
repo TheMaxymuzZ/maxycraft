@@ -15,6 +15,7 @@
     <div id="hotbar"></div>
     <div id="labels" aria-hidden="true"></div>
     <div id="toast" role="status"></div>
+    <div id="save-indicator" aria-hidden="true"></div>
     <div id="dialog" hidden>
       <div class="dialog-box">
         <span id="dialog-name"></span>
@@ -103,7 +104,7 @@
             <button type="button" class="menu-btn" data-open="controls">Controles</button>
           </div>
           <p class="note">El día, la noche y las estaciones siguen tu fecha y hora reales. La isla se guarda sola en este navegador.</p>
-          <button type="button" id="new-island" class="secondary">Empezar una isla nueva</button>
+          <button type="button" class="menu-btn" data-open="islands">Mis islas y copias</button>
           <p class="version" id="version"></p>
         </section>
 
@@ -134,6 +135,13 @@
             <button type="button" id="sound-toggle" class="secondary">Sonido: sí</button>
             <button type="button" id="options-reset" class="secondary">Valores de siempre</button>
           </div>
+          <button type="button" class="menu-back">Volver</button>
+        </section>
+
+        <section class="menu-view" data-view="islands" hidden>
+          <h2>Mis islas</h2>
+          <p class="note">Puedes tener hasta 3 islas. Guarda una copia en un archivo para no perder nunca tu isla, o para llevarla a otro ordenador.</p>
+          <ul class="islands" id="islands-list"></ul>
           <button type="button" class="menu-back">Volver</button>
         </section>
 

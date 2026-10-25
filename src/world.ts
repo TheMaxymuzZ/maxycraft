@@ -80,6 +80,11 @@ export const PLOT_RADIUS = 5;
 /** Cambios del jugador sobre el mundo generado, por chunk: índice local → bloque. */
 export type Edits = Record<string, Record<number, number>>;
 
+/** La fruta típica de la isla de esa semilla. */
+export function islandFruit(seed: number): Block {
+  return FRUITS[Math.floor(columnRandom(1, 1, seed) * FRUITS.length)];
+}
+
 export class World {
   private chunks = new Map<string, Chunk>();
   private edits = new Map<string, Map<number, number>>();
@@ -98,7 +103,7 @@ export class World {
   waterMaterial: THREE.Material = new THREE.MeshLambertMaterial({ color: 0x3fa9d6, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
 
   constructor(readonly seed: number, private material: THREE.Material, edits: Edits = {}) {
-    this.fruit = FRUITS[Math.floor(columnRandom(1, 1, seed) * FRUITS.length)];
+    this.fruit = islandFruit(seed);
     for (const [k, list] of Object.entries(edits)) {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
     }

@@ -6,7 +6,11 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.2**
+Versión actual: **v1.3**
+
+- **Mis islas**: hasta 3 islas guardadas a la vez, cada una con su fruta, sus bayas y la fecha de la última vez que se guardó. Se cambia de una a otra desde el menú.
+- **Copias de seguridad**: «Guardar copia» descarga la isla en un archivo `.json`, y «Cargar copia» la recupera en cualquier hueco (sirve para llevarla a otro ordenador o al móvil). Borrar una isla pide confirmación.
+- **Aviso de guardado** arriba en el centro cuando se guarda algo nuevo, o si el navegador no deja guardar (modo privado).
 
 - **Portada**: al abrir el juego la cámara da vueltas sobre tu isla y el menú aparece a un lado. Durante la partida, el mismo menú hace de pausa.
 - **Opciones** que se guardan en el navegador: volumen de música y de efectos, sensibilidad al mirar, campo de visión y calidad gráfica (baja, media o alta: cuánto se ve a lo lejos y la nitidez). En el móvil empieza en calidad baja. Se aplican al momento.
