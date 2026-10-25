@@ -16,7 +16,8 @@ export class Workbench {
   readonly known: Set<string>;
 
   constructor(private ctx: WorkbenchContext, known: string[] | undefined) {
-    this.known = new Set(known ?? STARTER_DIY);
+    // Las recetas básicas nuevas (como las puertas) se saben también en las partidas antiguas.
+    this.known = new Set([...(known ?? []), ...STARTER_DIY]);
     ctx.inventory.onChange(() => {
       if (!this.el.hidden) this.render();
     });

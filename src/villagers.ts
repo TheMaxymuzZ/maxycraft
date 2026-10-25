@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Block, isSolid } from './blocks';
+import { Block, isBarrier, isSolid } from './blocks';
 import { columnRandom } from './noise';
 import { SEA_LEVEL, type Plot, type World } from './world';
 
@@ -283,6 +283,11 @@ export class Villager {
         if (ground === null || Math.abs(ground - this.position.y) > 1.01) {
           this.target = null; // camino cortado: busca otro sitio
           this.wait = 0.5;
+          // Si de noche no puede llegar a su puerta (por una valla, por ejemplo), entra igualmente.
+          if (sleepy) {
+            this.asleep = true;
+            this.group.visible = false;
+          }
         } else {
           this.position.set(nx, ground, nz);
           this.faceTowards(to.x, to.z, dt * 6);
@@ -317,7 +322,8 @@ export class Villager {
       if (y < SEA_LEVEL + 1) return null; // no se meten en el agua
       if (isSolid(this.world.getBlock(bx, y + 1, bz)) || isSolid(this.world.getBlock(bx, y + 2, bz))) return null;
       const top = this.world.getBlock(bx, y, bz);
-      if (top === Block.Leaves || top === Block.PalmLeaves) return null;
+      // No se suben a los árboles ni saltan vallas o puertas cerradas.
+      if (top === Block.Leaves || top === Block.PalmLeaves || isBarrier(top)) return null;
       return y + 1;
     }
     return null;

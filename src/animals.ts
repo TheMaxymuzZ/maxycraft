@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Block, isSolid } from './blocks';
+import { Block, isBarrier, isSolid } from './blocks';
 import { SEA_LEVEL, type World } from './world';
 
 export type AnimalKind = 'gallina' | 'vaca';
@@ -173,7 +173,8 @@ export class Animal {
       if (y < SEA_LEVEL + 1) return null;
       if (isSolid(this.world.getBlock(bx, y + 1, bz)) || (this.data.kind === 'vaca' && isSolid(this.world.getBlock(bx, y + 2, bz)))) return null;
       const top = this.world.getBlock(bx, y, bz);
-      if (top === Block.Leaves || top === Block.PalmLeaves) return null;
+      // No se suben a los árboles ni saltan vallas o puertas cerradas.
+      if (top === Block.Leaves || top === Block.PalmLeaves || isBarrier(top)) return null;
       return y + 1;
     }
     return null;

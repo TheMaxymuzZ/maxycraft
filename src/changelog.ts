@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.2',
+    title: 'Árboles, vallas y puertas',
+    items: [
+      'Al cortar el tronco cae el árbol entero: madera, fruta y un brote para replantarlo.',
+      'Brotes de manzano, naranjo, peral, melocotonero, cerezo y palmera (se fabrican con su fruta). Crecen en dos días.',
+      'Puertas para casas y puertas de valla, en la mesa de trabajo. Se abren y cierran con clic derecho.',
+      'Ni tú ni los animales ni los vecinos podéis saltar las vallas.',
+    ],
+  },
+  {
     version: '2.1',
     title: 'Preparados para jugar juntos',
     items: [

@@ -48,6 +48,11 @@ export enum Block {
   Wheat0 = 42, Wheat1 = 43, Wheat2 = 44, Wheat3 = 45,
   Carrot0 = 46, Carrot1 = 47, Carrot2 = 48, Carrot3 = 49,
   Tomato0 = 50, Tomato1 = 51, Tomato2 = 52, Tomato3 = 53,
+  // Puertas de valla y de casa (v2.2): cerradas y abiertas. La puerta de casa ocupa dos bloques.
+  Gate = 54, GateOpen = 55,
+  Door = 56, DoorTop = 57, DoorOpen = 58, DoorTopOpen = 59,
+  // Brotes de árbol para replantar (v2.2).
+  Sapling = 60, PalmSapling = 61,
 }
 
 export const TILE = 16;
@@ -72,10 +77,14 @@ export enum Tile {
   FarmlandTop, FarmlandWetTop, Sprout, WheatYoung, WheatTall, WheatRipe, CarrotYoung, CarrotTall, CarrotRipe, TomatoYoung, TomatoTall, TomatoRipe,
   Seeds, SeedsCarrot, SeedsTomato, WheatItem, CarrotItem, TomatoItem, WateringCan, Egg, Milk, Bread, Omelette, Soup, Cake, ChickenIcon, CowIcon,
   Ticket,
+  DoorLower, DoorUpper, DoorIcon, GateIcon, Sapling, PalmSapling,
 }
 
-/** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos. */
-export type Shape = 'cube' | 'cross' | 'fence';
+/**
+ * cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos.
+ * gate: puerta de valla. door: puerta de casa (una tabla fina que se orienta según las paredes de los lados).
+ */
+export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door';
 
 export interface BlockDef {
   name: string;
@@ -90,6 +99,12 @@ const cube = (name: string, side: Tile, top = side, bottom = top, transparent = 
 });
 const fence = (name: string, tile: Tile): BlockDef => ({
   name, tiles: [tile, tile, tile], transparent: true, shape: 'fence',
+});
+const gate = (name: string): BlockDef => ({
+  name, tiles: [Tile.Planks, Tile.Planks, Tile.Planks], transparent: true, shape: 'gate',
+});
+const door = (name: string, tile: Tile): BlockDef => ({
+  name, tiles: [tile, tile, tile], transparent: true, shape: 'door',
 });
 const cross = (name: string, tile: Tile): BlockDef => ({
   name, tiles: [tile, tile, tile], transparent: true, shape: 'cross',
@@ -149,7 +164,45 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.Tomato1]: cross('Tomatera', Tile.TomatoYoung),
   [Block.Tomato2]: cross('Tomatera', Tile.TomatoTall),
   [Block.Tomato3]: cross('Tomatera con tomates', Tile.TomatoRipe),
+  [Block.Gate]: gate('Puerta de valla'),
+  [Block.GateOpen]: gate('Puerta de valla'),
+  [Block.Door]: door('Puerta', Tile.DoorLower),
+  [Block.DoorTop]: door('Puerta', Tile.DoorUpper),
+  [Block.DoorOpen]: door('Puerta', Tile.DoorLower),
+  [Block.DoorTopOpen]: door('Puerta', Tile.DoorUpper),
+  [Block.Sapling]: cross('Brote de árbol frutal', Tile.Sapling),
+  [Block.PalmSapling]: cross('Brote de palmera', Tile.PalmSapling),
 };
+
+/** Puertas abiertas: se ven, pero se pasa a través. */
+const OPEN: ReadonlySet<number> = new Set([Block.GateOpen, Block.DoorOpen, Block.DoorTopOpen]);
+/** Cada puerta y su versión abierta o cerrada. */
+const TOGGLE: Partial<Record<number, Block>> = {
+  [Block.Gate]: Block.GateOpen, [Block.GateOpen]: Block.Gate,
+  [Block.Door]: Block.DoorOpen, [Block.DoorOpen]: Block.Door,
+  [Block.DoorTop]: Block.DoorTopOpen, [Block.DoorTopOpen]: Block.DoorTop,
+};
+
+/** Bloque al abrir o cerrar una puerta, o undefined si no es una puerta. */
+export function toggled(b: number): Block | undefined {
+  return TOGGLE[b];
+}
+
+export function isOpen(b: number): boolean {
+  return OPEN.has(b);
+}
+
+export function isDoor(b: number): boolean {
+  return b === Block.Door || b === Block.DoorTop || b === Block.DoorOpen || b === Block.DoorTopOpen;
+}
+
+export function isDoorTop(b: number): boolean {
+  return b === Block.DoorTop || b === Block.DoorTopOpen;
+}
+
+export function isGate(b: number): boolean {
+  return b === Block.Gate || b === Block.GateOpen;
+}
 
 /** Plantas que se mueven con el viento. */
 export const SWAYING: ReadonlySet<number> = new Set([
@@ -171,11 +224,17 @@ export const FRUITS = [Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block
 /** Bloquea el paso del jugador. */
 /** Si choca con el jugador. */
 export function isSolid(b: number): boolean {
-  return b !== Block.Air && BLOCKS[b].shape !== 'cross';
+  return b !== Block.Air && BLOCKS[b].shape !== 'cross' && !OPEN.has(b);
 }
 
+/** Barrera de bloque y medio que no se puede saltar: vallas y puertas de valla cerradas. */
 export function isFence(b: number): boolean {
-  return b !== Block.Air && BLOCKS[b].shape === 'fence';
+  return b !== Block.Air && (BLOCKS[b].shape === 'fence' || b === Block.Gate);
+}
+
+/** Corta el paso a vecinos y animales: no se suben encima ni la cruzan. */
+export function isBarrier(b: number): boolean {
+  return isFence(b) || b === Block.Door || b === Block.DoorTop;
 }
 
 /** Bloque entero (no planta ni valla): da sombra en las esquinas y sostiene lo que se pone encima. */
@@ -598,6 +657,38 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     ...Array(4).fill('................'),
   ], { w: [248, 248, 244], b: [40, 40, 44], k: [20, 20, 20], h: [220, 210, 180], p: [244, 180, 180] });
   // Billete de avioneta (v1.9).
+  // Puerta de casa: tablones verticales con marco; arriba, una ventanita.
+  const DOOR_WOOD: RGB[] = [[176, 124, 74], [166, 116, 68], [186, 134, 82]];
+  const doorPixel = (x: number, y: number, r: () => number, top: boolean): RGB => {
+    if (x <= 1 || x >= 14) return [118, 80, 46];
+    if (top && y >= 4 && y <= 10 && x >= 4 && x <= 11) return x === 7 || x === 8 || y === 7 ? [118, 80, 46] : [168, 214, 236];
+    if (!top && y === 2) return [118, 80, 46];
+    if (!top && x === 12 && (y === 1 || y === 0)) return [232, 196, 80]; // pomo
+    return x % 4 === 1 ? [140, 98, 58] : pick(r, DOOR_WOOD);
+  };
+  paintTile(ctx, Tile.DoorLower, (x, y, r) => doorPixel(x, y, r, false));
+  paintTile(ctx, Tile.DoorUpper, (x, y, r) => doorPixel(x, y, r, true));
+  paintSprite(ctx, Tile.DoorIcon, [
+    '....bbbbbbbb....', '....baaaaaab....', '....bwwbwwwb....', '....bwwbwwwb....', '....bbbbbbbb....',
+    '....baabaaab....', '....baabaaab....', '....baabaaab....', '....baabaayb....', '....baabaaab....',
+    '....baabaaab....', '....baabaaab....', '....baabaaab....', '....baabaaab....', '....bbbbbbbb....', '................',
+  ], { a: [186, 134, 82], b: [118, 80, 46], w: [168, 214, 236], y: [232, 196, 80] });
+  paintSprite(ctx, Tile.GateIcon, [
+    '................', '................', '.aa..........aa.', '.ab..........ab.', '.abbbbbbbbbbbab.', '.abbbbbbbbbbbab.',
+    '.ab...bb.....ab.', '.ab....bb....ab.', '.ab.....bb...ab.', '.abbbbbbbbbbbab.', '.abbbbbbbbbbbab.', '.ab..........ab.',
+    '.ab..........ab.', '.ab..........ab.', '................', '................',
+  ], { a: [206, 166, 108], b: [150, 112, 66] });
+  // Brotes: un tallito con hojas; el de palmera, con hojas largas.
+  paintSprite(ctx, Tile.Sapling, [
+    '................', '................', '.....ll..ll.....', '....lLLllLLl....', '....lLLLLLLl....', '.....lLLLLl.....',
+    '......lLLl......', '.......t........', '.......t..ll....', '...ll..t.lLLl...', '..lLLl.ttLLl....', '...lLLtt.ll.....',
+    '.......t........', '.......t........', '.......t........', '................',
+  ], { l: [72, 146, 60], L: [112, 190, 84], t: [116, 82, 50] });
+  paintSprite(ctx, Tile.PalmSapling, [
+    '................', '................', '..ll........ll..', '...LLl....lLL...', '.....LLllLL.....', '..lLLLLLLLLLLl..',
+    '.l.....tt.....l.', '.......tt.......', '.......tt.......', '.......tt.......', '.......tt.......', '.......tt.......',
+    '.......tt.......', '.......tt.......', '.......tt.......', '................',
+  ], { l: [84, 164, 56], L: [120, 196, 80], t: [168, 132, 86] });
   paintSprite(ctx, Tile.Ticket, [
     ...Array(4).fill('................'),
     '.bbbbbbbbbbbbbb.', '.bwwwwwwwwbwwwb.', '.bwbbbwwwwbwkwb.', '.bwwbwwwwwwwkwb.', '.bwbbbbbwwbwwwb.', '.bwwbwwwwwbwkwb.',
@@ -934,6 +1025,8 @@ export function blockIconTile(b: Block): number {
   const def = BLOCKS[b];
   if (b === Block.Fence) return Tile.FenceIcon;
   if (b === Block.WhiteFence) return Tile.WhiteFenceIcon;
+  if (isDoor(b)) return Tile.DoorIcon;
+  if (isGate(b)) return Tile.GateIcon;
   return def.tiles[b === Block.Grass || def.shape === 'cross' ? 0 : 1];
 }
 
