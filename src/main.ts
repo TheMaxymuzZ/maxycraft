@@ -66,6 +66,8 @@ import { Water } from './water';
 import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
+import { MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals';
+import { VitalsHud } from './vitalsHud';
 import { BIOME_NAMES, type Biome, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
@@ -386,6 +388,8 @@ function record(event: MissionEvent, n = 1) {
 }
 
 let wallet = pockets?.wallet ?? 500;
+/** Vida y hambre (v4.1). Son tuyas: también cuando juegas en la isla de un amigo. */
+const vitals = new Vitals(pockets?.vitals);
 const walletEl = document.querySelector<HTMLSpanElement>('#wallet-amount')!;
 function setWallet(n: number) {
   if (n !== wallet) sound.coin();
@@ -429,6 +433,7 @@ function persist() {
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
+    vitals: vitals.serialize(),
     donated: [...collection.donated],
     recipes: [...workbench.known],
     savedAt: 0,
@@ -441,6 +446,7 @@ function persist() {
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
+    vitals: vitals.serialize(),
     donated: [...collection.donated],
     tutorial: tutorial.serialize(),
     tutorialDone: tutorial.finished,
@@ -465,6 +471,7 @@ function persist() {
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
+    vitals: vitals.serialize(),
     donated: [...collection.donated],
     home,
     furniture: furniture.serialize(),
@@ -665,7 +672,7 @@ function unlockInput() {
 }
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -861,6 +868,7 @@ const dialog = new Dialog({
   fruitName: BLOCKS[world.fruit].name.toLowerCase(),
   toast: (t) => hud.toast(t),
   onClose: () => {
+    if (panel === 'faint') return;
     panel = null;
     lockInput();
   },
@@ -1052,7 +1060,7 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') closeSign(false);
     return;
   }
-  if (panel === 'chat') return;
+  if (panel === 'chat' || panel === 'faint') return;
   if (panel === 'gestures') {
     if (e.code === 'Escape' || e.code === keys.gesture) friends.closeGestures();
     else friends.gestureKey(e.code);
@@ -1141,6 +1149,21 @@ menu.onView = (v) => {
 };
 
 playButton.addEventListener('click', () => lockInput());
+/** Cierra la ventana que haya abierta encima del juego (al volver a jugar, o al desmayarse). */
+function closeAnyPanel() {
+  if (panel === 'inventory') hud.inventoryEl.hidden = true;
+  if (panel === 'dialog') dialog.finish();
+  if (panel === 'shop') shop.close();
+  if (panel === 'collection') collection.close();
+  if (panel === 'workbench') workbench.close();
+  if (panel === 'missions') missionsPanel.close();
+  if (panel === 'storage') storagePanel.close();
+  if (panel === 'sign') signEl.hidden = true;
+  if (panel === 'chat') friends.closeChat();
+  if (panel === 'gestures') friends.closeGestures();
+  if (panel === 'faint') wakeUpAtHome();
+  panel = null;
+}
 let arrived = false;
 function onInputChange() {
   const locked = isPlaying();
@@ -1151,17 +1174,7 @@ function onInputChange() {
       arrived = true;
       hud.toast(`¡Bienvenida, bienvenido a la ${MYSTERY_NAMES[trip.kind]}! Habla con Plumas para volver a casa`);
     }
-    if (panel === 'inventory') hud.inventoryEl.hidden = true;
-    if (panel === 'dialog') dialog.finish();
-    if (panel === 'shop') shop.close();
-    if (panel === 'collection') collection.close();
-    if (panel === 'workbench') workbench.close();
-    if (panel === 'missions') missionsPanel.close();
-    if (panel === 'storage') storagePanel.close();
-    if (panel === 'sign') signEl.hidden = true;
-    if (panel === 'chat') friends.closeChat();
-    if (panel === 'gestures') friends.closeGestures();
-    panel = null;
+    closeAnyPanel();
     return;
   }
   breaker.active = false;
@@ -1466,6 +1479,12 @@ function useItem() {
     return;
   }
 
+  // Comer (v4.1): con hambre, lo que llevas en la mano se come (salvo si apuntas a una puerta, un cofre…).
+  if (def && isFood(def.id) && vitals.hunger < MAX_HUNGER && !(hit && isInteractive(world.getBlock(...hit.block)))) {
+    eat(def.id);
+    return;
+  }
+
   if (!hit) return;
   const [bx, by, bz] = hit.block;
   const target = world.getBlock(bx, by, bz);
@@ -1564,6 +1583,115 @@ function useItem() {
     shakeTree(bx, by, bz);
   }
 }
+
+/** Bloques que hacen algo al usarlos (abrir, mirar dentro…): con comida en la mano se usan en vez de comer. */
+function isInteractive(b: number): boolean {
+  return b === Block.Workbench || isContainer(b) || toggled(b) !== undefined;
+}
+
+// --- Vida, hambre y desmayos (v4.1) ---
+
+const vitalsHud = new VitalsHud(document.querySelector<HTMLDivElement>('#hotbar')!);
+const faintEl = document.querySelector<HTMLDivElement>('#faint')!;
+const HURT_TEXT: Record<HurtCause, string> = {
+  caida: 'Te has caído desde muy alto',
+  agua: 'Te has quedado sin aire bajo el agua',
+  magma: 'Te has quemado con la roca de magma',
+  hambre: 'Tenías mucha hambre',
+};
+vitals.onHurt = () => {
+  vitalsHud.hurt();
+  sound.hurt();
+};
+vitals.onFaint = (cause) => faint(cause);
+
+function eat(id: string) {
+  if (!vitals.eat(id)) return;
+  inventory.consume(hud.selected);
+  sound.eat();
+  const full = vitals.hunger >= MAX_HUNGER;
+  hud.toast(`¡Ñam! Te has comido: ${itemDef(id).name.toLowerCase()}${full ? '. Ya estás llena, lleno' : ''}`);
+}
+
+/** Cada fotograma: el hambre baja, la vida sube con la tripa llena, y caer, ahogarse o quemarse hace daño. */
+function updateVitals(dt: number) {
+  vitalsHud.update(vitals);
+  const fall = player.takeFall();
+  const jumps = player.jumps;
+  player.jumps = 0;
+  if (!menu.hidden || !spawned || vitals.fainted) return;
+  for (let i = 0; i < jumps; i++) vitals.exert('jump');
+  if (fall > 0) vitals.fall(fall);
+  const p = player.position;
+  const under = world.getBlock(Math.floor(p.x), Math.floor(p.y - 0.05), Math.floor(p.z));
+  vitals.update(dt, {
+    moving: Math.hypot(player.velocity.x, player.velocity.z) > 0.5,
+    sprinting: player.sprinting,
+    underwater: world.inWater(camera.position.x, camera.position.y, camera.position.z),
+    burning: player.onGround && under === Block.Magma,
+  });
+}
+
+/** Te desmayas: pierdes unas pocas cosas y algo de dinero, y despiertas en casa. */
+function faint(cause: HurtCause) {
+  breaker.active = false;
+  fishing.stop();
+  if (panel === 'dialog') dialog.finish(true);
+  // Se cierra lo que hubiera abierto, sin volver a jugar: primero se marca el desmayo.
+  const was = panel;
+  panel = 'faint';
+  if (was === 'chat') friends.closeChat();
+  else if (was === 'gestures') friends.closeGestures();
+  else if (was && was !== 'faint') {
+    panel = was;
+    closeAnyPanel();
+    panel = 'faint';
+  }
+  const loss = faintLoss(wallet, inventory.slots, (id) => !!itemDef(id).tool);
+  for (const l of loss.items) {
+    const s = inventory.slots[l.slot];
+    if (!s) continue;
+    s.count -= l.count;
+    if (s.count <= 0) inventory.slots[l.slot] = null;
+  }
+  inventory.changed();
+  if (loss.berries) setWallet(wallet - loss.berries);
+  const list = faintEl.querySelector('ul')!;
+  list.innerHTML = '';
+  const line = (text: string) => list.appendChild(Object.assign(document.createElement('li'), { textContent: text }));
+  if (loss.berries) line(`${formatBerries(loss.berries)} bayas`);
+  for (const l of loss.items) line(`${l.count} × ${itemDef(l.id).name.toLowerCase()}`);
+  if (!loss.berries && !loss.items.length) line('¡Nada! Tenías los bolsillos vacíos');
+  faintEl.querySelector('#faint-cause')!.textContent = `${HURT_TEXT[cause]}.`;
+  faintEl.querySelector<HTMLButtonElement>('#faint-wake')!.textContent = trip ? 'Despertar' : 'Despertar en casa';
+  faintEl.hidden = false;
+  unlockInput();
+  faintEl.querySelector<HTMLButtonElement>('#faint-wake')!.focus();
+  persist();
+}
+
+/** Sitio donde se despierta tras desmayarse: delante de tu casa (de viaje, donde aterrizaste). */
+function homeSpot(): [number, number] {
+  if (trip || joined) return [spawnPoint.x, spawnPoint.z];
+  const plot = world.playerPlot;
+  return plot ? [plot.x, plot.z + home.level + 3] : [spawnPoint.x, spawnPoint.z];
+}
+
+function wakeUpAtHome() {
+  if (faintEl.hidden) return;
+  faintEl.hidden = true;
+  vitals.revive();
+  player.spawnAt(...homeSpot());
+  player.velocity.set(0, 0, 0);
+  hud.toast(trip ? 'Te has despertado. ¡Ten más cuidado!' : 'Te has despertado en casa. ¡Ten más cuidado!');
+}
+
+document.querySelector('#faint-wake')!.addEventListener('click', () => {
+  if (panel !== 'faint') return;
+  panel = null;
+  wakeUpAtHome();
+  lockInput();
+});
 
 /** Mueble al que apunta la mira, si está más cerca que el bloque apuntado. */
 function furnitureInSight() {
@@ -2027,6 +2155,7 @@ const friends = new FriendsUI({
   toast: (t) => hud.toast(t),
 });
 friends.onClose = () => {
+  if (panel === 'faint') return;
   if (panel === 'chat' || panel === 'gestures') panel = null;
   lockInput();
 };
@@ -2173,6 +2302,7 @@ function frame(now: number) {
   }
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0, isPlaying());
   if (spawned) checkBiome(dt);
+  updateVitals(dt);
   // En la portada la cámara da vueltas despacio por encima de la isla.
   if (!menu.hidden && menu.isTitle) {
     const a = now / 1000 * 0.08;
@@ -2344,6 +2474,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { vitals, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

@@ -300,6 +300,21 @@ export class Sound {
     [0, 4, 7, 12].forEach((n, i) => this.tone(midi(72 + n), t + i * 0.09, i === 3 ? 0.4 : 0.12, 'square', 0.12, this.sfx));
   }
 
+  /** Hacerse daño (v4.1): un golpe sordo y un quejido corto. */
+  hurt() {
+    const t = this.now;
+    if (t < 0) return;
+    this.hiss(t, 0.12, 0.5, 400, this.sfx, 'lowpass');
+    this.tone(330, t, 0.16, 'square', 0.12, this.sfx, 180);
+  }
+
+  /** Comer: tres mordiscos. */
+  eat() {
+    const t = this.now;
+    if (t < 0) return;
+    for (let i = 0; i < 3; i++) this.hiss(t + i * 0.12, 0.07, 0.35, 1800 - i * 200, this.sfx, 'bandpass');
+  }
+
   click() {
     const t = this.now;
     if (t < 0) return;
