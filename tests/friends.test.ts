@@ -119,11 +119,31 @@ describe('jugar con amigos (v2.11)', () => {
     expect(parseMessage({ t: 'regalo', from: 'a', to: 'b', item: { id: 'x', count: 0 } })).toBeNull();
   });
 
-  it('si el anfitrión cierra la isla, los invitados se enteran', async () => {
-    let closed = 0;
-    const { host } = await party(2, () => ({ closed: () => closed++ }));
+  it('si el anfitrión cierra la isla, los invitados se enteran una sola vez', async () => {
+    const closed: boolean[] = [];
+    const { host } = await party(2, () => ({ closed: (deliberate) => closed.push(deliberate) }));
     host.close();
-    expect(closed).toBe(2);
+    expect(closed).toEqual([true, true]);
+  });
+
+  it('un corte de conexión no es lo mismo que cerrar la isla (v3.0)', async () => {
+    const closed: boolean[] = [];
+    const { hub } = await party(1, () => ({ closed: (deliberate) => closed.push(deliberate) }));
+    // El anfitrión desaparece sin despedirse, como cuando se corta internet.
+    hub.leave('h');
+    hub.connect('h').send({ t: 'sale', id: 'h' });
+    expect(closed).toEqual([false]);
+  });
+
+  it('al irse de viaje el anfitrión se lleva a todos (v3.0)', async () => {
+    const trips: string[] = [];
+    const closed: boolean[] = [];
+    const { host } = await party(2, (me) => ({ travel: (t) => trips.push(`${me}:${t}`), closed: (d) => closed.push(d) }));
+    host.travel('Ana os lleva en avioneta…');
+    host.close();
+    expect(trips.sort()).toEqual(['g0:Ana os lleva en avioneta…', 'g1:Ana os lleva en avioneta…']);
+    // Mientras dura el viaje no se da la partida por terminada.
+    expect(closed).toEqual([]);
   });
 });
 

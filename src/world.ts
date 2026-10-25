@@ -91,6 +91,9 @@ export function buildTent(x: number, y: number, z: number, put: (x: number, y: n
 /** Medio lado de la parcela que se allana y se deja sin árboles. */
 export const PLOT_RADIUS = 5;
 
+/** Milisegundos por fotograma para dibujar chunks nuevos mientras se juega (siempre al menos uno). */
+const MESH_MS = 6;
+
 /** Cambios del jugador sobre el mundo generado, por chunk: índice local → bloque. */
 export type Edits = Record<string, Record<number, number>>;
 
@@ -1083,6 +1086,10 @@ export class World {
     }
     wanted.sort((a, b) => a[2] - b[2]);
 
+    // Cada chunk tarda unos milisegundos en dibujarse: mientras se juega se hacen pocos por fotograma
+    // para que no haya tirones al caminar por islas grandes; al cargar (sin suelo aún) se hacen más.
+    const loading = !this.isReady(x, z);
+    const until = performance.now() + (loading ? 60 : MESH_MS);
     let built = 0;
     for (const [cx, cz] of wanted) {
       const c = this.getChunk(cx, cz);
@@ -1090,7 +1097,7 @@ export class World {
       if (built >= budget && c.mesh) continue; // los ya visibles pueden esperar un fotograma
       this.buildMesh(c);
       built++;
-      if (built >= budget * 4) break;
+      if (built >= budget * 4 || performance.now() > until) break;
     }
 
     // Quitar de la escena los chunks lejanos (los cambios se guardan aparte).
@@ -1170,16 +1177,6 @@ export class World {
       }
     }
     return c.sky[(z - cz * CHUNK) * CHUNK + (x - cx * CHUNK)];
-  }
-
-  /**
-   * Luz del cielo en una casilla de aire, de 0 a 1. Solo oscurece lo que está hondo bajo tierra (las cuevas),
-   * para que el interior de las casas no quede negro.
-   */
-  private skyLightAt(x: number, y: number, z: number): number {
-    const top = this.skyHeight(x, z);
-    if (y < top && y <= SEA_LEVEL + 1) return Math.max(0, Math.min(1, 1 - (top - y - 1) / 5));
-    return 1;
   }
 
   /** Pone (nivel > 0) o quita (0) una luz que no es un bloque, como la bombilla de una farola. */
@@ -1266,6 +1263,40 @@ export class World {
     /** Luz de cada vértice: [cielo, antorchas]. El shader las mezcla con la hora del día (lighting.ts). */
     const lights: number[] = [];
     const blockLight = this.blockLightRegion(ox, oz);
+    // Los bloques del chunk y de sus 8 vecinos, a mano: preguntar al mundo por cada bloque era lo más lento (v3.0).
+    const near: Uint8Array[] = [];
+    const skyTop = new Int16Array((CHUNK + 2) * (CHUNK + 2));
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) near.push(this.getChunk(c.cx + dx, c.cz + dz).data);
+    for (let z = -1; z <= CHUNK; z++) for (let x = -1; x <= CHUNK; x++) skyTop[(z + 1) * (CHUNK + 2) + x + 1] = this.skyHeight(ox + x, oz + z);
+    /** Bloque en coordenadas locales del chunk (de -1 a CHUNK). */
+    const get = (lx: number, y: number, lz: number): number => {
+      if (y < 0 || y >= HEIGHT) return Block.Air;
+      const ix = lx < 0 ? 0 : lx >= CHUNK ? 2 : 1;
+      const iz = lz < 0 ? 0 : lz >= CHUNK ? 2 : 1;
+      return near[iz * 3 + ix][index(lx - (ix - 1) * CHUNK, y, lz - (iz - 1) * CHUNK)];
+    };
+    /** Luz del cielo de 0 a 1. Solo oscurece lo hondo bajo tierra (las cuevas), para que las casas no queden negras. */
+    const skyLight = (lx: number, y: number, lz: number): number => {
+      const top = skyTop[(lz + 1) * (CHUNK + 2) + lx + 1];
+      if (y < top && y <= SEA_LEVEL + 1) return Math.max(0, Math.min(1, 1 - (top - y - 1) / 5));
+      return 1;
+    };
+    const full = (lx: number, y: number, lz: number) => (isFullBlock(get(lx, y, lz)) ? 1 : 0);
+    /** Oclusión ambiental de una esquina: cuántos bloques la tapan (0 muy tapada, 3 al aire). */
+    const vertexAO = (lx: number, y: number, lz: number, dir: readonly number[], cx: number, cy: number, cz: number): number => {
+      const px = lx + dir[0];
+      const py = y + dir[1];
+      const pz = lz + dir[2];
+      const ux = dir[0] === 0 ? (cx ? 1 : -1) : 0;
+      // El primer eje libre es x si la cara no mira en x; si no, y.
+      const uy = dir[0] !== 0 ? (cy ? 1 : -1) : 0;
+      const vy = dir[0] === 0 && dir[1] === 0 ? (cy ? 1 : -1) : 0;
+      const vz = dir[2] === 0 ? (cz ? 1 : -1) : 0;
+      const s1 = full(px + ux, py + uy, pz);
+      const s2 = full(px, py + vy, pz + vz);
+      if (s1 && s2) return 0;
+      return 3 - (s1 + s2 + full(px + ux, py + uy + vy, pz + vz));
+    };
     const tileSize = 1 / ATLAS_TILES;
     const inset = 0.0005;
     const tileUV = (tile: number): [number, number] => [
@@ -1284,7 +1315,7 @@ export class World {
 
           if (def.shape === 'cross') {
             const [u0, v0] = tileUV(def.tiles[0]);
-            const sky = this.skyLightAt(wx, y, wz);
+            const sky = skyLight(x, y, z);
             const glow = LIGHT_RADIUS[b as Block] ? 1 : blockLight(wx, y, wz);
             for (const quad of CROSS_QUADS) {
               const start = positions.length / 3;
@@ -1304,7 +1335,7 @@ export class World {
 
           if (def.shape !== 'cube') {
             const [u0, v0] = tileUV(def.tiles[0]);
-            const sky = this.skyLightAt(wx, y, wz);
+            const sky = skyLight(x, y, z);
             const glow = blockLight(wx, y, wz);
             // Caja pequeña dentro del bloque; la textura se recorta según su tamaño.
             const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
@@ -1377,12 +1408,12 @@ export class World {
           for (let f = 0; f < 6; f++) {
             const face = FACES[f];
             const [nx, ny, nz] = face.dir;
-            const nb = this.getBlock(wx + nx, y + ny, wz + nz);
+            const nb = get(x + nx, y + ny, z + nz);
             if (isOpaque(nb)) continue;
             if (nb === b && def.transparent) continue; // hojas contra hojas: una sola capa
 
             const [u0, v0] = tileUV(def.tiles[face.side]);
-            const sky = this.skyLightAt(wx + nx, y + ny, wz + nz);
+            const sky = skyLight(x + nx, y + ny, z + nz);
             const glow = LIGHT_RADIUS[b as Block] ? 1 : blockLight(wx + nx, y + ny, wz + nz);
             const start = positions.length / 3;
             const ao: number[] = [];
@@ -1390,7 +1421,7 @@ export class World {
               positions.push(x + cx, y + cy, z + cz);
               normals.push(nx, ny, nz);
               uvs.push(u0 + inset + cu * (tileSize - 2 * inset), v0 + inset + cv * (tileSize - 2 * inset));
-              const a = this.vertexAO(wx, y, wz, face.dir, cx, cy, cz);
+              const a = vertexAO(x, y, z, face.dir, cx, cy, cz);
               ao.push(a);
               const shade = FACE_SHADE[f] * AO_CURVE[a];
               colors.push(shade, shade, shade);
@@ -1451,26 +1482,5 @@ export class World {
     c.mesh.geometry.dispose();
     for (const child of c.mesh.children) (child as THREE.Mesh).geometry.dispose();
     c.mesh = null;
-  }
-
-  /** Oclusión ambiental por vértice: 0 (muy tapado) a 3 (libre). */
-  private vertexAO(x: number, y: number, z: number, dir: readonly number[], cx: number, cy: number, cz: number): number {
-    const px = x + dir[0];
-    const py = y + dir[1];
-    const pz = z + dir[2];
-    const corner = [cx, cy, cz];
-    const axes = [0, 1, 2].filter((a) => dir[a] === 0);
-    const off = (a: number) => {
-      const o = [0, 0, 0];
-      o[a] = corner[a] === 1 ? 1 : -1;
-      return o;
-    };
-    const u = off(axes[0]);
-    const v = off(axes[1]);
-    const s1 = isFullBlock(this.getBlock(px + u[0], py + u[1], pz + u[2])) ? 1 : 0;
-    const s2 = isFullBlock(this.getBlock(px + v[0], py + v[1], pz + v[2])) ? 1 : 0;
-    const cr = isFullBlock(this.getBlock(px + u[0] + v[0], py + u[1] + v[1], pz + u[2] + v[2])) ? 1 : 0;
-    if (s1 && s2) return 0;
-    return 3 - (s1 + s2 + cr);
   }
 }

@@ -45,6 +45,10 @@ export interface Snapshot {
   furniture?: PlacedThing[];
   guests?: Guest[];
   lots?: Lot[];
+  /** Desde la v3.0: quien está de vacaciones en la isla misteriosa a la que ha viajado el anfitrión. */
+  visitor?: string | null;
+  /** Dónde aparece quien entra: al lado del anfitrión. */
+  spawn?: [number, number];
 }
 
 export type Message =
@@ -57,7 +61,11 @@ export type Message =
   | { t: 'pose'; id: string; p: Pose }
   | { t: 'chat'; id: string; text: string }
   | { t: 'gesto'; id: string; g: Gesture }
-  | { t: 'regalo'; from: string; to: string; item: GiftItem };
+  | { t: 'regalo'; from: string; to: string; item: GiftItem }
+  /** El anfitrión cierra la isla a propósito (no es un corte de conexión). */
+  | { t: 'cierra' }
+  /** El anfitrión se va de viaje en avioneta y se lleva a todos. */
+  | { t: 'viaje'; text: string };
 
 export const MAX_CHAT = 140;
 
@@ -75,7 +83,8 @@ function isPose(v: unknown): v is Pose {
 
 function isSnapshot(v: unknown): v is Snapshot {
   const list = (x: unknown) => x === undefined || Array.isArray(x);
-  return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots);
+  const spot = (x: unknown) => x === undefined || (Array.isArray(x) && x.length === 2 && x.every(Number.isInteger));
+  return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots) && spot(v.spawn);
 }
 
 export function isGift(v: unknown): v is GiftItem {
@@ -106,6 +115,10 @@ export function parseMessage(raw: unknown): Message | null {
       return isId(raw.id) && GESTURES.includes(raw.g as Gesture) ? (raw as Message) : null;
     case 'regalo':
       return isId(raw.from) && isId(raw.to) && isGift(raw.item) ? (raw as Message) : null;
+    case 'cierra':
+      return raw as Message;
+    case 'viaje':
+      return typeof raw.text === 'string' && raw.text.length <= 80 ? (raw as Message) : null;
     default:
       return null;
   }

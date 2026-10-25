@@ -155,7 +155,8 @@ export class RemotePlayers {
     const p = new RemotePlayer(info);
     this.players.set(info.id, p);
     this.group.add(p.group);
-    this.tags.add(p, 'name-tag player-tag');
+    // A los amigos se les ve el nombre desde lejos, para encontrarlos por la isla.
+    this.tags.add(p, 'name-tag player-tag', 48);
   }
 
   remove(id: string) {
