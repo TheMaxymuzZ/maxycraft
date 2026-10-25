@@ -19,6 +19,8 @@ export interface SaveData {
   branches?: { day: string; trees: string[] };
   /** Desde la v0.4: amistad y último día de charla y regalo de cada vecino. */
   villagers?: Record<string, VillagerMemory>;
+  /** Desde la v0.5: bayas ahorradas. */
+  wallet?: number;
 }
 
 // El navegador puede negar el almacenamiento (modo privado, cookies bloqueadas):

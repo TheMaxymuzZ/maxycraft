@@ -159,3 +159,38 @@ kbd {
   font: 800 15px var(--body); padding: 8px 16px; border-radius: 18px; border: 2px solid #e2d6b4; background: #fff8e2; color: var(--ink); cursor: pointer;
 }
 #dialog-choices button:hover, #dialog-choices button:focus-visible { background: #ffe9a8; border-color: #e0b84a; outline: none; }
+
+#wallet { margin-top: 6px; font: 700 18px var(--display); display: flex; align-items: center; gap: 6px; }
+#wallet i {
+  width: 18px; height: 18px; border-radius: 50% 50% 45% 45%; background: #dec48c;
+  box-shadow: inset -3px -3px 0 #b89a5a, inset 4px 4px 0 #7a3c96;
+}
+
+#shop {
+  position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+  background: rgba(30, 50, 30, 0.5); z-index: 5;
+}
+#shop[hidden] { display: none; }
+.shop-panel {
+  width: min(860px, 100%); max-height: 100%; overflow: auto; background: var(--paper); color: var(--ink);
+  border: 4px solid #8b5a35; box-shadow: 8px 8px 0 rgba(0,0,0,.25); padding: 20px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px;
+}
+.shop-panel header, .shop-panel footer { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.shop-panel h2 { margin: 0; font: 700 26px var(--display); color: #8b5a35; }
+.shop-panel h3 { margin: 0 0 8px; font: 700 18px var(--display); color: var(--grass-deep); }
+.shop-panel header p { margin: 0; font-weight: 800; }
+.shop-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.shop-list li { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; }
+.shop-list li.empty { display: block; color: #6b7466; }
+.shop-list img { width: 32px; height: 32px; image-rendering: pixelated; }
+.shop-list b { display: block; font-size: 15px; }
+.shop-list small { color: #6b7466; font-size: 12px; }
+.shop-list .actions { display: flex; gap: 4px; }
+.shop-list button, #shop-close {
+  font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: var(--grass); color: #fff; white-space: nowrap;
+}
+.shop-list button:disabled { background: #c9c1a6; cursor: default; }
+.shop-list button:focus-visible, #shop-close:focus-visible { outline: 3px solid var(--dirt); outline-offset: 2px; }
+#shop-close { background: #8b5a35; }
+@media (max-width: 760px) { .shop-panel { grid-template-columns: 1fr; } }

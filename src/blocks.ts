@@ -27,6 +27,7 @@ export enum Block {
   RoofGreen = 23,
   RoofYellow = 24,
   Window = 25,
+  ShopWall = 26,
 }
 
 export const TILE = 16;
@@ -39,7 +40,7 @@ export enum Tile {
   Apple, Orange, Pear, Peach, Cherry,
   PalmSide, PalmTop, PalmLeaves, Coconut,
   Branch, Shell, Conch, Starfish, Axe, Shovel, Pickaxe,
-  Wall, RoofRed, RoofBlue, RoofGreen, RoofYellow, Window,
+  Wall, RoofRed, RoofBlue, RoofGreen, RoofYellow, Window, ShopWall, Berry,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. */
@@ -86,11 +87,12 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.RoofGreen]: cube('Tejado verde', Tile.RoofGreen),
   [Block.RoofYellow]: cube('Tejado amarillo', Tile.RoofYellow),
   [Block.Window]: cube('Ventana', Tile.Window, Tile.Window, Tile.Window, true),
+  [Block.ShopWall]: cube('Pared de madera', Tile.ShopWall),
 };
 
-/** Bloques de las casas de los vecinos: no se pueden romper. */
+/** Bloques de construcción: dentro de las parcelas de vecinos y tienda no se pueden romper. */
 export const HOUSE_BLOCKS: readonly Block[] = [
-  Block.Wall, Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow, Block.Window,
+  Block.Wall, Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow, Block.Window, Block.ShopWall, Block.Planks,
 ];
 export const ROOFS = [Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow] as const;
 
@@ -471,6 +473,29 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   roof(Tile.RoofBlue, [76, 128, 206]);
   roof(Tile.RoofGreen, [86, 168, 98]);
   roof(Tile.RoofYellow, [232, 186, 64]);
+  paintTile(ctx, Tile.ShopWall, (x, y, r) => {
+    if (x % 4 === 0) return [120, 86, 52];
+    return y % 8 === 0 ? [150, 110, 68] : pick(r, [[176, 128, 80], [168, 122, 76], [184, 136, 86]]);
+  });
+  // Bolsa de bayas, la moneda de la isla.
+  paintSprite(ctx, Tile.Berry, [
+    '................',
+    '.......ss.......',
+    '......s..s......',
+    '.....bbbbbb.....',
+    '....bbbbbbbb....',
+    '...bbbbbbbbbb...',
+    '...bbbppbbbbb...',
+    '..bbbpppppbbbb..',
+    '..bbbppppppbbb..',
+    '..bbbbppppbbbb..',
+    '..bbbbbbbbbbbb..',
+    '...bbbbbbbbbb...',
+    '....bbbbbbbb....',
+    '................',
+    '................',
+    '................',
+  ], { s: [96, 140, 60], b: [222, 196, 140], p: [120, 60, 150] });
   paintTile(ctx, Tile.Window, (x, y) => {
     if (x === 0 || y === 0 || x === 15 || y === 15 || x === 7 || x === 8 || y === 7 || y === 8) return [140, 104, 66];
     return null;

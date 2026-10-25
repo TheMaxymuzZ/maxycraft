@@ -47,8 +47,9 @@ const CROSS_QUADS = [
 const FACE_SHADE = [0.8, 0.8, 0.55, 1, 0.9, 0.9];
 const AO_CURVE = [0.45, 0.65, 0.82, 1];
 
-/** Parcela con la casa de un vecino. La puerta mira hacia +z. */
+/** Parcela con la casa de un vecino o la tienda. La puerta mira hacia +z. */
 export interface Plot {
+  kind: 'house' | 'shop';
   x: number;
   z: number;
   /** Altura del suelo (bloque de arriba del terreno). */
@@ -79,7 +80,7 @@ export class World {
     for (const [k, list] of Object.entries(edits)) {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
     }
-    this.plots = this.findPlots(3);
+    this.plots = this.findPlots(4);
   }
 
   /** Busca sitios llanos para las casas, lejos del río, de la playa y entre sí. */
@@ -103,12 +104,16 @@ export class World {
         }
       }
       if (!flat) continue;
-      plots.push({ x, z, y: h, roof: ROOFS[plots.length % ROOFS.length], door: [x, h + 1, z + 3] });
+      // La primera parcela que se encuentra es para la tienda.
+      const kind = plots.length === 0 ? 'shop' : 'house';
+      const roof = kind === 'shop' ? Block.RoofGreen : ROOFS[(plots.length - 1) % ROOFS.length];
+      plots.push({ kind, x, z, y: h, roof, door: [x, h + 1, z + 3] });
     }
     return plots;
   }
 
-  private plotAt(x: number, z: number, margin = 0): Plot | undefined {
+  /** Parcela que contiene (x, z), o undefined. */
+  plotAt(x: number, z: number, margin = 0): Plot | undefined {
     const r = PLOT_RADIUS + margin;
     return this.plots?.find((p) => Math.abs(p.x - x) <= r && Math.abs(p.z - z) <= r);
   }
@@ -241,7 +246,9 @@ export class World {
       for (let dx = -2; dx <= 2; dx++) {
         put(x + dx, y, z + dz, Block.Planks);
         const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
-        for (let h = 1; h <= 3; h++) put(x + dx, y + h, z + dz, edge ? Block.Wall : Block.Air);
+        // La tienda es de madera, para distinguirla de las casas.
+        const wall = p.kind === 'shop' ? Block.ShopWall : Block.Wall;
+        for (let h = 1; h <= 3; h++) put(x + dx, y + h, z + dz, edge ? wall : Block.Air);
       }
     }
     // Puerta (hueco de 2 de alto) y ventanas a los lados y detrás.
