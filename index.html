@@ -112,6 +112,21 @@
         <footer><button type="button" id="workbench-close">Cerrar</button> <span>Aprende recetas nuevas con los vecinos y con las botellas de la playa · <kbd>Esc</kbd> para volver</span></footer>
       </div>
     </div>
+    <div id="storage" hidden>
+      <div class="shop-panel storage-panel">
+        <header>
+          <h2 id="storage-title">Cofre</h2>
+          <p>Clic en un objeto para pasarlo de un lado a otro</p>
+        </header>
+        <div id="storage-box" class="storage-grid"></div>
+        <h3>Bolsillos</h3>
+        <div id="storage-pockets" class="storage-grid"></div>
+        <footer>
+          <span class="storage-actions"><button type="button" id="storage-put-all">Guardar la mochila</button> <button type="button" id="storage-take-all">Cogerlo todo</button></span>
+          <span><button type="button" id="storage-close">Cerrar</button> <kbd>Esc</kbd> para volver</span>
+        </footer>
+      </div>
+    </div>
     <div id="missions" hidden>
       <div class="shop-panel missions-panel">
         <header>
@@ -182,6 +197,11 @@
             <legend>Calidad gráfica</legend>
             <div class="quality-choices" id="opt-quality"></div>
             <p class="option-hint" id="opt-quality-hint"></p>
+          </fieldset>
+          <fieldset class="option quality">
+            <legend>Duración del día</legend>
+            <div class="quality-choices" id="opt-day"></div>
+            <p class="option-hint">Cuánto tarda un día en la isla. Cada estación dura una semana de juego.</p>
           </fieldset>
           <fieldset class="option access">
             <legend>Accesibilidad</legend>

@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.4',
+    title: 'Cofres y días de juego',
+    items: [
+      'Cajas, cofres y baúles para guardar cosas (en la mesa de trabajo). Clic derecho para abrirlos.',
+      'El día de la isla dura 24 minutos y cada estación, una semana de juego. El tiempo solo pasa mientras juegas.',
+      'En Opciones → Duración del día puedes elegir 12, 24 o 48 minutos, o la hora real como antes.',
+      'Cada día nuevo hay conchas, botella y tienda nuevas, y las fiestas siguen llegando.',
+    ],
+  },
+  {
     version: '2.3',
     title: 'Más bloques y menús ordenados',
     items: [

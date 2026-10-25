@@ -33,9 +33,18 @@ export class Shop {
   private sellEl = document.querySelector<HTMLUListElement>('#shop-sell')!;
   private icons = new Map<string, string>();
   /** Lo que hay a la venta hoy: las herramientas, lo del huerto y los billetes siempre, tres muebles y cinco cosas más. */
-  readonly stock: string[];
+  stock: string[] = [];
 
   constructor(private ctx: ShopContext) {
+    this.restock();
+    ctx.inventory.onChange(() => {
+      if (!this.el.hidden) this.render();
+    });
+  }
+
+  /** Cambia lo que hay a la venta: al abrir el juego y cada día nuevo. */
+  restock() {
+    const ctx = this.ctx;
     const daily = (ids: string[]) => ids.sort((a, b) => hash01(ctx.today + a) - hash01(ctx.today + b));
     const tools = CATALOG.filter((id) => itemDef(id).tool);
     const seasonal = CATALOG.filter((id) => itemDef(id).holiday && itemDef(id).holiday === ctx.holiday);
@@ -43,9 +52,6 @@ export class Shop {
     const always = CATALOG.filter((id) => itemDef(id).always);
     const rest = daily(CATALOG.filter((id) => !itemDef(id).tool && !itemDef(id).furniture && !itemDef(id).always));
     this.stock = [...seasonal, ...tools, ...always, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
-    ctx.inventory.onChange(() => {
-      if (!this.el.hidden) this.render();
-    });
   }
 
   /**

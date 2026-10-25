@@ -18,7 +18,7 @@ describe('opciones', () => {
 
   it('corrige valores fuera de rango o raros', () => {
     const s = normalizeSettings({ music: 250, sfx: -4, sensitivity: 'mucha', quality: 'ultra', fov: 10 }, false);
-    expect(s).toEqual({ music: 100, sfx: 0, sensitivity: 1, quality: 'media', fov: 60, keys: defaultKeys(), bigText: false, colorblind: false });
+    expect(s).toEqual({ music: 100, sfx: 0, sensitivity: 1, quality: 'media', fov: 60, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24 });
   });
 
   it('las opciones de antes de la v2.0 siguen valiendo', () => {

@@ -10,7 +10,7 @@ import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, 
 import { Breaker } from './breaking';
 import { Birds } from './birds';
 import { Bugs } from './bugs';
-import { dailyRandom, dayKey, gameDate as dateWith, timeOverrides } from './clock';
+import { GameClock, dailyRandom, dayKey, timeOverrides } from './clock';
 import { Clouds } from './clouds';
 import { Collection } from './collection';
 import { calendar, creature } from './creatures';
@@ -48,6 +48,7 @@ import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings } from './setti
 import { Sky } from './sky';
 import { TouchControls } from './touch';
 import { fellTree, findTrunk } from './trees';
+import { CONTAINERS, Storage, StoragePanel, isContainer } from './storage';
 import { Orchard, canPlantOn, isSapling, treeKindOfFruit, treeKindOfSapling } from './orchard';
 import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel';
@@ -67,18 +68,13 @@ let renderRadius = RENDER_RADIUS[settings.quality];
 const REACH = 6;
 const fogNear = () => renderRadius * 16 * 0.55;
 const fogFar = () => renderRadius * 16 * 0.95;
-/** Días reales que tarda en volver a salir la fruta de un árbol, como en Animal Crossing. */
+/** Días de juego que tarda en volver a salir la fruta de un árbol, como en Animal Crossing. */
 const FRUIT_REGROW_DAYS = 3;
 const SHELLS_PER_DAY = 7;
 
 // Para probar otras horas y días: ?hora=21.5 y ?fecha=2026-12-24
 const params = new URLSearchParams(location.search);
 const overrides = timeOverrides(params);
-const gameDate = () => dateWith(overrides);
-const startDate = gameDate();
-const season = seasonOf(startDate);
-const holiday = holidayOf(startDate);
-calendar.month = startDate.getMonth() + 1;
 
 // --- Escena ---
 
@@ -101,9 +97,9 @@ const sky = new Sky(scene, hemi, sunLight);
 
 const atlas = createAtlasCanvas();
 paintFurnitureIcons(atlas);
-applySeason(atlas, season);
+const atlasTexture = createAtlasTexture(atlas);
 const material = new THREE.MeshLambertMaterial({
-  map: createAtlasTexture(atlas),
+  map: atlasTexture,
   vertexColors: true,
   alphaTest: 0.5,
   side: THREE.DoubleSide, // las plantas se ven por los dos lados
@@ -138,6 +134,15 @@ const seed = joined?.snapshot.seed ?? save?.seed ?? Math.floor(Math.random() * 1
 const trip = save ? loadTrip(activeSlot()) : null;
 /** Vecinos invitados desde las islas misteriosas, que viven (o vivirán) en la isla de casa. */
 const guests: Guest[] = (save?.guests ?? []).map((g) => ({ ...g }));
+/** El reloj de la isla: días de unos minutos y estaciones de una semana de juego (v2.4). */
+const clock = new GameClock(joined?.snapshot.clock ?? save?.clock, overrides, settings.dayLength);
+const gameDate = () => clock.date();
+const startDate = gameDate();
+let season = seasonOf(startDate);
+let holiday = holidayOf(startDate);
+calendar.month = startDate.getMonth() + 1;
+applySeason(atlas, season);
+
 const sound = new Sound(seed);
 sound.season = season;
 const world = joined
@@ -166,22 +171,28 @@ scene.add(waterfalls.group);
 const birds = new Birds();
 scene.add(birds.group);
 
-const today = dayKey(startDate);
+let today = dayKey(startDate);
 
 // Árboles plantados con brotes: crecen con los días y su fruta también vuelve a salir.
 const orchard = new Orchard(trip ? [] : save?.orchard);
 
 // La fruta cogida hace días vuelve a crecer en el mismo sitio.
 const harvested: Record<string, number> = { ...(save?.harvested ?? {}) };
-for (const [k, t] of Object.entries(harvested)) {
-  if (Date.now() - t < FRUIT_REGROW_DAYS * 86_400_000) continue;
-  const [x, y, z] = k.split(',').map(Number);
-  const planted = orchard.fruitAt(x, y, z);
-  if (planted) {
-    if (world.getBlock(x, y, z) === Block.Air) sync.setBlock(x, y, z, planted);
-  } else sync.clearEdit(x, y, z);
-  delete harvested[k];
+/** Vuelve a poner la fruta cogida hace FRUIT_REGROW_DAYS días (o más). */
+function regrowFruit() {
+  const now = clock.dayNumber();
+  for (const [k, t] of Object.entries(harvested)) {
+    // Antes de la v2.4 se guardaba la hora real en milisegundos; también vale si se cambió el reloj.
+    if (t <= now && now - t < FRUIT_REGROW_DAYS) continue;
+    const [x, y, z] = k.split(',').map(Number);
+    const planted = orchard.fruitAt(x, y, z);
+    if (planted) {
+      if (world.getBlock(x, y, z) === Block.Air) sync.setBlock(x, y, z, planted);
+    } else sync.clearEdit(x, y, z);
+    delete harvested[k];
+  }
 }
+if (!joined) regrowFruit();
 let bottleTaken = save?.bottle?.day === today && save.bottle.taken;
 const shellsTaken = new Set(save?.shells?.day === today ? save.shells.taken : []);
 const branchTrees = new Set(save?.branches?.day === today ? save.branches.trees : []);
@@ -232,17 +243,10 @@ if (world.playerPlot && home.level > 0) world.playerPlot.roof = ROOFS[home.roof]
 const furniture = new Furniture(trip ? [] : save?.furniture ?? []);
 scene.add(furniture.group);
 
-// Adornos de las fiestas: calabazas en las puertas o un árbol junto a la tienda. No se guardan.
+// Adornos de las fiestas (se ponen con placeHolidayDecor).
 const decor = new Furniture([]);
 scene.add(decor.group);
-for (const p of world.plots) {
-  const [dx, dy, dz] = p.door;
-  if (holiday?.id === 'halloween' && p.kind !== 'player') {
-    decor.place('calabaza', dx - 2, dy, dz, 0);
-    decor.place('calabaza', dx + 2, dy, dz, 0);
-  }
-  if (holiday?.id === 'navidad' && p.kind === 'shop') decor.place('arbol_navidad', dx + 3, dy, dz + 1, 0);
-}
+placeHolidayDecor();
 // En la tienda de campaña hay una cama para empezar.
 if (!save && !joined && world.playerPlot) furniture.place('cama', world.playerPlot.x, world.playerPlot.y + 1, world.playerPlot.z, 0);
 
@@ -326,6 +330,7 @@ function persist() {
     recipes: [...workbench.known],
     guests,
     missions: missions.serialize(),
+    clock: clock.serialize(),
     savedAt: 0,
   } : {
     version: 1,
@@ -348,9 +353,11 @@ function persist() {
     bottle: { day: today, taken: bottleTaken },
     farm: farm.serialize(),
     orchard: orchard.serialize(),
+    storage: storage.serialize(),
     animals: animals.serialize(),
     guests,
     missions: missions.serialize(),
+    clock: clock.serialize(),
     savedAt: 0,
   };
   const text = JSON.stringify(data);
@@ -395,13 +402,15 @@ scene.add(bugs.group);
 const fishing = new Fishing(world);
 scene.add(fishing.bobber);
 
-// Cada día real aparecen conchas nuevas en la playa.
-{
+// Cada día aparecen conchas nuevas en la playa.
+function spawnBeachFinds() {
+  drops.clear('playa');
   const random = dailyRandom(seed, today);
   world.beachSpots(SHELLS_PER_DAY, random).forEach(([x, y, z], i) => {
     if (shellsTaken.has(i)) return;
     const id = SHELLS[Math.floor(random() * SHELLS.length)];
     drops.spawn(id, x + 0.5, y + 0.3, z + 0.5, {
+      tag: 'playa',
       onPickup: () => {
         shellsTaken.add(i);
         record('concha');
@@ -411,9 +420,10 @@ scene.add(fishing.bobber);
   // Y una botella con una receta dentro.
   const [bottle] = world.beachSpots(1, random);
   if (bottle && !bottleTaken) {
-    drops.spawn('botella', bottle[0] + 0.5, bottle[1] + 0.3, bottle[2] + 0.5, { onPickup: () => (bottleTaken = true) });
+    drops.spawn('botella', bottle[0] + 0.5, bottle[1] + 0.3, bottle[2] + 0.5, { tag: 'playa', onPickup: () => (bottleTaken = true) });
   }
 }
+spawnBeachFinds();
 
 // --- Interfaz ---
 
@@ -442,6 +452,7 @@ function applySettings(s: Settings) {
   camera.fov = s.fov;
   camera.updateProjectionMatrix();
   renderRadius = RENDER_RADIUS[s.quality];
+  clock.dayLength = s.dayLength;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[s.quality]));
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
@@ -500,7 +511,7 @@ function unlockInput() {
 }
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -543,6 +554,27 @@ soundButton.addEventListener('click', (e) => {
 document.querySelector('#inventory-close')!.addEventListener('click', () => closeInventory());
 
 const workbench = new Workbench({ inventory, atlas, toast: (t) => hud.toast(t) }, save?.recipes);
+
+// Cofres, baúles y cajas: lo guardado vive en la partida (en un viaje no se ve lo de casa).
+const storage = new Storage(trip ? {} : save?.storage);
+const storagePanel = new StoragePanel(inventory, atlas, (t) => hud.toast(t));
+
+function openStorage(x: number, y: number, z: number, b: number) {
+  const c = CONTAINERS[b as Block]!;
+  panel = 'storage';
+  breaker.active = false;
+  storagePanel.open(c.name, storage.open(x, y, z, c.size));
+  sound.place();
+  unlockInput();
+}
+
+function closeStorage() {
+  storagePanel.close();
+  panel = null;
+  lockInput();
+  persist();
+}
+document.querySelector('#storage-close')!.addEventListener('click', closeStorage);
 
 function openWorkbench() {
   panel = 'workbench';
@@ -600,11 +632,15 @@ const dialog = new Dialog({
   },
   voice: (v) => sound.voice(VOICES[v.profile.species] ?? 500),
   learnRecipe: () => workbench.learnRandom(),
-  holiday,
+  get holiday() {
+    return holiday;
+  },
   isBirthday: (v) => v.isBirthday(gameDate()),
   inventory,
   selectedSlot: () => hud.selected,
-  today,
+  get today() {
+    return today;
+  },
   get hour() {
     return currentHour;
   },
@@ -713,9 +749,13 @@ document.querySelector('#collection-close')!.addEventListener('click', closeColl
 const shop = new Shop({
   inventory,
   atlas,
-  today,
+  get today() {
+    return today;
+  },
   islandFruit: fruitItemFor(world.fruit) ?? '',
-  holiday: holiday?.id ?? null,
+  get holiday() {
+    return holiday?.id ?? null;
+  },
   getWallet: () => wallet,
   setWallet,
   toast: (t) => hud.toast(t),
@@ -788,6 +828,10 @@ window.addEventListener('keydown', (e) => {
   }
   if (panel === 'workbench') {
     if (e.code === 'Escape' || e.code === keys.inventory) closeWorkbench();
+    return;
+  }
+  if (panel === 'storage') {
+    if (e.code === 'Escape' || e.code === keys.inventory) closeStorage();
     return;
   }
   if (e.code === keys.collection && isPlaying()) {
@@ -869,6 +913,7 @@ function onInputChange() {
     if (panel === 'collection') collection.close();
     if (panel === 'workbench') workbench.close();
     if (panel === 'missions') missionsPanel.close();
+    if (panel === 'storage') storagePanel.close();
     panel = null;
     return;
   }
@@ -933,6 +978,8 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
     drops.spawn(t?.sapling ?? (b === Block.PalmSapling ? 'brote_palmera' : treeKindOfFruit(world.fruit)?.sapling ?? 'brote_manzano'), x + 0.5, y + 0.5, z + 0.5, { burst });
     return;
   }
+  // Al romper un cofre sale todo lo que tenía dentro.
+  if (isContainer(b)) for (const s of storage.empty(x, y, z)) for (let i = 0; i < s.count; i++) drops.spawn(s.id, x + 0.5, y + 0.5, z + 0.5, { burst: true });
   // Las dos mitades de la puerta van juntas.
   if (isDoor(b)) {
     const other = isDoorTop(b) ? y - 1 : y + 1;
@@ -953,7 +1000,7 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
     furniture.remove(above);
     drops.spawn(above.id, x + 0.5, y + 1.3, z + 0.5, { burst: true });
   }
-  if (isFruit(b)) harvested[posKey(x, y, z)] = Date.now();
+  if (isFruit(b)) harvested[posKey(x, y, z)] = clock.dayNumber();
   const id = dropFor(b);
   if (id) drops.spawn(id, x + 0.5, y + 0.5, z + 0.5, { burst });
 }
@@ -1154,6 +1201,10 @@ function useItem() {
 
   if (target === Block.Workbench) {
     openWorkbench();
+    return;
+  }
+  if (isContainer(target)) {
+    openStorage(bx, by, bz, target);
     return;
   }
 
@@ -1400,6 +1451,7 @@ const net = joined?.session
     seed: world.seed,
     edits: world.exportEdits(),
     options: trip ? { mystery: { kind: trip.kind, fruit: trip.fruit } } : { guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) },
+    clock: clock.serialize(),
   }), netEvents) : null);
 if (net) {
   // Los que ya estaban en la isla al entrar.
@@ -1417,13 +1469,64 @@ const timeFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-d
 const dateFormat = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'short' });
 let lastClock = '';
 const gloomColor = new THREE.Color();
-const seasonText = season.charAt(0).toUpperCase() + season.slice(1);
 function updateClock(now: Date) {
   const t = timeFormat.format(now);
   if (t === lastClock) return;
   lastClock = t;
   clockTime.textContent = t;
+  const seasonText = season.charAt(0).toUpperCase() + season.slice(1);
   clockDate.textContent = `${dateFormat.format(now)} · ${holiday ? holiday.name : seasonText}`;
+}
+
+/** Adornos de las fiestas: calabazas en las puertas o un árbol junto a la tienda. No se guardan. */
+function placeHolidayDecor() {
+  decor.clear();
+  for (const p of world.plots) {
+    const [dx, dy, dz] = p.door;
+    if (holiday?.id === 'halloween' && p.kind !== 'player') {
+      decor.place('calabaza', dx - 2, dy, dz, 0);
+      decor.place('calabaza', dx + 2, dy, dz, 0);
+    }
+    if (holiday?.id === 'navidad' && p.kind === 'shop') decor.place('arbol_navidad', dx + 3, dy, dz + 1, 0);
+  }
+}
+
+/**
+ * Empieza un día nuevo de juego mientras se juega: conchas y botella nuevas, la tienda cambia,
+ * la fruta vuelve a salir y, si toca, cambian la estación y las fiestas.
+ */
+function newDay() {
+  const date = gameDate();
+  today = dayKey(date);
+  calendar.month = date.getMonth() + 1;
+  shellsTaken.clear();
+  branchTrees.clear();
+  bottleTaken = false;
+  spawnBeachFinds();
+  shop.restock();
+  if (!joined) regrowFruit();
+  const nextSeason = seasonOf(date);
+  if (nextSeason !== season) {
+    season = nextSeason;
+    sound.season = season;
+    // Se repinta el atlas desde cero con los colores de la estación nueva.
+    const fresh = createAtlasCanvas();
+    paintFurnitureIcons(fresh);
+    applySeason(fresh, season);
+    const ctx = atlas.getContext('2d')!;
+    ctx.clearRect(0, 0, atlas.width, atlas.height);
+    ctx.drawImage(fresh, 0, 0);
+    atlasTexture.needsUpdate = true;
+    hud.toast(`¡Ha llegado ${season === 'otoño' ? 'el otoño' : season === 'invierno' ? 'el invierno' : season === 'verano' ? 'el verano' : 'la primavera'}!`);
+  }
+  const nextHoliday = holidayOf(date);
+  if (nextHoliday?.id !== holiday?.id) {
+    holiday = nextHoliday;
+    placeHolidayDecor();
+    if (holiday) hud.toast(`¡Hoy es ${holiday.name}!`);
+  }
+  lastClock = '';
+  persist();
 }
 
 // --- Bucle principal ---
@@ -1469,6 +1572,8 @@ function frame(now: number) {
   breaker.update(dt, breaker.active ? currentHit()?.block ?? null : null);
   updateSteps(dt);
 
+  // El reloj de la isla solo corre mientras se juega (no en la portada ni en pausa).
+  if (menu.hidden && clock.tick(dt)) newDay();
   const date = gameDate();
   const hour = Sky.hourOf(date);
   currentHour = hour;
@@ -1583,6 +1688,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, sync, net, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, sync, net, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

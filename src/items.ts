@@ -86,6 +86,10 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.PlanksStairs, 'escalera_madera', 10],
   [Block.CobbleStairs, 'escalera_adoquin', 15],
   [Block.BrickStairs, 'escalera_ladrillo', 20],
+  // Almacenamiento (v2.4).
+  [Block.Chest, 'cofre', 60],
+  [Block.Trunk, 'baul', 400],
+  [Block.Crate, 'caja', 30],
 ];
 for (const [block, id, sell, buy] of PLACEABLE) {
   add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block, sell, buy });
@@ -263,6 +267,9 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.WhiteFence]: { time: 0.8, tool: 'axe' },
   [Block.Gate]: { time: 0.8, tool: 'axe' },
   [Block.Brick]: { time: 1.5, tool: 'pickaxe', needsTool: true },
+  [Block.Chest]: { time: 1.2, tool: 'axe' },
+  [Block.Trunk]: { time: 1.2, tool: 'axe' },
+  [Block.Crate]: { time: 0.8, tool: 'axe' },
   [Block.Cobble]: { time: 1.5, tool: 'pickaxe', needsTool: true },
   [Block.PolishedStone]: { time: 1.5, tool: 'pickaxe', needsTool: true },
   [Block.Glass]: { time: 0.4 },
@@ -371,10 +378,14 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'escalera_madera', count: 4, needs: [['tablones', 6]] },
   { result: 'escalera_adoquin', count: 4, needs: [['adoquin', 6]] },
   { result: 'escalera_ladrillo', count: 4, needs: [['ladrillo', 6]] },
+  // Almacenamiento (v2.4).
+  { result: 'caja', count: 1, needs: [['tablones', 4]] },
+  { result: 'cofre', count: 1, needs: [['tablones', 8]] },
+  { result: 'baul', count: 1, needs: [['tablones', 8], ['pepita_hierro', 1]] },
 ];
 
 /** Recetas de construcción que se saben sin aprenderlas. */
-const BUILDING_DIY = ['ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo'];
+const BUILDING_DIY = ['caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo'];
 
 /** Las que ya se saben al empezar. */
 export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'puerta', 'puerta_valla', ...BUILDING_DIY];

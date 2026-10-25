@@ -61,6 +61,8 @@ export enum Block {
   PlanksStairs = 72, PlanksStairs1 = 73, PlanksStairs2 = 74, PlanksStairs3 = 75,
   CobbleStairs = 76, CobbleStairs1 = 77, CobbleStairs2 = 78, CobbleStairs3 = 79,
   BrickStairs = 80, BrickStairs1 = 81, BrickStairs2 = 82, BrickStairs3 = 83,
+  // Almacenamiento (v2.4).
+  Chest = 84, Trunk = 85, Crate = 86,
 }
 
 export const TILE = 16;
@@ -87,6 +89,7 @@ export enum Tile {
   Ticket,
   DoorLower, DoorUpper, DoorIcon, GateIcon, Sapling, PalmSapling,
   Brick, Cobble, PolishedStone, Glass, PalmPlanks, LightBlock,
+  ChestFront, ChestTop, TrunkFront, TrunkTop, CrateSide,
 }
 
 /**
@@ -199,6 +202,9 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.CobbleSlab]: slab('Losa de adoquín', Tile.Cobble),
   [Block.BrickSlab]: slab('Losa de ladrillo', Tile.Brick),
   [Block.PolishedSlab]: slab('Losa de piedra pulida', Tile.PolishedStone),
+  [Block.Chest]: cube('Cofre', Tile.ChestFront, Tile.ChestTop),
+  [Block.Trunk]: cube('Baúl', Tile.TrunkFront, Tile.TrunkTop),
+  [Block.Crate]: cube('Caja', Tile.CrateSide),
 };
 /** Material de cada juego de escaleras: su primer bloque (mirando a -z), nombre y textura. */
 export const STAIRS: [Block, string, Tile][] = [
@@ -769,6 +775,23 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     const d = Math.abs(x - 7.5) + Math.abs(y - 7.5);
     return d < 4 ? [255, 250, 220] : d < 8 ? [255, 228, 150] : pick(r, [[246, 200, 110], [240, 190, 96]]);
   });
+  // Cofre, baúl y caja (v2.4).
+  const box = (tile: Tile, wood: RGB[], band: RGB, latch: RGB | null, top: boolean) => paintTile(ctx, tile, (x, y, r) => {
+    if (x === 0 || y === 0 || x === 15 || y === 15) return band;
+    if (!top && y === 6) return band;
+    if (latch && !top && x >= 7 && x <= 8 && y >= 5 && y <= 8) return latch;
+    return y % 5 === 4 && !top ? [wood[0][0] - 30, wood[0][1] - 26, wood[0][2] - 20] : pick(r, wood);
+  });
+  const OAK: RGB[] = [[176, 124, 74], [166, 116, 68], [186, 134, 82]];
+  box(Tile.ChestFront, OAK, [110, 74, 42], [230, 194, 84], false);
+  box(Tile.ChestTop, OAK, [110, 74, 42], null, true);
+  const PAINTED: RGB[] = [[70, 120, 170], [64, 112, 160], [78, 130, 180]];
+  box(Tile.TrunkFront, PAINTED, [176, 140, 70], [236, 206, 110], false);
+  box(Tile.TrunkTop, PAINTED, [176, 140, 70], null, true);
+  paintTile(ctx, Tile.CrateSide, (x, y, r) => {
+    if (x <= 1 || y <= 1 || x >= 14 || y >= 14 || x === y || x === 15 - y) return [140, 100, 60];
+    return pick(r, [[214, 178, 120], [204, 168, 112], [222, 188, 130]]);
+  });
   // Brotes: un tallito con hojas; el de palmera, con hojas largas.
   paintSprite(ctx, Tile.Sapling, [
     '................', '................', '.....ll..ll.....', '....lLLllLLl....', '....lLLLLLLl....', '.....lLLLLl.....',
@@ -1118,7 +1141,7 @@ export function blockIconTile(b: Block): number {
   if (b === Block.WhiteFence) return Tile.WhiteFenceIcon;
   if (isDoor(b)) return Tile.DoorIcon;
   if (isGate(b)) return Tile.GateIcon;
-  if (def.shape === 'slab' || def.shape === 'stairs') return def.tiles[0];
+  if (def.shape === 'slab' || def.shape === 'stairs' || b === Block.Chest || b === Block.Trunk) return def.tiles[0];
   return def.tiles[b === Block.Grass || def.shape === 'cross' ? 0 : 1];
 }
 

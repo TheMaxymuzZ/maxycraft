@@ -1,4 +1,5 @@
 import { CHANGELOG } from './changelog';
+import { DAY_LENGTHS } from './clock';
 import { ACTIONS, type Action, bindKey, canBind, defaultKeys, keyLabel } from './keys';
 import { QUALITIES, type Settings, defaultSettings, saveSettings } from './settings';
 
@@ -11,6 +12,7 @@ export class Menu {
   private qualityHint = document.querySelector<HTMLParagraphElement>('#opt-quality-hint')!;
   private sliders: { key: 'music' | 'sfx' | 'sensitivity' | 'fov'; input: HTMLInputElement; out: HTMLOutputElement; format: (n: number) => string }[];
   private qualityInputs: HTMLInputElement[] = [];
+  private dayInputs: HTMLInputElement[] = [];
   private bigText = document.querySelector<HTMLInputElement>('#opt-bigtext')!;
   private colorblind = document.querySelector<HTMLInputElement>('#opt-colorblind')!;
   private keysList = document.querySelector<HTMLUListElement>('#keys-list')!;
@@ -62,6 +64,23 @@ export class Menu {
       label.append(input, q.name);
       choices.appendChild(label);
       this.qualityInputs.push(input);
+    }
+
+    const days = document.querySelector<HTMLDivElement>('#opt-day')!;
+    for (const l of DAY_LENGTHS) {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'day-length';
+      input.value = String(l.minutes);
+      input.id = `opt-day-${l.minutes}`;
+      input.addEventListener('change', () => {
+        this.settings.dayLength = l.minutes;
+        this.changed();
+      });
+      label.append(input, l.name);
+      days.appendChild(label);
+      this.dayInputs.push(input);
     }
 
     this.bigText.addEventListener('change', () => {
@@ -151,6 +170,7 @@ export class Menu {
       s.out.textContent = s.format(this.settings[s.key]);
     }
     for (const input of this.qualityInputs) input.checked = input.value === this.settings.quality;
+    for (const input of this.dayInputs) input.checked = Number(input.value) === this.settings.dayLength;
     this.qualityHint.textContent = QUALITIES.find((q) => q.id === this.settings.quality)!.hint;
     this.bigText.checked = this.settings.bigText;
     this.colorblind.checked = this.settings.colorblind;
