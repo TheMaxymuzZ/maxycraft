@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, ROOFS, isCross, isFence, isFullBlock, isOpaque, isSolid } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, ROOFS, SWAYING, isCross, isFence, isFullBlock, isOpaque, isSolid } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 
 export const CHUNK = 16;
@@ -40,6 +40,8 @@ const FACES = [
 ] as const;
 
 // Plantas: dos planos cruzados en diagonal, con las mismas esquinas [x, y, z, u, v].
+const MEADOW_FLOWERS = [Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink, Block.TallGrass];
+
 const CROSS_QUADS = [
   [[0.15, 0, 0.15, 0, 0], [0.85, 0, 0.85, 1, 0], [0.15, 1, 0.15, 0, 1], [0.85, 1, 0.85, 1, 1]],
   [[0.15, 0, 0.85, 0, 0], [0.85, 0, 0.15, 1, 0], [0.15, 1, 0.85, 0, 1], [0.85, 1, 0.15, 1, 1]],
@@ -83,6 +85,15 @@ export type Edits = Record<string, Record<number, number>>;
 /** La fruta típica de la isla de esa semilla. */
 export function islandFruit(seed: number): Block {
   return FRUITS[Math.floor(columnRandom(1, 1, seed) * FRUITS.length)];
+}
+
+export interface WaterfallSpot {
+  x: number;
+  z: number;
+  top: number;
+  bottom: number;
+  dx: number;
+  dz: number;
 }
 
 export class World {
@@ -285,12 +296,20 @@ export class World {
           else b = Block.Stone;
           d[index(x, y, z)] = b;
         }
-        // Flores y hierba alta sobre el césped.
+        // Flores y hierba alta sobre el césped. Hay zonas especiales: bosquecillos de bambú y praderas de flores.
         if (!beach && h + 1 < HEIGHT && !this.plotAt(wx, wz)) {
           const r = columnRandom(wx, wz, this.seed + 11);
           const patch = fbm(wx / 12, wz / 12, this.seed + 12, 2);
+          const zone = this.zoneAt(wx, wz);
           let plant: Block = Block.Air;
-          if (r < 0.025 && patch > 0.5) {
+          if (zone === 'bambu' && r < 0.2) {
+            // Cañas de 3 a 5 bloques.
+            const tall = Math.min(3 + Math.floor(blockRandom(wx, 13, wz, this.seed) * 3), HEIGHT - h - 1);
+            for (let k = 1; k <= tall; k++) d[index(x, h + k, z)] = Block.Bamboo;
+          } else if (zone === 'pradera' && r < 0.32) {
+            // Otro azar distinto de `r`, que con semillas parecidas sale parecido y saldrían siempre las mismas flores.
+            plant = MEADOW_FLOWERS[Math.floor(blockRandom(wx, 14, wz, this.seed) * MEADOW_FLOWERS.length)];
+          } else if (r < 0.025 && patch > 0.5) {
             plant = [Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite][Math.floor(patch * 30) % 3];
           } else if (r < 0.09) {
             plant = Block.TallGrass;
@@ -445,8 +464,19 @@ export class World {
     return Block.Stone;
   }
 
+  /**
+   * Zonas especiales de la isla, lejos de la playa y del río: bosquecillo de bambú o pradera de flores.
+   * Solo cambian las plantas, no el terreno, así las islas guardadas siguen encajando.
+   */
+  zoneAt(x: number, z: number): 'bambu' | 'pradera' | null {
+    if (this.landMask(x, z) < 0.35 || this.river(x, z) < 6) return null;
+    if (fbm(x / 34, z / 34, this.seed + 21, 2) > 0.66) return 'bambu';
+    if (fbm(x / 40, z / 40, this.seed + 22, 2) > 0.65) return 'pradera';
+    return null;
+  }
+
   private treeAt(x: number, z: number): 'fruit' | 'palm' | null {
-    if (this.plotAt(x, z, 3)) return null;
+    if (this.plotAt(x, z, 3) || this.zoneAt(x, z) === 'bambu') return null;
     const r = columnRandom(x, z, this.seed);
     const h = this.heightAt(x, z);
     if (h === SEA_LEVEL + 1 && r < 0.008) return 'palm';
@@ -574,6 +604,35 @@ export class World {
           const b = this.getBlock(x + dx, y + dy, z + dz);
           if ((FRUITS as readonly number[]).includes(b) || b === Block.Coconut) found.push([x + dx, y + dy, z + dz]);
         }
+      }
+    }
+    return found;
+  }
+
+  /**
+   * Sitios para cascadas: donde el río pasa pegado a un acantilado alto.
+   * Devuelve la columna del acantilado (x, z), su altura (`top`), la del suelo al pie (`bottom`)
+   * y hacia dónde cae el agua (`dx`, `dz`: del acantilado al río).
+   */
+  waterfallSpots(count: number): WaterfallSpot[] {
+    const found: WaterfallSpot[] = [];
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (let tries = 0; tries < 3000 && found.length < count; tries++) {
+      const a = columnRandom(tries, 91, this.seed) * Math.PI * 2;
+      const dist = columnRandom(tries, 92, this.seed) * ISLAND_RADIUS * 0.8;
+      const x = Math.round(Math.cos(a) * dist);
+      const z = Math.round(Math.sin(a) * dist);
+      if (this.river(x, z) >= 2.2 || this.landMask(x, z) < 0.3) continue;
+      for (const [dx, dz] of dirs) {
+        // Mirar hacia fuera del río: orilla y, justo detrás, el acantilado.
+        const cx = x - dx * 3;
+        const cz = z - dz * 3;
+        const top = this.naturalHeight(cx, cz);
+        const bottom = this.naturalHeight(cx + dx, cz + dz);
+        if (top < SEA_LEVEL + 6 || top - bottom < 4 || this.plotAt(cx, cz, 2)) continue;
+        if (found.some((f) => Math.hypot(f.x - x, f.z - z) < 40)) continue;
+        found.push({ x: cx, z: cz, top, bottom, dx, dz });
+        break;
       }
     }
     return found;
@@ -734,6 +793,8 @@ export class World {
     const uvs: number[] = [];
     const colors: number[] = [];
     const indices: number[] = [];
+    /** Vértices de arriba de las plantas, que el viento mueve. */
+    const swaying: number[] = [];
 
     const ox = c.cx * CHUNK;
     const oz = c.cz * CHUNK;
@@ -768,6 +829,7 @@ export class World {
                 uvs.push(u0 + inset + cu * (tileSize - 2 * inset), v0 + inset + cv * (tileSize - 2 * inset));
                 const shade = (cy === 0 ? 0.8 : 1) * light;
                 colors.push(shade, shade, shade);
+                if (cy === 1 && SWAYING.has(b)) swaying.push(positions.length / 3 - 1);
               }
               indices.push(start, start + 1, start + 2, start + 2, start + 1, start + 3);
             }
@@ -848,6 +910,9 @@ export class World {
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const sway = new Float32Array(positions.length / 3);
+    for (const i of swaying) sway[i] = 1;
+    geo.setAttribute('sway', new THREE.BufferAttribute(sway, 1));
     geo.setIndex(indices);
     geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, this.material);
