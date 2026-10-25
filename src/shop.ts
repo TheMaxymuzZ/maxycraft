@@ -1,6 +1,6 @@
 import { tileCanvas } from './blocks';
 import type { Inventory } from './inventory';
-import { CATALOG, itemDef } from './items';
+import { CATALOG, isTreeFruit, itemDef } from './items';
 
 /** Número estable entre 0 y 1 para un texto, para que los precios del día sean los mismos todo el día. */
 function hash01(text: string): number {
@@ -32,7 +32,7 @@ export class Shop {
   private buyEl = document.querySelector<HTMLUListElement>('#shop-buy')!;
   private sellEl = document.querySelector<HTMLUListElement>('#shop-sell')!;
   private icons = new Map<string, string>();
-  /** Lo que hay a la venta hoy: las herramientas y lo del huerto siempre, tres muebles y cinco cosas más. */
+  /** Lo que hay a la venta hoy: las herramientas, lo del huerto y los billetes siempre, tres muebles y cinco cosas más. */
   readonly stock: string[];
 
   constructor(private ctx: ShopContext) {
@@ -40,18 +40,22 @@ export class Shop {
     const tools = CATALOG.filter((id) => itemDef(id).tool);
     const seasonal = CATALOG.filter((id) => itemDef(id).holiday && itemDef(id).holiday === ctx.holiday);
     const furniture = daily(CATALOG.filter((id) => itemDef(id).furniture && !itemDef(id).holiday));
-    const farm = CATALOG.filter((id) => itemDef(id).farm);
-    const rest = daily(CATALOG.filter((id) => !itemDef(id).tool && !itemDef(id).furniture && !itemDef(id).farm));
-    this.stock = [...seasonal, ...tools, ...farm, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
+    const always = CATALOG.filter((id) => itemDef(id).always);
+    const rest = daily(CATALOG.filter((id) => !itemDef(id).tool && !itemDef(id).furniture && !itemDef(id).always));
+    this.stock = [...seasonal, ...tools, ...always, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
     ctx.inventory.onChange(() => {
       if (!this.el.hidden) this.render();
     });
   }
 
-  /** Precio de venta de hoy. La fruta de la isla siempre vale lo mismo, como en Animal Crossing. */
+  /**
+   * Precio de venta de hoy. La fruta de la isla siempre vale lo mismo, como en Animal Crossing,
+   * y la de otras islas (traída de las islas misteriosas) vale cinco veces más.
+   */
   sellPrice(id: string): number {
     const def = itemDef(id);
     if (id === this.ctx.islandFruit || def.tool) return def.sell;
+    if (isTreeFruit(id)) return def.sell * 5;
     const factor = 0.7 + Math.round(hash01(`${this.ctx.today}:${id}`) * 14) * 0.05;
     return Math.max(1, Math.round(def.sell * factor));
   }

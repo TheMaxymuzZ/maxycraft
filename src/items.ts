@@ -25,8 +25,8 @@ export interface ItemDef {
   furniture?: boolean;
   /** Solo se vende en esa fiesta. */
   holiday?: string;
-  /** Cosas del huerto y la granja: la tienda las tiene siempre. */
-  farm?: boolean;
+  /** La tienda lo tiene siempre (lo del huerto, la granja y los billetes). */
+  always?: boolean;
 }
 
 export interface ItemStack {
@@ -111,20 +111,23 @@ add({ id: 'muro_piedra', name: 'Muro de piedra', tile: blockIconTile(Block.Museu
 
 // Huerto y granja (v1.8).
 add({ id: 'regadera', name: 'Regadera', tile: Tile.WateringCan, maxStack: 1, tool: 'can', durability: 60, sell: 50, buy: 500 });
-add({ id: 'semillas_trigo', name: 'Semillas de trigo', tile: Tile.Seeds, maxStack: 30, sell: 10, buy: 40, farm: true });
-add({ id: 'semillas_zanahoria', name: 'Semillas de zanahoria', tile: Tile.SeedsCarrot, maxStack: 30, sell: 10, buy: 50, farm: true });
-add({ id: 'semillas_tomate', name: 'Semillas de tomate', tile: Tile.SeedsTomato, maxStack: 30, sell: 10, buy: 60, farm: true });
+add({ id: 'semillas_trigo', name: 'Semillas de trigo', tile: Tile.Seeds, maxStack: 30, sell: 10, buy: 40, always: true });
+add({ id: 'semillas_zanahoria', name: 'Semillas de zanahoria', tile: Tile.SeedsCarrot, maxStack: 30, sell: 10, buy: 50, always: true });
+add({ id: 'semillas_tomate', name: 'Semillas de tomate', tile: Tile.SeedsTomato, maxStack: 30, sell: 10, buy: 60, always: true });
 add({ id: 'trigo', name: 'Trigo', tile: Tile.WheatItem, maxStack: 30, sell: 60 });
 add({ id: 'zanahoria', name: 'Zanahoria', tile: Tile.CarrotItem, maxStack: 30, sell: 80 });
 add({ id: 'tomate', name: 'Tomate', tile: Tile.TomatoItem, maxStack: 30, sell: 90 });
 add({ id: 'huevo', name: 'Huevo', tile: Tile.Egg, maxStack: 30, sell: 50 });
 add({ id: 'leche', name: 'Leche', tile: Tile.Milk, maxStack: 10, sell: 70 });
-add({ id: 'gallina', name: 'Gallina', tile: Tile.ChickenIcon, maxStack: 1, sell: 500, buy: 2000, farm: true });
-add({ id: 'vaca', name: 'Vaca', tile: Tile.CowIcon, maxStack: 1, sell: 1000, buy: 4000, farm: true });
+add({ id: 'gallina', name: 'Gallina', tile: Tile.ChickenIcon, maxStack: 1, sell: 500, buy: 2000, always: true });
+add({ id: 'vaca', name: 'Vaca', tile: Tile.CowIcon, maxStack: 1, sell: 1000, buy: 4000, always: true });
 add({ id: 'pan', name: 'Pan', tile: Tile.Bread, maxStack: 10, sell: 300 });
 add({ id: 'tortilla', name: 'Tortilla', tile: Tile.Omelette, maxStack: 10, sell: 400 });
 add({ id: 'sopa', name: 'Sopa de zanahoria', tile: Tile.Soup, maxStack: 10, sell: 450 });
 add({ id: 'pastel', name: 'Pastel', tile: Tile.Cake, maxStack: 10, sell: 900 });
+
+// Billete para volar a una isla misteriosa (v1.9).
+add({ id: 'billete', name: 'Billete de avioneta', tile: Tile.Ticket, maxStack: 10, sell: 150, buy: 1500, always: true });
 
 // Peces e insectos: se pueden vender o donar al museo.
 CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell }));
@@ -183,6 +186,11 @@ export function dropFor(b: Block): string | null {
     default:
       return byBlock.get(b)?.id ?? null;
   }
+}
+
+/** Fruta de árbol (no el coco), que vale más si es de otra isla. */
+export function isTreeFruit(id: string): boolean {
+  return FRUIT_ITEMS.some(([b, f]) => f === id && b !== Block.Coconut);
 }
 
 /** Objeto de fruta que corresponde a un bloque de fruta, o null. */

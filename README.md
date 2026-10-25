@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.8**
+Versión actual: **v1.9**
+
+- **Avioneta**: en una playa de la isla espera Plumas, el piloto, con su hidroavión. Con un **billete de avioneta** (1.500 bayas, siempre en la tienda) te lleva a una **isla misteriosa**.
+- **Islas misteriosas**: pequeñas y sin casas, cada vez una distinta: de frutales, de flores, de bambú o de rocas con hierro, oro y amatistas asomando. Allí crece una fruta que no es la de tu isla, y la tienda paga por ella cinco veces más.
+- **Vecinos nuevos**: en cada isla misteriosa hay alguien de vacaciones (hay siete vecinos que solo salen allí). Si le invitas, al volver tendrá su casa nueva en tu isla. Caben hasta 3 invitados; sus casas se ponen donde no hayas construido nada.
+- Lo que recoges en el viaje se queda en tus bolsillos. Para volver, habla con Plumas. Si cierras el juego en pleno viaje, al abrirlo estás en casa.
 
 - **Huerto**: con la pala en la mano, clic derecho sobre la hierba la convierte en tierra de cultivo. Ahí se plantan semillas de trigo, zanahoria o tomate (siempre a la venta en la tienda).
 - **Regadera**: cada día que riegas una planta crece una fase al día siguiente; a los tres días regados está madura. La tierra regada se ve más oscura y la lluvia riega sola. Lo maduro se cosecha con clic derecho o rompiéndolo, y a veces da una semilla de más.

@@ -37,7 +37,7 @@ interface Profile {
   sleep?: [number, number];
   /** No pasea: se queda en la puerta (la dependienta y la conservadora). */
   stationary?: boolean;
-  role?: 'shop' | 'museum';
+  role?: 'shop' | 'museum' | 'pilot';
   /** Cumpleaños: [mes, día]. */
   birthday: [number, number];
 }
@@ -53,6 +53,23 @@ const SHOPKEEPER: Profile = {
   name: 'Avellana', species: 'ardilla', personality: 'alegre', catchphrase: 'cric', shirt: 0x3f8f5a,
   likes: 'fruta', sleep: [22, 8], stationary: true, role: 'shop', birthday: [9, 18],
 };
+
+/** El piloto de la avioneta, que espera siempre junto al avión. */
+export const PILOT: Profile = {
+  name: 'Plumas', species: 'pato', personality: 'alegre', catchphrase: 'vrum', shirt: 0x2f6fb0,
+  likes: 'conchas', sleep: [0, 0], stationary: true, role: 'pilot', birthday: [7, 17],
+};
+
+/** Vecinos que solo se encuentran de vacaciones en las islas misteriosas. */
+const VISITORS: Profile[] = [
+  { name: 'Nube', species: 'conejo', personality: 'dormilón', catchphrase: 'puf', shirt: 0x8fc6e8, likes: 'flores', birthday: [5, 8] },
+  { name: 'Trufa', species: 'perro', personality: 'gruñón', catchphrase: 'grr', shirt: 0x7a5a8a, likes: 'madera', birthday: [12, 3] },
+  { name: 'Mora', species: 'gato', personality: 'presumido', catchphrase: 'chic', shirt: 0xd04a7a, likes: 'conchas', birthday: [2, 19] },
+  { name: 'Bombón', species: 'oso', personality: 'alegre', catchphrase: 'mmm', shirt: 0xf0b040, likes: 'fruta', birthday: [6, 24] },
+  { name: 'Saltarín', species: 'rana', personality: 'alegre', catchphrase: 'hop', shirt: 0x4ab0a0, likes: 'flores', birthday: [4, 1] },
+  { name: 'Castaña', species: 'ardilla', personality: 'presumido', catchphrase: 'tic', shirt: 0xb05a3a, likes: 'fruta', birthday: [10, 12] },
+  { name: 'Lenta', species: 'tortuga', personality: 'dormilón', catchphrase: 'zzz', shirt: 0x6a9a5a, likes: 'madera', birthday: [8, 30] },
+];
 
 const PROFILES: Profile[] = [
   { name: 'Canela', species: 'gato', personality: 'alegre', catchphrase: 'miau', shirt: 0xe86a8a, likes: 'flores', birthday: [3, 14] },
@@ -111,6 +128,13 @@ export class Villager {
   get isCurator() {
     return this.profile.role === 'museum';
   }
+
+  get isPilot() {
+    return this.profile.role === 'pilot';
+  }
+
+  /** Está de vacaciones en una isla misteriosa y se le puede invitar. */
+  visitor = false;
 
   isBirthday(date: Date): boolean {
     return this.profile.birthday[0] === date.getMonth() + 1 && this.profile.birthday[1] === date.getDate();
@@ -206,6 +230,7 @@ export class Villager {
   }
 
   isSleepTime(hour: number): boolean {
+    if (this.visitor) return false; // de vacaciones no se va a dormir
     const [from, to] = this.profile.sleep ?? SLEEP[this.profile.personality];
     return from > to ? hour >= from || hour < to : hour >= from && hour < to;
   }
@@ -317,16 +342,56 @@ export class Villager {
   }
 }
 
-/** Elige vecinos para las casas de la isla, siempre los mismos para cada semilla. */
-export function createVillagers(world: World, memories: Record<string, VillagerMemory>): Villager[] {
+/** Todos los vecinos que pueden vivir en una isla (los de siempre y los de las islas misteriosas). */
+export const RESIDENT_NAMES = [...PROFILES, ...VISITORS].map((p) => p.name);
+export const MAX_GUESTS = 3;
+
+function profileNamed(name: string): Profile | undefined {
+  return [...PROFILES, ...VISITORS].find((p) => p.name === name);
+}
+
+/** Elige quién está de vacaciones en una isla misteriosa: alguien que no viva ya en tu isla. */
+export function pickVisitor(residents: string[], random: () => number): string | null {
+  const pool = RESIDENT_NAMES.filter((n) => !residents.includes(n));
+  return pool.length ? pool[Math.floor(random() * pool.length)] : null;
+}
+
+/** Un vecino que espera en un sitio concreto (el piloto, o quien está de vacaciones), sin casa. */
+export function createVisitor(world: World, name: string, x: number, y: number, z: number, memory: VillagerMemory): Villager | null {
+  const profile = name === PILOT.name ? PILOT : profileNamed(name);
+  if (!profile) return null;
+  const spot: Plot = { kind: 'house', x, z: z - 3, y: y - 1, roof: Block.RoofRed, door: [x, y, z] };
+  const v = new Villager(profile, spot, world, memory);
+  v.visitor = !profile.role;
+  return v;
+}
+
+/** Un vecino invitado desde una isla misteriosa y dónde está su casa (cuando ya se ha encontrado sitio). */
+export interface Guest {
+  name: string;
+  x?: number;
+  z?: number;
+}
+
+/**
+ * Elige vecinos para las casas de la isla, siempre los mismos para cada semilla.
+ * `guests`: los invitados desde islas misteriosas, cada uno en su parcela nueva.
+ */
+export function createVillagers(world: World, memories: Record<string, VillagerMemory>, guests: Guest[] = []): Villager[] {
   const pool = [...PROFILES];
   const shop = world.plots.find((p) => p.kind === 'shop');
   const keeper = shop ? [new Villager(SHOPKEEPER, shop, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
   const museum = world.plots.find((p) => p.kind === 'museum');
   const curator = museum ? [new Villager(CURATOR, museum, world, memories[CURATOR.name] ?? { friendship: 0 })] : [];
-  return [...keeper, ...curator, ...world.plots.filter((p) => p.kind === 'house').map((plot, i) => {
+  const locals = world.plots.filter((p) => p.kind === 'house' && !p.guest).map((plot, i) => {
     const pick = Math.floor(columnRandom(i, 99, world.seed) * pool.length);
     const profile = pool.splice(pick, 1)[0];
     return new Villager(profile, plot, world, memories[profile.name] ?? { friendship: 0 });
-  })];
+  });
+  const newcomers = guests.flatMap((g) => {
+    const profile = profileNamed(g.name);
+    const plot = world.plots.find((p) => p.guest && p.x === g.x && p.z === g.z);
+    return profile && plot ? [new Villager(profile, plot, world, memories[profile.name] ?? { friendship: 0 })] : [];
+  });
+  return [...keeper, ...curator, ...locals, ...newcomers];
 }

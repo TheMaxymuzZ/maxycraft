@@ -71,6 +71,7 @@ export enum Tile {
   Bamboo, FlowerBlue, FlowerPink,
   FarmlandTop, FarmlandWetTop, Sprout, WheatYoung, WheatTall, WheatRipe, CarrotYoung, CarrotTall, CarrotRipe, TomatoYoung, TomatoTall, TomatoRipe,
   Seeds, SeedsCarrot, SeedsTomato, WheatItem, CarrotItem, TomatoItem, WateringCan, Egg, Milk, Bread, Omelette, Soup, Cake, ChickenIcon, CowIcon,
+  Ticket,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos. */
@@ -596,6 +597,12 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     '...wwwwwwwwww...', '...wwwbbwwwbw...', '...pppppppppp...', '...pkppppppkp...', '...pppppppppp...', '....pppppppp....',
     ...Array(4).fill('................'),
   ], { w: [248, 248, 244], b: [40, 40, 44], k: [20, 20, 20], h: [220, 210, 180], p: [244, 180, 180] });
+  // Billete de avioneta (v1.9).
+  paintSprite(ctx, Tile.Ticket, [
+    ...Array(4).fill('................'),
+    '.bbbbbbbbbbbbbb.', '.bwwwwwwwwbwwwb.', '.bwbbbwwwwbwkwb.', '.bwwbwwwwwwwkwb.', '.bwbbbbbwwbwwwb.', '.bwwbwwwwwbwkwb.',
+    '.bwwwwwwwwbwwwb.', '.bbbbbbbbbbbbbb.', ...Array(4).fill('................'),
+  ], { b: [70, 130, 210], w: [250, 248, 236], k: [60, 60, 70] });
   void leaf;
 }
 

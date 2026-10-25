@@ -61,6 +61,8 @@ export interface Plot {
   roof: Block;
   /** Casilla de aire justo delante de la puerta, donde el vecino entra y sale. */
   door: [number, number, number];
+  /** Casa de un vecino que vino de una isla misteriosa. */
+  guest?: boolean;
 }
 
 /** Tienda de campaña de lona en forma de A, cerrada por detrás y con la entrada hacia +z. */
@@ -87,6 +89,26 @@ export function islandFruit(seed: number): Block {
   return FRUITS[Math.floor(columnRandom(1, 1, seed) * FRUITS.length)];
 }
 
+/** Tipos de isla misteriosa: cada una tiene algo de más. */
+export type MysteryKind = 'frutas' | 'flores' | 'minerales' | 'bambu';
+export const MYSTERY_KINDS: MysteryKind[] = ['frutas', 'flores', 'minerales', 'bambu'];
+
+export interface WorldOptions {
+  /** Isla misteriosa, pequeña y sin casas, a la que se llega en avioneta. */
+  mystery?: { kind: MysteryKind; fruit: Block };
+  /** Parcelas (x, z) de los vecinos invitados desde las islas misteriosas. */
+  guests?: [number, number][];
+}
+
+/** Sitio de la avioneta: la playa donde espera el piloto y el agua donde flota el avión, mirando al mar (dx, dz). */
+export interface Airport {
+  x: number;
+  z: number;
+  y: number;
+  dx: number;
+  dz: number;
+}
+
 export interface WaterfallSpot {
   x: number;
   z: number;
@@ -105,6 +127,9 @@ export class World {
   /** Sube cada vez que el jugador cambia un bloque, para saber si hay que guardar. */
   revision = 0;
   readonly plots: Plot[];
+  readonly mystery: WorldOptions['mystery'];
+  /** Radio de la isla: las misteriosas son mucho más pequeñas. */
+  private readonly radius: number;
   /** Entradas de cueva: escaleras que bajan desde la superficie. */
   readonly caveEntrances: { x: number; z: number; y: number }[];
   /** Posiciones "x,y,z" de las antorchas, que iluminan las cuevas. */
@@ -113,13 +138,17 @@ export class World {
   /** Material del agua; se pone desde fuera para que coincida con el resto de la escena. */
   waterMaterial: THREE.Material = new THREE.MeshLambertMaterial({ color: 0x3fa9d6, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
 
-  constructor(readonly seed: number, private material: THREE.Material, edits: Edits = {}) {
-    this.fruit = islandFruit(seed);
+  constructor(readonly seed: number, private material: THREE.Material, edits: Edits = {}, options: WorldOptions = {}) {
+    this.mystery = options.mystery;
+    this.radius = this.mystery ? 30 : ISLAND_RADIUS;
+    this.fruit = this.mystery?.fruit ?? islandFruit(seed);
     for (const [k, list] of Object.entries(edits)) {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
     }
-    this.plots = this.findPlots(6);
-    this.caveEntrances = this.findCaveEntrances(2);
+    this.plots = this.mystery ? [] : this.findPlots(6);
+    this.caveEntrances = this.mystery ? [] : this.findCaveEntrances(2);
+    // Las casas de los invitados van al final para no mover nada de lo que ya había.
+    for (const [x, z] of options.guests ?? []) this.addGuestPlot(x, z);
     // Antorchas que el jugador ya había puesto.
     for (const [k, m] of this.edits) {
       const [cx, cz] = k.split(',').map(Number);
@@ -202,6 +231,75 @@ export class World {
     return plots;
   }
 
+  /** Añade la casa de un vecino invitado. Hay que hacerlo antes de que se genere esa zona. */
+  addGuestPlot(x: number, z: number) {
+    const y = this.naturalHeight(x, z);
+    this.plots.push({ kind: 'house', x, z, y, roof: ROOFS[this.plots.filter((p) => p.guest).length % ROOFS.length], door: [x, y + 1, z + 3], guest: true });
+  }
+
+  /**
+   * Sitios (x, z) para casas de vecinos nuevos: llanos, lejos de las demás casas y de las entradas de cueva,
+   * y donde el jugador no ha tocado nada, para no aplanar algo que haya construido.
+   * Una vez elegido, el sitio se guarda en la partida para que la casa no se mueva nunca.
+   */
+  findGuestSpots(count: number): [number, number][] {
+    const found: { x: number; z: number }[] = [];
+    const touched = (x: number, z: number) => {
+      const r = PLOT_RADIUS + 3;
+      for (let cz = Math.floor((z - r) / CHUNK); cz <= Math.floor((z + r) / CHUNK); cz++) {
+        for (let cx = Math.floor((x - r) / CHUNK); cx <= Math.floor((x + r) / CHUNK); cx++) {
+          if (this.edits.get(key(cx, cz))?.size) return true;
+        }
+      }
+      return false;
+    };
+    for (let tries = 0; tries < 1500 && found.length < count; tries++) {
+      const a = columnRandom(tries, 177, this.seed) * Math.PI * 2;
+      const d = 10 + columnRandom(tries, 178, this.seed) * 45;
+      const x = Math.round(Math.cos(a) * d);
+      const z = Math.round(Math.sin(a) * d);
+      const h = this.naturalHeight(x, z);
+      if (h <= SEA_LEVEL + 1 || this.river(x, z) < 9) continue;
+      if ([...this.plots, ...found].some((p) => Math.hypot(p.x - x, p.z - z) < 15)) continue;
+      if (this.caveEntrances.some((e) => Math.abs(x - e.x - 10) < 22 && Math.abs(z - e.z) < 14)) continue;
+      let flat = true;
+      for (let dz = -PLOT_RADIUS; dz <= PLOT_RADIUS && flat; dz++) {
+        for (let dx = -PLOT_RADIUS; dx <= PLOT_RADIUS && flat; dx++) {
+          const hh = this.naturalHeight(x + dx, z + dz);
+          if (Math.abs(hh - h) > (tries < 300 ? 0 : 1) || hh <= SEA_LEVEL + 1) flat = false;
+        }
+      }
+      if (!flat || touched(x, z)) continue;
+      found.push({ x, z });
+    }
+    return found.map((p) => [p.x, p.z]);
+  }
+
+  /** Busca una playa con mar delante para la avioneta, empezando por la dirección `angle`. */
+  findAirport(angle = 0): Airport | null {
+    for (let i = 0; i < 64; i++) {
+      // Se prueba alternando a un lado y al otro del ángulo pedido.
+      const a = angle + Math.ceil(i / 2) * (i % 2 ? 1 : -1) * (Math.PI / 32);
+      const dx = Math.cos(a);
+      const dz = Math.sin(a);
+      let beach: [number, number] | null = null;
+      for (let d = this.radius * 0.3; d < this.radius * 1.6; d += 1) {
+        const x = Math.round(dx * d);
+        const z = Math.round(dz * d);
+        const h = this.naturalHeight(x, z);
+        if (h === SEA_LEVEL + 1 && !this.plotAt(x, z, 2)) beach = [x, z];
+        if (h < SEA_LEVEL && beach) {
+          // Hace falta mar abierto delante, para que quepa el avión.
+          let open = true;
+          for (let k = 1; k <= 6 && open; k++) open = this.naturalHeight(Math.round(x + dx * k), Math.round(z + dz * k)) < SEA_LEVEL;
+          if (!open) break;
+          return { x: beach[0], z: beach[1], y: SEA_LEVEL + 2, dx, dz };
+        }
+      }
+    }
+    return null;
+  }
+
   /** Parcela que contiene (x, z), o undefined. */
   plotAt(x: number, z: number, margin = 0): Plot | undefined {
     const r = PLOT_RADIUS + margin;
@@ -221,7 +319,7 @@ export class World {
     const angle = Math.atan2(z, x);
     const wobble = fbm(Math.cos(angle) * 2 + 10, Math.sin(angle) * 2 + 10, this.seed + 3, 3) - 0.5;
     const coast = fbm(x / 22, z / 22, this.seed + 4, 2) - 0.5;
-    const d = Math.hypot(x, z) / (ISLAND_RADIUS * (1 + wobble * 0.5));
+    const d = Math.hypot(x, z) / (this.radius * (1 + wobble * 0.5));
     const v = 1 - (d + coast * 0.25 - 0.55) / 0.45;
     return Math.max(0, Math.min(1, v));
   }
@@ -235,6 +333,7 @@ export class World {
 
   /** Distancia en bloques al centro del río, que cruza la isla serpenteando. */
   private river(x: number, z: number): number {
+    if (this.mystery) return Infinity; // las islas misteriosas no tienen río
     const a = columnRandom(2, 2, this.seed) * Math.PI;
     const phase = columnRandom(3, 3, this.seed) * Math.PI * 2;
     const u = x * Math.cos(a) + z * Math.sin(a);
@@ -332,6 +431,7 @@ export class World {
         const kind = this.treeAt(wx, wz);
         if (kind === 'fruit') this.placeFruitTree(wx, wz, tx, tz, set);
         else if (kind === 'palm') this.placePalm(this.heightAt(wx, wz) + 1, tx, tz, set);
+        else if (kind === 'rock') this.placeRock(wx, wz, tx, tz, set);
       }
     }
 
@@ -470,18 +570,39 @@ export class World {
    */
   zoneAt(x: number, z: number): 'bambu' | 'pradera' | null {
     if (this.landMask(x, z) < 0.35 || this.river(x, z) < 6) return null;
+    if (this.mystery?.kind === 'flores') return 'pradera';
+    if (this.mystery?.kind === 'bambu') return fbm(x / 20, z / 20, this.seed + 21, 2) > 0.45 ? 'bambu' : 'pradera';
     if (fbm(x / 34, z / 34, this.seed + 21, 2) > 0.66) return 'bambu';
     if (fbm(x / 40, z / 40, this.seed + 22, 2) > 0.65) return 'pradera';
     return null;
   }
 
-  private treeAt(x: number, z: number): 'fruit' | 'palm' | null {
+  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | null {
     if (this.plotAt(x, z, 3) || this.zoneAt(x, z) === 'bambu') return null;
     const r = columnRandom(x, z, this.seed);
     const h = this.heightAt(x, z);
     if (h === SEA_LEVEL + 1 && r < 0.008) return 'palm';
-    if (h > SEA_LEVEL + 1 && this.river(x, z) > 6 && r < 0.006) return 'fruit';
+    const kind = this.mystery?.kind;
+    // Las islas misteriosas de fruta están llenas de árboles; las de minerales, de rocas con vetas.
+    const fruit = kind === 'frutas' ? 0.03 : 0.006;
+    if (h > SEA_LEVEL + 1 && this.river(x, z) > 6 && r < fruit) return 'fruit';
+    if (kind === 'minerales' && h > SEA_LEVEL + 1 && r > 0.985) return 'rock';
     return null;
+  }
+
+  /** Roca de 2x2 con vetas de minerales, que asoma del suelo en las islas misteriosas. */
+  private placeRock(wx: number, wz: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
+    const base = this.heightAt(wx, wz) + 1;
+    const ores = [Block.Stone, Block.Stone, Block.CoalOre, Block.IronOre, Block.IronOre, Block.GoldOre, Block.GemOre];
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dz = 0; dz < 2; dz++) {
+        for (let dx = 0; dx < 2; dx++) {
+          if (dy === 1 && dx + dz === 2) continue;
+          const b = ores[Math.floor(blockRandom(wx + dx, base + dy, wz + dz, this.seed + 31) * ores.length)];
+          set(tx + dx, base + dy, tz + dz, b, true);
+        }
+      }
+    }
   }
 
   private placeFruitTree(wx: number, wz: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
@@ -619,7 +740,7 @@ export class World {
     const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (let tries = 0; tries < 3000 && found.length < count; tries++) {
       const a = columnRandom(tries, 91, this.seed) * Math.PI * 2;
-      const dist = columnRandom(tries, 92, this.seed) * ISLAND_RADIUS * 0.8;
+      const dist = columnRandom(tries, 92, this.seed) * this.radius * 0.8;
       const x = Math.round(Math.cos(a) * dist);
       const z = Math.round(Math.sin(a) * dist);
       if (this.river(x, z) >= 2.2 || this.landMask(x, z) < 0.3) continue;
@@ -643,7 +764,7 @@ export class World {
     const spots: [number, number, number][] = [];
     for (let tries = 0; tries < count * 200 && spots.length < count; tries++) {
       const a = random() * Math.PI * 2;
-      const d = ISLAND_RADIUS * (0.5 + random() * 0.6);
+      const d = this.radius * (0.5 + random() * 0.6);
       const x = Math.floor(Math.cos(a) * d);
       const z = Math.floor(Math.sin(a) * d);
       const h = this.heightAt(x, z);

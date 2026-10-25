@@ -3,7 +3,7 @@ import type { FarmSave } from './farm';
 import type { PlacedFurniture } from './furniture';
 import type { ItemStack } from './items';
 import type { StepId } from './tutorial';
-import type { VillagerMemory } from './villagers';
+import type { Guest, VillagerMemory } from './villagers';
 import type { Edits } from './world';
 
 /** La primera isla usa la clave de siempre, para que las partidas de antes sigan ahí. */
@@ -46,6 +46,8 @@ export interface SaveData {
   /** Desde la v1.8: el huerto (cultivos y días regados) y los animales de la granja. */
   farm?: FarmSave;
   animals?: AnimalSave[];
+  /** Desde la v1.9: vecinos invitados desde las islas misteriosas. */
+  guests?: Guest[];
 }
 
 export function slotKey(slot: number): string {
