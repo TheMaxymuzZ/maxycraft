@@ -6,7 +6,7 @@ import '@fontsource/pixelify-sans/latin-500.css';
 import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isSolid, isStairs, stairsFacing, toggled } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isPath, isSolid, isStairs, stairsFacing, toggled } from './blocks';
 import { Breaker } from './breaking';
 import { Birds } from './birds';
 import { Bugs } from './bugs';
@@ -17,7 +17,7 @@ import { calendar, creature } from './creatures';
 import { Dialog, HOUSE_COSTS, HOUSE_NAMES } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
-import { Furniture, paintFurnitureIcons } from './furniture';
+import { Furniture, type PlacedFurniture, paintFurnitureIcons } from './furniture';
 import { HeldItem } from './held';
 import { Hud } from './hud';
 import { setupInstall } from './install';
@@ -245,15 +245,27 @@ if (trip && airport) {
 const home = { level: 0, debt: 0, roof: 0, ...save?.home };
 if (world.playerPlot && home.level > 0) world.playerPlot.roof = ROOFS[home.roof];
 
-const furniture = new Furniture(trip ? [] : save?.furniture ?? []);
+// Las farolas y lámparas alumbran como las antorchas.
+const lampHook = (x: number, y: number, z: number, level: number) => world.setLamp(x, y, z, level);
+const furniture = new Furniture(trip ? [] : save?.furniture ?? [], lampHook);
 scene.add(furniture.group);
 
 // Adornos de las fiestas (se ponen con placeHolidayDecor).
-const decor = new Furniture([]);
+const decor = new Furniture([], lampHook);
 scene.add(decor.group);
 placeHolidayDecor();
 // En la tienda de campaña hay una cama para empezar.
 if (!save && !joined && world.playerPlot) furniture.place('cama', world.playerPlot.x, world.playerPlot.y + 1, world.playerPlot.z, 0);
+// En las islas nuevas, la tienda y el museo tienen farolas a los lados de la puerta.
+if (!save && !joined && !trip) {
+  for (const plot of world.plots.filter((p) => p.kind === 'shop' || p.kind === 'museum')) {
+    const [dx, dy, dz] = plot.door;
+    for (const side of [-2, 2]) {
+      const [x, z] = [dx + side, dz + 1];
+      if (world.getBlock(x, dy, z) === Block.Air && isSolid(world.getBlock(x, dy - 1, z))) furniture.place('farola', x, dy, z, 0);
+    }
+  }
+}
 
 const villagers = createVillagers(world, save?.villagers ?? {}, guests);
 // El piloto espera en la playa junto a la avioneta; en las islas misteriosas hay alguien de vacaciones.
@@ -524,7 +536,7 @@ function unlockInput() {
 }
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -580,6 +592,36 @@ function openStorage(x: number, y: number, z: number, b: number) {
   sound.place();
   unlockInput();
 }
+
+// --- Carteles: se escribe lo que pone ---
+const signEl = document.querySelector<HTMLDivElement>('#sign')!;
+const signInput = document.querySelector<HTMLInputElement>('#sign-text')!;
+let signTarget: PlacedFurniture | null = null;
+
+function openSign(f: PlacedFurniture) {
+  signTarget = f;
+  panel = 'sign';
+  breaker.active = false;
+  signInput.value = f.text ?? '';
+  signEl.hidden = false;
+  unlockInput();
+  signInput.focus();
+}
+
+function closeSign(save: boolean) {
+  if (save && signTarget) furniture.setText(signTarget, signInput.value);
+  signTarget = null;
+  signEl.hidden = true;
+  panel = null;
+  lockInput();
+  if (save) persist();
+}
+document.querySelector('#sign-save')!.addEventListener('click', () => closeSign(true));
+document.querySelector('#sign-cancel')!.addEventListener('click', () => closeSign(false));
+signInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') closeSign(true);
+  if (e.key === 'Escape') closeSign(false);
+});
 
 function closeStorage() {
   storagePanel.close();
@@ -855,6 +897,10 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === keys.inventory) closeStorage();
     return;
   }
+  if (panel === 'sign') {
+    if (e.code === 'Escape') closeSign(false);
+    return;
+  }
   if (e.code === keys.collection && isPlaying()) {
     openCollection();
     return;
@@ -939,6 +985,7 @@ function onInputChange() {
     if (panel === 'workbench') workbench.close();
     if (panel === 'missions') missionsPanel.close();
     if (panel === 'storage') storagePanel.close();
+    if (panel === 'sign') signEl.hidden = true;
     panel = null;
     return;
   }
@@ -1204,6 +1251,12 @@ function useItem() {
     }
     return;
   }
+  // Los carteles se escriben con clic derecho.
+  const aimed = furnitureInSight();
+  if (aimed?.furniture.id === 'cartel') {
+    openSign(aimed.furniture);
+    return;
+  }
   const stack = hud.selectedStack;
   const def = stack ? itemDef(stack.id) : null;
 
@@ -1256,6 +1309,16 @@ function useItem() {
 
   if (def?.furniture) {
     placeFurniture(def.id, hit);
+    return;
+  }
+
+  // Los caminos sustituyen al suelo en vez de ponerse encima, para que queden a ras.
+  if (def?.block !== undefined && isPath(def.block) && isGround(target) && hit.place[1] > hit.block[1]) {
+    const above = world.getBlock(bx, by + 1, bz);
+    if (isCross(above) && !isFruit(above)) sync.setBlock(bx, by + 1, bz, Block.Air);
+    sync.setBlock(bx, by, bz, def.block);
+    inventory.consume(hud.selected);
+    sound.place();
     return;
   }
 

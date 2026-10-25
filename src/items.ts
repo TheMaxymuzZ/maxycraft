@@ -86,6 +86,11 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.PlanksStairs, 'escalera_madera', 10],
   [Block.CobbleStairs, 'escalera_adoquin', 15],
   [Block.BrickStairs, 'escalera_ladrillo', 20],
+  // Caminos y calles (v2.8).
+  [Block.DirtPath, 'camino_tierra', 4],
+  [Block.StonePath, 'camino_losas', 6],
+  [Block.Street, 'calle', 6],
+  [Block.Tiles, 'baldosas', 8],
   // Almacenamiento (v2.4).
   [Block.Chest, 'cofre', 60],
   [Block.Trunk, 'baul', 400],
@@ -160,7 +165,7 @@ add({ id: 'billete', name: 'Billete de avioneta', tile: Tile.Ticket, maxStack: 1
 CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell }));
 
 // Muebles para decorar la casa.
-for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday });
+for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: f.stack ?? 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday });
 
 /** Todo lo que la tienda puede tener a la venta. */
 export const CATALOG = defs.filter((d) => d.buy !== undefined).map((d) => d.id);
@@ -256,6 +261,10 @@ interface Hardness {
 const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Grass]: { time: 0.6, tool: 'shovel' },
   [Block.SnowGrass]: { time: 0.6, tool: 'shovel' },
+  [Block.DirtPath]: { time: 0.5, tool: 'shovel' },
+  [Block.StonePath]: { time: 0.8, tool: 'pickaxe' },
+  [Block.Street]: { time: 0.9, tool: 'pickaxe' },
+  [Block.Tiles]: { time: 0.8, tool: 'pickaxe' },
   [Block.Dirt]: { time: 0.5, tool: 'shovel' },
   [Block.Sand]: { time: 0.5, tool: 'shovel' },
   [Block.Stone]: { time: 1.5, tool: 'pickaxe', needsTool: true },
@@ -389,10 +398,21 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'caja', count: 1, needs: [['tablones', 4]] },
   { result: 'cofre', count: 1, needs: [['tablones', 8]] },
   { result: 'baul', count: 1, needs: [['tablones', 8], ['pepita_hierro', 1]] },
+  // Calles y decoración (v2.8).
+  { result: 'camino_tierra', count: 8, needs: [['tierra', 4]] },
+  { result: 'camino_losas', count: 8, needs: [['piedra', 3], ['tierra', 1]] },
+  { result: 'calle', count: 8, needs: [['adoquin', 4]] },
+  { result: 'baldosas', count: 8, needs: [['ladrillo', 4]] },
+  { result: 'farola', count: 1, needs: [['pepita_hierro', 3], ['antorcha', 1]] },
+  { result: 'papelera', count: 1, needs: [['pepita_hierro', 1], ['tablones', 1]] },
+  { result: 'cartel', count: 1, needs: [['tablones', 2], ['rama', 1]] },
+  { result: 'macetero', count: 1, needs: [['ladrillo', 2], ['tierra', 1], ['tulipan', 1]] },
+  { result: 'fuente_plaza', count: 1, needs: [['piedra_pulida', 8], ['pepita_hierro', 2]] },
+  { result: 'buzon', count: 1, needs: [['pepita_hierro', 2], ['rama', 1]] },
 ];
 
 /** Recetas de construcción que se saben sin aprenderlas. */
-const BUILDING_DIY = ['caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo'];
+const BUILDING_DIY = ['camino_tierra', 'camino_losas', 'calle', 'baldosas', 'farola', 'papelera', 'cartel', 'macetero', 'fuente_plaza', 'buzon', 'caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo'];
 
 /** Las que ya se saben al empezar. */
 export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'puerta', 'puerta_valla', ...BUILDING_DIY];
