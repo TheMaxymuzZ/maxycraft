@@ -6,7 +6,10 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.0**
+Versión actual: **v1.1**
+
+- **Pruebas automáticas** (50 comprobaciones) del mundo, los bolsillos, las recetas, la tienda, las estaciones y la partida guardada. Se pasan solas en cada pull request y, si alguna falla, no se publica nada.
+- El número de versión del menú sale de `package.json`.
 
 - **Primeros pasos**: en una isla nueva aparece una lista de 8 tareas (pasear, sacudir un árbol, romper un bloque, fabricar, hablar con un vecino, vender, pescar o cazar y colocar un mueble) que se tachan solas. Al terminarla, Avellana te regala 1.000 bayas. La tecla H la pliega.
 - **Música y sonidos** hechos con el sintetizador del navegador: una canción distinta cada hora (alegre por la mañana, tranquila de noche), pasos según el suelo, golpes al romper y colocar, la voz de cada vecino al hablar, monedas, chapoteos, fanfarria al pescar y lluvia de fondo. La tecla M o el botón del menú lo apagan.
@@ -87,9 +90,10 @@ En móvil o tableta se juega con el mando en pantalla. Con teclado y ratón:
 ```sh
 npm install
 npm run dev     # servidor local en http://localhost:5173
+npm test        # pasa las pruebas automáticas (carpeta tests/)
 npm run build   # comprueba tipos y genera dist/
 ```
 
 Para ver otra hora del día sin esperar, añade `?hora=21` (o cualquier hora) a la dirección.
 
-Hecho con [Three.js](https://threejs.org/), TypeScript y Vite. Cada push a `main` se publica solo en GitHub Pages.
+Hecho con [Three.js](https://threejs.org/), TypeScript y Vite. Cada push a `main` pasa las pruebas y se publica solo en GitHub Pages.
