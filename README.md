@@ -6,7 +6,13 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.7 · Cuevas y minerales**
+Versión actual: **v0.8 · Mi casa**
+
+- Empiezas delante de tu propia parcela, con una tienda de campaña y una cama.
+- Habla con Avellana y elige «Mi casa» para cambiar la tienda por una casa de verdad: pequeña (5.000 bayas), mediana (15.000) y grande (40.000). Eliges el color del tejado y la pagas poco a poco, sin intereses. Para ampliarla hay que terminar de pagar la anterior.
+- Ocho muebles: cama, mesa, silla, lámpara (se enciende de noche), estantería, sofá, planta y alfombra. La tienda vende tres distintos cada día.
+- Clic derecho para colocar un mueble mirando hacia ti, R para girarlo y clic izquierdo para recogerlo.
+- En tu parcela puedes romper y cambiar lo que quieras; las casas de los vecinos siguen protegidas.
 
 - Bajo la isla hay túneles y salas. Dos escaleras bajan desde la superficie, y también se puede cavar con el pico.
 - Cuanto más hondo, más oscuro: las antorchas (1 rama + 1 carbón = 4) iluminan alrededor. No hay monstruos.
@@ -46,7 +52,8 @@ Versión actual: **v0.7 · Cuevas y minerales**
 | Espacio | Saltar |
 | Mayús | Correr |
 | Clic izquierdo (mantener) | Romper bloque |
-| Clic derecho | Colocar bloque o sacudir un árbol |
+| Clic derecho | Colocar bloque o mueble, sacudir un árbol, hablar |
+| R | Girar el mueble al que apuntas |
 | E | Bolsillos y fabricar |
 | C | Enciclopedia de peces e insectos |
 | 1–0 o rueda | Elegir casilla |

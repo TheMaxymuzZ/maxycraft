@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, LIGHT_RADIUS, ROOFS, isCross, isOpaque, isSolid } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, ROOFS, isCross, isOpaque, isSolid } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 
 export const CHUNK = 16;
@@ -51,7 +51,7 @@ const AO_CURVE = [0.45, 0.65, 0.82, 1];
 
 /** Parcela con la casa de un vecino o la tienda. La puerta mira hacia +z. */
 export interface Plot {
-  kind: 'house' | 'shop' | 'museum';
+  kind: 'house' | 'shop' | 'museum' | 'player';
   x: number;
   z: number;
   /** Altura del suelo (bloque de arriba del terreno). */
@@ -61,8 +61,21 @@ export interface Plot {
   door: [number, number, number];
 }
 
+/** Tienda de campaña de lona en forma de A, cerrada por detrás y con la entrada hacia +z. */
+export function buildTent(x: number, y: number, z: number, put: (x: number, y: number, z: number, b: Block) => void) {
+  for (let dz = -1; dz <= 2; dz++) {
+    put(x - 2, y + 1, z + dz, Block.Canvas);
+    put(x + 2, y + 1, z + dz, Block.Canvas);
+    put(x - 1, y + 2, z + dz, Block.Canvas);
+    put(x + 1, y + 2, z + dz, Block.Canvas);
+    put(x, y + 3, z + dz, Block.Canvas);
+  }
+  for (let dx = -1; dx <= 1; dx++) put(x + dx, y + 1, z - 2, Block.Canvas);
+  put(x, y + 2, z - 2, Block.Canvas);
+}
+
 /** Medio lado de la parcela que se allana y se deja sin árboles. */
-const PLOT_RADIUS = 5;
+export const PLOT_RADIUS = 5;
 
 /** Cambios del jugador sobre el mundo generado, por chunk: índice local → bloque. */
 export type Edits = Record<string, Record<number, number>>;
@@ -89,7 +102,7 @@ export class World {
     for (const [k, list] of Object.entries(edits)) {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
     }
-    this.plots = this.findPlots(5);
+    this.plots = this.findPlots(6);
     this.caveEntrances = this.findCaveEntrances(2);
     // Antorchas que el jugador ya había puesto.
     for (const [k, m] of this.edits) {
@@ -168,6 +181,8 @@ export class World {
       const roof = kind === 'shop' ? Block.RoofGreen : kind === 'museum' ? Block.RoofBlue : ROOFS[(plots.length - 2) % ROOFS.length];
       plots.push({ kind, x, z, y: h, roof, door: [x, h + 1, z + 3] });
     }
+    // La última es la del jugador; así las islas de antes conservan sus casas.
+    if (plots.length > 2) plots[plots.length - 1].kind = 'player';
     return plots;
   }
 
@@ -318,9 +333,13 @@ export class World {
     chunk.dirty = true;
   }
 
-  /** Casita de 5x5 con tejado a cuatro aguas, ventanas y la puerta hacia +z. */
+  /** Casita de 5x5 con tejado a cuatro aguas, ventanas y la puerta hacia +z. La parcela del jugador empieza con una tienda de campaña. */
   private buildHouse(p: Plot, put: (x: number, y: number, z: number, b: Block) => void) {
     const { x, z, y } = p;
+    if (p.kind === 'player') {
+      buildTent(x, y, z, put);
+      return;
+    }
     for (let dz = -2; dz <= 2; dz++) {
       for (let dx = -2; dx <= 2; dx++) {
         put(x + dx, y, z + dz, Block.Planks);
@@ -346,6 +365,61 @@ export class World {
         }
       }
     }
+  }
+
+  /** Parcela del jugador, si la isla tiene sitio para ella. */
+  get playerPlot(): Plot | undefined {
+    return this.plots.find((p) => p.kind === 'player');
+  }
+
+  /**
+   * Rehace la casa del jugador con el tamaño de su nivel (1: 5x5, 2: 7x7, 3: 9x9).
+   * Se guarda como cambios del jugador, igual que si la hubiera construido a mano.
+   */
+  buildPlayerHouse(level: number, roof: Block) {
+    const p = this.playerPlot;
+    if (!p) return;
+    const { x, y, z } = p;
+    const half = level + 1;
+    const set = (bx: number, by: number, bz: number, b: Block) => {
+      if (this.getBlock(bx, by, bz) !== b) this.setBlock(bx, by, bz, b);
+    };
+    // Quitar lo que hubiera (la tienda de campaña o la casa anterior, que siempre es más pequeña).
+    for (let dy = 1; dy <= half + 6; dy++) {
+      for (let dz = -half - 1; dz <= half + 1; dz++) {
+        for (let dx = -half - 1; dx <= half + 1; dx++) {
+          if (HOUSE_BLOCKS.includes(this.getBlock(x + dx, y + dy, z + dz))) set(x + dx, y + dy, z + dz, Block.Air);
+        }
+      }
+    }
+    for (let dz = -half; dz <= half; dz++) {
+      for (let dx = -half; dx <= half; dx++) {
+        set(x + dx, y, z + dz, Block.Planks);
+        const edge = Math.abs(dx) === half || Math.abs(dz) === half;
+        for (let h = 1; h <= 3; h++) set(x + dx, y + h, z + dz, edge ? Block.Wall : Block.Air);
+      }
+    }
+    // Puerta delante y ventanas repartidas por las paredes.
+    set(x, y + 1, z + half, Block.Air);
+    set(x, y + 2, z + half, Block.Air);
+    for (let o = -half + 1; o < half; o++) {
+      if (o % 2 !== 0) continue;
+      set(x - half, y + 2, z + o, Block.Window);
+      set(x + half, y + 2, z + o, Block.Window);
+      set(x + o, y + 2, z - half, Block.Window);
+      if (o !== 0) set(x + o, y + 2, z + half, Block.Window);
+    }
+    // Tejado a cuatro aguas: capas que se van cerrando, huecas por dentro.
+    for (let layer = 0; layer <= half; layer++) {
+      const r = half + 1 - layer;
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (layer < half && Math.max(Math.abs(dx), Math.abs(dz)) < r - 1) continue;
+          set(x + dx, y + 4 + layer, z + dz, roof);
+        }
+      }
+    }
+    p.roof = roof;
   }
 
   /** Túneles (dos ruidos que se cruzan) y alguna sala grande. */

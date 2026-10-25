@@ -1,5 +1,6 @@
 import type { Inventory } from './inventory';
 import { itemDef } from './items';
+import { formatBerries } from './shop';
 import type { Personality, Villager } from './villagers';
 
 // Frases de los vecinos. {c} es su coletilla y {saludo} depende de la hora.
@@ -86,6 +87,23 @@ const CATEGORY: Record<string, 'fruta' | 'conchas' | 'flores' | 'madera'> = {
 
 const RETURN_ITEMS = ['tulipan', 'pensamiento', 'cosmos', 'tablones'];
 
+/** La casa del jugador: de la tienda de campaña a la casa grande, pagando poco a poco. */
+export const HOUSE_NAMES = ['tienda de campaña', 'casa pequeña', 'casa mediana', 'casa grande'];
+export const HOUSE_COSTS = [5000, 15000, 40000];
+const ROOF_NAMES = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
+const PAYMENT = 1000;
+
+export interface HomeActions {
+  /** Si la isla tiene parcela para el jugador. */
+  available: boolean;
+  state(): { level: number; debt: number; wallet: number };
+  /** Construye el siguiente nivel con el tejado elegido (índice de ROOFS) y suma su precio a la deuda. */
+  upgrade(roof: number): void;
+  pay(amount: number): void;
+}
+
+type Option = [string, () => void];
+
 const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
 
 export interface DialogContext {
@@ -103,6 +121,7 @@ export interface DialogContext {
   donatable: () => string[];
   donate: (id: string) => boolean;
   openCollection: () => void;
+  home: HomeActions;
 }
 
 /** Ventana de conversación con un vecino, al estilo de Animal Crossing. */
@@ -113,6 +132,8 @@ export class Dialog {
   private choicesEl = document.querySelector<HTMLDivElement>('#dialog-choices')!;
   private villager: Villager | null = null;
   private typing = 0;
+  /** Respuestas para la frase actual; si no hay, salen las de siempre. */
+  private options: Option[] | null = null;
 
   constructor(private ctx: DialogContext) {}
 
@@ -145,7 +166,8 @@ export class Dialog {
     else this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
   }
 
-  private say(line: string) {
+  private say(line: string, options: Option[] | null = null) {
+    this.options = options;
     const text = this.fill(line);
     this.choicesEl.innerHTML = '';
     clearInterval(this.typing);
@@ -178,11 +200,17 @@ export class Dialog {
       b.addEventListener('click', fn);
       this.choicesEl.appendChild(b);
     };
+    if (this.options) {
+      for (const [label, fn] of this.options) add(label, fn);
+      (this.choicesEl.firstElementChild as HTMLButtonElement | null)?.focus();
+      return;
+    }
     if (v.isShopkeeper) {
       add('Comprar y vender', () => {
         this.finish(true);
         this.ctx.openShop();
       });
+      if (this.ctx.home.available) add('Mi casa', () => this.homeMenu());
     } else if (v.isCurator) {
       add('Donar', () => this.donateAll());
       add('Ver la colección', () => {
@@ -199,6 +227,52 @@ export class Dialog {
     }
     add('Adiós', () => this.finish());
     (this.choicesEl.firstElementChild as HTMLButtonElement | null)?.focus();
+  }
+
+  private back = () => this.say('¿Algo más, {c}?');
+
+  private homeMenu() {
+    const { level, debt, wallet } = this.ctx.home.state();
+    if (debt > 0) {
+      const part = Math.min(PAYMENT, debt);
+      const options: Option[] = [];
+      if (wallet >= part) options.push([`Pagar ${formatBerries(part)}`, () => this.pay(part)]);
+      if (debt > part && wallet >= debt) options.push(['Pagar todo', () => this.pay(debt)]);
+      options.push(['Volver', this.back]);
+      this.say(`Todavía te quedan ${formatBerries(debt)} bayas por pagar de tu ${HOUSE_NAMES[level]}. Sin prisa, ¡aquí no se cobran intereses, {c}!`, options);
+      return;
+    }
+    if (level >= HOUSE_COSTS.length) {
+      this.say('¡Tu casa ya es la más grande de la isla! Ha quedado preciosa, {c}.', [['Volver', this.back]]);
+      return;
+    }
+    const cost = formatBerries(HOUSE_COSTS[level]);
+    const line = level === 0
+      ? `Así que duermes en una tienda de campaña… ¿Quieres una casa de verdad? Una ${HOUSE_NAMES[1]} cuesta ${cost} bayas, y me las puedes ir pagando poco a poco, {c}.`
+      : `¿Quieres ampliar tu casa? Una ${HOUSE_NAMES[level + 1]} cuesta ${cost} bayas. Como siempre, pagas cuando puedas, {c}.`;
+    this.say(line, [
+      ['¡Sí, por favor!', () => this.chooseRoof()],
+      ['Ahora no', this.back],
+    ]);
+  }
+
+  private chooseRoof() {
+    this.say(
+      '¡Estupendo! ¿De qué color quieres el tejado, {c}?',
+      ROOF_NAMES.map((name, i): Option => [name, () => {
+        this.ctx.home.upgrade(i);
+        const { level } = this.ctx.home.state();
+        this.say(`¡Listo! Tu ${HOUSE_NAMES[level]} ya está construida. ¡Ve a verla y llénala de muebles, {c}!`);
+      }]),
+    );
+  }
+
+  private pay(amount: number) {
+    this.ctx.home.pay(amount);
+    const { debt } = this.ctx.home.state();
+    this.say(debt > 0
+      ? `¡Gracias! Te quedan ${formatBerries(debt)} bayas por pagar, {c}.`
+      : '¡Ya has pagado toda la casa! Cuando quieras, podemos hacerla más grande, {c}.');
   }
 
   private donateAll() {
