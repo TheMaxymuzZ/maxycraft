@@ -4,11 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Maxycraft</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Nunito:wght@600;800&display=swap" />
+    <meta name="description" content="Una mezcla de Minecraft y Animal Crossing: construye y vive tranquilo en tu isla de bloques." />
+    <meta name="theme-color" content="#3d7a1f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Maxycraft" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <style>
+      /* Pantalla de carga: va aquí para que se vea antes de que llegue el resto del juego. */
+      #splash {
+        position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 18px;
+        background: linear-gradient(#7ec8f0, #bfe6fa); font-family: 'Pixelify Sans', 'Courier New', monospace; color: #3d7a1f;
+        transition: opacity .4s;
+      }
+      #splash.done { opacity: 0; pointer-events: none; }
+      #splash img { width: 96px; height: 96px; image-rendering: pixelated; }
+      #splash strong { font-size: 40px; line-height: 1; }
+      #splash-bar { width: min(260px, 70vw); height: 14px; background: rgba(255,255,255,.55); border: 3px solid #3d7a1f; }
+      #splash-bar i { display: block; height: 100%; width: 12%; background: #5aa832; transition: width .2s; }
+      #splash p { margin: 0; font: 800 14px 'Nunito', system-ui, sans-serif; color: #2d5a17; }
+    </style>
   </head>
   <body>
+    <div id="splash" role="progressbar" aria-label="Cargando Maxycraft">
+      <img src="icono-192.png" alt="" width="96" height="96" />
+      <strong>Maxycraft</strong>
+      <div id="splash-bar"><i></i></div>
+      <p id="splash-text">Cargando…</p>
+    </div>
     <canvas id="game"></canvas>
     <div id="crosshair" aria-hidden="true"></div>
     <div id="block-name"></div>
@@ -103,6 +128,8 @@
             <button type="button" class="menu-btn" data-open="options">Opciones</button>
             <button type="button" class="menu-btn" data-open="controls">Controles</button>
           </div>
+          <button type="button" id="install" class="menu-btn install" hidden>Instalar Maxycraft</button>
+          <p id="install-ios" class="note install-ios" hidden>Para instalarlo en el iPhone o el iPad: toca <strong>Compartir</strong> y luego <strong>Añadir a pantalla de inicio</strong>.</p>
           <p class="note">El día, la noche y las estaciones siguen tu fecha y hora reales. La isla se guarda sola en este navegador.</p>
           <button type="button" class="menu-btn" data-open="islands">Mis islas y copias</button>
           <p class="version" id="version"></p>

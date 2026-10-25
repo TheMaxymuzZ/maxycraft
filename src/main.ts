@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+// Las letras van dentro del juego (sin Google Fonts) para que se vean también sin internet.
+import '@fontsource/nunito/latin-600.css';
+import '@fontsource/nunito/latin-800.css';
+import '@fontsource/pixelify-sans/latin-500.css';
+import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
 import { BLOCKS, Block, FRUITS, ROOFS, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
@@ -13,6 +18,7 @@ import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, paintFurnitureIcons } from './furniture';
 import { Hud } from './hud';
+import { setupInstall } from './install';
 import { Islands } from './islands';
 import { NameTags } from './labels';
 import { Menu } from './menu';
@@ -284,6 +290,7 @@ applySettings(settings);
 
 const hud = new Hud(inventory, atlas);
 hud.select(0);
+setupInstall((t) => hud.toast(t));
 
 /** Mete un objeto en los bolsillos y lo anuncia. Devuelve false si no cabe. */
 function take(id: string): boolean {
@@ -889,6 +896,19 @@ let fpsTime = 0;
 let fps = 0;
 let spawned = !!save?.player;
 
+// Pantalla de carga: se quita cuando ya se ve la isla alrededor (o, como mucho, a los 20 segundos).
+const splash = document.querySelector<HTMLDivElement>('#splash');
+const splashBar = splash?.querySelector<HTMLElement>('#splash-bar i');
+if (splash) splash.querySelector('#splash-text')!.textContent = 'Preparando tu isla…';
+function updateSplash(now: number) {
+  if (!splash || splash.classList.contains('done')) return;
+  const loaded = world.loadedFraction(player.position.x, player.position.z, Math.min(renderRadius, 3));
+  splashBar!.style.width = `${Math.round(20 + loaded * 80)}%`;
+  if (loaded < 1 && now < 20_000) return;
+  splash.classList.add('done');
+  setTimeout(() => splash.remove(), 500);
+}
+
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
@@ -896,6 +916,7 @@ function frame(now: number) {
   world.update(player.position.x, player.position.z, renderRadius);
 
   // Esperar a que el suelo bajo el jugador exista antes de aplicar la gravedad.
+  updateSplash(now);
   if (!spawned && world.isReady(player.position.x, player.position.z)) {
     player.spawnAt(player.position.x, player.position.z);
     spawned = true;

@@ -388,3 +388,8 @@ fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template
 @keyframes saved { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #save-indicator.show { animation-timing-function: steps(1, end); } }
 #toast { z-index: 11; }
+
+/* Instalar como app. */
+.panel button.menu-btn.install { background: var(--grass-deep); color: #fff; border-color: var(--grass-deep); }
+.panel button.menu-btn.install::before { content: '⬇ '; }
+.install-ios { color: var(--grass-deep); }
