@@ -149,7 +149,8 @@ add({ id: 'pastel', name: 'Pastel', tile: Tile.Cake, maxStack: 10, sell: 900 });
 add({ id: 'puerta', name: 'Puerta', tile: Tile.DoorIcon, maxStack: 10, block: Block.Door, sell: 60 });
 add({ id: 'puerta_valla', name: 'Puerta de valla', tile: Tile.GateIcon, maxStack: 30, block: Block.Gate, sell: 30 });
 for (const k of TREE_KINDS) {
-  add({ id: k.sapling, name: k.name, tile: k.block === Block.PalmSapling ? Tile.PalmSapling : Tile.Sapling, maxStack: 30, block: k.block, sell: 40 });
+  const tile = k.block === Block.PalmSapling ? Tile.PalmSapling : k.block === Block.PineSapling ? Tile.PineSapling : Tile.Sapling;
+  add({ id: k.sapling, name: k.name, tile, maxStack: 30, block: k.block, sell: 40 });
 }
 
 // Billete para volar a una isla misteriosa (v1.9).
@@ -180,11 +181,13 @@ export function hasItem(id: string): boolean {
 export function dropFor(b: Block): string | null {
   switch (b) {
     case Block.Grass:
+    case Block.SnowGrass:
       return 'tierra';
     case Block.TallGrass:
       return null;
     case Block.Leaves:
     case Block.PalmLeaves:
+    case Block.PineLeaves:
       return null; // las hojas se deshacen; las ramas salen al sacudir árboles
     case Block.Apple:
       return 'manzana';
@@ -211,6 +214,7 @@ export function dropFor(b: Block): string | null {
     case Block.DoorTopOpen:
     case Block.Sapling:
     case Block.PalmSapling:
+    case Block.PineSapling:
       return null; // la puerta sale una sola vez; el brote lo devuelve el huerto de árboles
     case Block.CoalOre:
       return 'carbon';
@@ -251,6 +255,7 @@ interface Hardness {
 
 const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Grass]: { time: 0.6, tool: 'shovel' },
+  [Block.SnowGrass]: { time: 0.6, tool: 'shovel' },
   [Block.Dirt]: { time: 0.5, tool: 'shovel' },
   [Block.Sand]: { time: 0.5, tool: 'shovel' },
   [Block.Stone]: { time: 1.5, tool: 'pickaxe', needsTool: true },
@@ -288,6 +293,7 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.FarmlandWet]: { time: 0.5, tool: 'shovel' },
   [Block.Leaves]: { time: 0.25 },
   [Block.PalmLeaves]: { time: 0.25 },
+  [Block.PineLeaves]: { time: 0.25 },
 };
 
 // Las escaleras se rompen como su material.
@@ -340,6 +346,7 @@ export const RECIPES: Recipe[] = [
   { result: 'brote_melocotonero', count: 1, needs: [['melocoton', 2], ['tierra', 1]] },
   { result: 'brote_cerezo', count: 1, needs: [['cereza', 2], ['tierra', 1]] },
   { result: 'brote_palmera', count: 1, needs: [['coco', 1], ['arena', 1]] },
+  { result: 'brote_pino', count: 1, needs: [['rama', 2], ['tierra', 1]] },
 ];
 
 /** Recetas de la mesa de trabajo. Hay que aprenderlas: de los vecinos o de las botellas de la playa. */

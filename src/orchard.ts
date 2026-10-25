@@ -1,5 +1,5 @@
 import { Block, isSolid } from './blocks';
-import { type TreeBlock, fruitTreeShape, palmShape } from './trees';
+import { type TreeBlock, fruitTreeShape, palmShape, pineShape } from './trees';
 
 /** Días de juego que tarda un brote en hacerse árbol. */
 export const GROW_DAYS = 2;
@@ -8,9 +8,9 @@ export interface TreeKind {
   /** Id del brote en los bolsillos. */
   sapling: string;
   name: string;
-  /** Fruta que da; la palmera da cocos. */
+  /** Fruta que da; la palmera da cocos y el pino nada (Air). */
   fruit: Block;
-  block: Block.Sapling | Block.PalmSapling;
+  block: Block.Sapling | Block.PalmSapling | Block.PineSapling;
 }
 
 /** Cada tipo de árbol, con su brote para replantarlo. */
@@ -21,6 +21,7 @@ export const TREE_KINDS: TreeKind[] = [
   { sapling: 'brote_melocotonero', name: 'Brote de melocotonero', fruit: Block.Peach, block: Block.Sapling },
   { sapling: 'brote_cerezo', name: 'Brote de cerezo', fruit: Block.Cherry, block: Block.Sapling },
   { sapling: 'brote_palmera', name: 'Brote de palmera', fruit: Block.Coconut, block: Block.PalmSapling },
+  { sapling: 'brote_pino', name: 'Brote de pino', fruit: Block.Air, block: Block.PineSapling },
 ];
 
 export function treeKindOfSapling(id: string): TreeKind | undefined {
@@ -28,11 +29,11 @@ export function treeKindOfSapling(id: string): TreeKind | undefined {
 }
 
 export function treeKindOfFruit(fruit: number): TreeKind | undefined {
-  return TREE_KINDS.find((k) => k.fruit === fruit);
+  return fruit === Block.Air ? undefined : TREE_KINDS.find((k) => k.fruit === fruit);
 }
 
 export function isSapling(b: number): boolean {
-  return b === Block.Sapling || b === Block.PalmSapling;
+  return b === Block.Sapling || b === Block.PalmSapling || b === Block.PineSapling;
 }
 
 /** Suelo donde se puede plantar un brote. */
@@ -88,6 +89,7 @@ export class Orchard {
   /** Bloques del árbol en que se convierte un brote. */
   shape(t: PlantedTree): TreeBlock[] {
     const kind = treeKindOfSapling(t.sapling)!;
+    if (kind.block === Block.PineSapling) return pineShape();
     return kind.block === Block.PalmSapling ? palmShape() : fruitTreeShape(kind.fruit, ((t.x * 7 + t.z * 13) % 5 + 5) % 5 / 5);
   }
 
@@ -96,7 +98,7 @@ export class Orchard {
     for (const t of this.trees.values()) {
       if (!t.grown || Math.abs(t.x - x) > 2 || Math.abs(t.z - z) > 2) continue;
       for (const [dx, dy, dz, b] of this.shape(t)) {
-        if (t.x + dx === x && t.y + dy === y && t.z + dz === z && b === treeKindOfSapling(t.sapling)!.fruit) return b;
+        if (t.x + dx === x && t.y + dy === y && t.z + dz === z && b !== Block.Air && b === treeKindOfSapling(t.sapling)!.fruit) return b;
       }
     }
     return null;

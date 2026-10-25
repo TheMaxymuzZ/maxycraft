@@ -19,6 +19,8 @@ export const SLOTS = 3;
 export interface SaveData {
   version: 1;
   seed: number;
+  /** Desde la v2.6: versión del terreno (sin ella, el de siempre). */
+  terrain?: number;
   edits: Edits;
   player: { x: number; y: number; z: number; yaw: number; pitch: number } | null;
   /** Desde la v0.3. */

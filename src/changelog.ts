@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.6',
+    title: 'Islas grandes y biomas',
+    items: [
+      'Las islas nuevas son mucho más grandes y tienen biomas: bosque, pradera de flores, bambú y montaña.',
+      'En la montaña hay acantilados de roca, pinos, pedruscos y nieve en las cumbres.',
+      'El río baja de terraza en terraza: donde el agua de arriba cae sobre la de abajo hay una cascada.',
+      'Pinos nuevos: al talarlos sueltan brotes de pino para replantarlos.',
+      'Tu isla guardada no cambia; para ver todo esto, empieza una isla nueva en "Mis islas".',
+    ],
+  },
+  {
     version: '2.5',
     title: 'Luz nueva y dos manos',
     items: [

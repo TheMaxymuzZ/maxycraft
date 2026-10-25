@@ -63,6 +63,8 @@ export enum Block {
   BrickStairs = 80, BrickStairs1 = 81, BrickStairs2 = 82, BrickStairs3 = 83,
   // Almacenamiento (v2.4).
   Chest = 84, Trunk = 85, Crate = 86,
+  // Biomas (v2.6): pinos de la montaña y nieve en las cumbres.
+  PineLeaves = 87, PineSapling = 88, SnowGrass = 89,
 }
 
 export const TILE = 16;
@@ -90,6 +92,7 @@ export enum Tile {
   DoorLower, DoorUpper, DoorIcon, GateIcon, Sapling, PalmSapling,
   Brick, Cobble, PolishedStone, Glass, PalmPlanks, LightBlock,
   ChestFront, ChestTop, TrunkFront, TrunkTop, CrateSide,
+  PineLeaves, PineSapling, SnowTop, SnowSide,
 }
 
 /**
@@ -205,6 +208,9 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.Chest]: cube('Cofre', Tile.ChestFront, Tile.ChestTop),
   [Block.Trunk]: cube('Baúl', Tile.TrunkFront, Tile.TrunkTop),
   [Block.Crate]: cube('Caja', Tile.CrateSide),
+  [Block.PineLeaves]: cube('Hojas de pino', Tile.PineLeaves, Tile.PineLeaves, Tile.PineLeaves, true),
+  [Block.PineSapling]: cross('Brote de pino', Tile.PineSapling),
+  [Block.SnowGrass]: cube('Hierba nevada', Tile.SnowSide, Tile.SnowTop, Tile.Dirt),
 };
 /** Material de cada juego de escaleras: su primer bloque (mirando a -z), nombre y textura. */
 export const STAIRS: [Block, string, Tile][] = [
@@ -375,6 +381,8 @@ const BARK: RGB[] = [[116, 82, 50], [102, 72, 44], [128, 92, 58]];
 const WOOD: RGB[] = [[196, 156, 98], [184, 144, 88], [206, 166, 108]];
 const LEAF: RGB[] = [[84, 160, 70], [72, 146, 60], [98, 176, 82], [64, 134, 54]];
 const PALM_BARK: RGB[] = [[168, 132, 86], [154, 120, 78], [180, 144, 96]];
+const PINE_LEAF: RGB[] = [[46, 112, 74], [38, 98, 64], [56, 126, 84], [32, 86, 58]];
+const SNOW: RGB[] = [[244, 248, 255], [234, 240, 250], [250, 252, 255], [222, 232, 246]];
 const PALM_LEAF: RGB[] = [[96, 178, 64], [84, 164, 56], [110, 190, 74]];
 
 const STEM: RGB = [74, 140, 52];
@@ -805,6 +813,11 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     '.l.....tt.....l.', '.......tt.......', '.......tt.......', '.......tt.......', '.......tt.......', '.......tt.......',
     '.......tt.......', '.......tt.......', '.......tt.......', '................',
   ], { l: [84, 164, 56], L: [120, 196, 80], t: [168, 132, 86] });
+  paintSprite(ctx, Tile.PineSapling, [
+    '................', '.......l........', '......lLl.......', '.....lLLLl......', '.......t........', '....lLLLLLl.....',
+    '...lLLLLLLLl....', '.......t........', '..lLLLLLLLLLl...', '.......t........', '.......t........', '.......t........',
+    '.......t........', '.......t........', '................', '................',
+  ], { l: [38, 98, 64], L: [56, 132, 86], t: [116, 82, 50] });
   paintSprite(ctx, Tile.Ticket, [
     ...Array(4).fill('................'),
     '.bbbbbbbbbbbbbb.', '.bwwwwwwwwbwwwb.', '.bwbbbwwwwbwkwb.', '.bwwbwwwwwwwkwb.', '.bwbbbbbwwbwwwb.', '.bwwbwwwwwbwkwb.',
@@ -885,6 +898,13 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   paintTile(ctx, Tile.PalmTop, (x, y, r) => {
     const d = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5));
     return d > 6.5 ? pick(r, PALM_BARK) : [214, 190, 140];
+  });
+  // Agujas de pino: verde oscuro, en franjas, con pocos huecos.
+  paintTile(ctx, Tile.PineLeaves, (x, y, r) => ((x + y * 3) % 7 === 0 && r() < 0.5 ? null : y % 4 === 0 ? pick(r, PINE_LEAF.slice(2)) : pick(r, PINE_LEAF)));
+  paintTile(ctx, Tile.SnowTop, (_x, _y, r) => pick(r, SNOW));
+  paintTile(ctx, Tile.SnowSide, (_x, y, r) => {
+    const edge = 3 + Math.floor(r() * 3);
+    return y < edge ? pick(r, SNOW) : pick(r, DIRT);
   });
   paintTile(ctx, Tile.PalmLeaves, (x, y, r) => ((x + y) % 5 === 0 && r() < 0.6 ? null : pick(r, PALM_LEAF)));
 
@@ -1178,6 +1198,7 @@ export function applySeason(atlas: HTMLCanvasElement, season: 'primavera' | 'ver
     recolor(Tile.GrassSide, snow);
     recolor(Tile.Leaves, (c, _x, _y, r) => (r < 0.45 ? snow(c, 0, 0, r) : mix(c, [40, 90, 70], 0.4)));
     recolor(Tile.TallGrass, (c) => mix(c, [170, 160, 120], 0.6));
+    recolor(Tile.PineLeaves, (c, _x, _y, r) => (r < 0.3 ? snow(c, 0, 0, r) : c));
   } else if (season === 'otoño') {
     recolor(Tile.GrassTop, (c) => mix(c, [180, 170, 70], 0.35));
     recolor(Tile.GrassSide, (c) => mix(c, [180, 170, 70], 0.35));

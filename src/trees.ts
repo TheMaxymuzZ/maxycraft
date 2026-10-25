@@ -66,8 +66,25 @@ export function palmShape(): TreeBlock[] {
   return out;
 }
 
+/** Pino: tronco de 6 y copa en cono, más estrecha arriba. No da fruta. */
+export function pineShape(): TreeBlock[] {
+  const out: TreeBlock[] = [];
+  const top = 6;
+  // Por capas: [altura, alcance de las hojas medido en pasos].
+  for (const [y, reach] of [[2, 3], [3, 2], [4, 2], [5, 1], [6, 1], [7, 0]]) {
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        if (Math.abs(dx) + Math.abs(dz) > reach || (y < top && !dx && !dz)) continue;
+        out.push([dx, y, dz, Block.PineLeaves, false]);
+      }
+    }
+  }
+  for (let y = 0; y < top; y++) out.push([0, y, 0, Block.Log, true]);
+  return out;
+}
+
 const LOGS: ReadonlySet<number> = new Set([Block.Log, Block.PalmLog]);
-const CROWN: ReadonlySet<number> = new Set([Block.Leaves, Block.PalmLeaves, Block.Coconut, Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry]);
+const CROWN: ReadonlySet<number> = new Set([Block.Leaves, Block.PalmLeaves, Block.PineLeaves, Block.Coconut, Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry]);
 const FRUIT_BLOCKS: ReadonlySet<number> = new Set([Block.Coconut, Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry]);
 
 export interface Felled {
