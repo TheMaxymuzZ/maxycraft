@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.7**
+Versión actual: **v1.8**
+
+- **Huerto**: con la pala en la mano, clic derecho sobre la hierba la convierte en tierra de cultivo. Ahí se plantan semillas de trigo, zanahoria o tomate (siempre a la venta en la tienda).
+- **Regadera**: cada día que riegas una planta crece una fase al día siguiente; a los tres días regados está madura. La tierra regada se ve más oscura y la lluvia riega sola. Lo maduro se cosecha con clic derecho o rompiéndolo, y a veces da una semilla de más.
+- **Granja**: la tienda vende gallinas y vacas. Se sueltan en el suelo y pasean cerca de allí; una vez al día la gallina da un huevo y la vaca leche (clic derecho sobre ellas). Hasta 8 animales.
+- **Cocina** (en los bolsillos, tecla E): pan, tortilla, sopa de zanahoria y pastel, que valen mucho más que sus ingredientes.
 
 - **En la mano**: abajo a la derecha se ve lo que llevas, como en Minecraft: el brazo, las herramientas y objetos con grosor (hechos píxel a píxel de su icono) o un cubo pequeño si es un bloque. Se balancea al andar y golpea al romper o usar.
 - **Música por estación**: la primavera más alegre, el verano más rápido, el otoño más grave y tranquilo, y el invierno lento y con campanillas. De noche siempre es tranquila.
@@ -103,7 +108,7 @@ En móvil o tableta se juega con el mando en pantalla. Con teclado y ratón:
 | Espacio | Saltar |
 | Mayús | Correr |
 | Clic izquierdo (mantener) | Romper bloque |
-| Clic derecho | Colocar bloque o mueble, sacudir un árbol, hablar |
+| Clic derecho | Colocar bloque o mueble, sacudir un árbol, hablar, labrar, plantar, regar, cosechar y recoger huevos o leche |
 | R | Girar el mueble al que apuntas |
 | M | Sonido sí / no |
 | H | Plegar los primeros pasos |

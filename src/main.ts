@@ -24,6 +24,8 @@ import { setupInstall } from './install';
 import { Islands } from './islands';
 import { NameTags } from './labels';
 import { Menu } from './menu';
+import { Animals, MAX_ANIMALS, type AnimalKind } from './animals';
+import { Farm, cropForSeed, cropOfBlock, isFarmland } from './farm';
 import { Inventory, starterKit } from './inventory';
 import { SHELLS, dropFor, fruitItemFor, itemDef } from './items';
 import { Player } from './player';
@@ -124,6 +126,12 @@ let bottleTaken = save?.bottle?.day === today && save.bottle.taken;
 const shellsTaken = new Set(save?.shells?.day === today ? save.shells.taken : []);
 const branchTrees = new Set(save?.branches?.day === today ? save.branches.trees : []);
 
+// El huerto y la granja.
+const farm = new Farm(save?.farm);
+farm.sync(world, today);
+const animals = new Animals(world, save?.animals);
+scene.add(animals.group);
+
 const player = new Player(world, camera);
 if (save?.player) {
   player.position.set(save.player.x, save.player.y, save.player.z);
@@ -216,6 +224,8 @@ function persist() {
     tutorialDone: tutorial.finished,
     recipes: [...workbench.known],
     bottle: { day: today, taken: bottleTaken },
+    farm: farm.serialize(),
+    animals: animals.serialize(),
     savedAt: 0,
   };
   const text = JSON.stringify(data);
@@ -656,6 +666,13 @@ window.addEventListener('mouseup', (e) => {
 });
 
 function removeBlock(x: number, y: number, z: number, b: number, burst: boolean) {
+  // Quitar la tierra de cultivo arranca lo que hubiera plantado encima.
+  if (isFarmland(b) && farm.has(x, y + 1, z)) harvestCrop(x, y + 1, z, true);
+  if (cropOfBlock(b)) {
+    world.setBlock(x, y, z, Block.Air);
+    harvestCrop(x, y, z, burst);
+    return;
+  }
   world.setBlock(x, y, z, Block.Air);
   if (!burst) sound.dig(materialOf(BLOCKS[b].name));
   // Un mueble sin suelo debajo se cae y se puede recoger.
@@ -667,6 +684,97 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
   if (isFruit(b)) harvested[posKey(x, y, z)] = Date.now();
   const id = dropFor(b);
   if (id) drops.spawn(id, x + 0.5, y + 0.5, z + 0.5, { burst });
+}
+
+/** Recoge una planta del huerto: la cosecha si está madura o la semilla si no. */
+function harvestCrop(x: number, y: number, z: number, burst: boolean) {
+  const h = farm.harvest(x, y, z, dayKey(gameDate()));
+  if (world.getBlock(x, y, z) !== Block.Air) world.setBlock(x, y, z, Block.Air);
+  if (!h) return;
+  sound.rustle();
+  for (let i = 0; i < h.count; i++) drops.spawn(h.produce!, x + 0.5, y + 0.5, z + 0.5, { burst: true });
+  // Al cosechar a veces sale una semilla de más.
+  const seeds = h.seeds + (h.produce && Math.random() < 0.3 ? 1 : 0);
+  for (let i = 0; i < seeds; i++) drops.spawn(h.seed, x + 0.5, y + 0.5, z + 0.5, { burst: burst || !!h.produce });
+  if (h.produce) hud.toast(`¡Has cosechado ${h.count} ${itemDef(h.produce).name.toLowerCase()}!`);
+}
+
+/** Usar algo en el huerto: labrar con la pala, plantar semillas, regar o cosechar. Devuelve si ha hecho algo. */
+function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z: number, target: number): boolean {
+  const day = dayKey(gameDate());
+  const crop = cropOfBlock(target);
+  // Lo maduro se cosecha con la mano o con cualquier cosa (menos la regadera).
+  if (crop && crop.stage === 3 && def?.tool !== 'can') {
+    removeBlock(x, y, z, target, true);
+    return true;
+  }
+  if (def?.tool === 'can') {
+    const [cx, cy, cz] = crop ? [x, y, z] : [x, y + 1, z];
+    if (!crop && !isFarmland(target)) {
+      hud.toast('Riega las plantas del huerto');
+      return true;
+    }
+    if (!farm.has(cx, cy, cz)) {
+      hud.toast('Aquí no hay nada plantado');
+      return true;
+    }
+    sound.splash();
+    if (!farm.water(cx, cy, cz, day)) {
+      hud.toast('Ya está regada hoy. ¡Mañana habrá crecido!');
+      return true;
+    }
+    farm.sync(world, day);
+    if (inventory.wearTool(hud.selected)) hud.toast('¡Tu regadera se ha roto!');
+    return true;
+  }
+  if (def?.tool === 'shovel' && (target === Block.Grass || target === Block.Dirt)) {
+    const above = world.getBlock(x, y + 1, z);
+    if (above !== Block.Air && above !== Block.TallGrass) return false;
+    // En el terreno de un vecino o de la tienda no; en el tuyo sí.
+    const plot = world.plotAt(x, z);
+    if (plot && plot.kind !== 'player') {
+      hud.toast('Aquí no se puede hacer un huerto');
+      return true;
+    }
+    if (above === Block.TallGrass) world.setBlock(x, y + 1, z, Block.Air);
+    world.setBlock(x, y, z, Block.Farmland);
+    sound.dig('hierba');
+    if (inventory.wearTool(hud.selected)) hud.toast('¡Tu pala se ha roto!');
+    return true;
+  }
+  const seed = def ? cropForSeed(def.id) : null;
+  if (seed) {
+    if (!isFarmland(target) || world.getBlock(x, y + 1, z) !== Block.Air) {
+      hud.toast('Las semillas van en tierra de cultivo: labra la hierba con la pala (clic derecho)');
+      return true;
+    }
+    farm.plant(x, y + 1, z, seed.id);
+    world.setBlock(x, y + 1, z, seed.stages[0]);
+    farm.sync(world, day);
+    inventory.consume(hud.selected);
+    sound.place();
+    return true;
+  }
+  return false;
+}
+
+/** Suelta una gallina o una vaca donde se apunta. */
+function placeAnimal(kind: AnimalKind, hit: { block: [number, number, number]; place: [number, number, number] }) {
+  if (animals.full) {
+    hud.toast(`Ya tienes ${MAX_ANIMALS} animales: ¡no caben más en la granja!`);
+    return;
+  }
+  const [x, y, z] = hit.place;
+  if (isSolid(world.getBlock(x, y, z)) || !isSolid(world.getBlock(x, y - 1, z)) || world.waterKind(x, z) && y <= WATER_SURFACE + 1) {
+    hud.toast('Suéltala en el suelo, en un sitio despejado');
+    return;
+  }
+  const a = animals.add({ kind, x, y, z });
+  a.happy();
+  inventory.consume(hud.selected);
+  sound.fanfare();
+  hud.toast(kind === 'gallina' ? 'La gallina pondrá un huevo cada día' : 'La vaca te dará leche cada día');
+  persist();
 }
 
 const villagerBox = new THREE.Box3();
@@ -700,6 +808,16 @@ function useItem() {
     talkTo(villager);
     return;
   }
+  const animal = animals.pick(aimRay(), Math.min(blockDist, REACH));
+  if (animal) {
+    const product = animals.collect(animal, dayKey(gameDate()));
+    if (!product) hud.toast(animal.data.kind === 'gallina' ? 'Ya ha puesto su huevo hoy. ¡Vuelve mañana!' : 'Ya te ha dado su leche hoy. ¡Vuelve mañana!');
+    else {
+      drops.spawn(product, animal.position.x, animal.position.y + 0.6, animal.position.z, { burst: true });
+      sound.coin();
+    }
+    return;
+  }
   const stack = hud.selectedStack;
   const def = stack ? itemDef(stack.id) : null;
 
@@ -723,6 +841,13 @@ function useItem() {
 
   if (target === Block.Workbench) {
     openWorkbench();
+    return;
+  }
+
+  if (useFarm(def, bx, by, bz, target)) return;
+
+  if (def?.id === 'gallina' || def?.id === 'vaca') {
+    placeAnimal(def.id, hit);
     return;
   }
 
@@ -855,6 +980,7 @@ function shakeTree(x: number, y: number, z: number) {
 
 // Pasos: un sonido cada poco más de un bloque andado, según lo que haya bajo los pies.
 let stepDistance = 0;
+let farmTimer = 0;
 let rainTimer = 0;
 const spawnPoint = player.position.clone();
 function updateSteps(dt: number) {
@@ -978,6 +1104,15 @@ function frame(now: number) {
   waterfalls.update(now / 1000);
   birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), (x, z) => world.waterKind(x, z) === 'mar');
   for (const v of villagers) v.update(dt, hour, player.position);
+  animals.update(dt, player.position);
+  // Cada segundo el huerto crece si ha cambiado el día, y la lluvia lo riega.
+  farmTimer -= dt;
+  if (farmTimer <= 0) {
+    farmTimer = 1;
+    const day = dayKey(date);
+    if (weather.raining) farm.waterAll(day);
+    farm.sync(world, day);
+  }
   nameTags.update(camera, player.position);
   updateClock(date);
   drops.update(dt, player.position, take, 1 - sky.night * 0.5);
@@ -1058,6 +1193,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, player, farm, animals, useItem, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

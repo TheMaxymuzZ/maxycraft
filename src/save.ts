@@ -1,3 +1,5 @@
+import type { AnimalSave } from './animals';
+import type { FarmSave } from './farm';
 import type { PlacedFurniture } from './furniture';
 import type { ItemStack } from './items';
 import type { StepId } from './tutorial';
@@ -41,6 +43,9 @@ export interface SaveData {
   tutorialDone?: boolean;
   /** Desde la v1.3: cuándo se guardó por última vez (milisegundos). */
   savedAt?: number;
+  /** Desde la v1.8: el huerto (cultivos y días regados) y los animales de la granja. */
+  farm?: FarmSave;
+  animals?: AnimalSave[];
 }
 
 export function slotKey(slot: number): string {
