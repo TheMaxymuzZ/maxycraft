@@ -6,7 +6,11 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.4**
+Versión actual: **v1.5**
+
+- **Cielo con degradado**: más azul arriba que en el horizonte, con un resplandor naranja junto al sol al amanecer y al atardecer. El sol se vuelve anaranjado cuando está bajo y la luz también.
+- **Agua animada**: olas suaves (en calidad media y alta), manchas de luz que se mueven y brillos pixelados que se apagan de noche y con lluvia.
+- **Nubes nuevas** hechas de varias piezas, con sombra por debajo, que se tiñen de rosa y naranja al amanecer y al atardecer.
 
 - **App instalable**: en Android y en el ordenador (Chrome o Edge) aparece el botón «Instalar Maxycraft» en el menú. En iPhone y iPad el menú explica cómo hacerlo: Compartir → Añadir a pantalla de inicio. Se abre a pantalla completa con su icono.
 - **Sin internet**: tras la primera visita el juego se guarda en el dispositivo y funciona sin conexión. Cuando hay una versión nueva se actualiza sola la próxima vez que se abre con internet. Las letras van dentro del juego.
