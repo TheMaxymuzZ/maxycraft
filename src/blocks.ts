@@ -30,6 +30,11 @@ export enum Block {
   Window = 25,
   ShopWall = 26,
   MuseumWall = 27,
+  CoalOre = 28,
+  IronOre = 29,
+  GoldOre = 30,
+  GemOre = 31,
+  Torch = 32,
 }
 
 export const TILE = 16;
@@ -46,6 +51,7 @@ export enum Tile {
   Branch, Shell, Conch, Starfish, Axe, Shovel, Pickaxe,
   Wall, RoofRed, RoofBlue, RoofGreen, RoofYellow, Window, ShopWall, Berry,
   Rod, Net, MuseumWall,
+  CoalOre, IronOre, GoldOre, GemOre, Torch, Coal, IronNugget, GoldNugget, Gem, IronAxe, IronPickaxe, IronShovel,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. */
@@ -94,7 +100,15 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.Window]: cube('Ventana', Tile.Window, Tile.Window, Tile.Window, true),
   [Block.ShopWall]: cube('Pared de madera', Tile.ShopWall),
   [Block.MuseumWall]: cube('Muro de piedra', Tile.MuseumWall),
+  [Block.CoalOre]: cube('Carbón', Tile.CoalOre),
+  [Block.IronOre]: cube('Mineral de hierro', Tile.IronOre),
+  [Block.GoldOre]: cube('Mineral de oro', Tile.GoldOre),
+  [Block.GemOre]: cube('Amatista', Tile.GemOre),
+  [Block.Torch]: cross('Antorcha', Tile.Torch),
 };
+
+/** Bloques que dan luz y cuánta (alcance en bloques). */
+export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 8 };
 
 /** Bloques de construcción: dentro de las parcelas de vecinos y tienda no se pueden romper. */
 export const HOUSE_BLOCKS: readonly Block[] = [
@@ -542,6 +556,80 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     '................',
     '................',
   ], { s: [150, 104, 60], n: [240, 240, 240] });
+
+  // Minerales: piedra con motas de color.
+  const ore = (tile: Tile, spot: RGB, shade: RGB) =>
+    paintTile(ctx, tile, (x, y, r) => {
+      const blob = ((x * 7 + y * 13) % 17 < 3 && r() < 0.9) || ((x * 11 + y * 5) % 19 < 2);
+      if (blob) return r() < 0.5 ? spot : shade;
+      return pick(r, STONE);
+    });
+  ore(Tile.CoalOre, [44, 44, 48], [70, 70, 76]);
+  ore(Tile.IronOre, [214, 172, 140], [190, 146, 116]);
+  ore(Tile.GoldOre, [250, 214, 70], [226, 180, 40]);
+  ore(Tile.GemOre, [184, 110, 230], [146, 80, 200]);
+  paintSprite(ctx, Tile.Torch, [
+    '................',
+    '................',
+    '................',
+    '.......f........',
+    '......fff.......',
+    '......fyf.......',
+    '.......c........',
+    '.......s........',
+    '.......s........',
+    '.......s........',
+    '.......s........',
+    '.......s........',
+    '.......s........',
+    '.......s........',
+    '.......s........',
+    '.......s........',
+  ], { f: [255, 170, 40], y: [255, 240, 140], c: [60, 50, 40], s: [140, 100, 60] });
+  const nugget = (tile: Tile, a: RGB, b: RGB) =>
+    paintSprite(ctx, tile, [
+      '................',
+      '................',
+      '................',
+      '................',
+      '.......aa.......',
+      '.....aaaaaa.....',
+      '....aahaaaaa....',
+      '...aahaaaaaab...',
+      '...aaaaaaaabb...',
+      '....aaaaaabb....',
+      '.....bbbbbb.....',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+    ], { a, b, h: [255, 255, 255] });
+  nugget(Tile.Coal, [52, 52, 56], [30, 30, 34]);
+  nugget(Tile.IronNugget, [200, 200, 210], [150, 150, 160]);
+  nugget(Tile.GoldNugget, [250, 210, 60], [210, 160, 30]);
+  paintSprite(ctx, Tile.Gem, [
+    '................',
+    '................',
+    '.....aaaaaa.....',
+    '....ahaaaaab....',
+    '...ahaaaaaabb...',
+    '...aaaaaaaabb...',
+    '....aaaaaabb....',
+    '.....aaaabb.....',
+    '......aabb......',
+    '.......bb.......',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+  ], { a: [184, 110, 230], b: [130, 70, 180], h: [240, 220, 255] });
+  const iron: RGB = [120, 130, 150];
+  paintSprite(ctx, Tile.IronAxe, AXE, { s: stick, h: iron });
+  paintSprite(ctx, Tile.IronPickaxe, PICKAXE, { s: stick, h: iron });
+  paintSprite(ctx, Tile.IronShovel, SHOVEL, { s: stick, h: iron });
 
   // Peces e insectos, una casilla para cada uno.
   CREATURES.forEach((c, i) => {
