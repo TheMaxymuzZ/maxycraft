@@ -1,6 +1,7 @@
 import { BLOCKS, Block, CREATURE_TILE_START, Tile, blockIconTile } from './blocks';
 import { CREATURES } from './creatures';
 import { FURNITURE, FURNITURE_TILE } from './furniture';
+import { TREE_KINDS } from './orchard';
 
 export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net' | 'can';
 
@@ -126,6 +127,13 @@ add({ id: 'tortilla', name: 'Tortilla', tile: Tile.Omelette, maxStack: 10, sell:
 add({ id: 'sopa', name: 'Sopa de zanahoria', tile: Tile.Soup, maxStack: 10, sell: 450 });
 add({ id: 'pastel', name: 'Pastel', tile: Tile.Cake, maxStack: 10, sell: 900 });
 
+// Puertas y brotes de árbol (v2.2).
+add({ id: 'puerta', name: 'Puerta', tile: Tile.DoorIcon, maxStack: 10, block: Block.Door, sell: 60 });
+add({ id: 'puerta_valla', name: 'Puerta de valla', tile: Tile.GateIcon, maxStack: 30, block: Block.Gate, sell: 30 });
+for (const k of TREE_KINDS) {
+  add({ id: k.sapling, name: k.name, tile: k.block === Block.PalmSapling ? Tile.PalmSapling : Tile.Sapling, maxStack: 30, block: k.block, sell: 40 });
+}
+
 // Billete para volar a una isla misteriosa (v1.9).
 add({ id: 'billete', name: 'Billete de avioneta', tile: Tile.Ticket, maxStack: 10, sell: 150, buy: 1500, always: true });
 
@@ -175,6 +183,17 @@ export function dropFor(b: Block): string | null {
     case Block.Farmland:
     case Block.FarmlandWet:
       return 'tierra';
+    case Block.Gate:
+    case Block.GateOpen:
+      return 'puerta_valla';
+    case Block.Door:
+    case Block.DoorOpen:
+      return 'puerta';
+    case Block.DoorTop:
+    case Block.DoorTopOpen:
+    case Block.Sapling:
+    case Block.PalmSapling:
+      return null; // la puerta sale una sola vez; el brote lo devuelve el huerto de árboles
     case Block.CoalOre:
       return 'carbon';
     case Block.IronOre:
@@ -225,6 +244,12 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Workbench]: { time: 1.6, tool: 'axe' },
   [Block.Fence]: { time: 0.8, tool: 'axe' },
   [Block.WhiteFence]: { time: 0.8, tool: 'axe' },
+  [Block.Gate]: { time: 0.8, tool: 'axe' },
+  [Block.GateOpen]: { time: 0.8, tool: 'axe' },
+  [Block.Door]: { time: 1.2, tool: 'axe' },
+  [Block.DoorTop]: { time: 1.2, tool: 'axe' },
+  [Block.DoorOpen]: { time: 1.2, tool: 'axe' },
+  [Block.DoorTopOpen]: { time: 1.2, tool: 'axe' },
   [Block.Farmland]: { time: 0.5, tool: 'shovel' },
   [Block.FarmlandWet]: { time: 0.5, tool: 'shovel' },
   [Block.Leaves]: { time: 0.25 },
@@ -268,6 +293,13 @@ export const RECIPES: Recipe[] = [
   { result: 'tortilla', count: 1, needs: [['huevo', 2], ['tomate', 1]] },
   { result: 'sopa', count: 1, needs: [['zanahoria', 2], ['leche', 1]] },
   { result: 'pastel', count: 1, needs: [['trigo', 2], ['huevo', 2], ['leche', 1]] },
+  // Brotes para replantar cada tipo de árbol: con su fruta y un poco de tierra (la palmera, en arena).
+  { result: 'brote_manzano', count: 1, needs: [['manzana', 2], ['tierra', 1]] },
+  { result: 'brote_naranjo', count: 1, needs: [['naranja', 2], ['tierra', 1]] },
+  { result: 'brote_peral', count: 1, needs: [['pera', 2], ['tierra', 1]] },
+  { result: 'brote_melocotonero', count: 1, needs: [['melocoton', 2], ['tierra', 1]] },
+  { result: 'brote_cerezo', count: 1, needs: [['cereza', 2], ['tierra', 1]] },
+  { result: 'brote_palmera', count: 1, needs: [['coco', 1], ['arena', 1]] },
 ];
 
 /** Recetas de la mesa de trabajo. Hay que aprenderlas: de los vecinos o de las botellas de la playa. */
@@ -290,7 +322,9 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'farol', count: 1, needs: [['pepita_hierro', 1], ['antorcha', 2]] },
   { result: 'ventana', count: 2, needs: [['tablones', 2], ['arena', 2]] },
   { result: 'pared', count: 4, needs: [['piedra', 2], ['arena', 2]] },
+  { result: 'puerta', count: 1, needs: [['tablones', 6]] },
+  { result: 'puerta_valla', count: 1, needs: [['tablones', 2], ['rama', 2]] },
 ];
 
 /** Las que ya se saben al empezar. */
-export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro'];
+export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'puerta', 'puerta_valla'];

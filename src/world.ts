@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, ROOFS, SWAYING, isCross, isFence, isFullBlock, isOpaque, isSolid } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, ROOFS, SWAYING, isCross, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
+import { fruitTreeShape, palmShape } from './trees';
 
 export const CHUNK = 16;
 export const HEIGHT = 64;
@@ -608,36 +609,11 @@ export class World {
 
   private placeFruitTree(wx: number, wz: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
     const base = this.heightAt(wx, wz) + 1;
-    const top = base + 4;
-    for (let y = top - 2; y <= top + 1; y++) {
-      const r = y >= top ? 1 : 2;
-      for (let dz = -r; dz <= r; dz++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (r === 2 && Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
-          set(tx + dx, y, tz + dz, Block.Leaves, false);
-        }
-      }
-    }
-    // Tres frutas colgando bajo la copa.
-    const spots = [[-1, -2], [2, 0], [0, 2], [-2, 1], [1, -1]];
-    const start = Math.floor(columnRandom(wx, wz, this.seed + 9) * spots.length);
-    for (let i = 0; i < 3; i++) {
-      const [dx, dz] = spots[(start + i) % spots.length];
-      set(tx + dx, top - 3, tz + dz, this.fruit, false);
-    }
-    for (let y = base; y < top; y++) set(tx, y, tz, Block.Log, true);
+    for (const [dx, dy, dz, b, replace] of fruitTreeShape(this.fruit, columnRandom(wx, wz, this.seed + 9))) set(tx + dx, base + dy, tz + dz, b, replace);
   }
 
   private placePalm(base: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
-    const top = base + 5;
-    for (let y = base; y < top; y++) set(tx, y, tz, Block.PalmLog, true);
-    set(tx, top, tz, Block.PalmLeaves, true);
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      set(tx + dx, top, tz + dz, Block.PalmLeaves, false);
-      set(tx + dx * 2, top - 1, tz + dz * 2, Block.PalmLeaves, false);
-    }
-    set(tx + 1, top - 1, tz + 1, Block.Coconut, false);
-    set(tx - 1, top - 1, tz, Block.Coconut, false);
+    for (const [dx, dy, dz, b, replace] of palmShape()) set(tx + dx, base + dy, tz + dz, b, replace);
   }
 
   private getChunk(cx: number, cz: number): Chunk {
@@ -907,6 +883,19 @@ export class World {
     return Math.max(0.05, light);
   }
 
+  /** La puerta de valla va a lo largo de x si tiene vallas (o paredes) a los lados en x. */
+  private gateAlongX(x: number, y: number, z: number): boolean {
+    const joins = (b: number) => isFence(b) || isGate(b) || isFullBlock(b);
+    if (joins(this.getBlock(x + 1, y, z)) || joins(this.getBlock(x - 1, y, z))) return true;
+    return !(joins(this.getBlock(x, y, z + 1)) || joins(this.getBlock(x, y, z - 1)));
+  }
+
+  /** La puerta de casa va a lo largo de x si tiene paredes a los lados en x. */
+  private doorAlongX(x: number, y: number, z: number): boolean {
+    if (isFullBlock(this.getBlock(x + 1, y, z)) || isFullBlock(this.getBlock(x - 1, y, z))) return true;
+    return !(isFullBlock(this.getBlock(x, y, z + 1)) || isFullBlock(this.getBlock(x, y, z - 1)));
+  }
+
   // --- Malla ---
 
   private buildMesh(c: Chunk) {
@@ -958,7 +947,7 @@ export class World {
             continue;
           }
 
-          if (def.shape === 'fence') {
+          if (def.shape === 'fence' || def.shape === 'gate' || def.shape === 'door') {
             const [u0, v0] = tileUV(def.tiles[0]);
             const light = this.lightAt(wx, y, wz, torches);
             // Caja pequeña dentro del bloque; la textura se recorta según su tamaño.
@@ -981,10 +970,35 @@ export class World {
                 indices.push(start, start + 1, start + 2, start + 2, start + 1, start + 3);
               }
             };
+            // Box con los ejes cambiados: así cada puerta se dibuja igual a lo largo de x o de z.
+            const along = (alongX: boolean, a0: number, y0: number, b0: number, a1: number, y1: number, b1: number) =>
+              alongX ? box(a0, y0, b0, a1, y1, b1) : box(b0, y0, a0, b1, y1, a1);
+            if (def.shape === 'gate') {
+              const alongX = this.gateAlongX(wx, y, wz);
+              if (isOpen(b)) {
+                // Abierta: las dos hojas giradas hacia dentro, pegadas a los postes.
+                for (const [a0, a1] of [[0, 0.125], [0.875, 1]]) {
+                  along(alongX, a0, 0.375, 0.5, a1, 0.5625, 1);
+                  along(alongX, a0, 0.75, 0.5, a1, 0.9375, 1);
+                  along(alongX, a0, 0.3, 0.875, a1, 1, 1);
+                }
+              } else {
+                along(alongX, 0, 0.375, 0.4375, 1, 0.5625, 0.5625);
+                along(alongX, 0, 0.75, 0.4375, 1, 0.9375, 0.5625);
+                for (const a of [0, 0.4375, 0.875]) along(alongX, a, 0.3, 0.4375, a + 0.125, 1, 0.5625);
+              }
+              continue;
+            }
+            if (def.shape === 'door') {
+              const alongX = this.doorAlongX(wx, isDoorTop(b) ? y - 1 : y, wz);
+              if (isOpen(b)) along(!alongX, 0, 0, 0, 1, 1, 0.1875);
+              else along(alongX, 0, 0, 0.40625, 1, 1, 0.59375);
+              continue;
+            }
             box(0.375, 0, 0.375, 0.625, 1, 0.625);
             for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
               const n = this.getBlock(wx + dx, y, wz + dz);
-              if (!isFence(n) && !isFullBlock(n)) continue;
+              if (!isFence(n) && !isGate(n) && !isFullBlock(n)) continue;
               const x0 = dx > 0 ? 0.625 : dx < 0 ? 0 : 0.4375;
               const x1 = dx > 0 ? 1 : dx < 0 ? 0.375 : 0.5625;
               const z0 = dz > 0 ? 0.625 : dz < 0 ? 0 : 0.4375;

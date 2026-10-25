@@ -6,7 +6,7 @@ import '@fontsource/pixelify-sans/latin-500.css';
 import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isSolid, toggled } from './blocks';
 import { Breaker } from './breaking';
 import { Birds } from './birds';
 import { Bugs } from './bugs';
@@ -47,7 +47,8 @@ import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
 import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings } from './settings';
 import { Sky } from './sky';
 import { TouchControls } from './touch';
-import { findTrunk } from './trees';
+import { fellTree, findTrunk } from './trees';
+import { Orchard, canPlantOn, isSapling, treeKindOfFruit, treeKindOfSapling } from './orchard';
 import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel';
 import { type Guest, MAX_GUESTS, PILOT, type Villager, createVillagers, createVisitor, pickVisitor } from './villagers';
@@ -167,12 +168,18 @@ scene.add(birds.group);
 
 const today = dayKey(startDate);
 
+// Árboles plantados con brotes: crecen con los días y su fruta también vuelve a salir.
+const orchard = new Orchard(trip ? [] : save?.orchard);
+
 // La fruta cogida hace días vuelve a crecer en el mismo sitio.
 const harvested: Record<string, number> = { ...(save?.harvested ?? {}) };
 for (const [k, t] of Object.entries(harvested)) {
   if (Date.now() - t < FRUIT_REGROW_DAYS * 86_400_000) continue;
   const [x, y, z] = k.split(',').map(Number);
-  sync.clearEdit(x, y, z);
+  const planted = orchard.fruitAt(x, y, z);
+  if (planted) {
+    if (world.getBlock(x, y, z) === Block.Air) sync.setBlock(x, y, z, planted);
+  } else sync.clearEdit(x, y, z);
   delete harvested[k];
 }
 let bottleTaken = save?.bottle?.day === today && save.bottle.taken;
@@ -182,6 +189,7 @@ const branchTrees = new Set(save?.branches?.day === today ? save.branches.trees 
 // El huerto y la granja.
 const farm = new Farm(trip ? {} : save?.farm);
 farm.sync(sync, today);
+if (!joined) orchard.sync(sync, today);
 const animals = new Animals(world, trip ? [] : save?.animals);
 scene.add(animals.group);
 
@@ -339,6 +347,7 @@ function persist() {
     recipes: [...workbench.known],
     bottle: { day: today, taken: bottleTaken },
     farm: farm.serialize(),
+    orchard: orchard.serialize(),
     animals: animals.serialize(),
     guests,
     missions: missions.serialize(),
@@ -910,6 +919,23 @@ window.addEventListener('mouseup', (e) => {
 });
 
 function removeBlock(x: number, y: number, z: number, b: number, burst: boolean) {
+  // Al cortar un tronco cae todo lo que hay encima: el resto del tronco, la copa y la fruta.
+  if (b === Block.Log || b === Block.PalmLog) {
+    fell(x, y, z);
+    return;
+  }
+  if (isSapling(b)) {
+    const t = orchard.remove(x, y, z);
+    sync.setBlock(x, y, z, Block.Air);
+    sound.rustle();
+    drops.spawn(t?.sapling ?? (b === Block.PalmSapling ? 'brote_palmera' : treeKindOfFruit(world.fruit)?.sapling ?? 'brote_manzano'), x + 0.5, y + 0.5, z + 0.5, { burst });
+    return;
+  }
+  // Las dos mitades de la puerta van juntas.
+  if (isDoor(b)) {
+    const other = isDoorTop(b) ? y - 1 : y + 1;
+    if (isDoor(world.getBlock(x, other, z))) sync.setBlock(x, other, z, Block.Air);
+  }
   // Quitar la tierra de cultivo arranca lo que hubiera plantado encima.
   if (isFarmland(b) && farm.has(x, y + 1, z)) harvestCrop(x, y + 1, z, true);
   if (cropOfBlock(b)) {
@@ -928,6 +954,36 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
   if (isFruit(b)) harvested[posKey(x, y, z)] = Date.now();
   const id = dropFor(b);
   if (id) drops.spawn(id, x + 0.5, y + 0.5, z + 0.5, { burst });
+}
+
+/** Tala el árbol desde el tronco (x, y, z): todo lo de encima cae y suelta madera, fruta y un brote. */
+function fell(x: number, y: number, z: number) {
+  const felled = fellTree(world, x, y, z);
+  const planted = orchard.at(x, y, z);
+  // El brote es del mismo árbol: de su fruta, o del tipo plantado, o de la fruta de la isla.
+  const fruitKind = felled.fruits.length ? treeKindOfFruit(felled.fruits[0][3]) : undefined;
+  const palm = felled.logs.some(([, , , lb]) => lb === Block.PalmLog);
+  const kind = fruitKind ?? (planted && treeKindOfSapling(planted.sapling)) ?? treeKindOfFruit(palm ? Block.Coconut : world.fruit);
+  const all = [...felled.fruits, ...felled.leaves, ...felled.logs.reverse()];
+  for (const [bx, by, bz] of all) sync.setBlock(bx, by, bz, Block.Air);
+  for (const [bx, by, bz, lb] of felled.logs) drops.spawn(dropFor(lb)!, bx + 0.5, by + 0.5, bz + 0.5, { burst: true });
+  for (const [bx, by, bz, fb] of felled.fruits) {
+    const id = dropFor(fb);
+    if (id) drops.spawn(id, bx + 0.5, by + 0.5, bz + 0.5, { burst: true });
+  }
+  // Un árbol entero (con copa) da brotes para replantarlo.
+  if (felled.leaves.length && kind) {
+    const n = 1 + (Math.random() < 0.5 ? 1 : 0);
+    for (let i = 0; i < n; i++) drops.spawn(kind.sapling, x + 0.5, y + 0.5, z + 0.5, { burst: true });
+  }
+  // La fruta que se cogió de este árbol ya no vuelve a salir: no hay árbol.
+  for (const k of Object.keys(harvested)) {
+    const [hx, hy, hz] = k.split(',').map(Number);
+    if (Math.abs(hx - x) <= 3 && Math.abs(hz - z) <= 3 && hy >= y - 1 && hy <= y + 8) delete harvested[k];
+  }
+  if (felled.logs.some(([lx, ly, lz]) => orchard.at(lx, ly, lz))) for (const [lx, ly, lz] of felled.logs) orchard.remove(lx, ly, lz);
+  sound.dig('madera');
+  if (felled.logs.length > 1) sound.rustle();
 }
 
 /** Recoge una planta del huerto: la cosecha si está madura o la semilla si no. */
@@ -1099,6 +1155,19 @@ function useItem() {
     return;
   }
 
+  // Abrir y cerrar puertas (las dos mitades a la vez).
+  const swapped = toggled(target);
+  if (swapped !== undefined) {
+    sync.setBlock(bx, by, bz, swapped);
+    if (isDoor(target)) {
+      const other = isDoorTop(target) ? by - 1 : by + 1;
+      const ob = world.getBlock(bx, other, bz);
+      if (isDoor(ob)) sync.setBlock(bx, other, bz, toggled(ob)!);
+    }
+    sound.place();
+    return;
+  }
+
   if (useFarm(def, bx, by, bz, target)) return;
 
   if (def?.id === 'gallina' || def?.id === 'vaca') {
@@ -1117,6 +1186,24 @@ function useItem() {
     const [x, y, z] = replace ? hit.block : hit.place;
     if (!isCross(def.block) && player.intersectsBlock(x, y, z)) return;
     if (furniture.at(x, y, z)) return;
+    // La puerta de casa ocupa dos bloques: hace falta hueco encima.
+    if (def.block === Block.Door) {
+      const above = world.getBlock(x, y + 1, z);
+      if ((above !== Block.Air && !isCross(above)) || player.intersectsBlock(x, y + 1, z) || furniture.at(x, y + 1, z)) {
+        hud.toast('La puerta necesita dos bloques de alto');
+        return;
+      }
+      sync.setBlock(x, y + 1, z, Block.DoorTop);
+    }
+    // Los brotes se plantan en tierra, hierba o arena, y se apuntan para que crezcan.
+    if (isSapling(def.block)) {
+      if (!canPlantOn(world.getBlock(x, y - 1, z))) {
+        hud.toast('Los brotes se plantan en tierra, hierba o arena');
+        return;
+      }
+      orchard.plant(x, y, z, def.id, dayKey(gameDate()));
+      sound.rustle();
+    }
     sync.setBlock(x, y, z, def.block);
     delete harvested[posKey(x, y, z)];
     inventory.consume(hud.selected);
@@ -1402,7 +1489,11 @@ function frame(now: number) {
     const day = dayKey(date);
     if (weather.raining) farm.waterAll(day);
     missions.setDay(day);
-    farm.sync(sync, day);
+    // Lo que crece solo lo decide el anfitrión; a los invitados les llegan los bloques.
+    if (!joined) {
+      farm.sync(sync, day);
+      orchard.sync(sync, day);
+    }
   }
   if (net) net.update(now, { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.yaw, pitch: player.pitch });
   remotes.update(dt);
@@ -1486,6 +1577,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, sync, net, remotes, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, sync, net, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

@@ -1,3 +1,4 @@
+import type { PlantedTree } from './orchard';
 import type { AnimalSave } from './animals';
 import type { FarmSave } from './farm';
 import type { MissionsSave } from './missions';
@@ -46,6 +47,8 @@ export interface SaveData {
   savedAt?: number;
   /** Desde la v1.8: el huerto (cultivos y días regados) y los animales de la granja. */
   farm?: FarmSave;
+  /** Desde la v2.2: árboles plantados con brotes. */
+  orchard?: PlantedTree[];
   animals?: AnimalSave[];
   /** Desde la v1.9: vecinos invitados desde las islas misteriosas. */
   guests?: Guest[];
