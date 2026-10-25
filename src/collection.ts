@@ -1,8 +1,9 @@
-import { CREATURE_TILE_START, tileCanvas } from './blocks';
+import { CREATURE_TILE_START } from './blocks';
 import { CREATURES, HABITAT_TEXT, hoursText, monthsText } from './creatures';
 import type { Inventory } from './inventory';
 import type { ModelSpec } from './villagerModel';
 import { ALL_PROFILES, PERSONALITY_NAMES, SPECIES_NAMES } from './villagers';
+import { tileIcon } from './icons';
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -25,7 +26,7 @@ export class Collection {
     this.met = new Set(met);
     this.caught = new Set(caught);
     this.donated = new Set(donated);
-    this.icons = CREATURES.map((_, i) => tileCanvas(atlas, CREATURE_TILE_START + i).toDataURL());
+    this.icons = CREATURES.map((_, i) => tileIcon(atlas, CREATURE_TILE_START + i));
   }
 
   /** Apunta una captura; devuelve true si es la primera vez. */

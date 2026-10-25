@@ -1,9 +1,9 @@
-import { tileCanvas } from './blocks';
 import type { Inventory } from './inventory';
 import { itemDef } from './items';
 import { ACHIEVEMENTS, type Missions, PRIZES } from './missions';
 import type { Rating } from './rating';
 import { formatBerries } from './shop';
+import { itemIcon } from './icons';
 
 export interface MissionsPanelContext {
   missions: Missions;
@@ -60,7 +60,7 @@ export class MissionsPanel {
     for (const prize of PRIZES) {
       const def = itemDef(prize.id);
       const li = document.createElement('li');
-      li.innerHTML = `<img alt="" src="${tileCanvas(this.ctx.atlas, def.tile).toDataURL()}"><div><b></b><small>${formatBerries(prize.cost)} puntos</small></div><span class="actions"></span>`;
+      li.innerHTML = `<img alt="" src="${itemIcon(this.ctx.atlas, prize.id)}"><div><b></b><small>${formatBerries(prize.cost)} puntos</small></div><span class="actions"></span>`;
       li.querySelector('b')!.textContent = `${def.name}${prize.count > 1 ? ` ×${prize.count}` : ''}`;
       const b = document.createElement('button');
       b.type = 'button';

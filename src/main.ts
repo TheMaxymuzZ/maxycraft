@@ -19,6 +19,7 @@ import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, type PlacedFurniture, paintFurnitureIcons } from './furniture';
 import { HeldItem } from './held';
+import { ItemModels } from './itemModels';
 import { Hud } from './hud';
 import { setupInstall } from './install';
 import { Islands } from './islands';
@@ -49,6 +50,7 @@ import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
 import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings } from './settings';
 import { Sky } from './sky';
+import { SunShadows } from './shadows';
 import { TouchControls } from './touch';
 import { fellTree, findTrunk } from './trees';
 import { CONTAINERS, Storage, StoragePanel, isContainer } from './storage';
@@ -88,6 +90,8 @@ const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[settings.quality]));
 renderer.setSize(window.innerWidth, window.innerHeight);
+// Los brillos fuertes (antorchas, el sol en la arena) se suavizan en vez de quemarse en blanco (v3.2).
+renderer.toneMapping = THREE.NeutralToneMapping;
 
 const scene = new THREE.Scene();
 const fog = new THREE.Fog(0xa8dcf5, fogNear(), fogFar());
@@ -100,6 +104,7 @@ const hemi = new THREE.HemisphereLight(0xfff4e0, 0x8a9a7a, 1.6);
 const sunLight = new THREE.DirectionalLight(0xfff1d6, 1.4);
 scene.add(hemi, sunLight);
 const sky = new Sky(scene, hemi, sunLight);
+const shadows = new SunShadows(renderer, sunLight, scene);
 
 const atlas = createAtlasCanvas();
 paintFurnitureIcons(atlas);
@@ -467,7 +472,8 @@ scene.add(highlight);
 const weather = new WeatherFx(world);
 scene.add(weather.points);
 
-const drops = new Drops(world, atlas);
+const itemModels = new ItemModels(atlas, atlasTexture);
+const drops = new Drops(world, itemModels);
 scene.add(drops.group);
 const bugs = new Bugs(world, atlas);
 scene.add(bugs.group);
@@ -524,6 +530,7 @@ function applySettings(s: Settings) {
   camera.fov = s.fov;
   camera.updateProjectionMatrix();
   renderRadius = RENDER_RADIUS[s.quality];
+  shadows.setQuality(s.quality);
   clock.dayLength = s.dayLength;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[s.quality]));
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -536,7 +543,7 @@ applySettings(settings);
 
 const hud = new Hud(inventory, atlas);
 hud.select(0);
-const held = new HeldItem(atlas, material.map!);
+const held = new HeldItem(itemModels);
 setupInstall((t) => hud.toast(t));
 
 /** Mete un objeto en los bolsillos y lo anuncia. Devuelve false si no cabe. */
@@ -2063,6 +2070,9 @@ function frame(now: number) {
   sunLight.intensity *= 1 - weather.gloom * 0.7;
   sky.color.lerp(gloomColor.setRGB(0.55, 0.6, 0.65).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.75);
   sky.syncDome(weather.gloom);
+  shadows.update(dt, player.position, sky.lightDir);
+  lighting.update(now / 1000);
+  adaptEyes(dt);
   water.update(now / 1000, settings.quality !== 'baja', (1 - sky.night) * (1 - weather.gloom));
   wind.update(now / 1000, 1 + weather.gloom * 1.5);
   waterfalls.update(now / 1000);
@@ -2094,7 +2104,8 @@ function frame(now: number) {
   updateClock(date);
   const daylight = 1 - sky.night * 0.5;
   // Lo que cae al suelo se ve tan iluminado como el sitio donde está: oscuro en una cueva, claro junto a una antorcha.
-  drops.update(dt, player.position, take, (p) => brightnessAt(p, daylight));
+  // La hora ya la ponen las luces de la escena, que también lo alumbran.
+  drops.update(dt, player.position, take, (p) => brightnessAt(p, 1));
   bugs.update(dt, hour, player.position, daylight);
   furniture.setNight(sky.night);
   sound.setHour(hour);
@@ -2171,6 +2182,18 @@ function frame(now: number) {
 }
 requestAnimationFrame(frame);
 
+/**
+ * Los ojos se acostumbran a la oscuridad (v3.2): dentro de una cueva o de noche la imagen se aclara poco a poco,
+ * y al salir al sol vuelve a lo normal. Sin pasarse, para que una cueva siga pareciendo una cueva.
+ */
+let exposure = 1;
+function adaptEyes(dt: number) {
+  const here = brightnessAt(camera.position, 1 - sky.night * 0.5);
+  const target = 1 + 0.45 * (1 - Math.min(1, here / 0.6));
+  exposure += (target - exposure) * Math.min(1, dt * (target > exposure ? 0.6 : 2));
+  renderer.toneMappingExposure = exposure;
+}
+
 /** Alcance de la luz que llevas en cualquiera de las dos manos (0 si no llevas ninguna). */
 function carriedLight(): number {
   return Math.max(HAND_LIGHT[hud.selectedStack?.id ?? ''] ?? 0, HAND_LIGHT[inventory.offhand?.id ?? ''] ?? 0);
@@ -2185,12 +2208,12 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
   const reach = carriedLight();
   const hand = reach ? Math.max(0, 1 - p.distanceTo(camera.position) / reach) : 0;
   const torch = Math.max(glow, hand);
-  return Math.max(skyLevel * Math.sqrt(skyLevel) * daylight, torch * torch, 0.08);
+  return Math.max(skyLevel * Math.sqrt(skyLevel) * daylight, torch * Math.sqrt(torch), 0.12);
 }
 
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

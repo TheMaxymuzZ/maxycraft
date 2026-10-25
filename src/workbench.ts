@@ -1,7 +1,7 @@
-import { tileCanvas } from './blocks';
 import type { Inventory } from './inventory';
 import { DIY_RECIPES, type Recipe, STARTER_DIY, itemDef } from './items';
 import { RecipeBrowser } from './recipeBrowser';
+import { itemIcon } from './icons';
 
 export interface WorkbenchContext {
   inventory: Inventory;
@@ -64,7 +64,7 @@ export class Workbench {
         return `<span class="${have >= n ? '' : 'missing'}">${n} ${itemDef(id).name.toLowerCase()} (${have})</span>`;
       })
       .join(' + ');
-    const icon = tileCanvas(this.ctx.atlas, itemDef(r.result).tile).toDataURL();
+    const icon = itemIcon(this.ctx.atlas, r.result);
     li.innerHTML = `<img alt="" src="${icon}"><div><b>${itemDef(r.result).name}${r.count > 1 ? ` ×${r.count}` : ''}</b><small>${needs}</small></div><span class="actions"></span>`;
     const b = document.createElement('button');
     b.type = 'button';

@@ -85,6 +85,8 @@ export class Sky {
   /** Resplandor del amanecer o del atardecer, de 0 a 1, y su color: tiñe también las nubes. */
   glow = 0;
   readonly glowColor = new THREE.Color(0xffb070);
+  /** Hacia dónde está la luz que da sombras: el sol de día y la luna de noche (v3.2). */
+  readonly lightDir = new THREE.Vector3(0, 1, 0);
   readonly dome: THREE.Mesh;
   private domeUniforms = {
     uHorizon: { value: new THREE.Color() },
@@ -167,14 +169,20 @@ export class Sky {
     (this.stars.material as THREE.PointsMaterial).opacity = this.night;
     this.stars.visible = this.night > 0.02;
 
-    // Luces: de noche, un tono azulado suave para que se siga viendo la isla.
-    this.hemi.intensity = 0.55 + light * 1.05;
-    this.hemi.color.setHex(lerpColor(0x9fb4ff, 0xfff4e0, light));
-    this.sun.intensity = Math.max(0, sunDir.y) * 1.4 * light + 0.15;
-    if (sunDir.y > 0) this.sun.position.copy(sunDir);
-    else this.sun.position.copy(sunDir).negate(); // de noche ilumina la luna
+    // Luces (v3.2): el cielo ilumina con su color (azul de día, dorado al atardecer, azul marino de noche)
+    // y el suelo devuelve un poco de luz cálida, así las caras de abajo no quedan grises.
+    this.hemi.intensity = 0.5 + light * 0.6;
+    this.hemi.color.setHex(lerpColor(lerpColor(0x8fa6f0, 0xfff4e0, light), 0xffc89a, this.glow * 0.6));
+    this.hemi.groundColor.setHex(lerpColor(0x2a3350, 0x9a9070, light));
+    // El sol bajo pierde fuerza poco a poco; la luna da una luz fría y suave que también hace sombra.
+    const height = Math.abs(sunDir.y);
+    const fade = Math.min(1, height * 4);
+    this.sun.intensity = sunDir.y > 0 ? (0.3 + 1.9 * fade) * light : 0.4 * fade;
+    this.lightDir.copy(sunDir);
+    if (sunDir.y <= 0) this.lightDir.negate(); // de noche ilumina la luna
+    this.sun.position.copy(this.lightDir);
     // El sol bajo da una luz más anaranjada.
-    this.sun.color.setHex(sunDir.y > 0 ? lerpColor(0xfff1d6, 0xffb27a, this.glow) : 0xbfcaf0);
+    this.sun.color.setHex(sunDir.y > 0 ? lerpColor(0xfff1d6, 0xffa060, this.glow) : 0xa9bdf5);
     (this.sunMesh.material as THREE.MeshBasicMaterial).color.setHex(lerpColor(0xfff3b0, 0xffb060, this.glow));
   }
 
