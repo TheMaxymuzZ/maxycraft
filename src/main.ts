@@ -6,7 +6,7 @@ import '@fontsource/pixelify-sans/latin-500.css';
 import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
 import { Breaker } from './breaking';
 import { Birds } from './birds';
 import { Bugs } from './bugs';
@@ -18,6 +18,7 @@ import { Dialog, HOUSE_COSTS, HOUSE_NAMES } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, paintFurnitureIcons } from './furniture';
+import { HeldItem } from './held';
 import { Hud } from './hud';
 import { setupInstall } from './install';
 import { Islands } from './islands';
@@ -98,6 +99,7 @@ const material = new THREE.MeshLambertMaterial({
 const save = loadGame();
 const seed = save?.seed ?? Math.floor(Math.random() * 1e9);
 const sound = new Sound(seed);
+sound.season = season;
 const world = new World(seed, material, save?.edits ?? {});
 scene.add(world.group);
 const water = new Water();
@@ -301,6 +303,7 @@ applySettings(settings);
 
 const hud = new Hud(inventory, atlas);
 hud.select(0);
+const held = new HeldItem(atlas, material.map!);
 setupInstall((t) => hud.toast(t));
 
 /** Mete un objeto en los bolsillos y lo anuncia. Devuelve false si no cabe. */
@@ -689,6 +692,7 @@ function villagerInSight(blockDistance: number): Villager | null {
 }
 
 function useItem() {
+  held.use();
   const hit = currentHit();
   const blockDist = hit ? camera.position.distanceTo(new THREE.Vector3(hit.block[0] + 0.5, hit.block[1] + 0.5, hit.block[2] + 0.5)) : Infinity;
   const villager = villagerInSight(blockDist);
@@ -855,12 +859,27 @@ let rainTimer = 0;
 const spawnPoint = player.position.clone();
 function updateSteps(dt: number) {
   const speed = Math.hypot(player.velocity.x, player.velocity.z);
-  if (!player.onGround || player.inWater || speed < 1) return;
+  if (player.inWater && speed > 0.5) {
+    // Nadando: una brazada cada poco.
+    stepDistance += speed * dt;
+    if (stepDistance > 1.4) {
+      stepDistance = 0;
+      sound.swim();
+    }
+    return;
+  }
+  if (!player.onGround || speed < 1) return;
   stepDistance += speed * dt;
   if (stepDistance < 1.7) return;
   stepDistance = 0;
-  const below = world.getBlock(Math.floor(player.position.x), Math.floor(player.position.y - 0.1), Math.floor(player.position.z));
-  if (below) sound.step(materialOf(BLOCKS[below].name));
+  const [fx, fy, fz] = [Math.floor(player.position.x), Math.floor(player.position.y), Math.floor(player.position.z)];
+  const below = world.getBlock(fx, Math.floor(player.position.y - 0.1), fz);
+  // Pasar entre hierba alta, flores o bambú suena a hojas; en invierno la hierba y la arena crujen.
+  if (SWAYING.has(world.getBlock(fx, fy, fz))) sound.step('plantas');
+  else if (below) {
+    const m = materialOf(BLOCKS[below].name);
+    sound.step(season === 'invierno' && (m === 'hierba' || m === 'arena') ? 'nieve' : m);
+  }
   if (Math.hypot(player.position.x - spawnPoint.x, player.position.z - spawnPoint.z) > 8) tutorial.complete('mover');
 }
 
@@ -1009,6 +1028,15 @@ function frame(now: number) {
   }
 
   renderer.render(scene, camera);
+  // La mano va encima de todo, en otra pasada, y no se ve en la portada ni con el menú abierto.
+  if (menu.hidden && !panel) {
+    const walking = player.onGround ? Math.hypot(player.velocity.x, player.velocity.z) : 0;
+    held.update(dt, camera, hud.selectedStack?.id ?? null, breaker.active && !!hit, walking, 1 - sky.night * 0.6);
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(held.scene, camera);
+    renderer.autoClear = true;
+  }
 
   frames++;
   fpsTime += dt;
@@ -1030,6 +1058,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, birds, waterfalls, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, player, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }
