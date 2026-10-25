@@ -1,17 +1,24 @@
 import { type WorldAction, WorldSync } from './actions';
-import { MAX_CHAT, type Message, PROTOCOL, type PeerInfo, type Pose, type Snapshot } from './protocol';
+import { type Gesture, type GiftItem, MAX_CHAT, MAX_PLAYERS, type Message, PROTOCOL, type PeerInfo, type Pose, type Snapshot } from './protocol';
 import type { Transport } from './transport';
 
 /** Veces por segundo que cada jugador cuenta dónde está. */
 export const POSE_RATE = 10;
 /** Un jugador que no da señales en este tiempo se da por ido. */
 export const PEER_TIMEOUT = 10_000;
+/** Cada cuánto se vuelve a llamar a la puerta mientras no contesta el anfitrión. */
+const KNOCK_EVERY = 1500;
 
 export interface SessionEvents {
   join?(peer: PeerInfo): void;
   leave?(peer: PeerInfo): void;
   pose?(id: string, pose: Pose): void;
   chat?(peer: PeerInfo, text: string): void;
+  gesture?(peer: PeerInfo, g: Gesture): void;
+  /** Otro jugador te ha regalado algo. */
+  gift?(peer: PeerInfo, item: GiftItem): void;
+  /** El anfitrión ha cerrado su isla (o se ha cortado la conexión con él). */
+  closed?(): void;
 }
 
 interface Peer extends PeerInfo {
@@ -25,6 +32,7 @@ interface Peer extends PeerInfo {
 export class NetSession {
   readonly peers = new Map<string, Peer>();
   private sync: WorldSync | null = null;
+  private detach: (() => void) | null = null;
   private poseTimer = 0;
   private now = 0;
   private hostId: string | null;
@@ -50,10 +58,19 @@ export class NetSession {
   static join(transport: Transport, self: PeerInfo, events: SessionEvents = {}, timeoutMs = 8000): Promise<{ session: NetSession; snapshot: Snapshot }> {
     return new Promise((resolve, reject) => {
       let done = false;
+      // Con la conexión directa, el anfitrión tarda un poco en aparecer: se llama a la puerta hasta que conteste.
+      const knock = setInterval(() => {
+        if (!done) transport.send({ t: 'hola', v: PROTOCOL, peer: self });
+      }, KNOCK_EVERY);
+      const finish = () => {
+        done = true;
+        clearTimeout(timer);
+        clearInterval(knock);
+      };
       const timer = setTimeout(() => {
         if (done) return;
-        done = true;
-        reject(new Error('No hay ninguna isla abierta'));
+        finish();
+        reject(new Error('No hay ninguna isla abierta con ese código'));
       }, timeoutMs);
       const waiting: Transport = {
         selfId: transport.selfId,
@@ -64,13 +81,11 @@ export class NetSession {
       transport.onMessage((msg, from) => {
         if (done) return;
         if (msg.t === 'rechazo') {
-          done = true;
-          clearTimeout(timer);
+          finish();
           reject(new Error(msg.reason));
         }
         if (msg.t !== 'bienvenida') return;
-        done = true;
-        clearTimeout(timer);
+        finish();
         const session = new NetSession('invitado', waiting, self, events, null, from);
         // A partir de aquí los mensajes los atiende la sesión.
         transport.onMessage((m, f) => session.handle(m, f));
@@ -84,7 +99,7 @@ export class NetSession {
   /** Conecta la sesión con el mundo: los cambios propios salen y los de fuera entran. */
   attach(sync: WorldSync) {
     this.sync = sync;
-    sync.onAction((a) => {
+    this.detach = sync.onAction((a) => {
       const msg: Message = { t: 'accion', from: this.self.id, a };
       if (this.role === 'anfitrion') this.transport.send(msg);
       else if (this.hostId) this.transport.send(msg, this.hostId);
@@ -108,8 +123,24 @@ export class NetSession {
     if (clean) this.broadcast({ t: 'chat', id: this.self.id, text: clean });
   }
 
+  gesture(g: Gesture) {
+    this.broadcast({ t: 'gesto', id: this.self.id, g });
+  }
+
+  /** Regala algo a otro jugador. El invitado se lo da al anfitrión, que lo lleva a quien sea. */
+  give(to: string, item: GiftItem) {
+    const msg: Message = { t: 'regalo', from: this.self.id, to, item };
+    if (this.role === 'anfitrion') this.transport.send(msg, to);
+    else if (this.hostId) this.transport.send(msg, this.hostId);
+  }
+
+  get hostPeer(): PeerInfo | null {
+    return this.hostId ? this.peers.get(this.hostId) ?? null : null;
+  }
+
   close() {
     this.broadcast({ t: 'sale', id: this.self.id });
+    this.detach?.();
     this.transport.close();
   }
 
@@ -131,6 +162,7 @@ export class NetSession {
     this.peers.delete(id);
     this.events.leave?.(p);
     if (this.role === 'anfitrion') this.transport.send({ t: 'sale', id });
+    else if (id === this.hostId) this.events.closed?.();
   }
 
   private handle(msg: Message, from: string) {
@@ -143,9 +175,14 @@ export class NetSession {
   private handleAsHost(msg: Message, from: string) {
     switch (msg.t) {
       case 'hola': {
-        if (msg.peer.id !== from) return;
+        // Quien ya está dentro puede seguir llamando un momento: no hace falta mandarle la isla otra vez.
+        if (msg.peer.id !== from || this.peers.has(from)) return;
         if (msg.v !== PROTOCOL) {
           this.transport.send({ t: 'rechazo', reason: 'El anfitrión tiene otra versión del juego' }, from);
+          return;
+        }
+        if (this.peers.size + 1 >= MAX_PLAYERS) {
+          this.transport.send({ t: 'rechazo', reason: `La isla está llena (${MAX_PLAYERS} jugadores)` }, from);
           return;
         }
         const players = [this.self, ...[...this.peers.values()].map(({ id, name, color }) => ({ id, name, color }))];
@@ -170,6 +207,16 @@ export class NetSession {
         if (msg.id !== from || !this.peers.has(from)) return;
         this.events.chat?.(this.peers.get(from)!, msg.text);
         this.relay(msg, from);
+        return;
+      case 'gesto':
+        if (msg.id !== from || !this.peers.has(from)) return;
+        this.events.gesture?.(this.peers.get(from)!, msg.g);
+        this.relay(msg, from);
+        return;
+      case 'regalo':
+        if (msg.from !== from || !this.peers.has(from)) return;
+        if (msg.to === this.self.id) this.events.gift?.(this.peers.get(from)!, msg.item);
+        else if (this.peers.has(msg.to)) this.transport.send(msg, msg.to);
         return;
       case 'sale':
         if (msg.id === from) this.dropPeer(from);
@@ -196,6 +243,16 @@ export class NetSession {
       case 'chat': {
         const p = this.peers.get(msg.id);
         if (p) this.events.chat?.(p, msg.text);
+        return;
+      }
+      case 'gesto': {
+        const p = msg.id === this.self.id ? null : this.peers.get(msg.id);
+        if (p) this.events.gesture?.(p, msg.g);
+        return;
+      }
+      case 'regalo': {
+        const p = this.peers.get(msg.from);
+        if (p && msg.to === this.self.id) this.events.gift?.(p, msg.item);
         return;
       }
     }

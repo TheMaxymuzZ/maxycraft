@@ -41,6 +41,9 @@
     <div id="labels" aria-hidden="true"></div>
     <div id="toast" role="status"></div>
     <div id="lot-status" role="status" hidden></div>
+    <div id="chat-log" aria-live="polite"></div>
+    <form id="chat-form" hidden><input id="chat-input" autocomplete="off" placeholder="Escribe y pulsa Enter" aria-label="Mensaje para tus amigos" /></form>
+    <div id="gestures" role="menu" aria-label="Gestos" hidden></div>
     <div id="save-indicator" aria-hidden="true"></div>
     <div id="dialog" hidden>
       <div class="dialog-box">
@@ -178,6 +181,7 @@
           <button type="button" id="install" class="menu-btn install" hidden>Instalar Maxycraft</button>
           <p id="install-ios" class="note install-ios" hidden>Para instalarlo en el iPhone o el iPad: toca <strong>Compartir</strong> y luego <strong>Añadir a pantalla de inicio</strong>.</p>
           <p class="note">El día, la noche y las estaciones siguen tu fecha y hora reales. La isla se guarda sola en este navegador.</p>
+          <button type="button" class="menu-btn friends-btn" data-open="friends">Jugar con amigos</button>
           <div class="menu-row">
             <button type="button" class="menu-btn" data-open="islands">Mis islas y copias</button>
             <button type="button" class="menu-btn" data-open="news">Novedades</button>
@@ -230,6 +234,12 @@
           <h2>Mis islas</h2>
           <p class="note">Puedes tener hasta 3 islas. Guarda una copia en un archivo para no perder nunca tu isla, o para llevarla a otro ordenador.</p>
           <ul class="islands" id="islands-list"></ul>
+          <button type="button" class="menu-back">Volver</button>
+        </section>
+
+        <section class="menu-view" data-view="friends" hidden>
+          <h2>Jugar con amigos</h2>
+          <div id="friends-body"></div>
           <button type="button" class="menu-back">Volver</button>
         </section>
 

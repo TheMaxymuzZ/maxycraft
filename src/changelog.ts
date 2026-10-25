@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.11',
+    title: 'Jugar con amigos',
+    items: [
+      'Menú › Jugar con amigos: abre tu isla y pasa el código de seis letras (o el enlace) a tus amigos.',
+      'Hasta 6 jugadores, cada uno en su ordenador y sin servidor: la isla vive en el ordenador de quien invita.',
+      'Os veis andar, construir, romper y poner muebles a la vez, también carteles.',
+      'Chat con Intro, gestos con la G (saludar, reír, corazón…) y clic derecho a un amigo para regalarle lo que llevas en la mano.',
+      'De visita llevas tus bolsillos, tus bayas y tu enciclopedia, y vuelven contigo a tu isla.',
+    ],
+  },
+  {
     version: '2.10',
     title: 'Casas para vecinos nuevos',
     items: [

@@ -518,3 +518,35 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
   padding: 6px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep);
   font: 800 14px var(--body); text-align: center; pointer-events: none; z-index: 5;
 }
+
+/* --- v2.11: jugar con amigos --- */
+.friends-btn { width: 100%; }
+.invite-code {
+  margin: 6px 0 12px; text-align: center; font: 700 40px var(--title, var(--body)); letter-spacing: .18em;
+  color: var(--grass-deep); background: #fff; border: 3px dashed var(--grass-deep); padding: 8px;
+}
+.friends-players { list-style: none; padding: 0; margin: 4px 0 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.friends-players li { padding: 4px 10px; border: 3px solid var(--c); background: #fff; font: 800 14px var(--body); }
+.join-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.join-form label { width: 100%; font: 800 14px var(--body); }
+.join-form input { flex: 1; min-width: 0; font: 700 22px var(--body); letter-spacing: .15em; text-transform: uppercase; padding: 6px 10px; border: 3px solid var(--grass-deep); }
+.join-form input.name-input { letter-spacing: 0; text-transform: none; font-size: 18px; }
+.note.warn { color: #a0452a; }
+#chat-log {
+  position: fixed; left: 16px; bottom: 120px; max-width: min(420px, calc(100vw - 32px)); pointer-events: none; z-index: 5;
+  display: flex; flex-direction: column; gap: 4px;
+}
+#chat-log p { margin: 0; padding: 4px 10px; background: rgba(255, 252, 240, .9); color: var(--ink); font: 700 14px var(--body); transition: opacity 1s; overflow-wrap: anywhere; }
+#chat-log p.old { opacity: 0; }
+#chat-form { position: fixed; left: 16px; bottom: 84px; width: min(420px, calc(100vw - 32px)); z-index: 12; }
+#chat-form input { width: 100%; box-sizing: border-box; padding: 8px 12px; font: 700 15px var(--body); border: 3px solid var(--grass-deep); background: var(--paper); }
+#gestures {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 12;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; background: var(--paper); border: 3px solid var(--grass-deep);
+}
+#gestures button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 12px; font: 800 13px var(--body); background: #fff; border: 2px solid var(--grass-deep); cursor: pointer; }
+#gestures .emoji { font-size: 28px; line-height: 1.1; }
+#gestures kbd { font-size: 11px; opacity: .6; }
+#gestures[hidden], #chat-form[hidden] { display: none; }
+.gesture-bubble { font-size: 30px; }
+.friends-open { width: 100%; margin-top: 10px; }
