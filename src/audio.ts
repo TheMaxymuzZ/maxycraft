@@ -64,6 +64,10 @@ export class Sound {
   private hour = 12;
   private nextStep = 0;
   private stepTime = 0;
+  /** Volumen elegido en las opciones, de 0 a 1. */
+  private musicVolume = 1;
+  private sfxVolume = 1;
+  private rainAmount = 0;
   enabled: boolean;
 
   constructor(private seed: number) {
@@ -89,10 +93,10 @@ export class Sound {
     this.master.gain.value = this.enabled ? 1 : 0;
     this.master.connect(this.ctx.destination);
     this.music = this.ctx.createGain();
-    this.music.gain.value = 0.16;
+    this.music.gain.value = this.musicGain;
     this.music.connect(this.master);
     this.sfx = this.ctx.createGain();
-    this.sfx.gain.value = 0.5;
+    this.sfx.gain.value = 0.5 * this.sfxVolume;
     this.sfx.connect(this.master);
     this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -110,6 +114,20 @@ export class Sound {
     }
     if (this.ctx) this.master.gain.setTargetAtTime(this.enabled ? 1 : 0, this.ctx.currentTime, 0.05);
     return this.enabled;
+  }
+
+  /** Volúmenes de música y efectos, de 0 a 1. */
+  setVolumes(music: number, sfx: number) {
+    this.musicVolume = music;
+    this.sfxVolume = sfx;
+    if (!this.ctx) return;
+    this.music.gain.setTargetAtTime(this.musicGain, this.ctx.currentTime, 0.05);
+    this.sfx.gain.setTargetAtTime(0.5 * sfx, this.ctx.currentTime, 0.05);
+  }
+
+  /** Con lluvia la música baja un poco para que se oiga. */
+  private get musicGain() {
+    return 0.16 * this.musicVolume * (1 - this.rainAmount * 0.4);
   }
 
   setHour(hour: number) {
@@ -268,11 +286,13 @@ export class Sound {
       f.frequency.value = 1800;
       this.rain = ctx.createGain();
       this.rain.gain.value = 0;
-      src.connect(f).connect(this.rain).connect(this.master);
+      src.connect(f).connect(this.rain).connect(this.sfx);
       src.start();
     }
-    this.rain.gain.setTargetAtTime(amount * 0.12, ctx.currentTime, 0.5);
-    this.music.gain.setTargetAtTime(0.16 * (1 - amount * 0.4), ctx.currentTime, 0.5);
+    this.rainAmount = amount;
+    // La lluvia va con los efectos, que ya llevan su volumen (0,5).
+    this.rain.gain.setTargetAtTime(amount * 0.24, ctx.currentTime, 0.5);
+    this.music.gain.setTargetAtTime(this.musicGain, ctx.currentTime, 0.5);
   }
 }
 
