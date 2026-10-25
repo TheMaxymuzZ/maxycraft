@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { isSolid } from './blocks';
-import type { World } from './world';
+import { WATER_SURFACE, type World } from './world';
 
 const HALF_WIDTH = 0.3;
 const HEIGHT = 1.8;
@@ -17,6 +17,8 @@ export class Player {
   yaw = 0;
   pitch = 0;
   onGround = false;
+  /** El cuerpo está metido en el agua: se nada en vez de caminar. */
+  inWater = false;
 
   private keys = new Set<string>();
 
@@ -37,7 +39,9 @@ export class Player {
   update(dt: number) {
     const forward = (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0);
     const strafe = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0);
-    const speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? SPRINT : WALK;
+    this.inWater = this.position.y + 0.8 < WATER_SURFACE;
+    let speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? SPRINT : WALK;
+    if (this.inWater) speed *= 0.55;
 
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
@@ -49,16 +53,24 @@ export class Player {
       mz = (mz / len) * speed;
     }
     // Aceleración suave: en el suelo responde rápido, en el aire se controla menos.
-    const accel = this.onGround ? 18 : 6;
+    const accel = this.onGround || this.inWater ? 18 : 6;
     const k = 1 - Math.exp(-accel * dt);
     this.velocity.x += (mx - this.velocity.x) * k;
     this.velocity.z += (mz - this.velocity.z) * k;
 
-    if (this.onGround && this.keys.has('Space')) {
-      this.velocity.y = JUMP_SPEED;
-      this.onGround = false;
+    if (this.inWater) {
+      // En el agua se flota despacio; con Espacio se nada hacia arriba.
+      // Cerca de la superficie, Espacio da un impulso para subir a la orilla.
+      if (this.keys.has('Space') && this.position.y > WATER_SURFACE - 1.2) this.velocity.y = 7.5;
+      else if (this.keys.has('Space')) this.velocity.y = Math.min(this.velocity.y + 30 * dt, 3.2);
+      else this.velocity.y = Math.max(this.velocity.y - 8 * dt, -2);
+    } else {
+      if (this.onGround && this.keys.has('Space')) {
+        this.velocity.y = JUMP_SPEED;
+        this.onGround = false;
+      }
+      this.velocity.y = Math.max(this.velocity.y - GRAVITY * dt, -40);
     }
-    this.velocity.y = Math.max(this.velocity.y - GRAVITY * dt, -40);
 
     // Pasos pequeños para no atravesar bloques con fotogramas lentos.
     const steps = Math.ceil(dt / 0.016);

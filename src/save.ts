@@ -1,0 +1,41 @@
+import type { Edits } from './world';
+
+const KEY = 'maxycraft.isla.v1';
+
+export interface SaveData {
+  version: 1;
+  seed: number;
+  edits: Edits;
+  player: { x: number; y: number; z: number; yaw: number; pitch: number } | null;
+}
+
+// El navegador puede negar el almacenamiento (modo privado, cookies bloqueadas):
+// en ese caso se juega igual, solo que sin guardar.
+
+export function loadGame(): SaveData | null {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as SaveData;
+    return data.version === 1 ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveGame(data: SaveData): boolean {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function deleteGame() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // nada que borrar
+  }
+}
