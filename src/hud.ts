@@ -10,6 +10,7 @@ export class Hud {
   private cursor: ItemStack | null = null;
   private icons = new Map<string, string>();
   private hotbarSlots: HTMLDivElement[] = [];
+  private offhandEl = document.createElement('div');
   private invSlots: HTMLDivElement[] = [];
   private nameTimer = 0;
   private toastTimer = 0;
@@ -32,6 +33,10 @@ export class Hud {
       row: (r) => this.recipeRow(r),
     });
     document.querySelector('#inv-sort')?.addEventListener('click', () => this.inv.sort());
+    // La otra mano, a la izquierda de la barra. Tocarla cambia de mano.
+    this.offhandEl.className = 'slot offhand';
+    this.offhandEl.addEventListener('click', () => this.swapHands());
+    this.hotbarEl.appendChild(this.offhandEl);
     for (let i = 0; i < HOTBAR_SIZE; i++) {
       const el = document.createElement('div');
       el.className = 'slot';
@@ -91,6 +96,8 @@ export class Hud {
       this.paintSlot(el, this.inv.slots[i], String((i + 1) % 10));
       el.classList.toggle('active', i === this.selected);
     });
+    this.paintSlot(this.offhandEl, this.inv.offhand);
+    this.offhandEl.title = this.inv.offhand ? `Otra mano: ${itemDef(this.inv.offhand.id).name}` : 'Otra mano (vacía)';
     if (!this.inventoryEl.hidden) {
       this.invSlots.forEach((el, i) => this.paintSlot(el, this.inv.slots[i]));
       this.paintSlot(this.cursorEl, this.cursor);
@@ -107,6 +114,16 @@ export class Hud {
     this.render();
     const s = this.selectedStack;
     this.nameEl.textContent = s ? itemDef(s.id).name : 'Mano vacía';
+    this.nameEl.classList.add('show');
+    clearTimeout(this.nameTimer);
+    this.nameTimer = window.setTimeout(() => this.nameEl.classList.remove('show'), 1200);
+  }
+
+  /** Pasa lo de la casilla elegida a la otra mano, y lo de la otra mano a la casilla. */
+  swapHands() {
+    this.inv.swapOffhand(this.selected);
+    const s = this.inv.offhand;
+    this.nameEl.textContent = s ? `Otra mano: ${itemDef(s.id).name}` : 'Otra mano vacía';
     this.nameEl.classList.add('show');
     clearTimeout(this.nameTimer);
     this.nameTimer = window.setTimeout(() => this.nameEl.classList.remove('show'), 1200);

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, ROOFS, SWAYING, isCross, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 import { fruitTreeShape, palmShape } from './trees';
 
@@ -650,12 +650,18 @@ export class World {
     c.dirty = true;
     c.sky = null;
 
-    // Una antorcha nueva (o quitada) cambia la luz de los chunks de alrededor.
+    // Una luz nueva (o quitada), o un bloque que tapa o destapa una luz cercana, cambia la luz de alrededor.
     if (LIGHT_RADIUS[b] || LIGHT_RADIUS[before as Block]) {
       const k = `${x},${y},${z}`;
       if (LIGHT_RADIUS[b]) this.torches.set(k, [x, y, z]);
       else this.torches.delete(k);
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.markDirty(cx + dx, cz + dz);
+    } else {
+      for (const [tx, ty, tz] of this.torches.values()) {
+        if (Math.abs(tx - x) + Math.abs(ty - y) + Math.abs(tz - z) > MAX_LIGHT) continue;
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.markDirty(cx + dx, cz + dz);
+        break;
+      }
     }
 
     const k = key(cx, cz);
@@ -864,23 +870,54 @@ export class World {
   }
 
   /**
-   * Luz de una casilla de aire, de 0 a 1. Solo oscurece lo que está hondo bajo tierra (las cuevas),
-   * para que el interior de las casas no quede negro. Las antorchas iluminan alrededor.
+   * Luz del cielo en una casilla de aire, de 0 a 1. Solo oscurece lo que está hondo bajo tierra (las cuevas),
+   * para que el interior de las casas no quede negro.
    */
-  private lightAt(x: number, y: number, z: number, torches: [number, number, number][]): number {
-    let light = 1;
+  private skyLightAt(x: number, y: number, z: number): number {
     const top = this.skyHeight(x, z);
-    if (y < top && y <= SEA_LEVEL + 1) {
-      light = Math.max(0, Math.min(1, 1 - (top - y - 1) / 5));
+    if (y < top && y <= SEA_LEVEL + 1) return Math.max(0, Math.min(1, 1 - (top - y - 1) / 5));
+    return 1;
+  }
+
+  /**
+   * Luz de antorchas y bloques de luz alrededor de un chunk, de 0 a 1. Se extiende bloque a bloque
+   * (bajando un nivel cada vez) y no atraviesa bloques opacos: una pared deja el otro lado a oscuras.
+   */
+  private blockLightRegion(ox: number, oz: number): (x: number, y: number, z: number) => number {
+    const R = MAX_LIGHT;
+    const W = CHUNK + 2 * R;
+    const x0 = ox - R;
+    const z0 = oz - R;
+    const emitters = [...this.torches.values()].filter(([tx, , tz]) => tx >= x0 && tx < x0 + W && tz >= z0 && tz < z0 + W);
+    if (!emitters.length) return () => 0;
+    const grid = new Uint8Array(W * W * HEIGHT);
+    const at = (x: number, y: number, z: number) => (y * W + (z - z0)) * W + (x - x0);
+    const queue: number[] = [];
+    for (const [tx, ty, tz] of emitters) {
+      const level = LIGHT_RADIUS[this.getBlock(tx, ty, tz) as Block] ?? 0;
+      if (level <= grid[at(tx, ty, tz)]) continue;
+      grid[at(tx, ty, tz)] = level;
+      queue.push(tx, ty, tz);
     }
-    if (light < 1) {
-      for (const [tx, ty, tz] of torches) {
-        const r = LIGHT_RADIUS[Block.Torch]!;
-        const dist = Math.hypot(tx + 0.5 - (x + 0.5), ty + 0.5 - (y + 0.5), tz + 0.5 - (z + 0.5));
-        light = Math.max(light, 1 - dist / r);
+    const DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+    for (let head = 0; head < queue.length; head += 3) {
+      const x = queue[head];
+      const y = queue[head + 1];
+      const z = queue[head + 2];
+      const next = grid[at(x, y, z)] - 1;
+      if (next <= 0) continue;
+      for (const [dx, dy, dz] of DIRS) {
+        const nx = x + dx;
+        const ny = y + dy;
+        const nz = z + dz;
+        if (nx < x0 || nx >= x0 + W || nz < z0 || nz >= z0 + W || ny < 0 || ny >= HEIGHT) continue;
+        const i = at(nx, ny, nz);
+        if (grid[i] >= next || isOpaque(this.getBlock(nx, ny, nz))) continue;
+        grid[i] = next;
+        queue.push(nx, ny, nz);
       }
     }
-    return Math.max(0.05, light);
+    return (x, y, z) => (y < 0 || y >= HEIGHT ? 0 : grid[at(x, y, z)] / MAX_LIGHT);
   }
 
   /** La puerta de valla va a lo largo de x si tiene vallas (o paredes) a los lados en x. */
@@ -909,10 +946,9 @@ export class World {
 
     const ox = c.cx * CHUNK;
     const oz = c.cz * CHUNK;
-    const torchRange = LIGHT_RADIUS[Block.Torch]!;
-    const torches = [...this.torches.values()].filter(
-      ([tx, , tz]) => tx >= ox - torchRange && tx < ox + CHUNK + torchRange && tz >= oz - torchRange && tz < oz + CHUNK + torchRange,
-    );
+    /** Luz de cada vértice: [cielo, antorchas]. El shader las mezcla con la hora del día (lighting.ts). */
+    const lights: number[] = [];
+    const blockLight = this.blockLightRegion(ox, oz);
     const tileSize = 1 / ATLAS_TILES;
     const inset = 0.0005;
     const tileUV = (tile: number): [number, number] => [
@@ -931,15 +967,17 @@ export class World {
 
           if (def.shape === 'cross') {
             const [u0, v0] = tileUV(def.tiles[0]);
-            const light = b === Block.Torch ? 1 : this.lightAt(wx, y, wz, torches);
+            const sky = this.skyLightAt(wx, y, wz);
+            const glow = LIGHT_RADIUS[b as Block] ? 1 : blockLight(wx, y, wz);
             for (const quad of CROSS_QUADS) {
               const start = positions.length / 3;
               for (const [cx, cy, cz, cu, cv] of quad) {
                 positions.push(x + cx, y + cy, z + cz);
                 normals.push(0, 1, 0);
                 uvs.push(u0 + inset + cu * (tileSize - 2 * inset), v0 + inset + cv * (tileSize - 2 * inset));
-                const shade = (cy === 0 ? 0.8 : 1) * light;
+                const shade = cy === 0 ? 0.8 : 1;
                 colors.push(shade, shade, shade);
+                lights.push(sky, glow);
                 if (cy === 1 && SWAYING.has(b)) swaying.push(positions.length / 3 - 1);
               }
               indices.push(start, start + 1, start + 2, start + 2, start + 1, start + 3);
@@ -949,7 +987,8 @@ export class World {
 
           if (def.shape !== 'cube') {
             const [u0, v0] = tileUV(def.tiles[0]);
-            const light = this.lightAt(wx, y, wz, torches);
+            const sky = this.skyLightAt(wx, y, wz);
+            const glow = blockLight(wx, y, wz);
             // Caja pequeña dentro del bloque; la textura se recorta según su tamaño.
             const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
               for (let f = 0; f < 6; f++) {
@@ -964,8 +1003,9 @@ export class World {
                   normals.push(nx, ny, nz);
                   const [a, b2] = nx ? [pz, py] : ny ? [px, pz] : [px, py];
                   uvs.push(u0 + inset + a * (tileSize - 2 * inset), v0 + inset + b2 * (tileSize - 2 * inset));
-                  const shade = FACE_SHADE[f] * light;
+                  const shade = FACE_SHADE[f];
                   colors.push(shade, shade, shade);
+                  lights.push(sky, glow);
                 }
                 indices.push(start, start + 1, start + 2, start + 2, start + 1, start + 3);
               }
@@ -1025,7 +1065,8 @@ export class World {
             if (nb === b && def.transparent) continue; // hojas contra hojas: una sola capa
 
             const [u0, v0] = tileUV(def.tiles[face.side]);
-            const light = this.lightAt(wx + nx, y + ny, wz + nz, torches);
+            const sky = this.skyLightAt(wx + nx, y + ny, wz + nz);
+            const glow = LIGHT_RADIUS[b as Block] ? 1 : blockLight(wx + nx, y + ny, wz + nz);
             const start = positions.length / 3;
             const ao: number[] = [];
             for (const [cx, cy, cz, cu, cv] of face.corners) {
@@ -1034,8 +1075,9 @@ export class World {
               uvs.push(u0 + inset + cu * (tileSize - 2 * inset), v0 + inset + cv * (tileSize - 2 * inset));
               const a = this.vertexAO(wx, y, wz, face.dir, cx, cy, cz);
               ao.push(a);
-              const shade = FACE_SHADE[f] * AO_CURVE[a] * light;
+              const shade = FACE_SHADE[f] * AO_CURVE[a];
               colors.push(shade, shade, shade);
+              lights.push(sky, glow);
             }
             // Girar la diagonal del quad evita manchas raras en la oclusión ambiental.
             if (ao[1] + ao[2] > ao[0] + ao[3]) {
@@ -1054,6 +1096,7 @@ export class World {
     geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setAttribute('light', new THREE.Float32BufferAttribute(lights, 2));
     const sway = new Float32Array(positions.length / 3);
     for (const i of swaying) sway[i] = 1;
     geo.setAttribute('sway', new THREE.BufferAttribute(sway, 1));

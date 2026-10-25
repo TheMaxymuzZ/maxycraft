@@ -27,6 +27,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #a8dcf5; fon
   position: relative; width: 48px; height: 48px; display: grid; place-items: center;
   border: 3px solid rgba(255, 255, 255, 0.15); border-radius: 4px;
 }
+.slot.offhand { margin-right: 8px; border-style: dashed; }
+.slot.offhand:empty::after { content: '✋'; opacity: .35; font-size: 20px; }
 .slot img { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; }
 .slot .key { position: absolute; left: 3px; top: 0; font: 700 11px var(--display); color: rgba(255,255,255,.7); }
 .slot .count {

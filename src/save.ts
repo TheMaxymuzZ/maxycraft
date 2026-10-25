@@ -23,6 +23,8 @@ export interface SaveData {
   player: { x: number; y: number; z: number; yaw: number; pitch: number } | null;
   /** Desde la v0.3. */
   inventory?: (ItemStack | null)[];
+  /** Lo que llevas en la otra mano. */
+  offhand?: ItemStack | null;
   /** Cuándo se cogió cada fruta ("x,y,z" → milisegundos), para que vuelva a crecer. */
   harvested?: Record<string, number>;
   /** Día (AAAA-MM-DD) y conchas de ese día ya recogidas. */

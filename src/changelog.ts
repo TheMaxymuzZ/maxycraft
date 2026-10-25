@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.5',
+    title: 'Luz nueva y dos manos',
+    items: [
+      'La luz de antorchas y bloques de luz ya no atraviesa paredes, y es cálida.',
+      'Nada se queda negro del todo: en cuevas y de noche siempre se ve un poco.',
+      'Otra mano: con la Q pasas lo de la casilla elegida a la mano izquierda (también tocando la casilla de la mano).',
+      'Una antorcha o un bloque de luz en cualquier mano te alumbra alrededor.',
+    ],
+  },
+  {
     version: '2.4',
     title: 'Cofres y días de juego',
     items: [

@@ -8,6 +8,8 @@ export const INVENTORY_SIZE = HOTBAR_SIZE + BAG_SIZE;
 /** Los bolsillos: las 10 primeras casillas son la barra rápida. */
 export class Inventory {
   slots: (ItemStack | null)[] = new Array(INVENTORY_SIZE).fill(null);
+  /** La otra mano: lo que llevas además de lo de la barra rápida (por ejemplo, una antorcha para alumbrar). */
+  offhand: ItemStack | null = null;
   private listeners: (() => void)[] = [];
 
   onChange(fn: () => void) {
@@ -102,6 +104,21 @@ export class Inventory {
     for (const [id, n] of r.needs) this.remove(id, n);
     this.add(r.result, r.count);
     return true;
+  }
+
+  /** Cambia de mano: lo de la casilla pasa a la otra mano y al revés. */
+  swapOffhand(slot: number) {
+    [this.offhand, this.slots[slot]] = [this.slots[slot], this.offhand];
+    this.changed();
+  }
+
+  loadOffhand(s: ItemStack | null | undefined) {
+    try {
+      this.offhand = s && itemDef(s.id) ? { ...s } : null;
+    } catch {
+      this.offhand = null;
+    }
+    this.changed();
   }
 
   serialize(): (ItemStack | null)[] {

@@ -58,6 +58,7 @@ import { Workbench } from './workbench';
 import { Water } from './water';
 import { Waterfalls } from './waterfall';
 import { Wind } from './wind';
+import { HAND_LIGHT, Lighting } from './lighting';
 import { SEA_LEVEL, WATER_SURFACE, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
@@ -166,6 +167,7 @@ scene.add(world.group);
 const water = new Water();
 world.waterMaterial = water.material;
 const wind = new Wind(material);
+const lighting = new Lighting(material);
 const waterfalls = new Waterfalls(world.waterfallSpots(2));
 scene.add(waterfalls.group);
 const birds = new Birds();
@@ -270,6 +272,7 @@ for (const v of villagers) {
 const inventory = new Inventory();
 if (save?.inventory) inventory.load(save.inventory);
 else starterKit(inventory);
+inventory.loadOffhand(save?.offhand);
 
 const collection = new Collection(save?.caught ?? [], save?.donated ?? [], atlas);
 
@@ -321,6 +324,7 @@ function persist() {
   const data: SaveData = homeSave ? {
     ...homeSave,
     inventory: inventory.serialize(),
+    offhand: inventory.offhand,
     villagers: { ...homeSave.villagers, ...memories },
     wallet,
     caught: [...collection.caught],
@@ -338,6 +342,7 @@ function persist() {
     edits: world.exportEdits(),
     player: { x: p.x, y: p.y, z: p.z, yaw: player.yaw, pitch: player.pitch },
     inventory: inventory.serialize(),
+    offhand: inventory.offhand,
     harvested,
     shells: { day: today, taken: [...shellsTaken] },
     branches: { day: today, trees: [...branchTrees] },
@@ -845,6 +850,10 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.code === 'Escape' && panel === 'inventory') {
     closeInventory();
+    return;
+  }
+  if (e.code === keys.offhand && isPlaying()) {
+    hud.swapHands();
     return;
   }
   if (e.code === keys.rotate && isPlaying()) {
@@ -1657,11 +1666,14 @@ function frame(now: number) {
     highlight.visible = false;
   }
 
+  // Una antorcha en cualquiera de las dos manos alumbra alrededor.
+  const handLight = Math.max(HAND_LIGHT[hud.selectedStack?.id ?? ''] ?? 0, HAND_LIGHT[inventory.offhand?.id ?? ''] ?? 0);
+  lighting.setHand(camera.position, handLight);
   renderer.render(scene, camera);
   // La mano va encima de todo, en otra pasada, y no se ve en la portada ni con el menú abierto.
   if (menu.hidden && !panel) {
     const walking = player.onGround ? Math.hypot(player.velocity.x, player.velocity.z) : 0;
-    held.update(dt, camera, hud.selectedStack?.id ?? null, breaker.active && !!hit, walking, 1 - sky.night * 0.6);
+    held.update(dt, camera, hud.selectedStack?.id ?? null, inventory.offhand?.id ?? null, breaker.active && !!hit, walking, 1 - sky.night * 0.6);
     renderer.autoClear = false;
     renderer.clearDepth();
     renderer.render(held.scene, camera);
@@ -1688,6 +1700,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, sync, net, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, lighting, sync, net, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }
