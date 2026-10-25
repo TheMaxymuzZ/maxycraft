@@ -20,15 +20,22 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #a8dcf5; fon
 }
 
 #hotbar {
-  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+  z-index: 2; position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
   display: flex; gap: 4px; padding: 4px; background: rgba(35, 48, 31, 0.55); border-radius: 6px;
 }
 .slot {
   position: relative; width: 48px; height: 48px; display: grid; place-items: center;
   border: 3px solid rgba(255, 255, 255, 0.15); border-radius: 4px;
 }
-.slot img { width: 32px; height: 32px; image-rendering: pixelated; }
-.slot span { position: absolute; left: 3px; top: 0; font: 700 11px var(--display); color: rgba(255,255,255,.7); }
+.slot img { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; }
+.slot .key { position: absolute; left: 3px; top: 0; font: 700 11px var(--display); color: rgba(255,255,255,.7); }
+.slot .count {
+  position: absolute; right: 3px; bottom: 0; font: 700 14px var(--display); color: #fff;
+  text-shadow: 1px 1px 0 rgba(0,0,0,.6);
+}
+.slot .wear { position: absolute; left: 6px; right: 6px; bottom: 4px; height: 3px; background: rgba(0,0,0,.5); }
+.slot .wear i { display: block; height: 100%; background: #7bd34f; }
+.slot .wear i.low { background: #e0573f; }
 .slot.active { border-color: #fff; background: rgba(255, 255, 255, 0.18); }
 
 #block-name {
@@ -81,3 +88,51 @@ kbd {
   box-shadow: none; border: 2px dashed #c9c1a6;
 }
 .panel button.secondary.danger { color: #a3322b; border-color: #a3322b; }
+
+#toast {
+  position: fixed; left: 50%; bottom: 110px; transform: translate(-50%, 8px);
+  padding: 8px 16px; background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep);
+  font: 800 15px var(--body); white-space: nowrap; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Anillo de progreso alrededor de la mira al romper un bloque. */
+#break-progress {
+  --p: 0deg;
+  position: fixed; left: 50%; top: 50%; width: 34px; height: 34px; transform: translate(-50%, -50%);
+  border-radius: 50%; pointer-events: none;
+  background: conic-gradient(rgba(255,255,255,.9) var(--p), rgba(255,255,255,.15) 0);
+  -webkit-mask: radial-gradient(circle, transparent 11px, #000 12px);
+  mask: radial-gradient(circle, transparent 11px, #000 12px);
+}
+
+#inventory {
+  position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+  background: rgba(30, 50, 30, 0.5); z-index: 5;
+}
+#inventory[hidden] { display: none; }
+.inv-panel {
+  background: var(--paper); color: var(--ink); border: 4px solid var(--grass-deep);
+  box-shadow: 8px 8px 0 rgba(0,0,0,.25); padding: 20px; display: grid; gap: 16px 24px;
+  grid-template-columns: auto minmax(220px, 280px); max-width: 100%; max-height: 100%; overflow: auto;
+}
+.inv-panel h2 { margin: 0 0 6px; font: 700 24px var(--display); color: var(--grass-deep); }
+.inv-help { margin: 0 0 10px; font-size: 13px; color: #6b7466; max-width: 520px; }
+#inv-grid { display: grid; grid-template-columns: repeat(10, 48px); gap: 4px; }
+#inv-grid .slot { background: rgba(139, 90, 53, 0.18); border-color: rgba(139, 90, 53, 0.3); cursor: pointer; }
+#inv-grid .slot:hover { border-color: var(--dirt); }
+#inv-grid .slot .count { color: #fff; }
+.inv-gap { grid-column: 1 / -1; height: 6px; }
+#recipes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+#recipes li { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; }
+#recipes img { width: 32px; height: 32px; image-rendering: pixelated; }
+#recipes b { display: block; font-size: 15px; }
+#recipes small { color: #6b7466; font-size: 12px; }
+#recipes button {
+  font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: var(--grass); color: #fff;
+}
+#recipes button:disabled { background: #c9c1a6; cursor: default; }
+#recipes button:focus-visible { outline: 3px solid var(--dirt); outline-offset: 2px; }
+.inv-close { grid-column: 1 / -1; margin: 0; font-size: 13px; color: #6b7466; }
+#cursor-stack { position: fixed; left: 0; top: 0; pointer-events: none; border: 0; z-index: 6; }
+@media (max-width: 860px) { .inv-panel { grid-template-columns: 1fr; } #inv-grid { grid-template-columns: repeat(5, 48px); } }

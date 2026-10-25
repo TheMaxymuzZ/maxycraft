@@ -27,11 +27,12 @@ export const TILE = 16;
 export const ATLAS_TILES = 8; // 8x8 casillas de 16x16 píxeles
 
 // Índices de casilla dentro del atlas.
-enum Tile {
+export enum Tile {
   GrassTop, GrassSide, Dirt, Stone, Sand, LogSide, LogTop, Planks, Leaves,
   FlowerRed, FlowerYellow, FlowerWhite, TallGrass,
   Apple, Orange, Pear, Peach, Cherry,
   PalmSide, PalmTop, PalmLeaves, Coconut,
+  Branch, Shell, Conch, Starfish, Axe, Shovel, Pickaxe,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. */
@@ -75,11 +76,6 @@ export const BLOCKS: Record<number, BlockDef> = {
 };
 
 export const FRUITS = [Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry] as const;
-
-export const HOTBAR: Block[] = [
-  Block.Grass, Block.Dirt, Block.Stone, Block.Sand, Block.Log, Block.Planks, Block.Leaves,
-  Block.FlowerRed, Block.FlowerYellow,
-];
 
 /** Bloquea el paso del jugador. */
 export function isSolid(b: number): boolean {
@@ -244,6 +240,133 @@ const CHERRY = [
   '................',
 ];
 
+const BRANCH = [
+  '................',
+  '................',
+  '.............s..',
+  '............s...',
+  '...........s....',
+  '..........s.....',
+  '.........s......',
+  '....l...s.......',
+  '.....l.s........',
+  '......s.........',
+  '.....s..........',
+  '....s...........',
+  '...s............',
+  '..s.............',
+  '................',
+  '................',
+];
+const SHELL = [
+  '................',
+  '................',
+  '................',
+  '................',
+  '......aaaa......',
+  '....aabababa....',
+  '...abababababa..',
+  '..aabababababaa.',
+  '..ababababababa.',
+  '..aabababababaa.',
+  '...aaaaaaaaaaa..',
+  '.....cccccc.....',
+  '......cccc......',
+  '................',
+  '................',
+  '................',
+];
+const CONCH = [
+  '................',
+  '................',
+  '................',
+  '.........aa.....',
+  '.......aabba....',
+  '......abbaaba...',
+  '.....abaaaaba...',
+  '....abaaccaba...',
+  '...abaacccaba...',
+  '..abaaccaaba....',
+  '..aaaaaaaba.....',
+  '...aaaaaaa......',
+  '....aaaa........',
+  '................',
+  '................',
+  '................',
+];
+const STARFISH = [
+  '................',
+  '................',
+  '.......aa.......',
+  '.......aa.......',
+  '......abba......',
+  '......abba......',
+  'aaaaaaabbaaaaaaa',
+  '.aabbbbbbbbbbaa.',
+  '...aaabbbbaaa...',
+  '....aabbbbaa....',
+  '....abbaabba....',
+  '...abba..abba...',
+  '...aba....aba...',
+  '..aba......aba..',
+  '..aa........aa..',
+  '................',
+];
+const AXE = [
+  '................',
+  '.........hhh....',
+  '........hhhhh...',
+  '........hhhhhh..',
+  '.......shhhhh...',
+  '......s..hhh....',
+  '.....s..........',
+  '....s...........',
+  '...s............',
+  '..s.............',
+  '.s..............',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+const SHOVEL = [
+  '................',
+  '...........hhh..',
+  '..........hhhhh.',
+  '..........hhhhh.',
+  '.........hhhhh..',
+  '........s.hhh...',
+  '.......s........',
+  '......s.........',
+  '.....s..........',
+  '....s...........',
+  '...s............',
+  '..ss............',
+  '..s.............',
+  '................',
+  '................',
+  '................',
+];
+const PICKAXE = [
+  '................',
+  '....hhhhhh......',
+  '...h......hh....',
+  '..........shh...',
+  '.........s..h...',
+  '........s...h...',
+  '.......s.....h..',
+  '......s.........',
+  '.....s..........',
+  '....s...........',
+  '...s............',
+  '..s.............',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
 export function createAtlasCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = TILE * ATLAS_TILES;
@@ -300,6 +423,17 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   });
   paintTile(ctx, Tile.PalmLeaves, (x, y, r) => ((x + y) % 5 === 0 && r() < 0.6 ? null : pick(r, PALM_LEAF)));
 
+  // Objetos que no son bloques.
+  const stick: RGB = [150, 104, 60];
+  const metal: RGB = [176, 184, 196];
+  paintSprite(ctx, Tile.Branch, BRANCH, { s: [126, 88, 52], l: leaf });
+  paintSprite(ctx, Tile.Shell, SHELL, { a: [246, 196, 176], b: [232, 160, 140], c: [214, 140, 120] });
+  paintSprite(ctx, Tile.Conch, CONCH, { a: [244, 226, 196], b: [222, 180, 140], c: [240, 150, 150] });
+  paintSprite(ctx, Tile.Starfish, STARFISH, { a: [220, 110, 60], b: [246, 150, 86] });
+  paintSprite(ctx, Tile.Axe, AXE, { s: stick, h: metal });
+  paintSprite(ctx, Tile.Shovel, SHOVEL, { s: stick, h: metal });
+  paintSprite(ctx, Tile.Pickaxe, PICKAXE, { s: stick, h: metal });
+
   return canvas;
 }
 
@@ -312,13 +446,17 @@ export function createAtlasTexture(canvas: HTMLCanvasElement): THREE.Texture {
   return tex;
 }
 
-/** Recorta el icono de un bloque, para la barra rápida. */
-export function blockIcon(atlas: HTMLCanvasElement, b: Block): string {
+/** Casilla del atlas que sirve de icono para un bloque. */
+export function blockIconTile(b: Block): number {
+  const def = BLOCKS[b];
+  return def.tiles[b === Block.Grass || def.shape === 'cross' ? 0 : 1];
+}
+
+/** Recorta una casilla del atlas en su propio canvas de 16x16. */
+export function tileCanvas(atlas: HTMLCanvasElement, tile: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = TILE;
-  const def = BLOCKS[b];
-  const tile = def.tiles[b === Block.Grass || def.shape === 'cross' ? 0 : 1];
   const ctx = c.getContext('2d')!;
   ctx.drawImage(atlas, (tile % ATLAS_TILES) * TILE, Math.floor(tile / ATLAS_TILES) * TILE, TILE, TILE, 0, 0, TILE, TILE);
-  return c.toDataURL();
+  return c;
 }

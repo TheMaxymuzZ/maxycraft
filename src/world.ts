@@ -269,6 +269,52 @@ export class World {
     }
   }
 
+  /** Deshace el cambio del jugador en (x, y, z), por ejemplo para que vuelva a crecer una fruta. */
+  clearEdit(x: number, y: number, z: number) {
+    const cx = Math.floor(x / CHUNK);
+    const cz = Math.floor(z / CHUNK);
+    const m = this.edits.get(key(cx, cz));
+    if (!m) return;
+    m.delete(index(x - cx * CHUNK, y, z - cz * CHUNK));
+    // Si el chunk ya existe, se vuelve a generar para recuperar el bloque original.
+    const k = key(cx, cz);
+    const c = this.chunks.get(k);
+    if (c) {
+      c.data.fill(0);
+      this.generate(c);
+    }
+  }
+
+  /** Busca un árbol a partir de un bloque de tronco u hojas y devuelve dónde está su fruta. */
+  treeFruitsNear(x: number, y: number, z: number): [number, number, number][] {
+    const found: [number, number, number][] = [];
+    for (let dy = -4; dy <= 6; dy++) {
+      for (let dz = -3; dz <= 3; dz++) {
+        for (let dx = -3; dx <= 3; dx++) {
+          const b = this.getBlock(x + dx, y + dy, z + dz);
+          if ((FRUITS as readonly number[]).includes(b) || b === Block.Coconut) found.push([x + dx, y + dy, z + dz]);
+        }
+      }
+    }
+    return found;
+  }
+
+  /** Columnas de playa al aire libre, elegidas con `random`, para dejar conchas. */
+  beachSpots(count: number, random: () => number): [number, number, number][] {
+    const spots: [number, number, number][] = [];
+    for (let tries = 0; tries < count * 200 && spots.length < count; tries++) {
+      const a = random() * Math.PI * 2;
+      const d = ISLAND_RADIUS * (0.5 + random() * 0.6);
+      const x = Math.floor(Math.cos(a) * d);
+      const z = Math.floor(Math.sin(a) * d);
+      const h = this.heightAt(x, z);
+      if (h !== SEA_LEVEL + 1) continue;
+      if (this.getBlock(x, h, z) !== Block.Sand || this.getBlock(x, h + 1, z) !== Block.Air) continue;
+      spots.push([x, h + 1, z]);
+    }
+    return spots;
+  }
+
   private markDirty(cx: number, cz: number) {
     const c = this.chunks.get(key(cx, cz));
     if (c) c.dirty = true;
@@ -332,7 +378,11 @@ export class World {
           const wz = z + dz;
           const h = this.heightAt(wx, wz);
           const above = this.getBlock(wx, h + 1, wz);
-          if (this.getBlock(wx, h, wz) === Block.Grass && !isSolid(above) && this.getBlock(wx, h + 2, wz) === Block.Air) return [wx, wz];
+          if (this.getBlock(wx, h, wz) !== Block.Grass || isSolid(above)) continue;
+          // Cielo despejado encima, para no aparecer sobre la copa de un árbol.
+          let clear = true;
+          for (let y = h + 2; y < HEIGHT && clear; y++) clear = this.getBlock(wx, y, wz) === Block.Air;
+          if (clear) return [wx, wz];
         }
       }
     }
