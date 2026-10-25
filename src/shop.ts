@@ -18,6 +18,8 @@ export interface ShopContext {
   atlas: HTMLCanvasElement;
   today: string;
   islandFruit: string;
+  /** Fiesta de hoy: la tienda vende sus cosas de temporada. */
+  holiday: string | null;
   getWallet: () => number;
   setWallet: (n: number) => void;
   toast: (text: string) => void;
@@ -36,9 +38,10 @@ export class Shop {
   constructor(private ctx: ShopContext) {
     const daily = (ids: string[]) => ids.sort((a, b) => hash01(ctx.today + a) - hash01(ctx.today + b));
     const tools = CATALOG.filter((id) => itemDef(id).tool);
-    const furniture = daily(CATALOG.filter((id) => itemDef(id).furniture));
+    const seasonal = CATALOG.filter((id) => itemDef(id).holiday && itemDef(id).holiday === ctx.holiday);
+    const furniture = daily(CATALOG.filter((id) => itemDef(id).furniture && !itemDef(id).holiday));
     const rest = daily(CATALOG.filter((id) => !itemDef(id).tool && !itemDef(id).furniture));
-    this.stock = [...tools, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
+    this.stock = [...seasonal, ...tools, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
     ctx.inventory.onChange(() => {
       if (!this.el.hidden) this.render();
     });

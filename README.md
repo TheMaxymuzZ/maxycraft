@@ -6,7 +6,14 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.9 · Mesa de trabajo**
+Versión actual: **v0.10 · Estaciones**
+
+- Las estaciones siguen el calendario real: hierba y hojas más claras con flores rosas en primavera, naranjas en otoño y nevadas en invierno.
+- El tiempo cambia cada tres horas: sol, nubes, lluvia o nieve. Con lluvia el día se oscurece; la lluvia y la nieve no entran bajo techo.
+- Fiestas: Halloween (última semana de octubre, con calabazas en las puertas), Navidad (del 20 al 26 de diciembre, con nieve y árbol junto a la tienda), Nochevieja, Año Nuevo y San Valentín. Los vecinos te felicitan y la tienda vende cosas de temporada.
+- Cada vecino tiene su cumpleaños: ese día lleva gorro de fiesta, y si le haces un regalo te lo agradece mucho más.
+- Algunos peces e insectos solo salen en ciertos meses (la luciérnaga en verano, el salmón en otoño, la pulga de las nieves en invierno…). La enciclopedia lo indica.
+- Para probar otro día o tiempo: `?fecha=2026-12-24` y `?tiempo=lluvia`.
 
 - Mesa de trabajo (4 tablones, desde los bolsillos). Colócala y haz clic derecho sobre ella para fabricar con las recetas que sepas.
 - 18 recetas: vallas de madera y blancas, muebles (también tres nuevos que solo se fabrican: barril, farol y banco), ventanas, paredes y las herramientas de hierro.

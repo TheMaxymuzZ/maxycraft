@@ -23,6 +23,8 @@ export interface ItemDef {
   buy?: number;
   /** Si es un mueble que se coloca en el mundo. */
   furniture?: boolean;
+  /** Solo se vende en esa fiesta. */
+  holiday?: string;
 }
 
 export interface ItemStack {
@@ -106,7 +108,7 @@ add({ id: 'muro_piedra', name: 'Muro de piedra', tile: blockIconTile(Block.Museu
 CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell }));
 
 // Muebles para decorar la casa.
-for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: 1, sell: f.sell, buy: f.buy, furniture: true });
+for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday });
 
 /** Todo lo que la tienda puede tener a la venta. */
 export const CATALOG = defs.filter((d) => d.buy !== undefined).map((d) => d.id);

@@ -665,7 +665,7 @@ export class World {
   // --- Luz ---
 
   /** Altura del bloque opaco más alto de la columna (x, z). */
-  private skyHeight(x: number, z: number): number {
+  skyHeight(x: number, z: number): number {
     const cx = Math.floor(x / CHUNK);
     const cz = Math.floor(z / CHUNK);
     const c = this.getChunk(cx, cz);
