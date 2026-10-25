@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.10 · Estaciones**
+Versión actual: **v1.0**
+
+- **Primeros pasos**: en una isla nueva aparece una lista de 8 tareas (pasear, sacudir un árbol, romper un bloque, fabricar, hablar con un vecino, vender, pescar o cazar y colocar un mueble) que se tachan solas. Al terminarla, Avellana te regala 1.000 bayas. La tecla H la pliega.
+- **Música y sonidos** hechos con el sintetizador del navegador: una canción distinta cada hora (alegre por la mañana, tranquila de noche), pasos según el suelo, golpes al romper y colocar, la voz de cada vecino al hablar, monedas, chapoteos, fanfarria al pescar y lluvia de fondo. La tecla M o el botón del menú lo apagan.
+- **Controles táctiles** para móvil y tableta: palanca a la izquierda, arrastrar a la derecha para mirar y botones para saltar, romper, usar, bolsillos, enciclopedia, girar muebles y pausa. La barra rápida se toca para elegir. En el móvil se ve algo menos lejos para que vaya fluido.
+- Las ventanas caben en pantallas bajas y tienen botón de cerrar.
 
 - Las estaciones siguen el calendario real: hierba y hojas más claras con flores rosas en primavera, naranjas en otoño y nevadas en invierno.
 - El tiempo cambia cada tres horas: sol, nubes, lluvia o nieve. Con lluvia el día se oscurece; la lluvia y la nieve no entran bajo techo.
@@ -58,6 +63,8 @@ Versión actual: **v0.10 · Estaciones**
 
 ## Controles
 
+En móvil o tableta se juega con el mando en pantalla. Con teclado y ratón:
+
 | Tecla | Acción |
 | --- | --- |
 | W A S D | Caminar |
@@ -66,6 +73,8 @@ Versión actual: **v0.10 · Estaciones**
 | Clic izquierdo (mantener) | Romper bloque |
 | Clic derecho | Colocar bloque o mueble, sacudir un árbol, hablar |
 | R | Girar el mueble al que apuntas |
+| M | Sonido sí / no |
+| H | Plegar los primeros pasos |
 | E | Bolsillos y fabricar |
 | C | Enciclopedia de peces e insectos |
 | 1–0 o rueda | Elegir casilla |
