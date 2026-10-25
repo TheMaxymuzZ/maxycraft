@@ -178,6 +178,9 @@ CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_ST
 // Muebles para decorar la casa.
 for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: f.stack ?? 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday });
 
+/** Todos los objetos del juego, en el orden en que se definen (para la wiki de la página del proyecto). */
+export const ITEMS: readonly ItemDef[] = defs;
+
 /** Todo lo que la tienda puede tener a la venta. */
 export const CATALOG = defs.filter((d) => d.buy !== undefined).map((d) => d.id);
 

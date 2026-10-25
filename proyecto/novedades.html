@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Novedades · Maxycraft</title>
+    <meta name="description" content="Todas las versiones de Maxycraft y lo que trae cada una, desde el primer bloque hasta hoy." />
+    <meta property="og:title" content="Novedades de Maxycraft" />
+    <meta property="og:image" content="capturas/isla.jpg" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+  </head>
+  <body>
+    <div class="topbar">
+      <a class="brand" href="./"><img src="../icono-192.png" alt="" /><span>Maxycraft</span></a>
+      <nav>
+        <a href="./">Inicio</a>
+        <a href="wiki.html">Wiki</a>
+        <a href="novedades.html" aria-current="page">Novedades</a>
+      </nav>
+      <a class="mini-play" href="../">▶ Jugar</a>
+    </div>
+
+    <header class="hero small">
+      <h1>Novedades</h1>
+      <p class="tagline">Todo lo que ha ido llegando a Maxycraft: <span id="count">todas las</span> versiones, de la más nueva a la más antigua. Ahora mismo vamos por la <b id="version-now"></b>.</p>
+    </header>
+
+    <main>
+      <div class="filters" id="filters"></div>
+      <div class="timeline" id="releases"></div>
+      <noscript><div class="card">Para ver las novedades hace falta tener JavaScript activado.</div></noscript>
+      <p class="muted" style="text-align: center">Las novedades también salen dentro del juego: Menú › Novedades. Cuando hay una versión nueva, la portada te las enseña sola.</p>
+    </main>
+
+    <footer>
+      <p><a href="./">Inicio</a> · <a href="wiki.html">Wiki</a> · <a href="../">Jugar</a> · <a href="https://github.com/themaxymuzz/maxycraft">Código en GitHub</a></p>
+    </footer>
+
+    <script type="module" src="../src/proyecto/novedades.ts"></script>
+  </body>
+</html>

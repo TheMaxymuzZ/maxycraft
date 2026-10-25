@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wiki · Maxycraft</title>
+    <meta name="description" content="Wiki de Maxycraft: cómo se juega y cómo hacer cada cosa. Controles, recetas, vecinos, tienda, museo, casa, huerto, islas misteriosas, jugar con amigos y más." />
+    <meta property="og:title" content="Wiki de Maxycraft" />
+    <meta property="og:description" content="Todo lo que se puede hacer en Maxycraft y cómo hacerlo." />
+    <meta property="og:image" content="capturas/isla.jpg" />
+    <link rel="icon" type="image/png" href="../favicon.png" />
+  </head>
+  <body>
+    <div class="topbar">
+      <a class="brand" href="./"><img src="../icono-192.png" alt="" /><span>Maxycraft</span></a>
+      <nav>
+        <a href="./">Inicio</a>
+        <a href="wiki.html" aria-current="page">Wiki</a>
+        <a href="novedades.html">Novedades</a>
+      </nav>
+      <a class="mini-play" href="../">▶ Jugar</a>
+    </div>
+
+    <header class="hero small">
+      <h1>Wiki de Maxycraft</h1>
+      <p class="tagline">¿No sabes cómo hacer algo? Aquí está todo: desde dar tus primeros pasos hasta construir la casa de un vecino nuevo o jugar con tus amigos.</p>
+    </header>
+
+    <main class="wiki">
+      <details class="toc card" id="toc" open>
+        <summary>Índice</summary>
+        <input class="search" id="search" type="search" placeholder="Buscar en la wiki…" autocomplete="off" aria-label="Buscar en la wiki" />
+        <ol id="toc-list"></ol>
+      </details>
+
+      <div id="content">
+        <div class="card no-results" id="no-results">
+          <h2>No hay nada con esa palabra</h2>
+          <p>Prueba con otra, por ejemplo «pico», «casa», «billete» o «amigos».</p>
+        </div>
+
+        <!-- ============================================================ -->
+        <section class="card" id="empezar" data-emoji="🌱">
+          <h2>Primeros pasos</h2>
+          <p class="lead">Llegas a una isla con una tienda de campaña, 500 bayas y los bolsillos vacíos. Hay vecinos, una tienda, un museo y una avioneta en la playa. No hay prisa: aquí se vive tranquilo.</p>
+          <p>A la izquierda de la pantalla verás la lista de <b>primeros pasos</b>. Se va tachando sola mientras juegas y, cuando la terminas, Avellana te regala <b>1.000 bayas</b>:</p>
+          <ol class="steps">
+            <li><b>Da un paseo</b> por la isla.</li>
+            <li><b>Sacude un árbol</b> con clic derecho: cae fruta y, a veces, una rama.</li>
+            <li><b>Rompe un bloque</b> manteniendo el clic izquierdo.</li>
+            <li><b>Fabrica algo</b> en los bolsillos (tecla <kbd>E</kbd>). Con 5 ramas haces una caña o una red.</li>
+            <li><b>Habla con un vecino</b> (clic derecho sobre él).</li>
+            <li><b>Vende algo</b> en la tienda de Avellana.</li>
+            <li><b>Pesca un pez o atrapa un insecto.</b></li>
+            <li><b>Coloca un mueble</b> en tu casa. Dentro de la tienda de campaña ya tienes una cama.</li>
+          </ol>
+          <div class="tip"><b>Truco:</b> la tecla <kbd>H</kbd> pliega y despliega la lista de primeros pasos para que no tape la pantalla.</div>
+          <h3>Lo primero que conviene hacer</h3>
+          <ul class="plain">
+            <li>Sacude árboles hasta juntar <b>ramas</b>. Con ellas haces un <b>hacha</b>, una <b>pala</b>, un <b>pico</b>, una <b>caña</b> y una <b>red</b>.</li>
+            <li>Coge las <b>conchas</b> de la playa (salen siete nuevas cada día) y vende fruta y conchas en la tienda para ganar bayas.</li>
+            <li>Busca la <b>botella</b> que el mar trae cada día a la playa: dentro hay una receta.</li>
+            <li>Corta un tronco con el hacha, haz <b>tablones</b> y luego una <b>mesa de trabajo</b> para fabricar muebles.</li>
+          </ul>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="controles" data-emoji="🎮">
+          <h2>Controles</h2>
+          <h3>Con teclado y ratón</h3>
+          <dl class="controls">
+            <dt><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></dt><dd>Andar. Las flechas también sirven siempre.</dd>
+            <dt><kbd>Mayús</kbd></dt><dd>Correr (mantener)</dd>
+            <dt><kbd>Espacio</kbd></dt><dd>Saltar. En el agua, nadar hacia arriba.</dd>
+            <dt>Ratón</dt><dd>Mirar alrededor. Haz clic en el juego para que el ratón se quede dentro.</dd>
+            <dt>Clic izquierdo</dt><dd>Mantener para romper el bloque que miras. Sobre un mueble, recogerlo.</dd>
+            <dt>Clic derecho</dt><dd>Usar lo que llevas: colocar un bloque o un mueble, sacudir un árbol, hablar, pescar, cazar insectos, regar, abrir puertas y cofres…</dd>
+            <dt><kbd>1</kbd>–<kbd>0</kbd> o rueda</dt><dd>Elegir una casilla de la barra rápida</dd>
+            <dt><kbd>E</kbd></dt><dd>Bolsillos y fabricar</dd>
+            <dt><kbd>Q</kbd></dt><dd>Pasar lo de la casilla elegida a la otra mano (y al revés)</dd>
+            <dt><kbd>C</kbd></dt><dd>Enciclopedia: peces, insectos y álbum de vecinos</dd>
+            <dt><kbd>T</kbd></dt><dd>Tareas del día, logros, premios y estrellas de la isla</dd>
+            <dt><kbd>R</kbd></dt><dd>Girar el mueble al que miras</dd>
+            <dt><kbd>M</kbd></dt><dd>Sonido sí o no</dd>
+            <dt><kbd>H</kbd></dt><dd>Plegar la lista de primeros pasos</dd>
+            <dt><kbd>Intro</kbd></dt><dd>Chat con amigos</dd>
+            <dt><kbd>G</kbd></dt><dd>Gestos con amigos (luego <kbd>1</kbd>–<kbd>6</kbd> para elegir)</dd>
+            <dt><kbd>F</kbd></dt><dd>Datos de depuración (para curiosos)</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Pausa, menú y opciones. También cierra cualquier ventana.</dd>
+          </dl>
+          <div class="tip"><b>Teclas a tu gusto:</b> en Menú › Opciones › Cambiar teclas puedes poner cada acción en la tecla que quieras. Los números y <kbd>Esc</kbd> no se pueden cambiar.</div>
+          <h3>En el móvil o la tableta</h3>
+          <ul class="plain">
+            <li><b>Palanca de la izquierda:</b> andar.</li>
+            <li><b>Desliza el dedo</b> por el resto de la pantalla para mirar.</li>
+            <li>Botones <b>Saltar</b>, <b>Romper</b> (mantener) y <b>Usar</b> (lo mismo que el clic derecho).</li>
+            <li>Arriba: <b>Bolsillos</b>, <b>Enciclopedia</b>, <b>Girar</b> (muebles), <b>Tareas</b> y <b>Pausa</b>.</li>
+            <li>Toca una casilla de la barra rápida para elegirla. Toca la casilla de la mano (la del dibujo de una mano) para cambiar de mano.</li>
+          </ul>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="bolsillos" data-emoji="🎒">
+          <h2>Bolsillos y barra rápida</h2>
+          <p>Llevas <b>30 casillas</b>: las 10 de la <b>barra rápida</b> (abajo en la pantalla) y 20 más en la mochila. Ábrelos con <kbd>E</kbd>.</p>
+          <ul class="plain">
+            <li><b>Clic</b> en una casilla para coger el montón, y otro clic para soltarlo en otra casilla.</li>
+            <li><b>Clic derecho</b> coge la mitad de un montón.</li>
+            <li>El botón <b>Ordenar</b> agrupa la mochila y junta los montones iguales. La barra rápida no se toca.</li>
+            <li>Cada cosa se apila hasta un máximo: los bloques de 99 en 99, la fruta de 10 en 10, las herramientas de una en una.</li>
+          </ul>
+          <h3>La otra mano</h3>
+          <p>A la izquierda de la barra rápida hay una casilla con una mano: es tu <b>mano izquierda</b>. Con <kbd>Q</kbd> pasas a ella lo de la casilla elegida. Lo más útil es llevar ahí una <b>antorcha</b> o un <b>bloque de luz</b>: te alumbra alrededor mientras usas el pico con la otra mano.</p>
+          <h3>Coger cosas del suelo</h3>
+          <p>Lo que se rompe o cae de los árboles se queda en el suelo dando vueltas, en 3D. Basta con <b>pasar por encima</b> para cogerlo. Si no te cabe, se queda ahí esperando y sale el aviso «No te caben más cosas en los bolsillos».</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="construir" data-emoji="🧱">
+          <h2>Romper y colocar bloques</h2>
+          <p><b>Para romper</b>, mira un bloque y mantén el clic izquierdo. Sale una barra que se va llenando. Con la herramienta adecuada se rompe <b>5 veces más rápido</b> (las de hierro, 8 veces).</p>
+          <p><b>Para colocar</b>, elige el bloque en la barra rápida y haz clic derecho donde quieras ponerlo. Si lo pones sobre hierba alta o una flor, la sustituye.</p>
+          <ul class="plain">
+            <li>La <b>piedra</b>, los <b>minerales</b>, el <b>ladrillo</b>, el <b>adoquín</b> y los bloques de las islas del volcán y de cristal <b>solo se rompen con pico</b>.</li>
+            <li>Las <b>escaleras</b> suben hacia donde miras al ponerlas. Las escaleras y las losas se suben andando, sin saltar.</li>
+            <li>La <b>puerta</b> de casa necesita dos bloques de alto. Las puertas y las puertas de valla se abren y cierran con clic derecho.</li>
+            <li>Nadie puede <b>saltar una valla</b>: ni tú, ni los animales, ni los vecinos. Usa una puerta de valla para pasar.</li>
+            <li>Los <b>caminos y calles</b> se ponen en lugar del suelo, a ras, no encima.</li>
+            <li>Las paredes de las casas de los vecinos, la tienda y el museo no se pueden romper. En tu parcela, sí.</li>
+          </ul>
+          <h3>Herramientas</h3>
+          <p>Las herramientas se gastan con el uso. La barrita verde debajo del icono dice cuánto les queda. Cuando se rompen, sale un aviso. Haz otra con ramas, o cómprala en la tienda.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Herramienta</th><th>Para qué sirve</th><th>Usos</th><th>Cómo conseguirla</th></tr></thead>
+            <tbody id="tabla-herramientas"><tr><td colspan="4" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="arboles" data-emoji="🌳">
+          <h2>Árboles, fruta y ramas</h2>
+          <ul class="plain">
+            <li><b>Sacude un árbol</b> con clic derecho en el tronco o las hojas: cae su fruta y, la primera vez, una <b>rama</b>.</li>
+            <li>La fruta que coges <b>vuelve a salir a los 3 días</b> en el mismo sitio.</li>
+            <li>Cada isla tiene su <b>fruta propia</b> (manzana, naranja, pera, melocotón o cereza). En la playa hay palmeras con <b>cocos</b>.</li>
+            <li>La fruta de tu isla se vende a 100 bayas. La de otras islas, que traes de las islas misteriosas, vale <b>cinco veces más</b>.</li>
+          </ul>
+          <h3>Talar y replantar</h3>
+          <p>Si cortas el tronco con un hacha, <b>cae el árbol entero</b>: la madera, la fruta y uno o dos <b>brotes</b> para replantarlo. Las hojas se deshacen.</p>
+          <p>Planta un brote con clic derecho sobre tierra, hierba o arena. En <b>2 días de juego</b> se hace árbol, si tiene sitio encima. También puedes fabricar brotes:</p>
+          <ul class="plain">
+            <li><b>Brote de frutal</b> (manzano, naranjo, peral, melocotonero, cerezo): 2 frutas de ese árbol + 1 tierra.</li>
+            <li><b>Brote de palmera</b>: 1 coco + 1 arena.</li>
+            <li><b>Brote de pino</b>: 2 ramas + 1 tierra.</li>
+          </ul>
+          <div class="tip"><b>Truco:</b> trae fruta de una isla misteriosa y planta su brote en casa. Tendrás un árbol de fruta «de fuera» que se vende a 500 bayas cada una.</div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="fabricar" data-emoji="🔨">
+          <h2>Fabricar y recetas</h2>
+          <p>Hay dos sitios para fabricar:</p>
+          <ul class="plain">
+            <li><b>Los bolsillos</b> (<kbd>E</kbd>): lo básico, en cualquier sitio.</li>
+            <li><b>La mesa de trabajo</b>: muebles, bloques de construcción, decoración y herramientas de hierro. Se hace con 4 tablones; ponla en el suelo y haz clic derecho en ella.</li>
+          </ul>
+          <p>Las recetas se ordenan por grupos (Construir, Naturaleza, Herramientas, Comida…), tienen <b>buscador</b>, puedes marcar tus <b>favoritas</b> con la estrella ★ y ver <b>solo lo que puedes fabricar</b> con lo que llevas.</p>
+          <h3>Cómo aprender recetas nuevas</h3>
+          <ul class="plain">
+            <li>Cada día el mar deja una <b>botella con un mensaje</b> en la playa. Úsala (clic derecho con ella en la mano) para leer la receta.</li>
+            <li>Los vecinos que ya son tus amigos a veces están <b>haciendo manualidades</b> y te regalan una receta al saludarles.</li>
+            <li>Muchas recetas de construcción, calles y almacenamiento se saben desde el principio.</li>
+          </ul>
+          <h3>Recetas de los bolsillos</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fabricas</th><th>Necesitas</th></tr></thead>
+            <tbody id="recetas-bolsillos"><tr><td colspan="2" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+          <h3>Recetas de la mesa de trabajo</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fabricas</th><th>Necesitas</th><th>Receta</th></tr></thead>
+            <tbody id="recetas-mesa"><tr><td colspan="3" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="bloques" data-emoji="🪨">
+          <h2>Bloques</h2>
+          <p>Todos los bloques que puedes llevar en los bolsillos y colocar, con lo que hace falta para romperlos y dónde se consiguen.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Bloque</th><th>Para romperlo</th><th>Dónde se consigue</th></tr></thead>
+            <tbody id="tabla-bloques"><tr><td colspan="3" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="tienda" data-emoji="🛒">
+          <h2>Bayas y la tienda de Avellana</h2>
+          <p>Las <b>bayas</b> son el dinero de la isla. Las ves arriba a la derecha, debajo del reloj. Empiezas con 500.</p>
+          <p>La tienda es de <b>Avellana</b>, la ardilla. Abre de <b>8:00 a 22:00</b>. Habla con ella y elige «Comprar y vender».</p>
+          <h3>Vender</h3>
+          <ul class="plain">
+            <li>Puedes vender casi todo lo que llevas: fruta, conchas, peces, insectos, minerales, comida, muebles…</li>
+            <li>Los <b>precios cambian cada día</b>: verás «hoy se paga más» o «hoy se paga menos». Si no corre prisa, espera a un buen día.</li>
+            <li>La fruta de tu isla siempre vale lo mismo (100 bayas). La de otras islas vale 500.</li>
+            <li>Las herramientas salen al final de la lista, para no venderlas sin querer.</li>
+          </ul>
+          <h3>Comprar</h3>
+          <p>Lo que hay a la venta cambia cada día. Siempre hay herramientas, semillas, gallinas, vacas, <b>billetes de avioneta</b> y <b>planos de casa</b>; además, tres muebles y cinco cosas más al azar. En Halloween y en Navidad hay adornos de temporada.</p>
+          <div class="tip"><b>Lo que más vale:</b> el pez luna (4.000), el escarabajo rinoceronte (3.000), el atún (2.500), las pepitas de oro (1.500) y los pasteles (900). Cocinar lo del huerto multiplica su precio.</div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="casa" data-emoji="🏠">
+          <h2>Tu casa y los muebles</h2>
+          <p>Empiezas en una <b>tienda de campaña</b>. Para tener una casa de verdad, habla con <b>Avellana</b> en la tienda y elige «Mi casa». Ella te la construye al momento y se la pagas poco a poco, <b>sin intereses</b>.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Casa</th><th>Cuesta</th></tr></thead>
+            <tbody>
+              <tr><td>Casa pequeña</td><td class="num">5.000 bayas</td></tr>
+              <tr><td>Casa mediana</td><td class="num">15.000 bayas</td></tr>
+              <tr><td>Casa grande</td><td class="num">40.000 bayas</td></tr>
+            </tbody>
+          </table></div>
+          <ol class="steps">
+            <li>Habla con Avellana › <b>Mi casa</b> › «¡Sí, por favor!».</li>
+            <li>Elige el color del tejado: rojo, azul, verde o amarillo.</li>
+            <li>Ve pagando cuando puedas, de 1.000 en 1.000 o todo de golpe («Pagar todo»).</li>
+            <li>Cuando esté pagada, puedes volver a ampliarla.</li>
+          </ol>
+          <h3>Muebles</h3>
+          <ul class="plain">
+            <li><b>Colocar:</b> elige el mueble en la barra rápida y haz clic derecho en el suelo. Mira hacia ti.</li>
+            <li><b>Girar:</b> mira el mueble y pulsa <kbd>R</kbd> (en el móvil, el botón Girar).</li>
+            <li><b>Recoger:</b> clic izquierdo sobre el mueble. Vuelve a tus bolsillos.</li>
+            <li>Los muebles van dentro o fuera de casa, siempre sobre el suelo.</li>
+            <li>La lámpara, el farol, la farola, la calabaza de Halloween y el árbol de Navidad <b>dan luz</b>.</li>
+            <li>Los <b>carteles</b> se escriben con clic derecho.</li>
+          </ul>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Mueble</th><th>Cómo conseguirlo</th><th>Se vende por</th></tr></thead>
+            <tbody id="tabla-muebles"><tr><td colspan="3" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="cofres" data-emoji="📦">
+          <h2>Cofres, cajas y baúles</h2>
+          <p>Para guardar cosas sin llevarlas encima. Se fabrican en la mesa de trabajo (te sabes la receta desde el principio):</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Mueble</th><th>Casillas</th><th>Receta</th></tr></thead>
+            <tbody>
+              <tr><td>Caja</td><td class="num">9</td><td>4 tablones</td></tr>
+              <tr><td>Cofre</td><td class="num">18</td><td>8 tablones</td></tr>
+              <tr><td>Baúl</td><td class="num">27</td><td>8 tablones + 1 pepita de hierro</td></tr>
+            </tbody>
+          </table></div>
+          <ul class="plain">
+            <li>Ponlo en el suelo y ábrelo con <b>clic derecho</b>. Arriba ves lo que tiene dentro y abajo tus bolsillos.</li>
+            <li>Haz clic en una cosa para pasarla de un lado a otro.</li>
+            <li><b>Guardar la mochila</b> mete todo lo de la mochila (la barra rápida se queda como está). <b>Cogerlo todo</b> lo saca.</li>
+            <li>Si rompes un cofre, sale todo lo que tenía dentro.</li>
+          </ul>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="vecinos" data-emoji="🐱">
+          <h2>Vecinos</h2>
+          <p>En tu isla viven vecinos, cada uno con su casa, su especie, su personalidad y su coletilla. Pasean de día y por la noche duermen en casa. Para hablar con alguien, míralo y haz <b>clic derecho</b>.</p>
+          <ul class="plain">
+            <li><b>Charlar:</b> cada personalidad habla a su manera. Muchas veces dan pistas útiles.</li>
+            <li><b>Háblame de ti:</b> te cuentan su afición, su cumpleaños y lo que más les gusta.</li>
+            <li><b>Regalar:</b> lleva algo en la mano y elige «Regalar». Un regalo al día por vecino.</li>
+          </ul>
+          <h3>Amistad</h3>
+          <p>Cada vecino te va cogiendo cariño: cuando le saludas por primera vez en el día, y sobre todo cuando le regalas algo que le gusta. Con amistad, a veces <b>te devuelven un regalo</b> o <b>te enseñan una receta</b>.</p>
+          <p>A cada vecino le gusta una cosa: <b>la fruta</b>, <b>las conchas</b> (concha, caracola, estrella de mar), <b>las flores</b> (tulipán, pensamiento, cosmos) o <b>las cosas de madera</b> (tronco, tablones, ramas).</p>
+          <div class="tip"><b>¡Cumpleaños!</b> El día de su cumpleaños, cualquier regalo les hace muchísima ilusión y siempre te devuelven otro. Pregúntales «Háblame de ti» para saber cuándo es.</div>
+          <h3>Horario</h3>
+          <p>Cada personalidad se acuesta a su hora: los dormilones de 20:00 a 10:00, los dulces de 21:00 a 7:00, los alegres y deportistas a las 22:00, los presumidos a las 23:00 y los gruñones a medianoche. Avellana duerme de 22:00 a 8:00. Matilde (el museo) y Plumas (la avioneta) están siempre.</p>
+          <h3>Personajes de la isla</h3>
+          <p>Estos son todos. Los que viven en tu isla salen al azar al empezar; los demás se encuentran <b>de vacaciones en las islas misteriosas</b> y puedes invitarlos a vivir contigo. En la enciclopedia (<kbd>C</kbd> › Vecinos) tienes el álbum de los que conoces.</p>
+          <div class="villagers" id="vecinos-lista"><p class="loading">Cargando…</p></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="pesca" data-emoji="🎣">
+          <h2>Pesca e insectos</h2>
+          <h3>Pescar</h3>
+          <ol class="steps">
+            <li>Fabrica una <b>caña de pescar</b> (5 ramas) y llévala en la mano.</li>
+            <li>Mira al agua (mar o río) y haz <b>clic derecho</b> para lanzar el corcho.</li>
+            <li>Espera. El corcho da algún toquecito… y cuando <b>se hunde de verdad</b>, haz clic derecho enseguida (tienes algo más de un segundo).</li>
+            <li>Si tiras demasiado pronto o tarde, el pez se escapa. ¡A probar otra vez!</li>
+          </ol>
+          <h3>Cazar insectos</h3>
+          <p>Fabrica una <b>red</b> (5 ramas), acércate a un insecto y haz <b>clic derecho</b> mirándolo. Salen cerca de ti según la hora y el sitio: en las flores, en los troncos, en la hierba o junto al agua.</p>
+          <div class="tip"><b>Ojo con la estación:</b> algunos peces e insectos solo salen en ciertos meses del calendario de la isla (verano, otoño…). El pez luna, por ejemplo, solo en verano.</div>
+          <h3>Peces</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Pez</th><th>Dónde</th><th>Horas</th><th>Cuándo</th><th>Bayas</th></tr></thead>
+            <tbody id="tabla-peces"><tr><td colspan="5" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+          <h3>Insectos</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Insecto</th><th>Dónde</th><th>Horas</th><th>Cuándo</th><th>Bayas</th></tr></thead>
+            <tbody id="tabla-insectos"><tr><td colspan="5" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="museo" data-emoji="🏛️">
+          <h2>Museo y enciclopedia</h2>
+          <p>El museo es de <b>Matilde</b>, la tortuga, y está siempre abierto. Háblale y elige <b>Donar</b>: se queda con todos los peces e insectos que lleves y que el museo aún no tenga. Con «Ver la colección» ves lo que ya hay.</p>
+          <p>La <b>enciclopedia</b> (<kbd>C</kbd>) tiene tres páginas: <b>Peces</b>, <b>Insectos</b> y <b>Vecinos</b>. En cada pez e insecto ves dónde y cuándo sale, si ya lo has cogido y si ya está donado. En Vecinos está el álbum de todos con los que has hablado, con su retrato.</p>
+          <div class="tip"><b>Para la isla:</b> cada cosa donada sube la valoración de la isla, y donar 10 da el logro «Amistad con el museo».</div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="huerto" data-emoji="🌾">
+          <h2>Huerto, granja y cocina</h2>
+          <h3>El huerto</h3>
+          <ol class="steps">
+            <li>Compra <b>semillas</b> en la tienda (trigo, zanahoria o tomate) y fabrica o compra una <b>regadera</b>.</li>
+            <li>Con la <b>pala</b> en la mano, haz clic derecho en la hierba o la tierra: se convierte en <b>tierra de cultivo</b>. Vale en cualquier sitio menos en el terreno de los vecinos y la tienda.</li>
+            <li>Con las semillas en la mano, haz clic derecho sobre la tierra para plantar.</li>
+            <li><b>Riega</b> con la regadera (clic derecho). Cada día regado la planta crece una fase. Tras <b>3 días regados</b> está madura.</li>
+            <li>Cosecha con clic derecho o rompiéndola. A veces sale una semilla de más.</li>
+          </ol>
+          <p>Si llueve, el huerto <b>se riega solo</b>. Si coges una planta antes de tiempo, te devuelve la semilla.</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Cultivo</th><th>Semilla</th><th>Cosecha</th></tr></thead>
+            <tbody>
+              <tr><td>Trigo</td><td class="num">40 bayas</td><td>3 de trigo (60 cada uno)</td></tr>
+              <tr><td>Zanahoria</td><td class="num">50 bayas</td><td>2 zanahorias (80 cada una)</td></tr>
+              <tr><td>Tomate</td><td class="num">60 bayas</td><td>2 tomates (90 cada uno)</td></tr>
+            </tbody>
+          </table></div>
+          <h3>La granja</h3>
+          <p>Compra una <b>gallina</b> (2.000) o una <b>vaca</b> (4.000) en la tienda y suéltala con clic derecho en el suelo. Pasean cerca de donde las sueltas. Una vez al día, clic derecho sobre ellas: la gallina te da un <b>huevo</b> y la vaca, <b>leche</b>. Caben hasta <b>8 animales</b>. Pon vallas para que no se escapen: no las saltan.</p>
+          <h3>Cocina</h3>
+          <p>En los bolsillos, lo del huerto y la granja se cocina y vale mucho más:</p>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Plato</th><th>Ingredientes</th><th>Se vende por</th></tr></thead>
+            <tbody>
+              <tr><td>Pan</td><td>3 de trigo</td><td class="num">300</td></tr>
+              <tr><td>Tortilla</td><td>2 huevos + 1 tomate</td><td class="num">400</td></tr>
+              <tr><td>Sopa de zanahoria</td><td>2 zanahorias + 1 leche</td><td class="num">450</td></tr>
+              <tr><td>Pastel</td><td>2 de trigo + 2 huevos + 1 leche</td><td class="num">900</td></tr>
+            </tbody>
+          </table></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="cuevas" data-emoji="⛏️">
+          <h2>Cuevas, minerales y luz</h2>
+          <p>Bajo la isla hay <b>cuevas</b>. Sus entradas bajan como una escalera. Dentro está oscuro: la luz del sol entra un poco por la entrada y se va apagando poco a poco.</p>
+          <ul class="plain">
+            <li>Con el <b>pico</b> sacas <b>carbón</b>, <b>hierro</b>, <b>oro</b> y <b>amatista</b>. Cuanto más hondo, más valiosos.</li>
+            <li>Haz <b>antorchas</b> con 1 rama + 1 carbón (salen 4) y ponlas en el suelo o las paredes.</li>
+            <li>Lleva una antorcha en la <b>otra mano</b> (<kbd>Q</kbd>) y te alumbrará mientras picas.</li>
+            <li>Con 3 pepitas de hierro y 2 ramas haces herramientas de hierro, que duran tres veces más y van más rápido.</li>
+          </ul>
+          <h3>Todo lo que da luz</h3>
+          <p>La luz no atraviesa paredes y es cálida. Cada cosa alumbra con su color:</p>
+          <ul class="plain">
+            <li><b>Antorcha</b> y <b>bloque de luz</b> (este, blanco y más fuerte).</li>
+            <li><b>Roca de magma</b> (naranja), <b>cristal brillante</b> y <b>bloque de amatista</b> (morado), de las islas misteriosas.</li>
+            <li><b>Farola</b>, <b>lámpara</b>, <b>farol</b>, <b>calabaza de Halloween</b> y <b>árbol de Navidad</b>.</li>
+          </ul>
+          <div class="tip"><b>Truco:</b> en Opciones › Calidad gráfica, «Media» y «Alta» tienen sombras del sol y de la luna. «Baja» las quita para que el móvil vaya fluido.</div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="calles" data-emoji="🏮">
+          <h2>Calles y decoración</h2>
+          <p>Para hacer un pueblo bonito. Todas estas recetas de la mesa de trabajo <b>se saben desde el principio</b>:</p>
+          <ul class="plain">
+            <li><b>Camino de tierra</b>, <b>camino de losas</b>, <b>calle</b> empedrada y <b>baldosas</b>: se ponen en lugar del suelo, a ras.</li>
+            <li><b>Farola</b>: alumbra la calle de noche.</li>
+            <li><b>Fuente de la plaza</b>, <b>papelera</b>, <b>buzón</b>, <b>macetero</b> y <b>cartel</b> (escribe lo que quieras con clic derecho).</li>
+            <li>Las <b>vallas</b> (de madera o blancas) ordenan los jardines y suben las estrellas de la isla.</li>
+            <li><b>Flores:</b> tulipán, pensamiento, cosmos, nomeolvides y clavel. Se compran en la tienda o se cogen rompiéndolas.</li>
+          </ul>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="islas-misteriosas" data-emoji="✈️">
+          <h2>Islas misteriosas</h2>
+          <p>En la playa, junto a la tienda, hay una avioneta. El piloto es <b>Plumas</b>, el pato.</p>
+          <ol class="steps">
+            <li>Compra un <b>billete de avioneta</b> en la tienda (1.500 bayas). También se consigue con puntos de las tareas.</li>
+            <li>Habla con Plumas y elige «¡Vamos!».</li>
+            <li>Aterrizas en una isla misteriosa al azar. Explora, recoge, pesca y rompe lo que quieras: lo que te lleves en los bolsillos vuelve contigo.</li>
+            <li>Para volver, habla otra vez con Plumas y elige «Volver a casa».</li>
+          </ol>
+          <p>La isla misteriosa no se guarda: cada viaje es una isla nueva. Si cierras el juego en pleno viaje, al abrirlo estás en casa.</p>
+          <h3>Los ocho tipos de isla</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Isla</th><th>Qué tiene</th></tr></thead>
+            <tbody>
+              <tr><td>Isla de los frutales</td><td>Muchos árboles con una fruta que no es la de tu isla.</td></tr>
+              <tr><td>Isla de las flores</td><td>Praderas llenas de flores. Les encanta a conejos y ovejas.</td></tr>
+              <tr><td>Isla de las rocas</td><td>Piedra y minerales a la vista.</td></tr>
+              <tr><td>Isla del bambú</td><td>Bosques de bambú. Koalas y osos suelen ir de vacaciones aquí.</td></tr>
+              <tr><td>Isla del volcán</td><td>Basalto y ríos de <b>roca de magma</b> que brillan de noche.</td></tr>
+              <tr><td>Isla de los cristales</td><td>Agujas de <b>amatista</b> y <b>cristales brillantes</b> que alumbran.</td></tr>
+              <tr><td>Isla nevada</td><td>Nieve y <b>hielo</b>. Aquí suelen estar los pingüinos.</td></tr>
+              <tr><td>Isla de las setas</td><td><b>Setas gigantes</b> y setitas. Ranas, ardillas y koalas.</td></tr>
+            </tbody>
+          </table></div>
+          <h3>Vecinos de vacaciones</h3>
+          <p>En cada isla misteriosa suele haber alguien de vacaciones. Si en tu isla tienes una <b>casa construida y libre</b> (mira <a href="#casas-vecinos">Casas para vecinos nuevos</a>), háblale y elige <b>«Invitar a mi isla»</b>. Al volver, se muda a esa casa.</p>
+          <div class="tip warn"><b>Sin casa no hay mudanza:</b> si no tienes ninguna casa libre, el vecino te dirá que le construyas una y vuelvas a buscarle.</div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="casas-vecinos" data-emoji="📐">
+          <h2>Casas para vecinos nuevos</h2>
+          <p>Los vecinos nuevos no llegan solos: <b>tú les construyes la casa</b>, bloque a bloque.</p>
+          <ol class="steps">
+            <li>Compra un <b>plano de casa</b> en la tienda (1.000 bayas).</li>
+            <li>Ve a un sitio <b>llano</b> de tu isla, lejos de otras casas. Con el plano en la mano, haz clic derecho en el suelo. La <b>puerta mirará hacia ti</b>.</li>
+            <li>Aparecen <b>bloques fantasma</b> de colores que te enseñan qué va en cada sitio: el suelo, las paredes, la puerta y el tejado. Arriba ves cuántos bloques faltan.</li>
+            <li>Pon bloques donde están los fantasmas. Si algo sobra dentro, sale marcado en rojo: quítalo.</li>
+            <li>Cuando está completa sale «¡Casa terminada!». La casa queda <b>libre</b>, esperando vecino.</li>
+            <li>Vuela a una <a href="#islas-misteriosas">isla misteriosa</a> e invita a quien quieras que viva en ella.</li>
+          </ol>
+          <h3>Cómo es la casa</h3>
+          <ul class="plain">
+            <li>Mide <b>5 × 5</b> bloques, con suelo, <b>paredes de 3 de alto</b>, una <b>puerta</b> delante y un <b>tejado plano</b> encima. Por dentro tiene que estar despejada.</li>
+            <li>Las paredes valen con casi cualquier bloque entero: ladrillo, piedra, adoquín, tablones, <b>cristal</b>… (hojas no).</li>
+            <li>El tejado admite bloques, losas y escaleras.</li>
+            <li>La puerta tiene que ser una puerta de casa (6 tablones en la mesa de trabajo).</li>
+          </ul>
+          <div class="tip"><b>¿Te has equivocado de sitio?</b> Usa otra vez el plano dentro del solar sin terminar: se quita y te devuelven el plano. Puedes tener hasta 8 planos a la vez.</div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="tiempo" data-emoji="📅">
+          <h2>Días, estaciones y fiestas</h2>
+          <p>Arriba a la derecha tienes el <b>reloj</b> con la hora y el día de la isla. El tiempo <b>solo pasa mientras juegas</b>: en el menú o en pausa se para.</p>
+          <ul class="plain">
+            <li>Un día dura <b>24 minutos</b>. En Opciones › Duración del día puedes elegir 12, 24 o 48 minutos, o la <b>hora real</b> de tu ordenador.</li>
+            <li>El año de la isla tiene <b>28 días</b>: cada estación dura <b>una semana de juego</b>. Primavera, verano, otoño e invierno cambian el color de la hierba y los árboles, la música, y los peces e insectos que salen.</li>
+            <li>Cada día nuevo hay conchas y botella nuevas en la playa, la tienda cambia y salen tareas nuevas.</li>
+          </ul>
+          <h3>El tiempo</h3>
+          <p>Unos días hace sol, otros está nublado, llueve o, en invierno, nieva. La lluvia <b>riega el huerto</b>.</p>
+          <h3>Fiestas</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fiesta</th><th>Qué pasa</th></tr></thead>
+            <tbody>
+              <tr><td>Año Nuevo</td><td>Los vecinos te felicitan el año.</td></tr>
+              <tr><td>San Valentín</td><td>Un buen día para regalar flores.</td></tr>
+              <tr><td>Halloween</td><td>Calabazas por la isla, y la tienda vende la <b>calabaza de Halloween</b> que alumbra.</td></tr>
+              <tr><td>Navidad</td><td>Siempre nieva, hay un árbol junto a la tienda y se vende el <b>árbol de Navidad</b>.</td></tr>
+              <tr><td>Nochevieja</td><td>El último día del año.</td></tr>
+            </tbody>
+          </table></div>
+          <p>Y los <b>cumpleaños</b> de los vecinos, cada uno en su día.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="tareas" data-emoji="⭐">
+          <h2>Tareas, logros y estrellas</h2>
+          <p>Abre el panel con <kbd>T</kbd>. Tiene cuatro partes:</p>
+          <ul class="plain">
+            <li><b>Tareas de hoy:</b> tres tareas nuevas cada día que dan <b>puntos</b>.</li>
+            <li><b>Premios:</b> cambia tus puntos por cosas. El trofeo y la fuente solo salen de aquí.</li>
+            <li><b>Logros:</b> metas para siempre que dan muchos puntos.</li>
+            <li><b>Valoración de la isla:</b> de 1 a 5 estrellas, con un consejo para mejorarla.</li>
+          </ul>
+          <h3>Cómo subir las estrellas de la isla</h3>
+          <p>Cuenta un poco de todo: <b>flores</b> plantadas, <b>muebles</b> puestos (dentro o fuera), el tamaño de <b>tu casa</b>, <b>vallas</b>, <b>antorchas</b>, <b>vecinos invitados</b>, cosas <b>donadas</b> al museo y tu <b>huerto y granja</b>.</p>
+          <h3>Tareas que pueden salir</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Tarea</th><th>Puntos</th></tr></thead>
+            <tbody id="tabla-tareas"><tr><td colspan="2" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+          <h3>Premios</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Premio</th><th>Puntos</th></tr></thead>
+            <tbody id="tabla-premios"><tr><td colspan="2" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+          <h3>Logros</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Logro</th><th>Qué hay que hacer</th><th>Puntos</th></tr></thead>
+            <tbody id="tabla-logros"><tr><td colspan="3" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="amigos" data-emoji="👫">
+          <h2>Jugar con amigos</h2>
+          <p>Hasta <b>6 jugadores</b> en la misma isla, cada uno desde su ordenador, móvil o tableta. No hace falta cuenta ni servidor: solo un <b>código</b>.</p>
+          <h3>Para invitar a tus amigos</h3>
+          <ol class="steps">
+            <li>Menú › <b>Jugar con amigos</b> › <b>Abrir mi isla a amigos</b>.</li>
+            <li>Sale un <b>código de seis letras</b>. Pásaselo a tus amigos, o usa «Copiar enlace» y mándales el enlace.</li>
+            <li>Cuando entren, los verás aparecer con su nombre encima. Junto a tus bayas verás cuántos sois y el código, por si alguien llega tarde.</li>
+            <li>Para terminar, «Cerrar la isla».</li>
+          </ol>
+          <h3>Para entrar en la isla de un amigo</h3>
+          <ol class="steps">
+            <li>Abre el enlace que te ha mandado, o ve a Menú › Jugar con amigos y escribe su código en «Código de un amigo».</li>
+            <li>Pulsa <b>Entrar</b> y espera unos segundos a que los dos ordenadores se encuentren.</li>
+            <li>Para irte, Menú › Jugar con amigos › «Volver a mi isla».</li>
+          </ol>
+          <h3>Qué se puede hacer juntos</h3>
+          <ul class="plain">
+            <li>Os veis andar, construir, romper y poner muebles a la vez.</li>
+            <li><b>Chat</b> con <kbd>Intro</kbd> y <b>gestos</b> con <kbd>G</kbd>: saludar 👋, alegría 😄, risa 😂, sorpresa 😮, cariño ❤️ y sueño 💤.</li>
+            <li><b>Regalos:</b> haz clic derecho sobre un amigo para darle lo que llevas en la mano.</li>
+            <li><b>Viajes en grupo:</b> si quien invita vuela en avioneta, os vais todos juntos a la isla misteriosa, y volvéis juntos.</li>
+          </ul>
+          <h3>Qué es de quién</h3>
+          <ul class="plain">
+            <li>La isla vive en el ordenador de quien invita, y se guarda allí.</li>
+            <li>De visita llevas <b>tus bolsillos, tus bayas y tu enciclopedia</b>, y vuelven contigo a tu isla.</li>
+            <li>Los cofres, los planos de casa y la avioneta son de quien vive en la isla.</li>
+            <li>Si se corta la conexión, el juego vuelve a entrar solo.</li>
+          </ul>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="islas" data-emoji="💾">
+          <h2>Mis islas, copias y app</h2>
+          <ul class="plain">
+            <li>La partida se <b>guarda sola</b> mientras juegas. Verás «Guardado» pequeño debajo del reloj.</li>
+            <li>En Menú › <b>Mis islas y copias</b> puedes tener <b>hasta 3 islas</b>, cambiar de una a otra, empezar una nueva o borrar una.</li>
+            <li>Ahí mismo puedes hacer una <b>copia de seguridad</b> en un archivo y cargarla después, por ejemplo en otro ordenador.</li>
+            <li>Las islas nuevas son grandes y tienen biomas: bosque, pradera de flores, bambú, montaña con nieve y playa. Las islas antiguas se quedan como estaban.</li>
+          </ul>
+          <h3>Instalar como app</h3>
+          <p>Maxycraft se puede <b>instalar</b> en el móvil, la tableta o el ordenador y funciona <b>sin internet</b> (menos jugar con amigos). En el menú del juego sale el botón <b>Instalar Maxycraft</b>. En el iPhone o el iPad: toca <b>Compartir</b> y luego <b>Añadir a pantalla de inicio</b>. Se actualiza sola al abrirla con conexión.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="opciones" data-emoji="⚙️">
+          <h2>Opciones y accesibilidad</h2>
+          <p>En Menú › <b>Opciones</b>:</p>
+          <ul class="plain">
+            <li><b>Música</b> y <b>Efectos</b>: el volumen de cada cosa. <kbd>M</kbd> quita o pone todo el sonido.</li>
+            <li><b>Sensibilidad al mirar</b> y <b>Campo de visión</b>.</li>
+            <li><b>Calidad gráfica:</b> Baja (sin sombras, para móviles), Media (con sombras) o Alta (se ve muy lejos, necesita un buen ordenador).</li>
+            <li><b>Duración del día:</b> 12, 24 o 48 minutos, o la hora real.</li>
+            <li><b>Accesibilidad:</b> <b>Texto grande</b> y <b>Colores para daltonismo</b>.</li>
+            <li><b>Cambiar teclas</b> y <b>Valores de siempre</b> para volver a como estaba.</li>
+          </ul>
+          <p>En Menú › <b>Controles</b> tienes un resumen de las teclas, y en Menú › <b>Novedades</b> lo que trae cada versión.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="objetos" data-emoji="💰">
+          <h2>Todos los objetos y precios</h2>
+          <p>Lo que paga la tienda por cada cosa (antes del precio del día, que puede subir o bajar) y lo que cuesta cuando está a la venta.</p>
+          <input class="search" id="buscar-objeto" type="search" placeholder="Buscar un objeto…" autocomplete="off" aria-label="Buscar un objeto" style="margin: 0 0 8px" />
+          <div class="table-wrap" style="max-height: 520px"><table>
+            <thead><tr><th>Objeto</th><th>Se vende por</th><th>Cuesta en la tienda</th></tr></thead>
+            <tbody id="tabla-objetos"><tr><td colspan="3" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="preguntas" data-emoji="❓">
+          <h2>Preguntas frecuentes</h2>
+          <h3>No puedo romper la piedra</h3>
+          <p>Hace falta un <b>pico</b> (6 ramas). Pasa lo mismo con los minerales, el ladrillo y el adoquín.</p>
+          <h3>¿Cómo consigo ramas?</h3>
+          <p>Sacude árboles con clic derecho: cada árbol da una rama la primera vez. También puedes talarlos.</p>
+          <h3>¿Cómo gano bayas rápido?</h3>
+          <p>Vende fruta de otras islas (500 cada una), peces e insectos raros, pepitas de oro y comida cocinada. Fíjate en los días que «se paga más».</p>
+          <h3>Un vecino no quiere mudarse</h3>
+          <p>Necesitas una <b>casa construida y libre</b> en tu isla. Mira <a href="#casas-vecinos">Casas para vecinos nuevos</a>.</p>
+          <h3>Mi huerto no crece</h3>
+          <p>Hay que <b>regarlo cada día</b> (o que llueva). Crece al día siguiente de regarlo, no al momento. Tres días regados y listo.</p>
+          <h3>Mi brote no se hace árbol</h3>
+          <p>Necesita 2 días de juego y <b>sitio libre encima</b> para el tronco y la copa.</p>
+          <h3>Se me ha hecho de noche y no veo</h3>
+          <p>Pon antorchas o lleva una en la otra mano (<kbd>Q</kbd>). Tus ojos también se acostumbran a la oscuridad poco a poco. Si prefieres días más largos, cámbialo en Opciones.</p>
+          <h3>La tienda está cerrada</h3>
+          <p>Abre de 8:00 a 22:00. Espera un poco o haz otra cosa: el tiempo pasa rápido.</p>
+          <h3>El juego va lento en mi móvil</h3>
+          <p>Pon Opciones › Calidad gráfica en <b>Baja</b>.</p>
+          <h3>¿Puedo perder mi isla?</h3>
+          <p>Se guarda sola en el navegador. Si vas a borrar los datos del navegador o cambiar de ordenador, haz antes una <b>copia de seguridad</b> en Mis islas y copias.</p>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <p>¿Falta algo en la wiki? <a href="https://github.com/themaxymuzz/maxycraft">Cuéntanoslo en GitHub</a> · <a href="./">Inicio</a> · <a href="novedades.html">Novedades</a> · <a href="../">Jugar</a></p>
+    </footer>
+
+    <script type="module" src="../src/proyecto/wiki.ts"></script>
+  </body>
+</html>
