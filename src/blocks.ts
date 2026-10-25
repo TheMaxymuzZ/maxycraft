@@ -454,12 +454,18 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     const edge = 3 + Math.floor(r() * 2);
     return y < edge ? pick(r, GRASS) : pick(r, DIRT);
   });
-  paintTile(ctx, Tile.Dirt, (_x, _y, r) => pick(r, DIRT));
+  // Tierra con alguna piedrecita clara.
+  paintTile(ctx, Tile.Dirt, (x, y, r) => ((x * 7 + y * 13) % 29 === 0 ? [176, 150, 120] : pick(r, DIRT)));
+  // Piedra con manchas más oscuras y grietas, para que no parezca ruido.
   paintTile(ctx, Tile.Stone, (x, y, r) => {
     const crack = (x * 3 + y * 5) % 11 === 0;
-    return crack ? [104, 106, 112] : pick(r, STONE);
+    if (crack) return [104, 106, 112];
+    const blotch = Math.sin(x * 0.9 + y * 0.4) + Math.cos(y * 1.1 - x * 0.3) > 1.2;
+    const c = pick(r, STONE);
+    return blotch ? [c[0] - 12, c[1] - 12, c[2] - 10] : c;
   });
-  paintTile(ctx, Tile.Sand, (_x, _y, r) => pick(r, SAND));
+  // Arena con algún granito brillante.
+  paintTile(ctx, Tile.Sand, (_x, _y, r) => (r() < 0.04 ? [252, 244, 214] : pick(r, SAND)));
   paintTile(ctx, Tile.LogSide, (x, _y, r) => {
     const groove = x % 4 === 1;
     const c = pick(r, BARK);

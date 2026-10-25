@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.6**
+Versión actual: **v1.7**
+
+- **En la mano**: abajo a la derecha se ve lo que llevas, como en Minecraft: el brazo, las herramientas y objetos con grosor (hechos píxel a píxel de su icono) o un cubo pequeño si es un bloque. Se balancea al andar y golpea al romper o usar.
+- **Música por estación**: la primavera más alegre, el verano más rápido, el otoño más grave y tranquilo, y el invierno lento y con campanillas. De noche siempre es tranquila.
+- **Pasos**: la hierba y la arena crujen como nieve en invierno, al pasar entre plantas suenan las hojas y al nadar se oyen brazadas.
+- Texturas retocadas: piedrecitas en la tierra, manchas en la piedra y granitos brillantes en la arena.
 
 - **Bosquecillos de bambú**: zonas de cañas de 3 a 5 bloques sin árboles. El bambú se puede romper y vender.
 - **Praderas de flores** llenas de flores de cinco colores, con dos nuevas: nomeolvides azul y clavel rosa (también en la tienda).
