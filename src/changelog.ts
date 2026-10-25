@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.4',
+    title: 'Avisos que no se pisan',
+    items: [
+      'Los avisos ya no se borran unos a otros: se apilan arriba, como mucho tres a la vez, y se van solos.',
+      'Si un aviso se repite, no sale otra vez: se cuenta. Por ejemplo, «Has conseguido: manzana ×3».',
+      'Los avisos largos se quedan un poco más en pantalla, para que dé tiempo a leerlos.',
+      '«Guardado» sale pequeño debajo del reloj, sin tapar nada.',
+      'En el móvil los avisos salen encima de la barra, sin tapar los botones; hablando con un vecino suben arriba.',
+      'Barra rápida, primeros pasos, avisos y chat con esquinas redondeadas y sombras suaves.',
+    ],
+  },
+  {
     version: '3.3',
     title: 'Objetos más bonitos',
     items: [

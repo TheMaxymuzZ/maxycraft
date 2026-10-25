@@ -2,6 +2,7 @@ import { HOTBAR_SIZE, INVENTORY_SIZE, type Inventory } from './inventory';
 import { type ItemStack, RECIPES, type Recipe, itemDef } from './items';
 import { RecipeBrowser } from './recipeBrowser';
 import { itemIcon } from './icons';
+import { Notices } from './notices';
 
 /** Barra rápida, pantalla de bolsillos, avisos y progreso al romper. */
 export class Hud {
@@ -13,11 +14,10 @@ export class Hud {
   private offhandEl = document.createElement('div');
   private invSlots: HTMLDivElement[] = [];
   private nameTimer = 0;
-  private toastTimer = 0;
 
   private hotbarEl = document.querySelector<HTMLDivElement>('#hotbar')!;
   private nameEl = document.querySelector<HTMLDivElement>('#block-name')!;
-  private toastEl = document.querySelector<HTMLDivElement>('#toast')!;
+  readonly notices = new Notices(document.querySelector<HTMLDivElement>('#toasts')!);
   private progressEl = document.querySelector<HTMLDivElement>('#break-progress')!;
   readonly inventoryEl = document.querySelector<HTMLDivElement>('#inventory')!;
   private gridEl = document.querySelector<HTMLDivElement>('#inv-grid')!;
@@ -129,11 +129,9 @@ export class Hud {
     this.nameTimer = window.setTimeout(() => this.nameEl.classList.remove('show'), 1200);
   }
 
+  /** Enseña un aviso (v3.4: se apilan sin taparse y los repetidos se cuentan). */
   toast(text: string) {
-    this.toastEl.textContent = text;
-    this.toastEl.classList.add('show');
-    clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('show'), 2200);
+    this.notices.show(text);
   }
 
   /** 0..1 del bloque que se está rompiendo; null lo oculta. */

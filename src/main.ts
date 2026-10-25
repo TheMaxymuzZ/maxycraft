@@ -362,7 +362,7 @@ let saving = true;
 /** Lo último que se guardó, para avisar solo cuando de verdad hay algo nuevo. */
 let lastSaved = save ? JSON.stringify({ ...save, savedAt: 0 }) : '';
 let saveFailed = false;
-const saveIndicator = document.querySelector<HTMLDivElement>('#save-indicator')!;
+const saveIndicator = document.querySelector<HTMLElement>('#save-indicator')!;
 function showSaveIndicator(text: string, error = false) {
   saveIndicator.textContent = text;
   saveIndicator.classList.toggle('error', error);
