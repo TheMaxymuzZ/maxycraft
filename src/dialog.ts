@@ -86,14 +86,180 @@ const MORE_CHATS: Partial<Record<Personality, string[]>> = {
 };
 for (const [k, lines] of Object.entries(MORE_CHATS)) CHATS[k as Personality] = lines!;
 
+// Más cosas de las que hablar (v4.0), para que no repitan siempre lo mismo.
+const EVEN_MORE: Record<Personality, string[]> = {
+  alegre: [
+    '¿Has probado a dormir en una cama? ¡Te levantas con energía para todo el día, {c}!',
+    'Ayer vi una bandada de pájaros posarse en la hierba. Si te acercas mucho se asustan, ¡ve despacito, {c}!',
+    'Me he inventado una canción sobre la isla. Todavía no tiene letra, pero el ritmo es pegadizo, {c}.',
+  ],
+  'gruñón': [
+    'Si no comes, luego no tienes fuerzas para nada. Eso me decía mi abuela, y tenía razón, {c}.',
+    'Las cuevas son peligrosas. Lleva antorchas y no te tires desde muy alto, {c}.',
+    'Hay quien compra mapas en la tienda para no perderse. Yo me conozco la isla de memoria, {c}.',
+  ],
+  'dormilón': [
+    'Lo mejor de la noche es meterse en la cama y saltarse la parte oscura. ¡Directo a la mañana, {c}!',
+    'Hoy he soñado que la isla entera era un pastel. Me he despertado con mucha hambre, {c}.',
+    'Las nubes nunca son iguales. Me paso las tardes mirándolas pasar, {c}.',
+  ],
+  presumido: [
+    'Mi puerta es la más bonita de la calle. Bueno, todas son iguales, pero la mía brilla más, {c}.',
+    'Un buen sombrero lo arregla todo. Lo dice la moda y lo digo yo, {c}.',
+    'Me han dicho que en las islas misteriosas hay flores que no crecen aquí. ¡Las quiero todas, {c}!',
+  ],
+  deportista: [
+    'Si corres mucho rato te entra hambre. ¡Lleva siempre algo de comer en los bolsillos, {c}!',
+    'He subido a lo más alto de la montaña tres veces hoy. ¡La cuarta vienes conmigo, {c}!',
+    'Nadar en el mar es genial, pero mejor por la orilla, que se hace hondo poco a poco, {c}.',
+  ],
+  dulce: [
+    'Si alguna vez te haces daño, come algo rico y descansa. Te pondrás bien enseguida, {c}.',
+    'Me gusta saludar a los pájaros por la mañana. Aunque siempre salen volando, {c}.',
+    'Tengo una planta en la ventana que se llama Pepa. Le hablo todos los días, {c}.',
+  ],
+};
+for (const [k, lines] of Object.entries(EVEN_MORE)) CHATS[k as Personality].push(...lines);
+
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const LIKES_TEXT: Record<Villager['profile']['likes'], string> = { fruta: 'la fruta', conchas: 'las conchas', flores: 'las flores', madera: 'las cosas de madera' };
 
-/** El vecino se presenta: especie, cumpleaños, lo que le gusta hacer y lo que le gusta que le regalen. */
-export function introLine(v: Villager): string {
+// --- Conocer a los vecinos poco a poco (v4.0) ---
+// Lo que sabes de cada vecino va por pasos. Cada día te cuenta como mucho una cosa nueva, y las más personales
+// (lo que le gusta que le regalen, el día de su cumpleaños) solo cuando ya sois buenos amigos.
+
+/** Lo que sabes de un vecino: 0 nada, 1 ya os conocéis, y luego afición, pista de regalo, estación del cumple, regalo y día. */
+export const KNOW = { met: 1, hobby: 2, likesHint: 3, birthdaySeason: 4, likes: 5, birthday: 6 } as const;
+/** Amistad que hace falta para que te cuente cada cosa. */
+const KNOW_FRIENDSHIP: Record<number, number> = { [KNOW.hobby]: 2, [KNOW.likesHint]: 4, [KNOW.birthdaySeason]: 6, [KNOW.likes]: 8, [KNOW.birthday]: 10 };
+
+const SEASON_OF_MONTH = ['invierno', 'invierno', 'primavera', 'primavera', 'primavera', 'verano', 'verano', 'verano', 'otoño', 'otoño', 'otoño', 'invierno'];
+
+export function seasonOfBirthday(month: number): string {
+  return SEASON_OF_MONTH[month - 1];
+}
+
+const MEET: Record<Personality, string> = {
+  alegre: '¡Hola, hola! Creo que no nos conocíamos. Soy {nombre}, ¡encantada y encantado de todo un poco, {c}!',
+  'gruñón': 'Hmm. No te había visto antes. Soy {nombre}. Ya está, ya nos conocemos, {c}.',
+  'dormilón': 'Uaaah... ¿eres nuevo por aquí? Yo soy {nombre}. Perdona, es que acabo de despertarme, {c}.',
+  presumido: 'Vaya, una cara nueva. Yo soy {nombre}, seguro que ya has oído hablar de mí, {c}.',
+  deportista: '¡Eh, hola! Soy {nombre}. ¡Choca esos cinco! Seguro que nos llevamos genial, {c}.',
+  dulce: '¡Hola! Me llamo {nombre}. Qué alegría conocer a alguien nuevo. Espero que seamos amigos, {c}.',
+};
+
+const HOBBY: Record<Personality, string> = {
+  alegre: '¿Sabes lo que más me gusta del mundo? ¡{aficion}! Cuando lo hago se me olvida todo lo demás, {c}.',
+  'gruñón': 'Hmm. Si tanto te interesa... me gusta {aficion}. Pero no se lo vayas contando a todo el mundo, {c}.',
+  'dormilón': 'Cuando no estoy durmiendo, me gusta {aficion}. Bueno, a veces me quedo dormido haciéndolo, {c}.',
+  presumido: 'Alguien con estilo necesita una afición con estilo. La mía es {aficion}. Muy elegante, ¿verdad, {c}?',
+  deportista: '¡Lo que más me gusta es {aficion}! Bueno, después de entrenar, claro. ¡Siempre después de entrenar, {c}!',
+  dulce: 'Me relaja mucho {aficion}. Algún día podríamos hacerlo juntos, si te apetece, {c}.',
+};
+
+/** Pistas de lo que le gusta que le regalen, sin decirlo del todo. */
+const LIKES_HINT: Record<Villager['profile']['likes'], string> = {
+  fruta: 'Últimamente no paro de pensar en cosas dulces que cuelgan de los árboles… ¿Será que tengo hambre, {c}?',
+  conchas: 'Cada vez que paseo por la orilla me agacho a mirar lo que ha traído el mar. Me podría pasar horas, {c}.',
+  flores: 'Cuando veo algo de colores creciendo junto al camino se me alegra el día. ¿A ti no te pasa, {c}?',
+  madera: 'Me encanta el olor del bosque, y todo lo que se puede hacer con lo que dan los árboles, {c}.',
+};
+
+const BIRTHDAY_SEASON: Record<Personality, string> = {
+  alegre: '¿Sabes qué? ¡Mi cumpleaños es en {estacion}! ¿El día? Ah, eso es un secreto… de momento, {c}.',
+  'gruñón': 'Mi cumpleaños es en {estacion}. Y no pienso decir más. No me gustan las fiestas sorpresa, {c}.',
+  'dormilón': 'Mi cumpleaños cae en {estacion}, creo. Siempre se me olvida el día exacto. Bueno, mentira, pero no te lo digo, {c}.',
+  presumido: 'Mi cumpleaños es en {estacion}, la mejor estación para lucirse. El día… tendrás que ganártelo, {c}.',
+  deportista: '¡Cumplo años en {estacion}! Siempre lo celebro con una carrera. ¿El día? ¡Cuando seamos más amigos, {c}!',
+  dulce: 'Te cuento un secreto: mi cumpleaños es en {estacion}. El día te lo diré cuando nos conozcamos un poquito más, {c}.',
+};
+
+const LIKES_TOLD: Record<Personality, string> = {
+  alegre: '¡Te lo confieso! Lo que más ilusión me hace que me regalen son {gusto}. ¡Ahora ya lo sabes, {c}!',
+  'gruñón': 'Ya que insistes… si algún día me quieres regalar algo, que sean {gusto}. Lo demás no me hace falta, {c}.',
+  'dormilón': 'Mmm… ¿regalos? Lo que más me gusta son {gusto}. Me ponen de buen humor al despertar, {c}.',
+  presumido: 'Un regalo digno de mí tiene que ser especial. Me chiflan {gusto}. Tenlo en cuenta, {c}.',
+  deportista: '¿Quieres saber cómo alegrarme el día? ¡Con {gusto}! Mejor que una medalla, {c}.',
+  dulce: 'No hace falta que me regales nada… pero si quieres, me encantan {gusto}. Gracias por preguntar, {c}.',
+};
+
+const BIRTHDAY_TOLD: Record<Personality, string> = {
+  alegre: '¡Ya somos muy amigos, así que te lo digo! Mi cumpleaños es el {dia} de {mes}. ¡Apúntalo, {c}!',
+  'gruñón': 'Bah, está bien. Mi cumpleaños es el {dia} de {mes}. Si vienes ese día, no me enfadaré. Mucho, {c}.',
+  'dormilón': 'Mi cumpleaños es el {dia} de {mes}. Ese día me levanto temprano y todo. Bueno, más o menos, {c}.',
+  presumido: 'Te concedo el honor de saberlo: mi cumpleaños es el {dia} de {mes}. Espero un regalo a la altura, {c}.',
+  deportista: '¡Mi cumpleaños es el {dia} de {mes}! Ven a verme y hacemos una carrera de cumpleaños, {c}.',
+  dulce: 'Como eres una amistad muy especial, te lo digo: mi cumpleaños es el {dia} de {mes}. Me haría mucha ilusión verte ese día, {c}.',
+};
+
+/** Aún no sois tan amigos como para contarte más. */
+const NOT_YET: Record<Personality, string[]> = {
+  alegre: ['¿Cosas de mí? ¡Hay tantas! Pero mejor poco a poco, que si no se acaba la gracia, {c}.', '¡Ja, ja! Primero tienes que venir a verme más veces. ¡Así nos conocemos mejor, {c}!'],
+  'gruñón': ['¿Y por qué quieres saber cosas de mí? Primero nos conocemos más y luego ya veremos, {c}.', 'No suelo contar mis cosas a cualquiera. Vuelve otro día, {c}.'],
+  'dormilón': ['Mmm… ahora mismo no me acuerdo de nada interesante. Pregúntame otro día, {c}.', 'Uaaah… estoy demasiado dormido para hablar de mí. Otro día, {c}.'],
+  presumido: ['Alguien como yo no lo cuenta todo el primer día. Hay que ganárselo, {c}.', 'Un poco de misterio me hace aún más interesante, ¿no crees, {c}?'],
+  deportista: ['¡Para conocerme bien tienes que seguir mi ritmo! Ven a verme más a menudo, {c}.', 'Primero entrenamos juntos unos días y luego te cuento, ¡trato hecho, {c}!'],
+  dulce: ['Me da un poco de vergüenza hablar de mí… Cuando nos conozcamos más te cuento, {c}.', 'Hoy prefiero que me cuentes tú cosas. ¿Qué tal te va por la isla, {c}?'],
+};
+
+const TOLD_TODAY = [
+  'Por hoy ya te he contado bastante. ¡Mañana más, {c}!',
+  'Uy, ya te he contado muchas cosas hoy. Si no, mañana no tendremos de qué hablar, {c}.',
+];
+
+/** Cuando ya te lo ha contado todo: anécdotas de su vida. */
+const STORIES: Record<Personality, string[]> = {
+  alegre: [
+    'Una vez intenté bailar en la playa y me caí al agua. ¡Fue lo más divertido del verano, {c}!',
+    'Cuando era pequeña quería ser estrella del pop. Todavía practico delante del espejo, {c}.',
+  ],
+  'gruñón': [
+    'Cuando llegué a la isla no conocía a nadie. Ahora conozco a demasiada gente. Pero tú me caes bien, {c}.',
+    'Una vez pesqué un pez enorme y nadie me creyó. Era así de grande. Bueno, un poco más pequeño, {c}.',
+  ],
+  'dormilón': [
+    'Una vez me quedé dormido debajo de un manzano y me desperté rodeado de manzanas. El mejor día de mi vida, {c}.',
+    'Sueño mucho con nubes de algodón de azúcar. ¿Crees que existirán en alguna isla misteriosa, {c}?',
+  ],
+  presumido: [
+    'Tengo un armario entero solo para los domingos. Y otro para los días de lluvia, {c}.',
+    'Una vez me hicieron un retrato. Quedó tan bien que el pintor se puso a llorar, {c}.',
+  ],
+  deportista: [
+    'Mi récord es dar la vuelta a la isla corriendo antes de que se pusiera el sol. ¡Inténtalo tú, {c}!',
+    'De pequeño me caí de un árbol y desde entonces entreno el equilibrio todos los días, {c}.',
+  ],
+  dulce: [
+    'Guardo una caja con todas las cartas que me han escrito. Algún día te escribiré una a ti, {c}.',
+    'Cuando llueve me gusta mirar por la ventana con una taza de chocolate. ¿Te imaginas, {c}?',
+  ],
+};
+
+/** Lo que te cuenta el vecino sobre sí mismo cuando ya sabes `known` cosas (el siguiente paso). */
+export function aboutLine(v: Villager, step: number): string {
   const p = v.profile;
   const [m, d] = p.birthday;
-  return `Soy ${p.name}. Me encanta ${p.hobby}, y si algún día me quieres regalar algo, me chiflan ${LIKES_TEXT[p.likes]}. Mi cumpleaños es el ${d} de ${MONTHS[m - 1]}, ¡apúntalo, {c}!`;
+  const line =
+    step === KNOW.met ? MEET[p.personality]
+    : step === KNOW.hobby ? HOBBY[p.personality]
+    : step === KNOW.likesHint ? LIKES_HINT[p.likes]
+    : step === KNOW.birthdaySeason ? BIRTHDAY_SEASON[p.personality]
+    : step === KNOW.likes ? LIKES_TOLD[p.personality]
+    : BIRTHDAY_TOLD[p.personality];
+  return line
+    .replace(/\{nombre\}/g, p.name)
+    .replace(/\{aficion\}/g, p.hobby)
+    .replace(/\{estacion\}/g, seasonOfBirthday(m))
+    .replace(/\{gusto\}/g, LIKES_TEXT[p.likes])
+    .replace(/\{dia\}/g, String(d))
+    .replace(/\{mes\}/g, MONTHS[m - 1]);
+}
+
+/** Siguiente cosa que te puede contar hoy el vecino, o null si aún no sois tan amigos (o ya lo sabes todo). */
+export function nextToLearn(known: number, friendship: number): number | null {
+  const next = Math.max(KNOW.hobby, known + 1);
+  if (next > KNOW.birthday) return null;
+  return friendship >= KNOW_FRIENDSHIP[next] ? next : null;
 }
 
 const LIKED = [
@@ -185,6 +351,9 @@ export interface DialogContext {
   invite: (v: Villager) => 'ok' | 'full' | 'already' | 'visita';
   /** Se ha hablado con este vecino (para el álbum de vecinos). */
   met?: (v: Villager) => void;
+  /** Lo que ya sabes de este vecino (KNOW) y apuntar algo nuevo. */
+  known?: (v: Villager) => number;
+  learn?: (v: Villager, step: number) => void;
 }
 
 export interface TravelActions {
@@ -223,6 +392,7 @@ export class Dialog {
 
   start(v: Villager) {
     this.villager = v;
+    const stranger = !v.profile.role && (this.ctx.known?.(v) ?? KNOW.met) < KNOW.met;
     this.ctx.met?.(v);
     v.talking = true;
     this.el.hidden = false;
@@ -234,7 +404,12 @@ export class Dialog {
       v.memory.friendship += 1;
     }
     const party = first && this.ctx.isBirthday(v);
-    if (party) this.say(BIRTHDAY);
+    // La primera vez solo se presenta: cómo se llama. Lo demás ya lo irá contando.
+    if (stranger) {
+      this.ctx.learn?.(v, KNOW.met);
+      this.say(aboutLine(v, KNOW.met));
+    }
+    else if (party) this.say(BIRTHDAY);
     else if (first && this.ctx.holiday && !v.isCurator) this.say(this.ctx.holiday.greeting);
     else if (v.isPilot) this.pilot();
     else if (v.visitor && first) this.say(pick(VISITOR_GREETINGS));
@@ -302,8 +477,8 @@ export class Dialog {
         this.ctx.openCollection();
       });
     } else {
-      add('Charlar', () => this.say(pick(CHATS[v.profile.personality])));
-      add('Háblame de ti', () => this.say(introLine(v)));
+      add('Charlar', () => this.chat());
+      add('Háblame de ti', () => this.aboutMe());
     }
     const slot = this.ctx.selectedSlot();
     const stack = this.ctx.inventory.slots[slot];
@@ -312,6 +487,35 @@ export class Dialog {
     }
     add('Adiós', () => this.finish());
     (this.choicesEl.firstElementChild as HTMLButtonElement | null)?.focus();
+  }
+
+  /** Charla normal; a veces, sin preguntarle, se le escapa algo nuevo de sí mismo. */
+  private chat() {
+    const v = this.villager!;
+    if (Math.random() < 0.25 && this.learnSomething()) return;
+    this.say(pick(CHATS[v.profile.personality]));
+  }
+
+  /** Le preguntas por él: te cuenta una cosa nueva al día, si ya sois bastante amigos. */
+  private aboutMe() {
+    const v = this.villager!;
+    if (this.learnSomething()) return;
+    const known = this.ctx.known?.(v) ?? KNOW.birthday;
+    if (v.memory.aboutDay === this.ctx.today) this.say(pick(TOLD_TODAY));
+    else if (known >= KNOW.birthday) this.say(pick(STORIES[v.profile.personality]));
+    else this.say(pick(NOT_YET[v.profile.personality]));
+  }
+
+  private learnSomething(): boolean {
+    const v = this.villager!;
+    if (!this.ctx.known || v.memory.aboutDay === this.ctx.today) return false;
+    const step = nextToLearn(this.ctx.known(v), v.memory.friendship);
+    if (step === null) return false;
+    v.memory.aboutDay = this.ctx.today;
+    this.ctx.learn?.(v, step);
+    this.say(aboutLine(v, step));
+    if (step === KNOW.likes || step === KNOW.birthday) this.ctx.toast(`Lo has apuntado en el álbum de ${v.name} (C)`);
+    return true;
   }
 
   /** El vecino comparte una receta, como en Animal Crossing cuando están haciendo manualidades. */

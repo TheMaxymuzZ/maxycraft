@@ -107,6 +107,8 @@ export interface VillagerMemory {
   friendship: number;
   talkedDay?: string;
   giftDay?: string;
+  /** Último día en que te contó algo nuevo de sí mismo (v4.0: uno al día como mucho). */
+  aboutDay?: string;
 }
 
 const WALK_SPEED = 1.4;

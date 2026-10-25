@@ -43,6 +43,8 @@ export interface SaveData {
   donated?: string[];
   /** Desde la v2.7: vecinos con los que has hablado (álbum de vecinos). */
   met?: string[];
+  /** Desde la v4.0: lo que te ha contado cada vecino de sí mismo (álbum de vecinos). */
+  learned?: Record<string, number>;
   /** Desde la v0.8: la casa del jugador (nivel, deuda y tejado) y sus muebles. */
   home?: { level: number; debt: number; roof: number };
   furniture?: PlacedFurniture[];
