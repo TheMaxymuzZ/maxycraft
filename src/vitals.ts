@@ -170,6 +170,14 @@ export class Vitals {
     this.effort = 0;
   }
 
+  /** Después de dormir: la vida llena, y con algo más de hambre (se ha pasado la noche sin comer). */
+  rest() {
+    if (this.fainted) return;
+    this.health = MAX_HEALTH;
+    this.hunger = Math.max(0, this.hunger - 2);
+    this.air = MAX_AIR;
+  }
+
   serialize(): VitalsSave {
     return { health: this.health, hunger: this.hunger };
   }

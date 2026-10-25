@@ -5,7 +5,7 @@ import type { Edits, WorldOptions } from '../world';
 import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
 /** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. */
-export const PROTOCOL = 2;
+export const PROTOCOL = 3;
 /** Jugadores a la vez en una isla, contando al anfitrión. */
 export const MAX_PLAYERS = 6;
 /** Gestos que se pueden hacer a los demás. */
@@ -65,7 +65,11 @@ export type Message =
   /** El anfitrión cierra la isla a propósito (no es un corte de conexión). */
   | { t: 'cierra' }
   /** El anfitrión se va de viaje en avioneta y se lleva a todos. */
-  | { t: 'viaje'; text: string };
+  | { t: 'viaje'; text: string }
+  /** Desde la v4.2: alguien se mete en la cama queriendo despertarse a ese minuto del día (null: se levanta). */
+  | { t: 'cama'; id: string; wake: number | null }
+  /** El reloj del anfitrión, cada poco; `slept` si acaba de saltar porque todos estaban durmiendo. */
+  | { t: 'hora'; clock: ClockSave; slept: boolean };
 
 export const MAX_CHAT = 140;
 
@@ -119,6 +123,10 @@ export function parseMessage(raw: unknown): Message | null {
       return raw as Message;
     case 'viaje':
       return typeof raw.text === 'string' && raw.text.length <= 80 ? (raw as Message) : null;
+    case 'cama':
+      return isId(raw.id) && (raw.wake === null || (isNum(raw.wake) && raw.wake >= 0 && raw.wake < 1440)) ? (raw as Message) : null;
+    case 'hora':
+      return isObj(raw.clock) && isNum(raw.clock.day) && isNum(raw.clock.minute) && typeof raw.slept === 'boolean' ? (raw as Message) : null;
     default:
       return null;
   }

@@ -75,6 +75,26 @@
     </div>
     <div id="debug" hidden></div>
     <div id="underwater" hidden></div>
+    <div id="sleep" hidden role="dialog" aria-labelledby="sleep-title">
+      <div class="panel">
+        <h2 id="sleep-title">Dormir</h2>
+        <p id="sleep-text"></p>
+        <div id="sleep-choices"></div>
+        <div class="sleep-custom">
+          <label for="sleep-hour">Otra hora:</label>
+          <input type="range" id="sleep-hour" min="0" max="23.5" step="0.5">
+          <b id="sleep-hour-text"></b>
+          <button type="button" id="sleep-custom-go">Dormir</button>
+        </div>
+        <button type="button" class="secondary" id="sleep-cancel">Ahora no</button>
+      </div>
+    </div>
+    <div id="sleeping" hidden role="dialog" aria-live="polite">
+      <div class="zzz" aria-hidden="true">Z<span>z</span><span>z</span></div>
+      <p id="sleeping-text"></p>
+      <button type="button" id="sleeping-up">Levantarse</button>
+    </div>
+    <div id="night-fade" aria-hidden="true"></div>
     <div id="faint" hidden role="dialog" aria-labelledby="faint-title">
       <div class="panel">
         <h2 id="faint-title">¡Te has desmayado!</h2>

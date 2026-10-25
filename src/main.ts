@@ -66,6 +66,7 @@ import { Water } from './water';
 import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
+import { Beds, WAKE_CHOICES, hourText, wakeClock } from './sleep';
 import { MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals';
 import { VitalsHud } from './vitalsHud';
 import { BIOME_NAMES, type Biome, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
@@ -672,7 +673,7 @@ function unlockInput() {
 }
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | 'sleep' | 'sleeping' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -1061,6 +1062,10 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (panel === 'chat' || panel === 'faint') return;
+  if (panel === 'sleep' || panel === 'sleeping') {
+    if (e.code === 'Escape') getUp();
+    return;
+  }
   if (panel === 'gestures') {
     if (e.code === 'Escape' || e.code === keys.gesture) friends.closeGestures();
     else friends.gestureKey(e.code);
@@ -1162,6 +1167,7 @@ function closeAnyPanel() {
   if (panel === 'chat') friends.closeChat();
   if (panel === 'gestures') friends.closeGestures();
   if (panel === 'faint') wakeUpAtHome();
+  if (panel === 'sleep' || panel === 'sleeping') leaveBed();
   panel = null;
 }
 let arrived = false;
@@ -1454,6 +1460,10 @@ function useItem() {
   }
   // Los carteles se escriben con clic derecho.
   const aimed = furnitureInSight();
+  if (aimed?.furniture.id === 'cama') {
+    useBed();
+    return;
+  }
   if (aimed?.furniture.id === 'cartel') {
     openSign(aimed.furniture);
     return;
@@ -1692,6 +1702,138 @@ document.querySelector('#faint-wake')!.addEventListener('click', () => {
   wakeUpAtHome();
   lockInput();
 });
+
+// --- Dormir (v4.2) ---
+
+const sleepEl = document.querySelector<HTMLDivElement>('#sleep')!;
+const sleepingEl = document.querySelector<HTMLDivElement>('#sleeping')!;
+const sleepingText = sleepingEl.querySelector<HTMLParagraphElement>('#sleeping-text')!;
+const sleepingButton = sleepingEl.querySelector<HTMLButtonElement>('#sleeping-up')!;
+const nightFade = document.querySelector<HTMLDivElement>('#night-fade')!;
+const sleepHour = sleepEl.querySelector<HTMLInputElement>('#sleep-hour')!;
+const sleepHourText = sleepEl.querySelector<HTMLElement>('#sleep-hour-text')!;
+/** Quién está en la cama en la partida (con amigos) y a qué hora se quiere despertar. */
+const beds = new Beds();
+/** Estás en la cama esperando a que se duerman los demás, o ya despierto esperando a levantarte. */
+let inBed = false;
+let awake = false;
+const selfId = () => net?.self.id ?? 'yo';
+
+for (const c of WAKE_CHOICES) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.innerHTML = `<b>${c.hour}:00</b><small>${c.name}</small>`;
+  b.addEventListener('click', () => goToBed(c.hour * 60));
+  sleepEl.querySelector('#sleep-choices')!.appendChild(b);
+}
+const showSleepHour = () => (sleepHourText.textContent = hourText(Number(sleepHour.value) * 60));
+sleepHour.addEventListener('input', showSleepHour);
+sleepEl.querySelector('#sleep-custom-go')!.addEventListener('click', () => goToBed(Number(sleepHour.value) * 60));
+sleepEl.querySelector('#sleep-cancel')!.addEventListener('click', () => getUp());
+sleepingButton.addEventListener('click', () => getUp());
+
+/** Clic derecho en una cama: eliges a qué hora quieres despertarte. */
+function useBed() {
+  if (clock.real || overrides.hour !== null) {
+    // Con la hora real el reloj no se puede adelantar: solo se descansa un poco.
+    vitals.rest();
+    hud.toast('Has descansado un rato. Con la hora real (Opciones) el reloj no se puede adelantar');
+    return;
+  }
+  breaker.active = false;
+  panel = 'sleep';
+  sleepHour.value = String(Math.round(((currentHour + 8) % 24) * 2) / 2);
+  showSleepHour();
+  const waiting = net ? beds.count : 0;
+  sleepEl.querySelector('#sleep-text')!.textContent = net
+    ? `¿A qué hora quieres despertarte? El reloj solo avanza cuando estáis todos en la cama${waiting ? ` (ya hay ${waiting})` : ''}. Os despertáis a la hora más temprana que haya elegido alguien.`
+    : '¿A qué hora quieres despertarte?';
+  sleepEl.hidden = false;
+  unlockInput();
+}
+
+function goToBed(wake: number) {
+  sleepEl.hidden = true;
+  panel = 'sleeping';
+  inBed = true;
+  awake = false;
+  sleepingEl.hidden = false;
+  sleepingEl.classList.remove('morning');
+  sleepingButton.textContent = 'Levantarse';
+  beds.set(selfId(), wake);
+  if (!net) {
+    sleepingText.textContent = `Durmiendo hasta las ${hourText(wake)}…`;
+    sleepUntil(wake);
+    return;
+  }
+  net.bed(wake);
+  net.gesture('sueno');
+  updateBedText();
+  if (net.role === 'anfitrion') checkBeds();
+}
+
+/** Te levantas: de la cama (sin dormir) o ya despierto por la mañana. */
+function getUp() {
+  if (panel !== 'sleep' && panel !== 'sleeping') return;
+  leaveBed();
+  panel = null;
+  lockInput();
+}
+
+function leaveBed() {
+  sleepEl.hidden = true;
+  sleepingEl.hidden = true;
+  if (inBed && !awake) {
+    beds.set(selfId(), null);
+    net?.bed(null);
+  }
+  inBed = false;
+  awake = false;
+}
+
+function updateBedText() {
+  if (!net || !inBed || awake) return;
+  const total = net.peers.size + 1;
+  sleepingText.textContent = `Esperando a que se acuesten los demás: ${beds.count} de ${total} en la cama…`;
+}
+
+/** El anfitrión mira si ya están todos en la cama. */
+function checkBeds() {
+  if (!net || net.role !== 'anfitrion') return;
+  const players = [net.self.id, ...net.peers.keys()];
+  beds.keepOnly(players);
+  const wake = beds.ready(players, clock.minute);
+  if (wake !== null) sleepUntil(wake);
+}
+
+/** Se funde a negro, el reloj salta a la hora de despertar y amanece (solo, o el anfitrión para todos). */
+function sleepUntil(wake: number) {
+  beds.clear();
+  nightFade.classList.add('on');
+  window.setTimeout(() => {
+    const before = clock.day;
+    const next = wakeClock(clock.serialize(), wake);
+    clock.day = next.day;
+    clock.minute = next.minute;
+    net?.sendTime(clock.serialize(), true);
+    if (clock.day !== before) newDay();
+    wakeUp();
+  }, 1400);
+}
+
+/** Te despiertas descansado: con la vida llena, algo más de hambre, y te levantas cuando quieras. */
+function wakeUp() {
+  beds.clear();
+  nightFade.classList.remove('on');
+  if (!inBed) return;
+  awake = true;
+  vitals.rest();
+  sleepingEl.classList.add('morning');
+  sleepingText.textContent = `¡Buenos días! Son las ${hourText(clock.minute)}`;
+  sleepingButton.textContent = 'Levantarse';
+  sound.fanfare();
+  persist();
+}
 
 /** Mueble al que apunta la mira, si está más cerca que el bloque apuntado. */
 function furnitureInSight() {
@@ -1967,10 +2109,31 @@ Object.assign(netEvents, {
   },
   leave: (p) => {
     remotes.remove(p.id);
+    beds.set(p.id, null);
+    checkBeds();
+    updateBedText();
     hud.toast(`${p.name} se ha ido`);
     friendsChanged();
   },
   pose: (id, pose) => remotes.setPose(id, pose),
+  bed: (id, wake) => {
+    beds.set(id, wake);
+    const who = id === net?.hostPeer?.id ? net.hostPeer : net?.peers.get(id);
+    if (wake !== null && who) hud.toast(`${who.name} se ha ido a dormir. Para que pase la noche tenéis que dormir todos`);
+    updateBedText();
+    checkBeds();
+  },
+  time: (c, slept) => {
+    const before = clock.day;
+    // Pequeñas diferencias no se corrigen, para que el reloj no dé saltitos.
+    const diff = (c.day - clock.day) * 1440 + c.minute - clock.minute;
+    if (slept || Math.abs(diff) > 2) {
+      clock.day = c.day;
+      clock.minute = c.minute;
+    }
+    if (clock.day !== before) newDay();
+    if (slept) wakeUp();
+  },
   chat: (p, text) => {
     friends.addLine(p.name, text, p.color);
     sound.voice(620);
@@ -2034,6 +2197,8 @@ function updateNet(now: number) {
   net?.update(now, { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.yaw, pitch: player.pitch });
 }
 window.setInterval(() => updateNet(performance.now()), 1000);
+// El anfitrión cuenta la hora cada poco, para que todos tengan el mismo reloj (v4.2).
+window.setInterval(() => net?.sendTime(clock.serialize(), false), 10_000);
 /** Código de la isla abierta a amigos. */
 let netCode: string | null = null;
 let netBusy = false;
@@ -2474,6 +2639,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { vitals, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

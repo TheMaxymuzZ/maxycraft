@@ -1,6 +1,7 @@
 import { type WorldAction, WorldSync } from './actions';
 import { type Gesture, type GiftItem, MAX_CHAT, MAX_PLAYERS, type Message, PROTOCOL, type PeerInfo, type Pose, type Snapshot } from './protocol';
 import type { Transport } from './transport';
+import type { ClockSave } from '../clock';
 
 /** Veces por segundo que cada jugador cuenta dónde está. */
 export const POSE_RATE = 10;
@@ -21,6 +22,10 @@ export interface SessionEvents {
   closed?(deliberate: boolean): void;
   /** El anfitrión se va de viaje y se lleva a todos. */
   travel?(text: string): void;
+  /** Alguien se ha metido en la cama (o se ha levantado, con null). */
+  bed?(id: string, wake: number | null): void;
+  /** Llega el reloj del anfitrión; `slept` si se acaba de dormir todo el mundo. */
+  time?(clock: ClockSave, slept: boolean): void;
 }
 
 interface Peer extends PeerInfo {
@@ -138,6 +143,16 @@ export class NetSession {
     else if (this.hostId) this.transport.send(msg, this.hostId);
   }
 
+  /** Te metes en la cama (o te levantas, con null). */
+  bed(wake: number | null) {
+    this.broadcast({ t: 'cama', id: this.self.id, wake });
+  }
+
+  /** El anfitrión cuenta a todos qué hora es en la isla. */
+  sendTime(clock: ClockSave, slept: boolean) {
+    if (this.role === 'anfitrion') this.transport.send({ t: 'hora', clock, slept });
+  }
+
   get hostPeer(): PeerInfo | null {
     return this.hostId ? this.peers.get(this.hostId) ?? null : null;
   }
@@ -237,6 +252,11 @@ export class NetSession {
       case 'sale':
         if (msg.id === from) this.dropPeer(from);
         return;
+      case 'cama':
+        if (msg.id !== from || !this.peers.has(from)) return;
+        this.events.bed?.(from, msg.wake);
+        this.relay(msg, from);
+        return;
     }
   }
 
@@ -273,6 +293,12 @@ export class NetSession {
       }
       case 'cierra':
         this.end(true);
+        return;
+      case 'cama':
+        if (msg.id !== this.self.id) this.events.bed?.(msg.id, msg.wake);
+        return;
+      case 'hora':
+        this.events.time?.(msg.clock, msg.slept);
         return;
       case 'viaje':
         // Mientras dure el viaje no se da por ido al anfitrión: volverá a abrir la isla con el mismo código.
