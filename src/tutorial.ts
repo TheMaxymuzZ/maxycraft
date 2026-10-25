@@ -3,10 +3,10 @@
 export type StepId = 'mover' | 'sacudir' | 'romper' | 'fabricar' | 'hablar' | 'vender' | 'criatura' | 'mueble';
 
 const STEPS: { id: StepId; text: string; touch?: string }[] = [
-  { id: 'mover', text: 'Da un paseo por la isla (W A S D)', touch: 'Da un paseo por la isla (palanca de la izquierda)' },
+  { id: 'mover', text: 'Da un paseo por la isla ({forward} {left} {back} {right})', touch: 'Da un paseo por la isla (palanca de la izquierda)' },
   { id: 'sacudir', text: 'Sacude un árbol con clic derecho', touch: 'Sacude un árbol con el botón Usar' },
   { id: 'romper', text: 'Rompe un bloque manteniendo el clic izquierdo', touch: 'Rompe un bloque manteniendo el botón Romper' },
-  { id: 'fabricar', text: 'Fabrica algo en los bolsillos (E)', touch: 'Fabrica algo en los bolsillos (botón Bolsillos)' },
+  { id: 'fabricar', text: 'Fabrica algo en los bolsillos ({inventory})', touch: 'Fabrica algo en los bolsillos (botón Bolsillos)' },
   { id: 'hablar', text: 'Habla con un vecino' },
   { id: 'vender', text: 'Vende algo en la tienda de Avellana' },
   { id: 'criatura', text: 'Pesca un pez o atrapa un insecto (se fabrican con 5 ramas)' },
@@ -23,6 +23,8 @@ export class Tutorial {
   finished: boolean;
   /** Recién terminado: la lista completa se deja ver un momento. */
   private celebrating = false;
+  /** Nombre de la tecla elegida para cada acción, para que los textos sigan a las opciones. */
+  keyName: (action: string) => string = (a) => a;
 
   constructor(saved: StepId[] | undefined, finished: boolean, private touch: boolean, private onFinish: () => void) {
     this.done = new Set(saved ?? []);
@@ -56,12 +58,17 @@ export class Tutorial {
     return [...this.done];
   }
 
+  /** Vuelve a escribir los pasos (por ejemplo, al cambiar las teclas). */
+  refresh() {
+    this.render();
+  }
+
   private render() {
     this.el.hidden = this.finished && !this.celebrating;
     const pending = STEPS.filter((s) => !this.done.has(s.id)).length;
     this.el.querySelector('#tutorial-left')!.textContent = pending ? `${STEPS.length - pending}/${STEPS.length}` : '¡Hecho!';
     this.listEl.innerHTML = STEPS.map(
-      (s) => `<li class="${this.done.has(s.id) ? 'done' : ''}">${this.touch && s.touch ? s.touch : s.text}</li>`,
+      (s) => `<li class="${this.done.has(s.id) ? 'done' : ''}">${this.touch && s.touch ? s.touch : s.text.replace(/\{(\w+)\}/g, (_, a: string) => this.keyName(a))}</li>`,
     ).join('');
   }
 }

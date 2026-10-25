@@ -1,4 +1,6 @@
-// Opciones del jugador: volumen, ratón, calidad gráfica y campo de visión. Se guardan en el navegador.
+// Opciones del jugador: volumen, ratón, calidad gráfica, campo de visión, teclas y accesibilidad. Se guardan en el navegador.
+
+import { type KeyMap, defaultKeys, normalizeKeys } from './keys';
 
 const KEY = 'maxycraft.ajustes';
 
@@ -13,6 +15,12 @@ export interface Settings {
   quality: Quality;
   /** Campo de visión en grados. */
   fov: number;
+  /** Teclas de cada acción (desde la v2.0). */
+  keys: KeyMap;
+  /** Letras y ventanas más grandes. */
+  bigText: boolean;
+  /** Colores que se distinguen bien con daltonismo (azul y naranja en vez de verde y rojo). */
+  colorblind: boolean;
 }
 
 export const QUALITIES: { id: Quality; name: string; hint: string }[] = [
@@ -27,7 +35,7 @@ export const RENDER_RADIUS: Record<Quality, number> = { baja: 4, media: 6, alta:
 export const PIXEL_RATIO: Record<Quality, number> = { baja: 1, media: 1.5, alta: 2 };
 
 export function defaultSettings(touch: boolean): Settings {
-  return { music: 70, sfx: 80, sensitivity: 1, quality: touch ? 'baja' : 'media', fov: 75 };
+  return { music: 70, sfx: 80, sensitivity: 1, quality: touch ? 'baja' : 'media', fov: 75, keys: defaultKeys(), bigText: false, colorblind: false };
 }
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) =>
@@ -43,6 +51,9 @@ export function normalizeSettings(raw: unknown, touch: boolean): Settings {
     sensitivity: clamp(r.sensitivity, 0.3, 3, d.sensitivity),
     quality: QUALITIES.some((q) => q.id === r.quality) ? (r.quality as Quality) : d.quality,
     fov: Math.round(clamp(r.fov, 60, 100, d.fov)),
+    keys: normalizeKeys(r.keys),
+    bigText: r.bigText === true,
+    colorblind: r.colorblind === true,
   };
 }
 

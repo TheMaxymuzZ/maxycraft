@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { defaultKeys } from '../src/keys';
 import { defaultSettings, loadSettings, normalizeSettings, saveSettings } from '../src/settings';
 
 describe('opciones', () => {
@@ -17,7 +18,14 @@ describe('opciones', () => {
 
   it('corrige valores fuera de rango o raros', () => {
     const s = normalizeSettings({ music: 250, sfx: -4, sensitivity: 'mucha', quality: 'ultra', fov: 10 }, false);
-    expect(s).toEqual({ music: 100, sfx: 0, sensitivity: 1, quality: 'media', fov: 60 });
+    expect(s).toEqual({ music: 100, sfx: 0, sensitivity: 1, quality: 'media', fov: 60, keys: defaultKeys(), bigText: false, colorblind: false });
+  });
+
+  it('las opciones de antes de la v2.0 siguen valiendo', () => {
+    const s = normalizeSettings({ music: 40, sfx: 50, sensitivity: 1.5, quality: 'alta', fov: 80 }, false);
+    expect(s.music).toBe(40);
+    expect(s.keys).toEqual(defaultKeys());
+    expect(s.bigText).toBe(false);
   });
 
   it('con opciones rotas usa las de siempre', () => {

@@ -60,7 +60,7 @@
           <h2>Fabricar</h2>
           <ul id="recipes"></ul>
         </section>
-        <p class="inv-close"><button type="button" id="inventory-close">Cerrar</button> <kbd>E</kbd> o <kbd>Esc</kbd> para volver</p>
+        <p class="inv-close"><button type="button" id="inventory-close">Cerrar</button> <kbd data-key="inventory">E</kbd> o <kbd>Esc</kbd> para volver</p>
       </div>
       <div id="cursor-stack" class="slot"></div>
     </div>
@@ -82,7 +82,7 @@
         <div id="collection-fish" class="cards"></div>
         <h3>Insectos</h3>
         <div id="collection-bugs" class="cards"></div>
-        <footer><button type="button" id="collection-close">Cerrar</button> <span><kbd>C</kbd> o <kbd>Esc</kbd> para volver</span></footer>
+        <footer><button type="button" id="collection-close">Cerrar</button> <span><kbd data-key="collection">C</kbd> o <kbd>Esc</kbd> para volver</span></footer>
       </div>
     </div>
     <div id="shop" hidden>
@@ -130,7 +130,7 @@
           <h3>Logros <span id="missions-ach-count"></span></h3>
           <ul id="missions-achievements" class="ach-list"></ul>
         </section>
-        <footer><button type="button" id="missions-close">Cerrar</button> <span>Cada día hay tareas nuevas · <kbd>T</kbd> o <kbd>Esc</kbd> para volver</span></footer>
+        <footer><button type="button" id="missions-close">Cerrar</button> <span>Cada día hay tareas nuevas · <kbd data-key="missions">T</kbd> o <kbd>Esc</kbd> para volver</span></footer>
       </div>
     </div>
     <div id="overlay" class="title">
@@ -153,7 +153,10 @@
           <button type="button" id="install" class="menu-btn install" hidden>Instalar Maxycraft</button>
           <p id="install-ios" class="note install-ios" hidden>Para instalarlo en el iPhone o el iPad: toca <strong>Compartir</strong> y luego <strong>Añadir a pantalla de inicio</strong>.</p>
           <p class="note">El día, la noche y las estaciones siguen tu fecha y hora reales. La isla se guarda sola en este navegador.</p>
-          <button type="button" class="menu-btn" data-open="islands">Mis islas y copias</button>
+          <div class="menu-row">
+            <button type="button" class="menu-btn" data-open="islands">Mis islas y copias</button>
+            <button type="button" class="menu-btn" data-open="news">Novedades</button>
+          </div>
           <p class="version" id="version"></p>
         </section>
 
@@ -180,6 +183,12 @@
             <div class="quality-choices" id="opt-quality"></div>
             <p class="option-hint" id="opt-quality-hint"></p>
           </fieldset>
+          <fieldset class="option access">
+            <legend>Accesibilidad</legend>
+            <label class="check"><input type="checkbox" id="opt-bigtext" /> Texto grande</label>
+            <label class="check"><input type="checkbox" id="opt-colorblind" /> Colores para daltonismo</label>
+            <button type="button" class="menu-btn" data-open="keys">Cambiar teclas</button>
+          </fieldset>
           <div class="menu-row">
             <button type="button" id="sound-toggle" class="secondary">Sonido: sí</button>
             <button type="button" id="options-reset" class="secondary">Valores de siempre</button>
@@ -194,19 +203,26 @@
           <button type="button" class="menu-back">Volver</button>
         </section>
 
+        <section class="menu-view" data-view="keys" hidden>
+          <h2>Cambiar teclas</h2>
+          <p class="note">Pulsa en una acción y después en la tecla que quieras. <kbd>Esc</kbd> para cancelar. Las flechas siempre sirven para andar.</p>
+          <ul class="keys-list" id="keys-list"></ul>
+          <div class="menu-row">
+            <button type="button" id="keys-reset" class="secondary">Teclas de siempre</button>
+            <button type="button" class="secondary" data-open="options">Volver</button>
+          </div>
+        </section>
+
+        <section class="menu-view" data-view="news" hidden>
+          <h2>Novedades</h2>
+          <div class="news" id="news-list"></div>
+          <p class="note"><a href="proyecto/" target="_blank" rel="noopener">Página del proyecto</a> con capturas y un vídeo.</p>
+          <button type="button" class="menu-back">Volver</button>
+        </section>
+
         <section class="menu-view" data-view="controls" hidden>
           <h2>Controles</h2>
-          <ul class="controls">
-            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> caminar</li>
-            <li><kbd>Espacio</kbd> saltar · <kbd>Mayús</kbd> correr</li>
-            <li><kbd>Clic izq.</kbd> (mantener) romper</li>
-            <li><kbd>Clic der.</kbd> colocar, sacudir un árbol o hablar con un vecino</li>
-            <li><kbd>E</kbd> bolsillos · <kbd>C</kbd> enciclopedia · <kbd>T</kbd> tareas · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
-            <li>Con la caña o la red en la mano, <kbd>Clic der.</kbd> para pescar o cazar</li>
-            <li><kbd>R</kbd> girar un mueble · <kbd>M</kbd> sonido · <kbd>H</kbd> primeros pasos</li>
-            <li><kbd>F</kbd> datos de depuración · <kbd>Esc</kbd> pausa</li>
-            <li><kbd>Espacio</kbd> en el agua: nadar hacia arriba</li>
-          </ul>
+          <ul class="controls" id="controls-list"></ul>
           <p class="touch-note">En el móvil o la tableta: palanca a la izquierda para caminar, arrastra a la derecha para mirar y usa los botones.</p>
           <button type="button" class="menu-back">Volver</button>
         </section>
