@@ -70,6 +70,8 @@ import { BIOME_NAMES, type Biome, SEA_LEVEL, TERRAIN_VERSION, World } from './wo
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
 const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
+// Los estilos del mando y de la interfaz para el móvil van con esta clase (también al probar con ?tactil).
+document.documentElement.classList.toggle('tactil', touchMode);
 // Opciones del jugador; en el móvil, por defecto, se ve algo menos lejos para que vaya fluido.
 const settings = loadSettings(touchMode);
 let renderRadius = RENDER_RADIUS[settings.quality];

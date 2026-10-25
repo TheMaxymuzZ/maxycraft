@@ -130,7 +130,7 @@ kbd {
 @media (pointer: coarse), (max-width: 900px) {
   #notices, #toasts { flex-direction: column-reverse; }
   /* Por encima también del nombre del objeto que llevas en la mano. */
-  #notices { top: auto; bottom: 116px; max-width: calc(100vw - 32px); }
+  #notices { top: auto; bottom: calc(var(--hotbar-h) + 52px); max-width: calc(100vw - 32px); }
 }
 /* Hablando con un vecino, el cuadro de diálogo ocupa la parte de abajo: los avisos suben. */
 @media (pointer: coarse), (max-width: 900px) {
@@ -138,7 +138,7 @@ kbd {
   body:has(#dialog:not([hidden])) #toasts { flex-direction: column; }
 }
 /* Sin tapar los botones de Usar y Saltar. */
-@media (pointer: coarse) { #notices { max-width: max(220px, calc(100vw - 400px)); } }
+.tactil #notices { max-width: max(220px, calc(100vw - 460px)); }
 
 /* Anillo de progreso alrededor de la mira al romper un bloque. */
 #break-progress {
@@ -316,8 +316,8 @@ kbd {
 #tutorial.collapsed ol { display: none; }
 #debug { top: auto; bottom: 90px; }
 
-/* Mando táctil. */
-#touch { position: fixed; inset: 0; z-index: 1; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* Mando táctil (v3.6): botones redondos con dibujo, a mano del pulgar derecho, y un menú pequeño arriba. */
+#touch { position: fixed; inset: 0; z-index: 1; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 #touch[hidden] { display: none; }
 .touch-look { position: absolute; inset: 0; }
 .touch-stick {
@@ -330,19 +330,52 @@ kbd {
   background: rgba(255,255,255,.7);
 }
 .touch-btn {
-  position: absolute; border: 3px solid rgba(255,255,255,.7); background: rgba(35, 48, 31, .45); color: #fff;
-  font: 700 14px var(--display); border-radius: 50%; width: 72px; height: 72px; padding: 0; touch-action: none;
+  position: absolute; display: grid; place-items: center; align-content: center; gap: 1px; padding: 0;
+  border: 2px solid rgba(255,255,255,.75); background: rgba(35, 48, 31, .42); color: #fff; border-radius: 50%;
+  font: 700 11px var(--display); text-shadow: 1px 1px 0 rgba(0,0,0,.4); touch-action: none;
+  box-shadow: 0 3px 10px rgba(0,0,0,.18); -webkit-tap-highlight-color: transparent;
 }
-.touch-btn.pressed { background: rgba(110, 180, 80, .7); }
-.touch-btn.jump { right: 24px; bottom: 96px; width: 84px; height: 84px; }
-.touch-btn.use { right: 120px; bottom: 140px; }
-.touch-btn.break { right: 24px; bottom: 196px; }
-.touch-btn.top { top: 12px; width: auto; height: 36px; border-radius: 6px; padding: 0 10px; font-size: 13px; }
-.touch-btn.inv { right: 50%; transform: translateX(-4px); }
-.touch-btn.col { left: 50%; transform: translateX(4px); }
-.touch-btn.rot { right: 50%; top: 56px; transform: translateX(-4px); }
-.touch-btn.pause { left: 50%; top: 56px; transform: translateX(4px); }
-.touch-btn.tasks { right: 50%; top: 100px; transform: translateX(-4px); }
+.touch-btn svg { width: 30px; height: 30px; filter: drop-shadow(1px 1px 0 rgba(0,0,0,.35)); }
+.touch-btn.pressed { background: rgba(110, 180, 80, .75); transform: scale(.94); }
+/* Abajo a la derecha, encima de la barra rápida: Saltar grande en la esquina, Romper y Usar en arco alrededor. */
+.touch-actions { position: absolute; right: calc(16px + env(safe-area-inset-right)); bottom: calc(var(--hotbar-h) + 20px); width: 190px; height: 170px; pointer-events: none; }
+.touch-actions .touch-btn { pointer-events: auto; }
+.touch-btn.jump { right: 0; bottom: 0; width: 78px; height: 78px; font-size: 12px; }
+.touch-btn.break { right: 6px; bottom: 90px; width: 70px; height: 70px; }
+.touch-btn.use { right: 90px; bottom: 8px; width: 64px; height: 64px; }
+/* Menú: solo dibujos, en fila, arriba en el centro. */
+.touch-menu { position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+.touch-menu .touch-btn { position: static; width: 42px; height: 42px; border-radius: 12px; }
+.touch-menu .touch-btn svg { width: 24px; height: 24px; }
+.touch-menu .touch-btn span { display: none; }
+/* En vertical arriba no cabe todo: el menú va debajo del reloj, a la derecha. */
+@media (orientation: portrait) {
+  .touch-menu { left: auto; right: 12px; top: 108px; transform: none; }
+  .touch-actions { bottom: calc(var(--hotbar-h) + 28px); }
+}
+
+/* La barra rápida encoge para caber en pantallas estrechas (10 casillas y la de la mano). */
+:root { --slot: min(48px, calc((100vw - 64px) / 11.2)); --hotbar-h: calc(var(--slot) + 26px); }
+.slot { width: var(--slot); height: var(--slot); }
+.slot img { width: calc(var(--slot) * .75); height: calc(var(--slot) * .75); }
+.tactil #hotbar { bottom: calc(10px + env(safe-area-inset-bottom)); }
+/* En el móvil, lo de arriba más pequeño para que no tape el juego. */
+.tactil #tutorial { width: min(280px, calc(100vw - 200px)); font-size: 12px; }
+.tactil #tutorial header { font-size: 13px; padding: 5px 9px; }
+@media (orientation: portrait) {
+  .tactil #tutorial { width: calc(100vw - 190px); }
+  .tactil #clock-time { font-size: 24px; }
+  .tactil #clock-date { font-size: 12px; max-width: 160px; text-align: right; }
+  /* Los avisos, debajo del menú, sin tapar los botones de abajo. */
+  .tactil #notices { top: 162px; bottom: auto; flex-direction: column; max-width: calc(100vw - 32px); }
+  .tactil #toasts { flex-direction: column; }
+}
+#block-name { bottom: calc(var(--hotbar-h) + 18px); }
+/* Móvil en horizontal: la pantalla es baja, así que los avisos van arriba, debajo del menú, y no tapan la mira. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .tactil #notices { top: 62px; bottom: auto; flex-direction: column; }
+  .tactil #toasts { flex-direction: column; }
+}
 
 /* Que las ventanas quepan en pantallas bajas (móvil en horizontal) y se puedan desplazar. */
 .inv-panel, .shop-panel, .collection-panel { max-height: calc(100dvh - 32px); }
