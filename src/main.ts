@@ -37,6 +37,7 @@ import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { type Villager, createVillagers } from './villagers';
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
+import { Water } from './water';
 import { WATER_SURFACE, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
@@ -96,6 +97,8 @@ const seed = save?.seed ?? Math.floor(Math.random() * 1e9);
 const sound = new Sound(seed);
 const world = new World(seed, material, save?.edits ?? {});
 scene.add(world.group);
+const water = new Water();
+world.waterMaterial = water.material;
 
 const today = dayKey(startDate);
 
@@ -942,6 +945,8 @@ function frame(now: number) {
   hemi.intensity *= 1 - weather.gloom * 0.3;
   sunLight.intensity *= 1 - weather.gloom * 0.7;
   sky.color.lerp(gloomColor.setRGB(0.55, 0.6, 0.65).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.75);
+  sky.syncDome(weather.gloom);
+  water.update(now / 1000, settings.quality !== 'baja', (1 - sky.night) * (1 - weather.gloom));
   for (const v of villagers) v.update(dt, hour, player.position);
   nameTags.update(camera, player.position);
   updateClock(date);
@@ -965,6 +970,7 @@ function frame(now: number) {
   // Bajo el agua todo se ve azul y cerca.
   const submerged = camera.position.y < WATER_SURFACE && !!world.waterKind(Math.floor(camera.position.x), Math.floor(camera.position.z));
   underwater.hidden = !submerged;
+  sky.dome.visible = !submerged;
   if (submerged) {
     fog.color.setHex(0x2a6d99);
     fog.near = 1;
@@ -975,7 +981,7 @@ function frame(now: number) {
     fog.far = fogFar();
   }
 
-  clouds.update(now / 1000, sky.night, weather.gloom);
+  clouds.update(now / 1000, sky.night, weather.gloom, sky.glow, sky.glowColor);
 
   const hit = currentHit();
   const aimed = furnitureInSight();
