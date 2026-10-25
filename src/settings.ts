@@ -24,6 +24,8 @@ export interface Settings {
   colorblind: boolean;
   /** Minutos reales que dura un día de juego; 0 es la hora real (desde la v2.4). */
   dayLength: number;
+  /** Tamaño de los botones, la barra y las ventanas, en % (70 a 150; desde la v3.7). */
+  uiScale: number;
 }
 
 export const QUALITIES: { id: Quality; name: string; hint: string }[] = [
@@ -37,8 +39,27 @@ export const RENDER_RADIUS: Record<Quality, number> = { baja: 4, media: 6, alta:
 /** Píxeles por punto de pantalla como máximo: menos es más rápido y algo más borroso. */
 export const PIXEL_RATIO: Record<Quality, number> = { baja: 1, media: 1.5, alta: 2 };
 
+export const UI_SCALE_MIN = 70;
+export const UI_SCALE_MAX = 150;
+
+/**
+ * Tamaño con el que se ve de verdad la interfaz (1 es el normal): el elegido, pero sin pasarse de lo que cabe en la
+ * pantalla, para que en un móvil pequeño los botones no se monten unos encima de otros. Nunca baja del 100%
+ * si se eligió más (salvo que tampoco quepa) ni sube si se eligió menos.
+ */
+export function uiScaleFor(percent: number, width: number, height: number, touch: boolean): number {
+  const chosen = percent / 100;
+  if (chosen <= 1) return chosen;
+  const portrait = height > width;
+  // Lo que ocupa la interfaz al 100%: alto de barra + botones + reloj, y ancho de primeros pasos + menú + reloj.
+  const needW = touch ? (portrait ? 340 : 820) : 720;
+  const needH = touch ? 340 : 420;
+  const fit = Math.max(1, Math.min(width / needW, height / needH));
+  return Math.round(Math.min(chosen, fit) * 100) / 100;
+}
+
 export function defaultSettings(touch: boolean): Settings {
-  return { music: 70, sfx: 80, sensitivity: 1, quality: touch ? 'baja' : 'media', fov: 75, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24 };
+  return { music: 70, sfx: 80, sensitivity: 1, quality: touch ? 'baja' : 'media', fov: 75, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24, uiScale: 100 };
 }
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) =>
@@ -57,6 +78,7 @@ export function normalizeSettings(raw: unknown, touch: boolean): Settings {
     keys: normalizeKeys(r.keys),
     bigText: r.bigText === true,
     colorblind: r.colorblind === true,
+    uiScale: Math.round(clamp(r.uiScale, UI_SCALE_MIN, UI_SCALE_MAX, d.uiScale) / 5) * 5,
     dayLength: DAY_LENGTHS.some((l) => l.minutes === r.dayLength) ? (r.dayLength as number) : d.dayLength,
   };
 }
