@@ -311,6 +311,9 @@ export class Villager {
 /** Todos los vecinos que pueden vivir en una isla (los de siempre y los de las islas misteriosas). */
 export const RESIDENT_NAMES = [...PROFILES, ...VISITORS].map((p) => p.name);
 
+/** Los que solo se encuentran de vacaciones (no viven en las islas nuevas desde el principio). */
+export const VISITOR_NAMES: ReadonlySet<string> = new Set(VISITORS.map((p) => p.name));
+
 /** Todos los personajes, con la dependienta, la conservadora y el piloto, para el álbum de vecinos. */
 export const ALL_PROFILES: Profile[] = [SHOPKEEPER, CURATOR, PILOT, ...PROFILES, ...VISITORS];
 

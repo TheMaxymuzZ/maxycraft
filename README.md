@@ -4,7 +4,7 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 **Jugar:** https://themaxymuzz.github.io/maxycraft/
 
-**Página del proyecto** (capturas y vídeo): https://themaxymuzz.github.io/maxycraft/proyecto/
+**Página del proyecto** (capturas, vídeo, [wiki](https://themaxymuzz.github.io/maxycraft/proyecto/wiki.html) y [novedades](https://themaxymuzz.github.io/maxycraft/proyecto/novedades.html)): https://themaxymuzz.github.io/maxycraft/proyecto/
 
 ## Estado
 
@@ -13,7 +13,7 @@ Versión actual: **v2.0**
 - **Cambiar teclas**: en Opciones → Cambiar teclas se elige la tecla de cada acción (andar, saltar, bolsillos, tareas…). Si una tecla ya estaba en uso, las dos acciones se intercambian. Las flechas siempre sirven para andar. Los textos del juego y de los primeros pasos enseñan tus teclas.
 - **Accesibilidad**: texto grande (todo el menú y las ventanas un 25 % más grandes, sin salirse de la pantalla) y colores para daltonismo (azul y naranja en vez de verde y rojo).
 - **Novedades**: al abrir una versión nueva sale sola una pantalla con lo que ha cambiado; también está en el menú.
-- **Página del proyecto** en `public/proyecto/` con capturas, un vídeo corto, lo que se puede hacer y los controles. No se guarda en la app sin internet.
+- **Página del proyecto** en `proyecto/` (páginas) y `src/proyecto/` (su código), con capturas y vídeo en `public/proyecto/`: portada, wiki del juego y novedades. Las tablas de la wiki (recetas, bloques, peces, vecinos, precios…) y las novedades salen de los mismos datos del juego, así se actualizan solas. No se guarda en la app sin internet.
 - La app instalada busca versión nueva cada 30 minutos mientras está abierta, no solo al abrirla.
 
 - **Tareas del día** (tecla T, o el botón Tareas en el móvil): cada día salen tres tareas nuevas, como pescar 2 peces, regar 3 plantas o hablar con 3 vecinos. Cada una da puntos.

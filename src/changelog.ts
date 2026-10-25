@@ -253,6 +253,101 @@ export const CHANGELOG: Release[] = [
     title: 'Bases sólidas',
     items: ['Pruebas automáticas para que nada se rompa al mejorar el juego.'],
   },
+  {
+    version: '1.0',
+    title: 'Primeros pasos',
+    items: [
+      'Una lista de primeros pasos que se tacha sola mientras juegas, con premio al terminarla.',
+      'Música, sonidos de pasos, voces de los vecinos y efectos.',
+      'Controles táctiles para jugar en el móvil y la tableta.',
+      'Las ventanas caben en pantallas pequeñas.',
+    ],
+  },
+  {
+    version: '0.10',
+    title: 'Estaciones',
+    items: [
+      'Primavera, verano, otoño e invierno, con colores distintos en la hierba y los árboles.',
+      'Lluvia y nieve.',
+      'Fiestas: Año Nuevo, San Valentín, Halloween, Navidad y Nochevieja.',
+      'Los vecinos celebran su cumpleaños.',
+    ],
+  },
+  {
+    version: '0.9',
+    title: 'Mesa de trabajo',
+    items: [
+      'Mesa de trabajo para fabricar muebles, vallas y herramientas de hierro.',
+      'Recetas que se aprenden de los vecinos y de las botellas que trae el mar.',
+    ],
+  },
+  {
+    version: '0.8',
+    title: 'Mi casa',
+    items: [
+      'Tu propia parcela, empezando en una tienda de campaña.',
+      'Avellana te hace una casa de verdad y se la pagas poco a poco, sin intereses. Luego se puede ampliar.',
+      'Muebles para decorarla: cama, mesa, sofá, lámpara…',
+    ],
+  },
+  {
+    version: '0.7',
+    title: 'Cuevas y minerales',
+    items: [
+      'Cuevas bajo tierra, oscuras de verdad.',
+      'Antorchas para alumbrarlas.',
+      'Carbón, hierro, oro y amatista, más escondidos cuanto más hondo.',
+    ],
+  },
+  {
+    version: '0.6',
+    title: 'Bichos y peces',
+    items: [
+      'Caña de pescar y red para insectos.',
+      'Peces de mar y de río e insectos, cada uno con su sitio y su horario.',
+      'Enciclopedia (C) y museo con Matilde la tortuga para donarlos.',
+    ],
+  },
+  {
+    version: '0.5',
+    title: 'Bayas y tienda',
+    items: [
+      'Las bayas, el dinero de la isla.',
+      'La tienda de Avellana la ardilla, abierta de 8:00 a 22:00, con precios que cambian cada día.',
+    ],
+  },
+  {
+    version: '0.4',
+    title: 'Vecinos',
+    items: [
+      'Vecinos hechos de bloques, cada uno con su casa, su personalidad y su coletilla.',
+      'Pasean de día y duermen de noche.',
+      'Charlas, regalos y amistad.',
+    ],
+  },
+  {
+    version: '0.3',
+    title: 'Bolsillos y herramientas',
+    items: [
+      'Bolsillos para llevar cosas y fabricar.',
+      'Hacha, pala y pico que se gastan con el uso.',
+      'Sacude los árboles para que caiga fruta y alguna rama. Cada día hay conchas nuevas en la playa.',
+    ],
+  },
+  {
+    version: '0.2',
+    title: 'La isla',
+    items: [
+      'Una isla de verdad con playa, río, mar para nadar, frutales, palmeras y flores.',
+      'Día y noche con sol, luna y estrellas.',
+      'La partida se guarda sola.',
+    ],
+  },
+  {
+    version: '0.1',
+    title: 'Primer bloque',
+    items: ['El comienzo: un mundo de bloques en el navegador donde andar, romper y colocar.'],
+  },
 ];
 
 const SEEN_KEY = 'maxycraft.novedades';

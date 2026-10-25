@@ -13,6 +13,13 @@ export default defineConfig({
     // El juego espera a conectar con la isla del anfitrión antes de arrancar (await al principio de main.ts).
     target: 'es2022',
     rollupOptions: {
+      // Dos páginas: el juego y la página del proyecto (con la wiki y las novedades).
+      input: {
+        juego: 'index.html',
+        proyecto: 'proyecto/index.html',
+        wiki: 'proyecto/wiki.html',
+        novedades: 'proyecto/novedades.html',
+      },
       // Three.js va en su propio archivo: cambia poco, así el navegador lo guarda entre versiones.
       output: { manualChunks: { three: ['three'] } },
     },
@@ -44,8 +51,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,woff2}'],
-        // La página del proyecto (capturas y vídeo) no se guarda para jugar sin internet, y se abre tal cual.
-        globIgnores: ['proyecto/**'],
+        // La página del proyecto (con la wiki, las novedades, capturas y vídeo) no se guarda para jugar sin internet, y se abre tal cual.
+        globIgnores: ['proyecto/**', 'assets/{proyecto,wiki,novedades,comun,estilo}-*'],
         navigateFallbackDenylist: [/\/proyecto\//],
       },
     }),
