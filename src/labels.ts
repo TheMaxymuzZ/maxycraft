@@ -36,13 +36,15 @@ export class NameTags {
 
   update(camera: THREE.Camera, from: THREE.Vector3) {
     const p = this.projected;
+    // La cámara se acaba de mover en este fotograma: sin esto el nombre iría un fotograma por detrás al girar.
+    camera.updateMatrixWorld();
     for (const [t, el] of this.tags) {
       const dist = t.position.distanceTo(from);
       p.copy(t.position).setY(t.position.y + 1.85).project(camera);
       const show = t.group.visible && dist < (this.ranges.get(t) ?? this.range) && p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
       el.hidden = !show;
       if (!show) continue;
-      el.style.transform = `translate(${((p.x + 1) / 2) * window.innerWidth}px, ${((1 - p.y) / 2) * window.innerHeight}px) translate(-50%, -100%)`;
+      el.style.transform = `translate(${((p.x + 1) / 2) * window.innerWidth}px, ${((1 - p.y) / 2) * window.innerHeight}px) scale(var(--hud, 1)) translate(-50%, -100%)`;
     }
   }
 }

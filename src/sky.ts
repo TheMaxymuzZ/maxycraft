@@ -192,7 +192,17 @@ export class Sky {
    */
   syncDome(gloom: number) {
     this.domeUniforms.uHorizon.value.copy(this.color);
-    this.domeUniforms.uZenith.value.lerp(this.color, gloom * 0.8);
+    this.domeUniforms.uZenith.value.lerp(this.color, Math.min(1, gloom * 1.1));
     this.domeUniforms.uGlow.value *= 1 - gloom;
+    // Encapotado (v3.9): con lluvia o nieve las nubes tapan el sol, la luna y las estrellas.
+    const clear = Math.max(0, 1 - gloom * 1.4);
+    for (const m of [this.sunMesh, this.moonMesh]) {
+      const mat = m.material as THREE.MeshBasicMaterial;
+      mat.transparent = true;
+      mat.opacity = clear;
+      if (clear <= 0) m.visible = false;
+    }
+    (this.stars.material as THREE.PointsMaterial).opacity *= clear;
+    if (clear <= 0) this.stars.visible = false;
   }
 }
