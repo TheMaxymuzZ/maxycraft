@@ -550,3 +550,4 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
 #gestures[hidden], #chat-form[hidden] { display: none; }
 .gesture-bubble { font-size: 30px; }
 .friends-open { width: 100%; margin-top: 10px; }
+#friends-badge { margin-top: 4px; font: 800 13px var(--body); }

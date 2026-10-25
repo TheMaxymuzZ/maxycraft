@@ -182,7 +182,7 @@ export interface DialogContext {
   /** Se ha hecho un regalo (para las tareas del día). */
   gifted?: () => void;
   /** Invitar a vivir en tu isla a quien está de vacaciones. */
-  invite: (v: Villager) => 'ok' | 'full' | 'already';
+  invite: (v: Villager) => 'ok' | 'full' | 'already' | 'visita';
   /** Se ha hablado con este vecino (para el álbum de vecinos). */
   met?: (v: Villager) => void;
 }
@@ -357,6 +357,7 @@ export class Dialog {
     const r = this.ctx.invite(this.villager!);
     if (r === 'ok') this.say('¿De verdad? ¡Me encantaría vivir contigo! Haré las maletas y nos vemos en tu isla, {c}.');
     else if (r === 'full') this.say('Me encantaría, pero en tu isla no hay ninguna casa libre para mí. Constrúyeme una con un plano de casa y vuelve a buscarme, {c}.');
+    else if (r === 'visita') this.say('¡Qué ilusión! Pero de momento me invita quien te ha traído de viaje. ¡Otro día vienes tú, {c}!');
     else this.say('¡Ya tengo las maletas hechas! Nos vemos muy pronto en tu isla, {c}.');
   }
 

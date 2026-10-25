@@ -249,7 +249,10 @@ const player = new Player(world, camera);
 // El piloto espera en la playa a un lado del avión (donde también haya playa).
 const pilotSpot = airport && [1, -1].map((side) => [airport.x + Math.round(-airport.dz * side), airport.z + Math.round(airport.dx * side)])
   .find(([x, z]) => world.heightAt(x, z) === SEA_LEVEL + 1) || (airport && [airport.x, airport.z]);
-if (trip && airport) {
+if (joined?.snapshot.spawn) {
+  // De visita se aparece al lado de quien invita.
+  player.spawnAt(...joined.snapshot.spawn);
+} else if (trip && airport) {
   // Se aterriza en la playa, junto a la avioneta.
   player.spawnAt(airport.x, airport.z);
   player.yaw = Math.atan2(airport.dx, airport.dz);
@@ -303,9 +306,11 @@ if (airport) {
   pilot = createVisitor(world, PILOT.name, pilotSpot![0], airport.y, pilotSpot![1], save?.villagers?.[PILOT.name] ?? { friendship: 0 });
   if (pilot) villagers.push(pilot);
 }
-if (trip?.visitor) {
+/** Quien está de vacaciones en la isla misteriosa (también si has venido de viaje con un amigo). */
+const visitorName = trip?.visitor ?? joined?.snapshot.visitor ?? null;
+if (visitorName) {
   const [vx, vz] = world.findSpawn(0, 0);
-  const visitor = createVisitor(world, trip.visitor, vx, world.heightAt(vx, vz) + 1, vz, save?.villagers?.[trip.visitor] ?? { friendship: 0 });
+  const visitor = createVisitor(world, visitorName, vx, world.heightAt(vx, vz) + 1, vz, save?.villagers?.[visitorName] ?? { friendship: 0 });
   if (visitor) villagers.push(visitor);
 }
 for (const v of villagers) {
@@ -697,6 +702,15 @@ const VOICES: Record<string, number> = {
 function takeOff(text: string, next: () => void) {
   persist();
   saving = false;
+  // Con amigos en la isla, se vienen todos: la isla se vuelve a abrir con el mismo código al llegar.
+  if (net?.role === 'anfitrion' && netCode) {
+    net.travel(`${net.self.name} os lleva en avioneta…`);
+    try {
+      sessionStorage.setItem(REOPEN_KEY, netCode);
+    } catch {
+      // sin almacenamiento, cada uno vuelve a su isla
+    }
+  }
   plane.fly();
   sound.fanfare();
   document.querySelector('#travel-text')!.textContent = text;
@@ -712,6 +726,10 @@ const dialog = new Dialog({
     away: !!trip,
     tickets: () => inventory.countOf('billete'),
     fly: () => {
+      if (joined) {
+        hud.toast('Solo quien te ha invitado puede llevaros de viaje');
+        return;
+      }
       if (!inventory.remove('billete', 1)) return;
       record('viajar');
       const residents = [...villagers.filter((v) => !v.profile.role).map((v) => v.name), ...guests.map((g) => g.name)];
@@ -725,6 +743,7 @@ const dialog = new Dialog({
     goHome: () => takeOff('Volviendo a casa…', () => saveTrip(null)),
   },
   invite: (v) => {
+    if (joined) return 'visita';
     if (guests.some((g) => g.name === v.name)) return 'already';
     // Solo se puede invitar si en casa hay una casa construida y libre esperándole.
     const lot = freeLots()[0];
@@ -1700,13 +1719,36 @@ Object.assign(netEvents, {
     if (g === 'saludo') hud.toast(`${p.name} te saluda`);
   },
   gift: (p, item) => receiveGift(p.name, item.id, item.count),
-  closed: () => {
-    hud.toast('La isla de tu amigo se ha cerrado. Vuelves a la tuya…');
+  closed: (deliberate) => {
     persist();
     saving = false;
-    window.setTimeout(() => location.reload(), 3000);
+    if (deliberate || !netCode) {
+      hud.toast('Tu amigo ha cerrado su isla. Vuelves a la tuya…');
+      window.setTimeout(() => location.reload(), 3000);
+      return;
+    }
+    // Se ha cortado la conexión: se intenta volver a entrar con el mismo código.
+    hud.toast('Se ha cortado la conexión. Volviendo a entrar…');
+    window.setTimeout(() => rejoin(netCode!), 2000);
+  },
+  travel: (text) => {
+    persist();
+    saving = false;
+    plane.fly();
+    sound.fanfare();
+    document.querySelector('#travel-text')!.textContent = text;
+    document.querySelector<HTMLDivElement>('#travel-fade')!.hidden = false;
+    // El anfitrión tarda unos segundos en llegar y volver a abrir la isla.
+    window.setTimeout(() => rejoin(netCode!), 5000);
   },
 } satisfies SessionEvents);
+
+/** Vuelve a cargar el juego entrando en la isla del código (tras un corte o un viaje en grupo). */
+function rejoin(code: string) {
+  const url = new URL(location.href);
+  url.searchParams.set('isla', code);
+  location.href = url.toString();
+}
 
 /** Lo que el anfitrión manda a quien entra: su isla tal como está ahora. */
 function islandSnapshot(): Snapshot {
@@ -1718,10 +1760,14 @@ function islandSnapshot(): Snapshot {
     furniture: furniture.serialize(),
     guests: trip ? [] : guests,
     lots: trip ? [] : lots,
+    visitor: trip?.visitor ?? null,
+    spawn: [Math.floor(player.position.x), Math.floor(player.position.z)],
   };
 }
 
 let net: NetSession | null = null;
+/** Código de la isla que hay que volver a abrir al llegar de un viaje en grupo. */
+const REOPEN_KEY = 'maxycraft.amigos';
 /** Cuenta a los demás dónde estás. También va con un temporizador: con la pestaña escondida no se pinta, pero la partida sigue viva. */
 function updateNet(now: number) {
   net?.update(now, { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.yaw, pitch: player.pitch });
@@ -1741,13 +1787,13 @@ function startSession(session: NetSession, code: string | null) {
   friendsChanged();
 }
 
-/** Abre tu isla para que entren amigos con un código. */
-async function hostIsland() {
+/** Abre tu isla para que entren amigos con un código (el de antes, al volver de un viaje en grupo). */
+async function hostIsland(again?: string) {
   if (net || netBusy) return;
   netBusy = true;
   friendsChanged();
   try {
-    const code = newInviteCode();
+    const code = again ?? newInviteCode();
     const transport = await openRoom(code, relays);
     startSession(NetSession.host(transport, { ...loadIdentity(), id: transport.selfId }, islandSnapshot, netEvents), code);
     hud.toast(`Isla abierta. Código: ${code}`);
@@ -1770,6 +1816,11 @@ function leaveFriends() {
     return;
   }
   net.close();
+  try {
+    sessionStorage.removeItem(REOPEN_KEY);
+  } catch {
+    // nada que borrar
+  }
   for (const id of [...remotes.players.keys()]) remotes.remove(id);
   net = null;
   netCode = null;
@@ -1846,8 +1897,12 @@ friends.onClose = () => {
   if (panel === 'chat' || panel === 'gestures') panel = null;
   lockInput();
 };
+const friendsBadge = document.querySelector<HTMLSpanElement>('#friends-badge')!;
 function friendsChanged() {
   if (!menu.hidden && menu.view === 'friends') friends.render();
+  // Junto a las bayas: cuántos sois y el código, para pasárselo a quien llegue tarde.
+  friendsBadge.hidden = !net;
+  if (net) friendsBadge.textContent = `👥 ${net.peers.size + 1}${netCode ? ` · ${netCode}` : ''}`;
 }
 
 if (joined) {
@@ -1858,6 +1913,16 @@ if (joined) {
   hud.toast('Isla abierta: abre otra pestaña con ?pruebared=invitado');
 } else if (netError) {
   hud.toast(`${netError}. Juegas en tu isla.`);
+} else {
+  // Vuelta de un viaje en grupo: se abre otra vez la isla con el mismo código para que entren los amigos.
+  let again: string | null = null;
+  try {
+    again = sessionStorage.getItem(REOPEN_KEY);
+    sessionStorage.removeItem(REOPEN_KEY);
+  } catch {
+    // sin almacenamiento no se reabre
+  }
+  if (again) void hostIsland(again);
 }
 
 // --- Reloj con la hora local, como en Animal Crossing ---

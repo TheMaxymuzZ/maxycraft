@@ -7,6 +7,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.0',
+    title: 'Maxycraft 3',
+    items: [
+      '¡Maxycraft 3! Islas grandes, vecinos nuevos, luz de verdad, casas que construyes tú y partidas con amigos.',
+      'Viajes en grupo: si quien invita vuela en avioneta, todos sus amigos van con él a la isla misteriosa, y vuelven juntos.',
+      'Si se corta la conexión, el juego vuelve a entrar solo en la isla de tu amigo.',
+      'Los nombres de tus amigos se ven desde lejos, y junto a las bayas ves cuántos sois y el código de la isla.',
+      'Al llegar de visita apareces al lado de quien te invita.',
+      'La isla se dibuja más deprisa y poco a poco, sin tirones al caminar por islas grandes.',
+      'Página del proyecto renovada, con capturas de todo lo nuevo.',
+    ],
+  },
+  {
     version: '2.11',
     title: 'Jugar con amigos',
     items: [

@@ -17,8 +17,10 @@ export interface SessionEvents {
   gesture?(peer: PeerInfo, g: Gesture): void;
   /** Otro jugador te ha regalado algo. */
   gift?(peer: PeerInfo, item: GiftItem): void;
-  /** El anfitrión ha cerrado su isla (o se ha cortado la conexión con él). */
-  closed?(): void;
+  /** Se acabó la partida en la isla del anfitrión: la ha cerrado él (`deliberate`) o se ha cortado la conexión. */
+  closed?(deliberate: boolean): void;
+  /** El anfitrión se va de viaje y se lleva a todos. */
+  travel?(text: string): void;
 }
 
 interface Peer extends PeerInfo {
@@ -33,6 +35,8 @@ export class NetSession {
   readonly peers = new Map<string, Peer>();
   private sync: WorldSync | null = null;
   private detach: (() => void) | null = null;
+  /** El invitado ya sabe que se acabó la partida (para avisar una sola vez). */
+  private ended = false;
   private poseTimer = 0;
   private now = 0;
   private hostId: string | null;
@@ -138,10 +142,22 @@ export class NetSession {
     return this.hostId ? this.peers.get(this.hostId) ?? null : null;
   }
 
+  /** El anfitrión se va de viaje: avisa a todos para que le sigan cuando vuelva a abrir la isla. */
+  travel(text: string) {
+    if (this.role === 'anfitrion') this.transport.send({ t: 'viaje', text: text.slice(0, 80) });
+  }
+
   close() {
+    if (this.role === 'anfitrion') this.transport.send({ t: 'cierra' });
     this.broadcast({ t: 'sale', id: this.self.id });
     this.detach?.();
     this.transport.close();
+  }
+
+  private end(deliberate: boolean) {
+    if (this.ended) return;
+    this.ended = true;
+    this.events.closed?.(deliberate);
   }
 
   /** El invitado habla solo con el anfitrión, que reparte; el anfitrión habla con todos. */
@@ -162,7 +178,7 @@ export class NetSession {
     this.peers.delete(id);
     this.events.leave?.(p);
     if (this.role === 'anfitrion') this.transport.send({ t: 'sale', id });
-    else if (id === this.hostId) this.events.closed?.();
+    else if (id === this.hostId) this.end(false);
   }
 
   private handle(msg: Message, from: string) {
@@ -255,6 +271,14 @@ export class NetSession {
         if (p && msg.to === this.self.id) this.events.gift?.(p, msg.item);
         return;
       }
+      case 'cierra':
+        this.end(true);
+        return;
+      case 'viaje':
+        // Mientras dure el viaje no se da por ido al anfitrión: volverá a abrir la isla con el mismo código.
+        this.ended = true;
+        this.events.travel?.(msg.text);
+        return;
     }
   }
 
