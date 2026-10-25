@@ -27,12 +27,22 @@ describe('tienda', () => {
     for (const day of ['2026-10-25', '2026-10-26', '2026-11-03']) {
       const a = shop(day);
       const b = shop(day);
-      const sell = itemDef('naranja').sell;
-      const price = a.sellPrice('naranja');
-      expect(price).toBe(b.sellPrice('naranja'));
+      const sell = itemDef('concha').sell;
+      const price = a.sellPrice('concha');
+      expect(price).toBe(b.sellPrice('concha'));
       expect(price).toBeGreaterThanOrEqual(Math.round(sell * 0.7));
       expect(price).toBeLessThanOrEqual(Math.round(sell * 1.4));
     }
+  });
+
+  it('la fruta de otras islas vale cinco veces más', () => {
+    expect(shop('2026-10-25').sellPrice('naranja')).toBe(itemDef('naranja').sell * 5);
+    expect(shop('2026-10-25').sellPrice('coco')).not.toBe(itemDef('coco').sell * 5);
+  });
+
+  it('siempre tiene billetes, semillas y animales', () => {
+    const s = shop('2026-10-25');
+    for (const id of ['billete', 'semillas_trigo', 'gallina', 'vaca', 'regadera']) expect(s.stock).toContain(id);
   });
 
   it('siempre vende herramientas y solo cosas del catálogo', () => {

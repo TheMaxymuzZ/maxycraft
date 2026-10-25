@@ -81,6 +81,10 @@ const BIRTHDAY = '¡Hoy es mi cumpleaños! ¿Has venido a felicitarme? ¡Qué il
 const BIRTHDAY_GIFT = '¡Un regalo de cumpleaños! Es el mejor regalo que me han hecho nunca. ¡Toma, esto para ti, {c}!';
 const DONATED = '¡Oh! ¡Un ejemplar magnífico! Lo pondré en la colección ahora mismo, {c}.';
 const NOTHING_NEW = 'Mmm, no veo nada que el museo no tenga ya. ¡Sigue buscando, {c}!';
+const VISITOR_GREETINGS = [
+  '¡{saludo}! Estoy de vacaciones en esta isla. ¡Qué casualidad encontrar a alguien aquí, {c}!',
+  '¡Hola! Me encanta esta isla, aunque está un poco solitaria, {c}.',
+];
 const GOODBYE = ['¡Hasta luego, {c}!', '¡Nos vemos!', 'Venga, ¡que vaya bien, {c}!'];
 
 const CATEGORY: Record<string, 'fruta' | 'conchas' | 'flores' | 'madera'> = {
@@ -134,6 +138,18 @@ export interface DialogContext {
   isBirthday: (v: Villager) => boolean;
   /** Pitido de voz mientras sale el texto. */
   voice?: (v: Villager) => void;
+  /** Viajes en avioneta con el piloto. */
+  travel: TravelActions;
+  /** Invitar a vivir en tu isla a quien está de vacaciones. */
+  invite: (v: Villager) => 'ok' | 'full' | 'already';
+}
+
+export interface TravelActions {
+  /** Estás en una isla misteriosa. */
+  away: boolean;
+  tickets: () => number;
+  fly: () => void;
+  goHome: () => void;
 }
 
 /** Ventana de conversación con un vecino, al estilo de Animal Crossing. */
@@ -176,6 +192,8 @@ export class Dialog {
     const party = first && this.ctx.isBirthday(v);
     if (party) this.say(BIRTHDAY);
     else if (first && this.ctx.holiday && !v.isCurator) this.say(this.ctx.holiday.greeting);
+    else if (v.isPilot) this.pilot();
+    else if (v.visitor && first) this.say(pick(VISITOR_GREETINGS));
     else if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
     else if (v.isCurator) this.say(pick(MUSEUM_GREETINGS));
     else if (first && v.memory.friendship >= 3 && Math.random() < 0.4 && this.teach()) return;
@@ -222,6 +240,11 @@ export class Dialog {
       (this.choicesEl.firstElementChild as HTMLButtonElement | null)?.focus();
       return;
     }
+    if (v.isPilot) {
+      this.pilot();
+      return;
+    }
+    if (v.visitor) add('Invitar a mi isla', () => this.invite());
     if (v.isShopkeeper) {
       add('Comprar y vender', () => {
         this.finish(true);
@@ -256,6 +279,41 @@ export class Dialog {
   }
 
   private back = () => this.say('¿Algo más, {c}?');
+
+  /** El piloto: lleva a una isla misteriosa con un billete, o de vuelta a casa. */
+  private pilot() {
+    const t = this.ctx.travel;
+    const no: Option = ['Ahora no', () => this.finish()];
+    if (t.away) {
+      this.say('¡{saludo}! ¿Ya has visto toda la isla? Cuando quieras, volvemos a casa, {c}.', [
+        ['Volver a casa', () => {
+          this.finish(true);
+          t.goHome();
+        }],
+        ['Todavía no', () => this.finish()],
+      ]);
+      return;
+    }
+    const n = t.tickets();
+    if (!n) {
+      this.say('¡{saludo}! Soy Plumas, el piloto. Con un billete te llevo a una isla misteriosa. Los billetes se compran en la tienda, {c}.', [no]);
+      return;
+    }
+    this.say(`¡{saludo}! Tienes ${n === 1 ? 'un billete' : `${n} billetes`}. ¿Volamos a una isla misteriosa? Nunca se sabe lo que habrá, {c}.`, [
+      ['¡Vamos!', () => {
+        this.finish(true);
+        t.fly();
+      }],
+      no,
+    ]);
+  }
+
+  private invite() {
+    const r = this.ctx.invite(this.villager!);
+    if (r === 'ok') this.say('¿De verdad? ¡Me encantaría vivir contigo! Haré las maletas y nos vemos en tu isla, {c}.');
+    else if (r === 'full') this.say('Me encantaría, pero en tu isla ya no queda sitio para más casas, {c}.');
+    else this.say('¡Ya tengo las maletas hechas! Nos vemos muy pronto en tu isla, {c}.');
+  }
 
   private homeMenu() {
     const { level, debt, wallet } = this.ctx.home.state();

@@ -38,13 +38,14 @@ import { Sky } from './sky';
 import { TouchControls } from './touch';
 import { findTrunk } from './trees';
 import { TUTORIAL_REWARD, Tutorial } from './tutorial';
-import { type Villager, createVillagers } from './villagers';
+import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel';
+import { type Guest, MAX_GUESTS, PILOT, type Villager, createVillagers, createVisitor, pickVisitor } from './villagers';
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { Water } from './water';
 import { Waterfalls } from './waterfall';
 import { Wind } from './wind';
-import { WATER_SURFACE, World } from './world';
+import { SEA_LEVEL, WATER_SURFACE, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
 const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
@@ -100,9 +101,25 @@ const material = new THREE.MeshLambertMaterial({
 
 const save = loadGame();
 const seed = save?.seed ?? Math.floor(Math.random() * 1e9);
+// De viaje en una isla misteriosa: se juega en otra isla, pero los bolsillos y las bayas son los de casa.
+const trip = save ? loadTrip(activeSlot()) : null;
+/** Vecinos invitados desde las islas misteriosas, que viven (o vivirán) en la isla de casa. */
+const guests: Guest[] = (save?.guests ?? []).map((g) => ({ ...g }));
 const sound = new Sound(seed);
 sound.season = season;
-const world = new World(seed, material, save?.edits ?? {});
+const world = trip
+  ? new World(trip.seed, material, {}, { mystery: { kind: trip.kind, fruit: trip.fruit } })
+  : new World(seed, material, save?.edits ?? {}, { guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) });
+// Los recién invitados se mudan al volver a casa: se les busca sitio una vez y se guarda.
+if (!trip) {
+  for (const g of guests) {
+    if (g.x !== undefined) continue;
+    const [spot] = world.findGuestSpots(1);
+    if (!spot) break;
+    [g.x, g.z] = spot;
+    world.addGuestPlot(spot[0], spot[1]);
+  }
+}
 scene.add(world.group);
 const water = new Water();
 world.waterMaterial = water.material;
@@ -127,13 +144,32 @@ const shellsTaken = new Set(save?.shells?.day === today ? save.shells.taken : []
 const branchTrees = new Set(save?.branches?.day === today ? save.branches.trees : []);
 
 // El huerto y la granja.
-const farm = new Farm(save?.farm);
+const farm = new Farm(trip ? {} : save?.farm);
 farm.sync(world, today);
-const animals = new Animals(world, save?.animals);
+const animals = new Animals(world, trip ? [] : save?.animals);
 scene.add(animals.group);
 
+// La avioneta: en casa, en la playa más cercana a la tienda; en las islas misteriosas, donde se aterriza.
+const shopPlot = world.plots.find((p) => p.kind === 'shop');
+const airport = world.findAirport(shopPlot ? Math.atan2(shopPlot.z, shopPlot.x) : 0);
+const plane = new Seaplane();
+if (airport) {
+  plane.place(airport.x + 0.5 + airport.dx * 5, SEA_LEVEL + 0.7, airport.z + 0.5 + airport.dz * 5, airport.dx, airport.dz);
+  scene.add(plane.group);
+}
+
 const player = new Player(world, camera);
-if (save?.player) {
+// El piloto espera en la playa a un lado del avión (donde también haya playa).
+const pilotSpot = airport && [1, -1].map((side) => [airport.x + Math.round(-airport.dz * side), airport.z + Math.round(airport.dx * side)])
+  .find(([x, z]) => world.heightAt(x, z) === SEA_LEVEL + 1) || (airport && [airport.x, airport.z]);
+if (trip && airport) {
+  // Se aterriza en la playa, junto a la avioneta.
+  player.spawnAt(airport.x, airport.z);
+  player.yaw = Math.atan2(airport.dx, airport.dz);
+} else if (trip) {
+  const [sx, sz] = world.findSpawn(0, 0);
+  player.spawnAt(sx, sz);
+} else if (save?.player) {
   player.position.set(save.player.x, save.player.y, save.player.z);
   player.yaw = save.player.yaw;
   player.pitch = save.player.pitch;
@@ -149,7 +185,7 @@ if (save?.player) {
 const home = { level: 0, debt: 0, roof: 0, ...save?.home };
 if (world.playerPlot && home.level > 0) world.playerPlot.roof = ROOFS[home.roof];
 
-const furniture = new Furniture(save?.furniture ?? []);
+const furniture = new Furniture(trip ? [] : save?.furniture ?? []);
 scene.add(furniture.group);
 
 // Adornos de las fiestas: calabazas en las puertas o un árbol junto a la tienda. No se guardan.
@@ -166,7 +202,18 @@ for (const p of world.plots) {
 // En la tienda de campaña hay una cama para empezar.
 if (!save && world.playerPlot) furniture.place('cama', world.playerPlot.x, world.playerPlot.y + 1, world.playerPlot.z, 0);
 
-const villagers = createVillagers(world, save?.villagers ?? {});
+const villagers = createVillagers(world, save?.villagers ?? {}, guests);
+// El piloto espera en la playa junto a la avioneta; en las islas misteriosas hay alguien de vacaciones.
+let pilot: Villager | null = null;
+if (airport) {
+  pilot = createVisitor(world, PILOT.name, pilotSpot![0], airport.y, pilotSpot![1], save?.villagers?.[PILOT.name] ?? { friendship: 0 });
+  if (pilot) villagers.push(pilot);
+}
+if (trip?.visitor) {
+  const [vx, vz] = world.findSpawn(0, 0);
+  const visitor = createVisitor(world, trip.visitor, vx, world.heightAt(vx, vz) + 1, vz, save?.villagers?.[trip.visitor] ?? { friendship: 0 });
+  if (visitor) villagers.push(visitor);
+}
 for (const v of villagers) {
   scene.add(v.group);
   if (v.isBirthday(startDate)) v.addPartyHat();
@@ -205,7 +252,22 @@ function showSaveIndicator(text: string, error = false) {
 function persist() {
   if (!saving) return;
   const p = player.position;
-  const data: SaveData = {
+  const memories = Object.fromEntries(villagers.map((v) => [v.name, v.memory]));
+  // De viaje solo se guarda lo que te llevas: la isla de casa se queda como estaba.
+  const homeSave = trip ? loadGame() ?? save : null;
+  const data: SaveData = homeSave ? {
+    ...homeSave,
+    inventory: inventory.serialize(),
+    villagers: { ...homeSave.villagers, ...memories },
+    wallet,
+    caught: [...collection.caught],
+    donated: [...collection.donated],
+    tutorial: tutorial.serialize(),
+    tutorialDone: tutorial.finished,
+    recipes: [...workbench.known],
+    guests,
+    savedAt: 0,
+  } : {
     version: 1,
     seed,
     edits: world.exportEdits(),
@@ -214,7 +276,7 @@ function persist() {
     harvested,
     shells: { day: today, taken: [...shellsTaken] },
     branches: { day: today, trees: [...branchTrees] },
-    villagers: Object.fromEntries(villagers.map((v) => [v.name, v.memory])),
+    villagers: memories,
     wallet,
     caught: [...collection.caught],
     donated: [...collection.donated],
@@ -226,6 +288,7 @@ function persist() {
     bottle: { day: today, taken: bottleTaken },
     farm: farm.serialize(),
     animals: animals.serialize(),
+    guests,
     savedAt: 0,
   };
   const text = JSON.stringify(data);
@@ -418,7 +481,42 @@ document.querySelector('#workbench-close')!.addEventListener('click', closeWorkb
 // Voz de cada especie, más aguda o más grave.
 const VOICES: Record<string, number> = { gato: 760, oso: 260, conejo: 900, rana: 380, perro: 560, pato: 820, ardilla: 1050, tortuga: 220 };
 
+/** Despega la avioneta, funde la pantalla y recarga en la otra isla. */
+function takeOff(text: string, next: () => void) {
+  persist();
+  saving = false;
+  plane.fly();
+  sound.fanfare();
+  document.querySelector('#travel-text')!.textContent = text;
+  document.querySelector<HTMLDivElement>('#travel-fade')!.hidden = false;
+  window.setTimeout(() => {
+    next();
+    location.reload();
+  }, 2700);
+}
+
 const dialog = new Dialog({
+  travel: {
+    away: !!trip,
+    tickets: () => inventory.countOf('billete'),
+    fly: () => {
+      if (!inventory.remove('billete', 1)) return;
+      const residents = [...villagers.filter((v) => !v.profile.role).map((v) => v.name), ...guests.map((g) => g.name)];
+      // Se mira antes de salir cuántas casas nuevas caben, para no invitar a quien no podrá mudarse.
+      const room = Math.min(MAX_GUESTS, guests.length + world.findGuestSpots(MAX_GUESTS - guests.length).length);
+      saveTrip(planTrip(activeSlot(), world.fruit, pickVisitor(residents, Math.random), room));
+      takeOff('Volando a una isla misteriosa…', () => {});
+    },
+    goHome: () => takeOff('Volviendo a casa…', () => saveTrip(null)),
+  },
+  invite: (v) => {
+    if (guests.some((g) => g.name === v.name)) return 'already';
+    if (guests.length >= (trip?.room ?? MAX_GUESTS)) return 'full';
+    guests.push({ name: v.name });
+    hud.toast(`¡${v.name} se mudará a tu isla!`);
+    persist();
+    return 'ok';
+  },
   voice: (v) => sound.voice(VOICES[v.profile.species] ?? 500),
   learnRecipe: () => workbench.learnRandom(),
   holiday,
@@ -590,9 +688,13 @@ window.addEventListener('wheel', (e) => {
 const islands = new Islands({
   active: activeSlot(),
   flush: persist,
-  stopSaving: () => (saving = false),
+  stopSaving: () => {
+    saving = false;
+    saveTrip(null);
+  },
   switchTo: (slot) => {
     persist();
+    saveTrip(null);
     saving = false;
     setActiveSlot(slot);
     location.reload();
@@ -605,11 +707,16 @@ menu.onView = (v) => {
 };
 
 playButton.addEventListener('click', () => lockInput());
+let arrived = false;
 function onInputChange() {
   const locked = isPlaying();
   touch?.show(locked);
   if (locked) {
     menu.close();
+    if (trip && !arrived) {
+      arrived = true;
+      hud.toast(`¡Bienvenida, bienvenido a la ${MYSTERY_NAMES[trip.kind]}! Habla con Plumas para volver a casa`);
+    }
     if (panel === 'inventory') hud.inventoryEl.hidden = true;
     if (panel === 'dialog') dialog.finish();
     if (panel === 'shop') shop.close();
@@ -778,6 +885,7 @@ function placeAnimal(kind: AnimalKind, hit: { block: [number, number, number]; p
 }
 
 const villagerBox = new THREE.Box3();
+const planeBox = new THREE.Box3();
 const ray = new THREE.Ray();
 const rayHit = new THREE.Vector3();
 
@@ -806,6 +914,11 @@ function useItem() {
   const villager = villagerInSight(blockDist);
   if (villager) {
     talkTo(villager);
+    return;
+  }
+  // La avioneta: se habla con el piloto.
+  if (pilot && aimRay().intersectBox(plane.bounds(planeBox), rayHit) && rayHit.distanceTo(camera.position) < Math.min(blockDist, REACH + 3)) {
+    talkTo(pilot);
     return;
   }
   const animal = animals.pick(aimRay(), Math.min(blockDist, REACH));
@@ -1104,6 +1217,7 @@ function frame(now: number) {
   waterfalls.update(now / 1000);
   birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), (x, z) => world.waterKind(x, z) === 'mar');
   for (const v of villagers) v.update(dt, hour, player.position);
+  plane.update(dt, now / 1000);
   animals.update(dt, player.position);
   // Cada segundo el huerto crece si ha cambiado el día, y la lluvia lo riega.
   farmTimer -= dt;
@@ -1193,6 +1307,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, farm, animals, useItem, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, player, farm, animals, useItem, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

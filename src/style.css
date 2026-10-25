@@ -82,6 +82,12 @@ kbd {
 #clock-date { font: 800 14px var(--body); text-transform: capitalize; }
 
 #underwater { position: fixed; inset: 0; background: rgba(30, 90, 140, 0.35); pointer-events: none; }
+/* Viaje en avioneta: la pantalla se funde a azul cielo mientras despega. */
+#travel-fade { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: #8fd0f5; opacity: 0; animation: travel 2.6s ease-in forwards; }
+#travel-fade[hidden] { display: none; }
+#travel-fade p { font: 700 clamp(20px, 4vw, 34px) 'Nunito', sans-serif; color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+@keyframes travel { 0%, 40% { opacity: 0; } 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #travel-fade { animation-duration: 0.6s; } }
 
 .island-info { margin: -4px 0 0; font-size: 14px; color: var(--grass-deep); font-weight: 800; }
 .panel button.secondary {
