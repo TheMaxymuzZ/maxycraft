@@ -21,11 +21,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #a8dcf5; fon
 
 #hotbar {
   z-index: 2; position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
-  display: flex; gap: 4px; padding: 4px; background: rgba(35, 48, 31, 0.55); border-radius: 6px;
+  display: flex; gap: 4px; padding: 5px; background: rgba(35, 48, 31, 0.55); border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .15);
 }
 .slot {
   position: relative; width: 48px; height: 48px; display: grid; place-items: center;
-  border: 3px solid rgba(255, 255, 255, 0.15); border-radius: 4px;
+  border: 3px solid rgba(255, 255, 255, 0.15); border-radius: 8px;
 }
 .slot.offhand { margin-right: 8px; border-style: dashed; }
 .slot.offhand:empty::after { content: '✋'; opacity: .35; font-size: 20px; }
@@ -42,6 +43,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #a8dcf5; fon
 
 #block-name {
   position: fixed; left: 50%; bottom: 82px; transform: translateX(-50%);
+  padding: 2px 14px; border-radius: 999px; background: rgba(35, 48, 31, .5); white-space: nowrap;
   font: 700 18px var(--display); color: #fff; text-shadow: 2px 2px 0 rgba(0,0,0,.4);
   opacity: 0; transition: opacity .3s; pointer-events: none;
 }
@@ -98,12 +100,43 @@ kbd {
 }
 .panel button.secondary.danger { color: #a3322b; border-color: #a3322b; }
 
-#toast {
-  position: fixed; left: 50%; bottom: 110px; transform: translate(-50%, 8px);
-  padding: 8px 16px; background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep);
-  font: 800 15px var(--body); white-space: nowrap; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none;
+/*
+ * Avisos (v3.4): arriba en el centro, uno debajo de otro, sin taparse nunca. Encima va lo que estás
+ * construyendo (#lot-status).
+ */
+#notices {
+  position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 11; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: max-content; max-width: max(260px, min(560px, calc(100vw - 680px)));
 }
-#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#toasts { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.toast {
+  display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 7px 16px;
+  background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep); border-radius: 14px;
+  box-shadow: 0 3px 0 rgba(35, 48, 31, .25), 0 6px 18px rgba(0, 0, 0, .12);
+  font: 800 15px/1.25 var(--body); text-align: center; overflow-wrap: anywhere;
+  animation: toast-in .25s ease-out;
+}
+.toast b { font: 700 14px var(--display); color: var(--grass-deep); }
+.toast b:empty { display: none; }
+.toast.bump { animation: toast-bump .25s ease-out; }
+.toast.leaving { opacity: 0; transform: translateY(-6px); transition: opacity .3s, transform .3s; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(.96); } }
+@keyframes toast-bump { 50% { transform: scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .toast, .toast.bump { animation: none; } .toast.leaving { transition: none; } }
+/* En pantallas estrechas y en el móvil arriba no hay sitio (primeros pasos, reloj y botones): van justo encima de la barra. */
+@media (pointer: coarse), (max-width: 900px) {
+  #notices, #toasts { flex-direction: column-reverse; }
+  /* Por encima también del nombre del objeto que llevas en la mano. */
+  #notices { top: auto; bottom: 116px; max-width: calc(100vw - 32px); }
+}
+/* Hablando con un vecino, el cuadro de diálogo ocupa la parte de abajo: los avisos suben. */
+@media (pointer: coarse), (max-width: 900px) {
+  body:has(#dialog:not([hidden])) #notices { top: 12px; bottom: auto; flex-direction: column; }
+  body:has(#dialog:not([hidden])) #toasts { flex-direction: column; }
+}
+/* Sin tapar los botones de Usar y Saltar. */
+@media (pointer: coarse) { #notices { max-width: max(220px, calc(100vw - 400px)); } }
 
 /* Anillo de progreso alrededor de la mira al romper un bloque. */
 #break-progress {
@@ -267,8 +300,8 @@ kbd {
 /* Primeros pasos. */
 #tutorial {
   position: fixed; left: 12px; top: 12px; width: min(300px, calc(100vw - 180px)); z-index: 2;
-  background: rgba(255, 250, 235, 0.92); color: var(--ink); border: 3px solid var(--grass-deep);
-  box-shadow: 4px 4px 0 rgba(0,0,0,.2); font: 600 13px var(--body);
+  background: rgba(255, 250, 235, 0.92); color: var(--ink); border: 3px solid var(--grass-deep); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 3px 0 rgba(35, 48, 31, .25), 0 6px 18px rgba(0, 0, 0, .12); font: 600 13px var(--body);
 }
 #tutorial[hidden] { display: none; }
 #tutorial header {
@@ -402,13 +435,14 @@ fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template
 .panel button.island-btn.danger { background: transparent; color: #a3322b; border-color: #e3b3ae; }
 
 /* Aviso de guardado, arriba en el centro (abajo están la barra y los botones táctiles). */
+/* «Guardado»: pequeño, debajo del reloj, para no tapar los avisos (v3.4). */
 #save-indicator {
-  position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 11; padding: 6px 12px 6px 30px; white-space: nowrap;
-  font: 800 13px var(--body); color: #fff; background: rgba(35, 48, 31, .7); border-radius: 4px;
-  opacity: 0; pointer-events: none;
+  position: relative; margin-top: 6px; padding: 4px 10px 4px 26px; white-space: nowrap; text-shadow: none;
+  font: 800 12px var(--body); color: #fff; background: rgba(35, 48, 31, .7); border-radius: 10px;
+  opacity: 0;
 }
 #save-indicator::before {
-  content: ''; position: absolute; left: 10px; top: 50%; width: 12px; height: 12px; transform: translateY(-50%);
+  content: ''; position: absolute; left: 9px; top: 50%; width: 10px; height: 10px; transform: translateY(-50%);
   background: var(--grass); box-shadow: inset -3px -3px 0 rgba(0,0,0,.25);
 }
 #save-indicator.error { background: #a3322b; }
@@ -416,7 +450,6 @@ fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template
 #save-indicator.show { animation: saved 2.4s ease-out; }
 @keyframes saved { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #save-indicator.show { animation-timing-function: steps(1, end); } }
-#toast { z-index: 11; }
 
 /* Instalar como app. */
 .panel button.menu-btn.install { background: var(--grass-deep); color: #fff; border-color: var(--grass-deep); }
@@ -438,7 +471,7 @@ fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template
 
 /* Texto grande: las ventanas y los textos del juego se ven un 25% más grandes (el mundo no cambia).
    El zoom va en las cajas, no en los fondos de pantalla completa, y se les quita lo que crecen para que quepan. */
-.texto-grande :is(#hotbar, #block-name, #toast, #save-indicator, .dialog-box, #tutorial, #clock, #labels .name-tag) { zoom: 1.25; }
+.texto-grande :is(#hotbar, #block-name, #notices, .dialog-box, #tutorial, #clock, #labels .name-tag) { zoom: 1.25; }
 .texto-grande #hotbar { zoom: 1.15; }
 .texto-grande :is(.inv-panel, .shop-panel, .collection-panel, #overlay .panel) { zoom: 1.25; max-height: calc((100dvh - 32px) / 1.25); }
 .texto-grande .inv-panel { max-width: calc((100vw - 32px) / 1.25); }
@@ -514,9 +547,8 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
 
 /* --- v2.10: casas para vecinos nuevos --- */
 #lot-status {
-  position: fixed; left: 50%; top: 14px; transform: translateX(-50%); max-width: calc(100vw - 32px);
-  padding: 6px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep);
-  font: 800 14px var(--body); text-align: center; pointer-events: none; z-index: 5;
+  padding: 6px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep); border-radius: 14px;
+  box-shadow: 0 3px 0 rgba(35, 48, 31, .25); font: 800 14px var(--body); text-align: center;
 }
 
 /* --- v2.11: jugar con amigos --- */
@@ -536,7 +568,7 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
   position: fixed; left: 16px; bottom: 120px; max-width: min(420px, calc(100vw - 32px)); pointer-events: none; z-index: 5;
   display: flex; flex-direction: column; gap: 4px;
 }
-#chat-log p { margin: 0; padding: 4px 10px; background: rgba(255, 252, 240, .9); color: var(--ink); font: 700 14px var(--body); transition: opacity 1s; overflow-wrap: anywhere; }
+#chat-log p { margin: 0; padding: 4px 10px; border-radius: 10px; background: rgba(255, 252, 240, .9); color: var(--ink); font: 700 14px var(--body); transition: opacity 1s; overflow-wrap: anywhere; }
 #chat-log p.old { opacity: 0; }
 #chat-form { position: fixed; left: 16px; bottom: 84px; width: min(420px, calc(100vw - 32px)); z-index: 12; }
 #chat-form input { width: 100%; box-sizing: border-box; padding: 8px 12px; font: 700 15px var(--body); border: 3px solid var(--grass-deep); background: var(--paper); }
