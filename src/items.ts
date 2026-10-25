@@ -3,7 +3,7 @@ import { CREATURES } from './creatures';
 import { FURNITURE, FURNITURE_TILE } from './furniture';
 import { TREE_KINDS } from './orchard';
 
-export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net' | 'can';
+export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net' | 'can' | 'bucket';
 
 /** Para qué sirve cada herramienta, en pocas palabras (v3.5): sale debajo del nombre al cogerla. */
 export const TOOL_USE: Record<ToolKind, string> = {
@@ -13,6 +13,7 @@ export const TOOL_USE: Record<ToolKind, string> = {
   rod: 'Pesca en el agua',
   net: 'Atrapa bichos',
   can: 'Riega los cultivos',
+  bucket: 'Coge agua quieta y échala donde quieras',
 };
 
 export interface ItemDef {
@@ -147,6 +148,9 @@ add({ id: 'pico_hierro', name: 'Pico de hierro', tile: Tile.IronPickaxe, maxStac
 add({ id: 'pala_hierro', name: 'Pala de hierro', tile: Tile.IronShovel, maxStack: 1, tool: 'shovel', durability: 120, power: 8, sell: 200 });
 add({ id: 'antorcha', name: 'Antorcha', tile: blockIconTile(Block.Torch), maxStack: 99, block: Block.Torch, sell: 20, buy: 60 });
 add({ id: 'carbon', name: 'Carbón', tile: Tile.Coal, maxStack: 30, sell: 50 });
+// Cubos (v3.8): el vacío coge un bloque de agua quieta y el lleno lo echa en otro sitio. No se gastan.
+add({ id: 'cubo', name: 'Cubo', tile: Tile.Bucket, maxStack: 1, tool: 'bucket', sell: 150, buy: 600 });
+add({ id: 'cubo_agua', name: 'Cubo de agua', tile: Tile.WaterBucket, maxStack: 1, tool: 'bucket', sell: 150 });
 add({ id: 'pepita_hierro', name: 'Pepita de hierro', tile: Tile.IronNugget, maxStack: 30, sell: 375 });
 add({ id: 'pepita_oro', name: 'Pepita de oro', tile: Tile.GoldNugget, maxStack: 30, sell: 1500 });
 add({ id: 'amatista', name: 'Amatista', tile: Tile.Gem, maxStack: 30, sell: 800 });
@@ -351,7 +355,7 @@ export function breakInfo(b: Block, toolItem: ItemDef | null): { seconds: number
 export function toolNameFor(b: Block): string | null {
   const h = HARDNESS[b];
   if (!h?.needsTool || !h.tool) return null;
-  const names: Record<ToolKind, string> = { axe: 'un hacha', shovel: 'una pala', pickaxe: 'un pico', rod: 'una caña', net: 'una red', can: 'una regadera' };
+  const names: Record<ToolKind, string> = { axe: 'un hacha', shovel: 'una pala', pickaxe: 'un pico', rod: 'una caña', net: 'una red', can: 'una regadera', bucket: 'un cubo' };
   return names[h.tool];
 }
 
@@ -373,6 +377,7 @@ export const RECIPES: Recipe[] = [
   { result: 'cana', count: 1, needs: [['rama', 5]] },
   { result: 'red', count: 1, needs: [['rama', 5]] },
   { result: 'antorcha', count: 4, needs: [['rama', 1], ['carbon', 1]] },
+  { result: 'cubo', count: 1, needs: [['pepita_hierro', 3]] },
   // Cocina: lo que sale del huerto y la granja vale mucho más cocinado.
   { result: 'pan', count: 1, needs: [['trigo', 3]] },
   { result: 'tortilla', count: 1, needs: [['huevo', 2], ['tomate', 1]] },

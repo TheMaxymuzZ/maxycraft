@@ -9,7 +9,8 @@ export interface Hit {
 }
 
 /** Recorre la cuadrícula de vóxeles a lo largo del rayo (algoritmo DDA de Amanatides y Woo). */
-export function raycast(world: World, origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number): Hit | null {
+/** `hits`: qué bloques paran el rayo (por defecto, los que se pueden apuntar; el cubo también se para en el agua). */
+export function raycast(world: World, origin: THREE.Vector3, dir: THREE.Vector3, maxDist: number, hits: (b: number) => boolean = isTargetable): Hit | null {
   let x = Math.floor(origin.x);
   let y = Math.floor(origin.y);
   let z = Math.floor(origin.z);
@@ -27,7 +28,7 @@ export function raycast(world: World, origin: THREE.Vector3, dir: THREE.Vector3,
   let prev: [number, number, number] = [x, y, z];
   let t = 0;
   while (t <= maxDist) {
-    if (isTargetable(world.getBlock(x, y, z))) {
+    if (hits(world.getBlock(x, y, z))) {
       return { block: [x, y, z], place: prev };
     }
     prev = [x, y, z];

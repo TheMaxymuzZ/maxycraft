@@ -6,7 +6,8 @@ import '@fontsource/pixelify-sans/latin-500.css';
 import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isPath, isSolid, isStairs, stairsFacing, toggled } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isPath, isSolid, isStairs, isTargetable, isWater, isWaterSource, stairsFacing, toggled } from './blocks';
+import { Fluids } from './fluids';
 import { Breaker } from './breaking';
 import { Birds } from './birds';
 import { Bugs } from './bugs';
@@ -189,6 +190,17 @@ const world = joined
   : new World(seed, material, save?.edits ?? {}, { terrain, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) });
 /** Todos los cambios de bloques pasan por aquí, para poder compartirlos con otros jugadores. */
 const sync = new WorldSync(world);
+/**
+ * El agua se mueve sola (v3.8) cuando algo cambia a su lado. En una partida con amigos la mueve el anfitrión
+ * y los bloques nuevos les llegan a los demás como cualquier otro cambio.
+ */
+const fluids = new Fluids({
+  getBlock: (x, y, z) => world.getBlock(x, y, z),
+  setBlock: (x, y, z, b) => sync.setBlock(x, y, z, b),
+  loaded: (x, z) => world.hasColumn(x, z),
+});
+fluids.enabled = !joined;
+world.onBlockChange = (x, y, z) => fluids.wake(x, y, z);
 // Los invitados antes de la v2.10 se mudan al volver a casa: se les busca sitio una vez y se guarda.
 // Desde la v2.10 cada invitado ya trae su casa: la que construyó el jugador.
 if (!trip && !joined) {
@@ -1303,7 +1315,7 @@ function placeAnimal(kind: AnimalKind, hit: { block: [number, number, number]; p
     return;
   }
   const [x, y, z] = hit.place;
-  if (isSolid(world.getBlock(x, y, z)) || !isSolid(world.getBlock(x, y - 1, z)) || world.waterKind(x, z) && y <= world.waterSurface(x, z) + 1) {
+  if (isSolid(world.getBlock(x, y, z)) || !isSolid(world.getBlock(x, y - 1, z)) || isWater(world.getBlock(x, y, z)) || isWater(world.getBlock(x, y - 1, z))) {
     hud.toast('Suéltala en el suelo, en un sitio despejado');
     return;
   }
@@ -1386,6 +1398,10 @@ function useItem() {
   }
   if (def?.tool === 'net') {
     useNet();
+    return;
+  }
+  if (def?.tool === 'bucket') {
+    useBucket(def.id === 'cubo_agua');
     return;
   }
 
@@ -1627,6 +1643,37 @@ function keepCreature(id: string, verb: string, tool: string) {
   tutorial.complete('criatura');
   hud.toast(`¡${verb} ${c.name.toLowerCase()}!${first ? ' Nuevo en la enciclopedia.' : ''}`);
   if (inventory.wearTool(hud.selected)) hud.toast(`¡Tu ${itemDef(tool).name.toLowerCase()} se ha roto!`);
+}
+
+/**
+ * Cubo (v3.8), como en Minecraft: el vacío coge un bloque de agua quieta (el agua que corre no se puede coger)
+ * y el lleno la echa delante del bloque al que apuntas, donde se pone a correr.
+ */
+function useBucket(full: boolean) {
+  camera.getWorldDirection(dir);
+  const swap = (id: string) => {
+    inventory.slots[hud.selected] = { id, count: 1 };
+    hud.render();
+    sound.splash();
+  };
+  if (!full) {
+    const hit = raycast(world, camera.position, dir, REACH, (b) => isTargetable(b) || isWater(b));
+    if (!hit || !isWater(world.getBlock(...hit.block))) return;
+    if (!isWaterSource(world.getBlock(...hit.block))) {
+      hud.toast('Esa agua corre: busca agua quieta para llenar el cubo');
+      return;
+    }
+    sync.setBlock(...hit.block, Block.Air);
+    swap('cubo_agua');
+    return;
+  }
+  const hit = raycast(world, camera.position, dir, REACH);
+  if (!hit) return;
+  const [x, y, z] = hit.place;
+  const here = world.getBlock(x, y, z);
+  if ((here !== Block.Air && !isWater(here)) || furniture.at(x, y, z)) return;
+  sync.setBlock(x, y, z, Block.Water);
+  swap('cubo');
 }
 
 function useRod(blockDist: number) {
@@ -2074,6 +2121,8 @@ function frame(now: number) {
 
   // El reloj de la isla solo corre mientras se juega (no en la portada ni en pausa).
   if (menu.hidden && clock.tick(dt)) newDay();
+  // El agua también se para en la pausa.
+  if (menu.hidden) fluids.update(dt);
   const date = gameDate();
   const hour = Sky.hourOf(date);
   currentHour = hour;
@@ -2139,7 +2188,7 @@ function frame(now: number) {
   else if (fish === 'escaped') hud.toast('Se ha escapado…');
 
   // Bajo el agua todo se ve azul y cerca.
-  const submerged = camera.position.y < world.waterSurface(Math.floor(camera.position.x), Math.floor(camera.position.z)) && !!world.waterKind(Math.floor(camera.position.x), Math.floor(camera.position.z));
+  const submerged = world.inWater(camera.position.x, camera.position.y, camera.position.z);
   underwater.hidden = !submerged;
   sky.dome.visible = !submerged;
   if (submerged) {
@@ -2230,6 +2279,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

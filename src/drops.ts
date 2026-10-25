@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { isSolid } from './blocks';
+import { waterFlow } from './fluids';
 import type { ItemModels } from './itemModels';
 import type { World } from './world';
 
@@ -23,6 +24,8 @@ const PICKUP_RADIUS = 0.9;
 /** Desde esta distancia el objeto vuela hacia el jugador. */
 const MAGNET_RADIUS = 3;
 const GRAVITY = 20;
+/** Velocidad a la que la corriente arrastra lo que flota (v3.8). */
+const FLOAT_DRIFT = 1.8;
 
 /** Sombrita redonda que llevan los objetos del suelo, para ver dónde están. */
 function blobTexture(): THREE.Texture {
@@ -83,8 +86,21 @@ export class Drops {
       if (d.full && (d.retry = (d.retry ?? 0) - dt) <= 0) d.full = false;
       const p = d.obj.position;
 
+      // En el agua (v3.8) los objetos flotan hasta la superficie y la corriente se los lleva, como en Minecraft.
+      const wet = this.world.inWater(p.x, p.y - 0.15, p.z);
+      if (wet) {
+        d.resting = false;
+        const get = (x: number, y: number, z: number) => this.world.getBlock(x, y, z);
+        const f = waterFlow(get, Math.floor(p.x), Math.floor(p.y - 0.15), Math.floor(p.z));
+        const k = 1 - Math.exp(-3 * dt);
+        d.velocity.x += (f.x * FLOAT_DRIFT - d.velocity.x) * k;
+        d.velocity.z += (f.z * FLOAT_DRIFT - d.velocity.z) * k;
+        const surface = this.world.waterSurfaceAbove(p.x, p.y - 0.15, p.z);
+        const up = f.down ? -3 : p.y < surface - 0.1 ? 1.4 : 0;
+        d.velocity.y += (up - d.velocity.y) * k;
+      }
       if (!d.resting) {
-        d.velocity.y -= GRAVITY * dt;
+        if (!wet) d.velocity.y -= GRAVITY * dt;
         const nx = p.x + d.velocity.x * dt;
         const nz = p.z + d.velocity.z * dt;
         if (!isSolid(this.world.getBlock(Math.floor(nx), Math.floor(p.y), Math.floor(nz)))) {

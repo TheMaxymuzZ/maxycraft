@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid } from './blocks';
+import { waterFlow } from './fluids';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid, isWater, waterHeight, waterLevel as fluidLevel } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 import { fruitTreeShape, palmShape, pineShape } from './trees';
 
@@ -169,6 +170,12 @@ export class World {
   private torches = new Map<string, [number, number, number]>();
   /** Luces que no son bloques (farolas, lámparas…): "x,y,z" → [x, y, z, nivel]. */
   private lamps = new Map<string, [number, number, number, number]>();
+
+  /**
+   * Se llama cada vez que cambia un bloque (v3.8), para que el agua de alrededor se mueva.
+   * También al cargar un trozo de isla, por cada hueco que hizo el jugador, por si toca el agua.
+   */
+  onBlockChange: ((x: number, y: number, z: number) => void) | null = null;
 
   /** Material del agua; se pone desde fuera para que coincida con el resto de la escena. */
   waterMaterial: THREE.Material = new THREE.MeshLambertMaterial({ color: 0x3fa9d6, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
@@ -367,12 +374,32 @@ export class World {
     return Math.max(0, Math.min(1, v));
   }
 
-  /** Qué agua hay en (x, z): río dentro de la isla, mar fuera, o null si es tierra. */
+  /**
+   * Qué agua hay arriba del todo en (x, z): río dentro de la isla, mar fuera, o null si es tierra.
+   * Desde la v3.8 el agua son bloques: cuenta la que haya (también la que eche el jugador con un cubo).
+   */
   waterKind(x: number, z: number): 'mar' | 'río' | null {
-    // Hay agua donde el terreno natural queda bajo el nivel del agua y nadie ha tapado el hueco.
-    const level = this.waterLevel(x, z);
-    if (this.naturalHeight(x, z) >= level || this.getBlock(x, level, z) !== Block.Air) return null;
-    return level > SEA_LEVEL || this.landMask(x, z) >= 0.26 ? 'río' : 'mar';
+    const top = this.waterTop(x, z);
+    if (top === null) return null;
+    return top > SEA_LEVEL || this.landMask(x, z) >= 0.26 ? 'río' : 'mar';
+  }
+
+  /** Bloque de agua más alto de la columna (x, z) con cielo encima, o null si arriba del todo no hay agua. */
+  waterTop(x: number, z: number): number | null {
+    const c = this.chunks.get(key(Math.floor(x / CHUNK), Math.floor(z / CHUNK)));
+    // Lejos, donde aún no hay isla cargada, se calcula como antes, sin crear el trozo.
+    if (!c) {
+      const level = this.waterLevel(x, z);
+      return this.naturalHeight(x, z) < level ? level : null;
+    }
+    const lx = x - c.cx * CHUNK;
+    const lz = z - c.cz * CHUNK;
+    for (let y = HEIGHT - 1; y > 0; y--) {
+      const b = c.data[index(lx, y, lz)];
+      if (b === Block.Air || isCross(b)) continue;
+      return isWater(b) ? y : null;
+    }
+    return null;
   }
 
   /**
@@ -385,9 +412,36 @@ export class World {
     return dist < 3.6 && this.landMask(x, z) >= 0.26 ? this.riverLevel(u) : SEA_LEVEL;
   }
 
-  /** Altura de la superficie del agua en (x, z). */
+  /** Altura de la superficie del agua en (x, z) (si no hay agua, la que tendría el mar o el río). */
   waterSurface(x: number, z: number): number {
-    return this.waterLevel(x, z) + (WATER_SURFACE - SEA_LEVEL);
+    const top = this.waterTop(x, z);
+    if (top === null) return this.waterLevel(x, z) + (WATER_SURFACE - SEA_LEVEL);
+    return top + waterHeight(this.getBlock(x, top, z));
+  }
+
+  /** Altura de la superficie del agua que hay encima del punto (x, y, z), subiendo por los bloques de agua. */
+  waterSurfaceAbove(x: number, y: number, z: number): number {
+    const bx = Math.floor(x);
+    const bz = Math.floor(z);
+    let by = Math.floor(y);
+    if (!isWater(this.getBlock(bx, by, bz))) return y;
+    while (by + 1 < HEIGHT && isWater(this.getBlock(bx, by + 1, bz))) by++;
+    return by + waterHeight(this.getBlock(bx, by, bz));
+  }
+
+  /** Si ya existe el trozo de isla de la columna (x, z): el agua no corre hacia los que aún no se han creado. */
+  hasColumn(x: number, z: number): boolean {
+    return this.chunks.has(key(Math.floor(x / CHUNK), Math.floor(z / CHUNK)));
+  }
+
+  /** Si el punto (x, y, z) está dentro del agua (por debajo de su superficie). */
+  inWater(x: number, y: number, z: number): boolean {
+    const bx = Math.floor(x);
+    const by = Math.floor(y);
+    const bz = Math.floor(z);
+    const b = this.getBlock(bx, by, bz);
+    if (!isWater(b)) return false;
+    return isWater(this.getBlock(bx, by + 1, bz)) || y - by < waterHeight(b);
   }
 
   /** Distancia en bloques al centro del río, que cruza la isla serpenteando. */
@@ -654,9 +708,33 @@ export class World {
       this.buildHouse(plot, (x, y, z, b) => set(x - ox, y, z - oz, b, true));
     }
 
+    // El mar y el río (v3.8): bloques de agua quieta donde el terreno natural queda bajo su nivel.
+    /** Hasta qué altura llega el agua en cada columna (-1 si es tierra). */
+    const waterUpTo = new Int16Array(CHUNK * CHUNK).fill(-1);
+    for (let z = 0; z < CHUNK; z++) {
+      for (let x = 0; x < CHUNK; x++) {
+        const wx = ox + x;
+        const wz = oz + z;
+        const level = this.waterLevel(wx, wz);
+        if (this.naturalHeight(wx, wz) >= level) continue;
+        waterUpTo[z * CHUNK + x] = level;
+        for (let y = heights[z * CHUNK + x] + 1; y <= level; y++) {
+          const i = index(x, y, z);
+          if (d[i] === Block.Air) d[i] = Block.Water;
+        }
+      }
+    }
+
     // Lo que el jugador cambió en este chunk.
     const edits = this.edits.get(key(chunk.cx, chunk.cz));
-    if (edits) for (const [i, b] of edits) d[i] = b;
+    if (edits) {
+      for (const [i, b] of edits) {
+        // Antes de la v3.8 el agua no eran bloques: un hueco hecho bajo el nivel del mar o del río era agua.
+        // Así las islas guardadas se ven igual que antes (sin agujeros en el mar ni sótanos inundados de golpe).
+        const column = i % (CHUNK * CHUNK);
+        d[i] = b === Block.Air && Math.floor(i / (CHUNK * CHUNK)) <= waterUpTo[column] ? Block.Water : b;
+      }
+    }
 
     chunk.dirty = true;
   }
@@ -956,6 +1034,8 @@ export class World {
     if (lx === CHUNK - 1) this.markDirty(cx + 1, cz);
     if (lz === 0) this.markDirty(cx, cz - 1);
     if (lz === CHUNK - 1) this.markDirty(cx, cz + 1);
+
+    this.onBlockChange?.(x, y, z);
 
     // Una planta sin suelo debajo desaparece.
     if (b === Block.Air && y + 1 < HEIGHT && isCross(this.getBlock(x, y + 1, z))) {
@@ -1441,6 +1521,64 @@ export class World {
       1 - (Math.floor(tile / ATLAS_TILES) + 1) * tileSize,
     ];
 
+    // Agua (v3.8): cada bloque de agua con su altura según el nivel, inclinada hacia donde corre, como en Minecraft.
+    const water: number[] = [];
+    /** Por vértice: hacia dónde corre (x, z), si cae (1) y si lleva olas (1, solo la superficie del agua quieta). */
+    const waterFlowAttr: number[] = [];
+    const waterAbove = (lx: number, y: number, lz: number) => isWater(get(lx, y + 1, lz));
+    /** Altura del agua de un bloque para las esquinas: 1 si tiene agua encima, -1 si es sólido (no cuenta). */
+    const liquidH = (lx: number, y: number, lz: number): number => {
+      const b = get(lx, y, lz);
+      if (isWater(b)) return waterAbove(lx, y, lz) ? 1 : waterHeight(b);
+      return isSolid(b) ? -1 : 0;
+    };
+    /** Altura de la esquina (cx, cz ∈ {0, 1}) del bloque: la media de los 4 bloques que la tocan; el agua quieta pesa más. */
+    const cornerH = (lx: number, y: number, lz: number, cx: number, cz: number): number => {
+      let sum = 0;
+      let weight = 0;
+      for (const [dx, dz] of [[cx - 1, cz - 1], [cx, cz - 1], [cx - 1, cz], [cx, cz]]) {
+        const h = liquidH(lx + dx, y, lz + dz);
+        if (h >= 1) return 1;
+        if (h < 0) continue;
+        const w = fluidLevel(get(lx + dx, y, lz + dz)) === 0 ? 10 : 1;
+        sum += h * w;
+        weight += w;
+      }
+      return weight ? sum / weight : 0;
+    };
+    const addWater = (lx: number, y: number, lz: number, b: number) => {
+      const above = waterAbove(lx, y, lz);
+      const h = [cornerH(lx, y, lz, 0, 0), cornerH(lx, y, lz, 1, 0), cornerH(lx, y, lz, 0, 1), cornerH(lx, y, lz, 1, 1)];
+      if (above) h.fill(1);
+      const f = waterFlow(get, lx, y, lz);
+      const still = !above && b === Block.Water && !f.x && !f.z;
+      const push = (px: number, py: number, pz: number, wave: number) => {
+        water.push(px, py, pz);
+        waterFlowAttr.push(f.x, f.z, f.down ? 1 : 0, wave);
+      };
+      const quad = (a: number[], b2: number[], c2: number[], d2: number[], wave: number) => {
+        for (const p of [a, b2, c2, c2, b2, d2]) push(p[0], p[1], p[2], wave);
+      };
+      const [h00, h10, h01, h11] = h;
+      if (!above) quad([lx, y + h00, lz], [lx + 1, y + h10, lz], [lx, y + h01, lz + 1], [lx + 1, y + h11, lz + 1], still ? 1 : 0);
+      // Lados: solo donde no hay pared, y del agua de al lado para arriba.
+      const sides: [number, number, number, number, number, number][] = [
+        [1, 0, 1, 0, 1, 1], [-1, 0, 0, 1, 0, 0], [0, 1, 1, 1, 0, 1], [0, -1, 0, 0, 1, 0],
+      ];
+      for (const [dx, dz, ax, az, bx, bz] of sides) {
+        const n = get(lx + dx, y, lz + dz);
+        if (isOpaque(n) || isSolid(n)) continue;
+        const floor = isWater(n) ? liquidH(lx + dx, y, lz + dz) : 0;
+        const ha = h[az * 2 + ax];
+        const hb = h[bz * 2 + bx];
+        if (Math.max(ha, hb) <= floor + 0.001) continue;
+        quad([lx + ax, y + floor, lz + az], [lx + bx, y + floor, lz + bz], [lx + ax, y + Math.max(floor, ha), lz + az], [lx + bx, y + Math.max(floor, hb), lz + bz], 0);
+      }
+      // Debajo, si cuelga en el aire.
+      const below = get(lx, y - 1, lz);
+      if (!isWater(below) && !isSolid(below)) quad([lx, y, lz], [lx, y, lz + 1], [lx + 1, y, lz], [lx + 1, y, lz + 1], 0);
+    };
+
     for (let y = 0; y < HEIGHT; y++) {
       for (let z = 0; z < CHUNK; z++) {
         for (let x = 0; x < CHUNK; x++) {
@@ -1449,6 +1587,11 @@ export class World {
           const def = BLOCKS[b];
           const wx = ox + x;
           const wz = oz + z;
+
+          if (def.shape === 'liquid') {
+            addWater(x, y, z, b);
+            continue;
+          }
 
           if (def.shape === 'cross') {
             const [u0, v0] = tileUV(def.tiles[0]);
@@ -1610,18 +1753,10 @@ export class World {
     mesh.position.set(ox, 0, oz);
     mesh.castShadow = mesh.receiveShadow = true;
 
-    // Agua: un cuadrado por columna inundada, solo donde de verdad hay mar o río.
-    const water: number[] = [];
-    for (let z = 0; z < CHUNK; z++) {
-      for (let x = 0; x < CHUNK; x++) {
-        if (!this.waterKind(ox + x, oz + z)) continue;
-        const y = this.waterSurface(ox + x, oz + z);
-        water.push(x, y, z, x + 1, y, z, x, y, z + 1, x, y, z + 1, x + 1, y, z, x + 1, y, z + 1);
-      }
-    }
     if (water.length) {
       const wg = new THREE.BufferGeometry();
       wg.setAttribute('position', new THREE.Float32BufferAttribute(water, 3));
+      wg.setAttribute('flow', new THREE.Float32BufferAttribute(waterFlowAttr, 4));
       wg.computeVertexNormals();
       const wm = new THREE.Mesh(wg, this.waterMaterial);
       wm.renderOrder = 1;
