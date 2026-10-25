@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.3',
+    title: 'Objetos más bonitos',
+    items: [
+      'Lo que cae al suelo se ve en 3D, como en Minecraft: los bloques son cubitos y lo demás tiene grosor. Giran despacio y llevan una sombrita.',
+      'En los bolsillos, la barra rápida, la tienda y los cofres, los bloques se ven como cubitos en 3D.',
+      'Los demás iconos tienen un borde oscuro y una sombra suave: se distinguen bien sobre cualquier fondo.',
+      'Los iconos son un poco más grandes y nítidos.',
+    ],
+  },
+  {
     version: '3.2',
     title: 'Luz global',
     items: [

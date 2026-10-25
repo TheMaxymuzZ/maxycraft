@@ -1,7 +1,7 @@
-import { tileCanvas } from './blocks';
 import { HOTBAR_SIZE, INVENTORY_SIZE, type Inventory } from './inventory';
 import { type ItemStack, RECIPES, type Recipe, itemDef } from './items';
 import { RecipeBrowser } from './recipeBrowser';
+import { itemIcon } from './icons';
 
 /** Barra rápida, pantalla de bolsillos, avisos y progreso al romper. */
 export class Hud {
@@ -67,7 +67,7 @@ export class Hud {
   private icon(id: string): string {
     let url = this.icons.get(id);
     if (!url) {
-      url = tileCanvas(this.atlas, itemDef(id).tile).toDataURL();
+      url = itemIcon(this.atlas, id);
       this.icons.set(id, url);
     }
     return url;

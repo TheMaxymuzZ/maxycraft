@@ -1,6 +1,7 @@
-import { Block, tileCanvas } from './blocks';
+import { Block } from './blocks';
 import { HOTBAR_SIZE, type Inventory } from './inventory';
 import { type ItemStack, itemDef } from './items';
+import { itemIcon } from './icons';
 
 /** Muebles para guardar cosas y cuántas casillas tiene cada uno. */
 export const CONTAINERS: Partial<Record<Block, { name: string; size: number }>> = {
@@ -138,7 +139,7 @@ export class StoragePanel {
 
   private icon(id: string): string {
     let url = this.icons.get(id);
-    if (!url) this.icons.set(id, (url = tileCanvas(this.atlas, itemDef(id).tile).toDataURL()));
+    if (!url) this.icons.set(id, (url = itemIcon(this.atlas, id)));
     return url;
   }
 

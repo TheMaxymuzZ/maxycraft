@@ -19,6 +19,7 @@ import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, type PlacedFurniture, paintFurnitureIcons } from './furniture';
 import { HeldItem } from './held';
+import { ItemModels } from './itemModels';
 import { Hud } from './hud';
 import { setupInstall } from './install';
 import { Islands } from './islands';
@@ -471,7 +472,8 @@ scene.add(highlight);
 const weather = new WeatherFx(world);
 scene.add(weather.points);
 
-const drops = new Drops(world, atlas);
+const itemModels = new ItemModels(atlas, atlasTexture);
+const drops = new Drops(world, itemModels);
 scene.add(drops.group);
 const bugs = new Bugs(world, atlas);
 scene.add(bugs.group);
@@ -541,7 +543,7 @@ applySettings(settings);
 
 const hud = new Hud(inventory, atlas);
 hud.select(0);
-const held = new HeldItem(atlas, material.map!);
+const held = new HeldItem(itemModels);
 setupInstall((t) => hud.toast(t));
 
 /** Mete un objeto en los bolsillos y lo anuncia. Devuelve false si no cabe. */
@@ -2102,7 +2104,8 @@ function frame(now: number) {
   updateClock(date);
   const daylight = 1 - sky.night * 0.5;
   // Lo que cae al suelo se ve tan iluminado como el sitio donde está: oscuro en una cueva, claro junto a una antorcha.
-  drops.update(dt, player.position, take, (p) => brightnessAt(p, daylight));
+  // La hora ya la ponen las luces de la escena, que también lo alumbran.
+  drops.update(dt, player.position, take, (p) => brightnessAt(p, 1));
   bugs.update(dt, hour, player.position, daylight);
   furniture.setNight(sky.night);
   sound.setHour(hour);

@@ -1,6 +1,6 @@
-import { tileCanvas } from './blocks';
 import type { Inventory } from './inventory';
 import { CATALOG, isTreeFruit, itemDef } from './items';
+import { itemIcon } from './icons';
 
 /** Número estable entre 0 y 1 para un texto, para que los precios del día sean los mismos todo el día. */
 function hash01(text: string): number {
@@ -69,7 +69,7 @@ export class Shop {
   private icon(id: string): string {
     let url = this.icons.get(id);
     if (!url) {
-      url = tileCanvas(this.ctx.atlas, itemDef(id).tile).toDataURL();
+      url = itemIcon(this.ctx.atlas, id);
       this.icons.set(id, url);
     }
     return url;
