@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.1',
+    title: 'Vida y hambre',
+    items: [
+      'Diez corazones de vida y diez muslitos de hambre encima de la barra rápida, como en Minecraft.',
+      'El hambre baja despacio al andar y más deprisa corriendo o saltando. Para comer, lleva comida en la mano y haz clic derecho (en el móvil, Usar).',
+      'La fruta, la zanahoria, el tomate y la leche llenan un poco; el pan, la tortilla, la sopa y el pastel, mucho más.',
+      'Con la tripa casi llena la vida sube sola. Sin comer pierdes algo de vida, pero de hambre no te desmayas.',
+      'Hacen daño las caídas de más de 3 bloques (al agua no), quedarte sin aire bajo el agua (salen burbujas) y pisar roca de magma.',
+      'Si te desmayas, despiertas delante de tu casa con la vida llena. Solo pierdes el 10% de las bayas (como mucho 1.000) y la mitad de 3 montones al azar. Las herramientas nunca.',
+    ],
+  },
+  {
     version: '4.0',
     title: 'Arreglos: pájaros, nubes, puertas y ríos',
     items: [

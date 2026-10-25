@@ -625,3 +625,44 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
 .gesture-bubble { font-size: 30px; }
 .friends-open { width: 100%; margin-top: 10px; }
 #friends-badge { margin-top: 4px; font: 800 13px var(--body); }
+
+/* Vida, hambre y aire (v4.1): encima de la barra rápida, como en Minecraft. */
+#vitals {
+  position: absolute; left: 6px; right: 6px; bottom: calc(100% + 4px);
+  display: flex; justify-content: space-between; align-items: flex-end; pointer-events: none;
+  --ico: max(14px, calc(var(--slot) * .38));
+}
+#vitals[hidden] { display: none; }
+#vitals > div { display: flex; gap: 1px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .45)); }
+#vitals img { width: var(--ico); height: var(--ico); image-rendering: pixelated; }
+#vitals .food { flex-direction: row; }
+#vitals .bubbles { position: absolute; right: 0; bottom: calc(var(--ico) + 3px); display: none; }
+#vitals.breathing .bubbles { display: flex; }
+#vitals.low .hearts img:nth-child(odd) { animation: vitals-jiggle .5s steps(2) infinite; }
+#vitals.starving .food img:nth-child(even) { animation: vitals-jiggle .7s steps(2) infinite; }
+#vitals.shake { animation: vitals-shake .3s; }
+@keyframes vitals-jiggle { 50% { transform: translateY(-2px); } }
+@keyframes vitals-shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+#block-name { bottom: calc(var(--hotbar-h) + 18px + 26px); }
+#hurt-flash {
+  position: fixed; inset: 0; pointer-events: none; z-index: 3; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(210, 30, 30, .55) 100%);
+}
+#hurt-flash.on { animation: hurt-flash .5s ease-out; }
+@keyframes hurt-flash { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #hurt-flash.on, #vitals.shake, #vitals img { animation: none !important; } }
+
+/* Pantalla de desmayo (v4.1). */
+#faint {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px;
+  background: radial-gradient(ellipse at center, rgba(60, 20, 30, .55), rgba(20, 10, 20, .85));
+  animation: faint-in .8s ease-out;
+}
+#faint[hidden] { display: none; }
+#faint .panel { max-width: 420px; text-align: center; }
+#faint h2 { margin: 0 0 6px; font: 700 30px var(--display); color: var(--grass-deep, #2d5a17); }
+#faint p { margin: 6px 0; }
+#faint ul { list-style: none; padding: 0; margin: 10px 0 16px; display: grid; gap: 4px; }
+#faint li { font-weight: 700; }
+#faint button { font: 700 18px var(--display); padding: 12px 22px; }
+@keyframes faint-in { from { opacity: 0; } }

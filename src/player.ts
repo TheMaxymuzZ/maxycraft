@@ -30,6 +30,14 @@ export class Player {
   onGround = false;
   /** El cuerpo está metido en el agua: se nada en vez de caminar. */
   inWater = false;
+  /** Bloques que ha caído al tocar el suelo por última vez (v4.1, para el daño); se pone a 0 al leerlo. */
+  private landedFrom = 0;
+  /** Lo más alto que ha llegado desde que dejó el suelo. */
+  private peakY: number | null = null;
+  /** Saltos desde la última vez que se miró (cansan un poco). */
+  jumps = 0;
+  /** Va corriendo ahora mismo. */
+  sprinting = false;
   /** Multiplicador de las opciones: más alto, se gira más rápido. */
   sensitivity = 1;
 
@@ -119,6 +127,7 @@ export class Player {
       if (this.onGround && jump) {
         this.velocity.y = JUMP_SPEED;
         this.onGround = false;
+        this.jumps++;
       }
       this.velocity.y = Math.max(this.velocity.y - GRAVITY * dt, -40);
     }
@@ -135,6 +144,13 @@ export class Player {
       this.moveAxis(1, this.velocity.y * sdt, grounded);
     }
 
+    // Altura de la caída: desde lo más alto hasta donde se toca el suelo. En el agua no cuenta.
+    this.sprinting = speed > WALK && len > 0;
+    if (this.onGround || this.inWater) {
+      if (this.peakY !== null && this.onGround && !this.inWater) this.landedFrom = Math.max(this.landedFrom, this.peakY - this.position.y);
+      this.peakY = null;
+    } else this.peakY = Math.max(this.peakY ?? this.position.y, this.position.y);
+
     // Si cae fuera del mundo, vuelve arriba.
     if (this.position.y < -20) this.spawnAt(this.position.x, this.position.z);
 
@@ -149,6 +165,20 @@ export class Player {
     while (y > 0 && !isSolid(this.world.getBlock(bx, y, bz))) y--;
     this.position.set(bx + 0.5, y + 1, bz + 0.5);
     this.velocity.set(0, 0, 0);
+    this.forgetFall();
+  }
+
+  /** Lo que ha caído desde la última vez (y lo olvida). */
+  takeFall(): number {
+    const d = this.landedFrom;
+    this.landedFrom = 0;
+    return d;
+  }
+
+  /** Al ponerle en otro sitio (reaparecer, viajar…) no cuenta como caída. */
+  forgetFall() {
+    this.peakY = null;
+    this.landedFrom = 0;
   }
 
   /** True si el jugador ocuparía el bloque (x, y, z). */
