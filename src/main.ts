@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
+import { Sound, materialOf } from './audio';
 import { BLOCKS, Block, FRUITS, HOUSE_BLOCKS, ROOFS, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
 import { Bugs } from './bugs';
 import { Collection } from './collection';
@@ -17,12 +18,17 @@ import { deleteGame, loadGame, saveGame } from './save';
 import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, dateOverride, holidayOf, seasonOf, weatherAt } from './seasons';
 import { Sky } from './sky';
+import { TouchControls } from './touch';
+import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { type Villager, createVillagers } from './villagers';
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { WATER_SURFACE, World } from './world';
 
-const RENDER_RADIUS = 6;
+/** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
+const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
+// En el móvil se ve algo menos lejos para que vaya fluido.
+const RENDER_RADIUS = touchMode ? 4 : 6;
 const REACH = 6;
 const FOG_NEAR = RENDER_RADIUS * 16 * 0.55;
 const FOG_FAR = RENDER_RADIUS * 16 * 0.95;
@@ -52,7 +58,7 @@ calendar.month = startDate.getMonth() + 1;
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, touchMode ? 1.5 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
@@ -81,6 +87,7 @@ const material = new THREE.MeshLambertMaterial({
 
 const save = loadGame();
 const seed = save?.seed ?? Math.floor(Math.random() * 1e9);
+const sound = new Sound(seed);
 const world = new World(seed, material, save?.edits ?? {});
 scene.add(world.group);
 
@@ -150,6 +157,9 @@ const collection = new Collection(save?.caught ?? [], save?.donated ?? [], atlas
 let wallet = save?.wallet ?? 500;
 const walletEl = document.querySelector<HTMLSpanElement>('#wallet-amount')!;
 function setWallet(n: number) {
+  if (n !== wallet) sound.coin();
+  // Vender en la tienda cuenta para el tutorial.
+  if (n > wallet && panel === 'shop') tutorial.complete('vender');
   wallet = n;
   walletEl.textContent = formatBerries(n);
 }
@@ -175,6 +185,8 @@ function persist() {
     donated: [...collection.donated],
     home,
     furniture: furniture.serialize(),
+    tutorial: tutorial.serialize(),
+    tutorialDone: tutorial.finished,
     recipes: [...workbench.known],
     bottle: { day: today, taken: bottleTaken },
   });
@@ -254,7 +266,7 @@ const clockTime = document.querySelector<HTMLSpanElement>('#clock-time')!;
 const clockDate = document.querySelector<HTMLSpanElement>('#clock-date')!;
 const underwater = document.querySelector<HTMLDivElement>('#underwater')!;
 
-playButton.textContent = save ? 'Volver a la isla' : 'Haz clic para jugar';
+playButton.textContent = save ? 'Volver a la isla' : touchMode ? 'Toca para jugar' : 'Haz clic para jugar';
 islandInfo.textContent = `Fruta de la isla: ${BLOCKS[world.fruit].name.toLowerCase()}`;
 
 const hud = new Hud(inventory, atlas);
@@ -267,10 +279,41 @@ function take(id: string): boolean {
     return false;
   }
   hud.toast(`Has conseguido: ${itemDef(id).name.toLowerCase()}`);
+  sound.pickup();
   return true;
 }
 
 // --- Bolsillos, conversaciones y bloqueo del puntero ---
+
+// Con ratón se bloquea el puntero; en pantallas táctiles basta con saber si se está jugando.
+let touchPlaying = false;
+function isPlaying(): boolean {
+  return touchMode ? touchPlaying : document.pointerLockElement === canvas;
+}
+let welcomed = !!save;
+function lockInput() {
+  sound.start();
+  if (!welcomed) {
+    welcomed = true;
+    hud.toast('¡Bienvenida, bienvenido a tu isla! Sigue los primeros pasos de la izquierda');
+  }
+  if (!touchMode) {
+    canvas.requestPointerLock();
+    return;
+  }
+  if (touchPlaying) return;
+  touchPlaying = true;
+  onInputChange();
+}
+function unlockInput() {
+  if (!touchMode) {
+    document.exitPointerLock();
+    return;
+  }
+  if (!touchPlaying) return;
+  touchPlaying = false;
+  onInputChange();
+}
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
 let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | null = null;
@@ -279,15 +322,38 @@ let currentHour = 12;
 function openInventory() {
   panel = 'inventory';
   hud.openInventory();
-  document.exitPointerLock();
+  unlockInput();
 }
 
 function closeInventory() {
   hud.closeInventory();
   if (!hud.inventoryEl.hidden) return; // aún lleva algo en la mano
   panel = null;
-  canvas.requestPointerLock();
+  lockInput();
 }
+
+const tutorial = new Tutorial(save?.tutorial, save ? (save.tutorialDone ?? save.tutorial === undefined) : false, touchMode, () => {
+  setWallet(wallet + TUTORIAL_REWARD);
+  hud.toast(`¡Primeros pasos completados! Avellana te regala ${formatBerries(TUTORIAL_REWARD)} bayas`);
+  persist();
+});
+// Fabricar, en los bolsillos o en la mesa de trabajo, también cuenta.
+{
+  const craft = inventory.craft.bind(inventory);
+  inventory.craft = (r) => {
+    const ok = craft(r);
+    if (ok) tutorial.complete('fabricar');
+    return ok;
+  };
+}
+
+const soundButton = document.querySelector<HTMLButtonElement>('#sound-toggle')!;
+soundButton.textContent = sound.enabled ? 'Sonido: sí' : 'Sonido: no';
+soundButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleSound();
+});
+document.querySelector('#inventory-close')!.addEventListener('click', () => closeInventory());
 
 const workbench = new Workbench({ inventory, atlas, toast: (t) => hud.toast(t) }, save?.recipes);
 
@@ -295,17 +361,21 @@ function openWorkbench() {
   panel = 'workbench';
   breaking = false;
   workbench.open();
-  document.exitPointerLock();
+  unlockInput();
 }
 
 function closeWorkbench() {
   workbench.close();
   panel = null;
-  canvas.requestPointerLock();
+  lockInput();
 }
 document.querySelector('#workbench-close')!.addEventListener('click', closeWorkbench);
 
+// Voz de cada especie, más aguda o más grave.
+const VOICES: Record<string, number> = { gato: 760, oso: 260, conejo: 900, rana: 380, perro: 560, pato: 820, ardilla: 1050, tortuga: 220 };
+
 const dialog = new Dialog({
+  voice: (v) => sound.voice(VOICES[v.profile.species] ?? 500),
   learnRecipe: () => workbench.learnRandom(),
   holiday,
   isBirthday: (v) => v.isBirthday(gameDate()),
@@ -319,7 +389,7 @@ const dialog = new Dialog({
   toast: (t) => hud.toast(t),
   onClose: () => {
     panel = null;
-    canvas.requestPointerLock();
+    lockInput();
   },
   openShop: () => {
     panel = 'shop';
@@ -355,13 +425,13 @@ const dialog = new Dialog({
 function openCollection() {
   panel = 'collection';
   collection.open();
-  document.exitPointerLock();
+  unlockInput();
 }
 
 function closeCollection() {
   collection.close();
   panel = null;
-  canvas.requestPointerLock();
+  lockInput();
 }
 document.querySelector('#collection-close')!.addEventListener('click', closeCollection);
 
@@ -379,15 +449,35 @@ const shop = new Shop({
 function closeShop() {
   shop.close();
   panel = null;
-  canvas.requestPointerLock();
+  lockInput();
 }
 document.querySelector('#shop-close')!.addEventListener('click', closeShop);
 
+const touch = touchMode
+  ? new TouchControls({
+      player,
+      use: () => useItem(),
+      setBreaking: (on) => {
+        if (on && pickUpFurniture()) return;
+        breaking = on;
+      },
+      inventory: () => openInventory(),
+      collection: () => openCollection(),
+      rotate: () => {
+        const f = furnitureInSight();
+        if (f) furniture.rotate(f.furniture);
+      },
+      pause: () => unlockInput(),
+    })
+  : null;
+if (touch) document.body.appendChild(touch.el);
+
 function talkTo(v: Villager) {
+  tutorial.complete('hablar');
   panel = 'dialog';
   breaking = false;
   dialog.start(v);
-  document.exitPointerLock();
+  unlockInput();
 }
 
 window.addEventListener('keydown', (e) => {
@@ -407,22 +497,30 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === 'KeyE') closeWorkbench();
     return;
   }
-  if (e.code === 'KeyC' && document.pointerLockElement === canvas) {
+  if (e.code === 'KeyC' && isPlaying()) {
     openCollection();
     return;
   }
   if (e.code === 'KeyE') {
     if (panel === 'inventory') closeInventory();
-    else if (document.pointerLockElement === canvas) openInventory();
+    else if (isPlaying()) openInventory();
     return;
   }
   if (e.code === 'Escape' && panel === 'inventory') {
     closeInventory();
     return;
   }
-  if (e.code === 'KeyR' && document.pointerLockElement === canvas) {
+  if (e.code === 'KeyR' && isPlaying()) {
     const f = furnitureInSight();
     if (f) furniture.rotate(f.furniture);
+    return;
+  }
+  if (e.code === 'KeyM') {
+    toggleSound();
+    return;
+  }
+  if (e.code === 'KeyH') {
+    tutorial.toggle();
     return;
   }
   if (/^Digit[0-9]$/.test(e.code)) {
@@ -435,7 +533,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 window.addEventListener('wheel', (e) => {
-  if (document.pointerLockElement !== canvas) return;
+  if (!isPlaying()) return;
   hud.select(hud.selected + (e.deltaY > 0 ? 1 : -1));
 });
 
@@ -459,9 +557,10 @@ newIslandButton.addEventListener('click', (e) => {
   location.reload();
 });
 
-overlay.addEventListener('click', () => canvas.requestPointerLock());
-document.addEventListener('pointerlockchange', () => {
-  const locked = document.pointerLockElement === canvas;
+overlay.addEventListener('click', () => lockInput());
+function onInputChange() {
+  const locked = isPlaying();
+  touch?.show(locked);
   if (locked) {
     overlay.hidden = true;
     if (panel === 'inventory') hud.inventoryEl.hidden = true;
@@ -478,13 +577,14 @@ document.addEventListener('pointerlockchange', () => {
   persist();
   playButton.textContent = 'Volver a la isla';
   resetNewIslandButton();
-});
+}
+document.addEventListener('pointerlockchange', onInputChange);
 // Si el navegador no deja volver a bloquear el ratón enseguida, se muestra el menú.
 document.addEventListener('pointerlockerror', () => {
   if (!panel) overlay.hidden = false;
 });
 document.addEventListener('mousemove', (e) => {
-  if (document.pointerLockElement === canvas) player.look(e.movementX, e.movementY);
+  if (isPlaying()) player.look(e.movementX, e.movementY);
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -500,7 +600,7 @@ let breakCooldown = 0;
 let warnedKey = '';
 
 canvas.addEventListener('mousedown', (e) => {
-  if (document.pointerLockElement !== canvas) return;
+  if (!isPlaying()) return;
   if (e.button === 0) {
     if (!pickUpFurniture()) breaking = true;
   } else if (e.button === 2) useItem();
@@ -511,6 +611,7 @@ window.addEventListener('mouseup', (e) => {
 
 function removeBlock(x: number, y: number, z: number, b: number, burst: boolean) {
   world.setBlock(x, y, z, Block.Air);
+  if (!burst) sound.dig(materialOf(BLOCKS[b].name));
   // Un mueble sin suelo debajo se cae y se puede recoger.
   const above = furniture.at(x, y + 1, z);
   if (above) {
@@ -560,6 +661,7 @@ function updateBreaking(dt: number) {
   if (breakProgress < 1) return;
 
   removeBlock(x, y, z, b, false);
+  tutorial.complete('romper');
   breakProgress = 0;
   breakKey = '';
   breakCooldown = 0.15;
@@ -639,6 +741,7 @@ function useItem() {
     world.setBlock(x, y, z, def.block);
     delete harvested[posKey(x, y, z)];
     inventory.consume(hud.selected);
+    sound.place();
     return;
   }
 
@@ -681,6 +784,8 @@ function placeFurniture(id: string, hit: { block: [number, number, number]; plac
   const rot = ((Math.round(player.yaw / (Math.PI / 2)) % 4) + 4) % 4;
   furniture.place(id, x, y, z, rot);
   inventory.consume(hud.selected);
+  sound.place();
+  tutorial.complete('mueble');
   persist();
 }
 
@@ -707,6 +812,8 @@ function keepCreature(id: string, verb: string, tool: string) {
     return;
   }
   const first = collection.register(id);
+  sound.fanfare();
+  tutorial.complete('criatura');
   hud.toast(`¡${verb} ${c.name.toLowerCase()}!${first ? ' Nuevo en la enciclopedia.' : ''}`);
   if (inventory.wearTool(hud.selected)) hud.toast(`¡Tu ${itemDef(tool).name.toLowerCase()} se ha roto!`);
 }
@@ -732,6 +839,8 @@ function useNet() {
 
 /** Sacudir un árbol, como en Animal Crossing: cae la fruta y, una vez al día, una rama. */
 function shakeTree(x: number, y: number, z: number) {
+  sound.rustle();
+  tutorial.complete('sacudir');
   const fruits = world.treeFruitsNear(x, y, z);
   for (const [fx, fy, fz] of fruits) removeBlock(fx, fy, fz, world.getBlock(fx, fy, fz), true);
 
@@ -762,6 +871,27 @@ function findTrunk(x: number, y: number, z: number) {
     }
   }
   return null;
+}
+
+// Pasos: un sonido cada poco más de un bloque andado, según lo que haya bajo los pies.
+let stepDistance = 0;
+let rainTimer = 0;
+const spawnPoint = player.position.clone();
+function updateSteps(dt: number) {
+  const speed = Math.hypot(player.velocity.x, player.velocity.z);
+  if (!player.onGround || player.inWater || speed < 1) return;
+  stepDistance += speed * dt;
+  if (stepDistance < 1.7) return;
+  stepDistance = 0;
+  const below = world.getBlock(Math.floor(player.position.x), Math.floor(player.position.y - 0.1), Math.floor(player.position.z));
+  if (below) sound.step(materialOf(BLOCKS[below].name));
+  if (Math.hypot(player.position.x - spawnPoint.x, player.position.z - spawnPoint.z) > 8) tutorial.complete('mover');
+}
+
+function toggleSound() {
+  const on = sound.toggle();
+  soundButton.textContent = on ? 'Sonido: sí' : 'Sonido: no';
+  hud.toast(on ? 'Sonido activado' : 'Sonido desactivado');
 }
 
 const dir = new THREE.Vector3();
@@ -834,6 +964,7 @@ function frame(now: number) {
   }
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0);
   updateBreaking(dt);
+  updateSteps(dt);
 
   const date = gameDate();
   const hour = Sky.hourOf(date);
@@ -852,9 +983,18 @@ function frame(now: number) {
   drops.update(dt, player.position, take, 1 - sky.night * 0.5);
   bugs.update(dt, hour, player.position, 1 - sky.night * 0.5);
   furniture.setNight(sky.night);
+  sound.setHour(hour);
+  rainTimer -= dt;
+  if (rainTimer <= 0) {
+    rainTimer = 0.5;
+    sound.setRain(weather.raining ? weather.gloom : 0);
+  }
   if (fishing.active && hud.selectedStack?.id !== 'cana') fishing.stop();
   const fish = fishing.update(dt, player.position);
-  if (fish === 'bite') hud.toast('¡Ha picado! Clic derecho, ¡rápido!');
+  if (fish === 'bite') {
+    sound.splash();
+    hud.toast(touchMode ? '¡Ha picado! Pulsa Usar, ¡rápido!' : '¡Ha picado! Clic derecho, ¡rápido!');
+  }
   else if (fish === 'escaped') hud.toast('Se ha escapado…');
 
   // Bajo el agua todo se ve azul y cerca.
@@ -910,6 +1050,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+    game: { world, player, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
   });
 }

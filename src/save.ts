@@ -1,5 +1,6 @@
 import type { PlacedFurniture } from './furniture';
 import type { ItemStack } from './items';
+import type { StepId } from './tutorial';
 import type { VillagerMemory } from './villagers';
 import type { Edits } from './world';
 
@@ -31,6 +32,9 @@ export interface SaveData {
   /** Desde la v0.9: recetas aprendidas para la mesa de trabajo y la botella del día. */
   recipes?: string[];
   bottle?: { day: string; taken: boolean };
+  /** Desde la v1.0: pasos del tutorial hechos y si ya se terminó. */
+  tutorial?: StepId[];
+  tutorialDone?: boolean;
 }
 
 // El navegador puede negar el almacenamiento (modo privado, cookies bloqueadas):

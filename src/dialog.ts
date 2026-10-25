@@ -132,6 +132,8 @@ export interface DialogContext {
   /** Fiesta de hoy, si la hay. */
   holiday: Holiday | null;
   isBirthday: (v: Villager) => boolean;
+  /** Pitido de voz mientras sale el texto. */
+  voice?: (v: Villager) => void;
 }
 
 /** Ventana de conversación con un vecino, al estilo de Animal Crossing. */
@@ -190,6 +192,7 @@ export class Dialog {
     // El texto aparece letra a letra; un clic en el cuadro lo completa.
     this.typing = window.setInterval(() => {
       i += 2;
+      if (i % 4 === 0 && this.villager && text[i] !== ' ') this.ctx.voice?.(this.villager);
       this.textEl.textContent = text.slice(0, i);
       if (i >= text.length) {
         clearInterval(this.typing);

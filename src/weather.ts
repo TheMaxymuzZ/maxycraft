@@ -34,6 +34,10 @@ export class WeatherFx {
     this.points.visible = false;
   }
 
+  get raining() {
+    return this.kind === 'lluvia';
+  }
+
   set(kind: Weather) {
     if (kind === this.kind) return;
     this.kind = kind;

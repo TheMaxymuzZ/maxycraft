@@ -225,3 +225,76 @@ kbd {
 .card .badge { position: absolute; right: 8px; top: 8px; font: 700 10px var(--display); background: #4a6aa8; color: #fff; padding: 2px 6px; border-radius: 6px; }
 #collection-close { font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: #4a6aa8; color: #fff; }
 #collection-close:focus-visible { outline: 3px solid var(--dirt); outline-offset: 2px; }
+
+/* Menú: botones pequeños uno al lado del otro. */
+.menu-buttons { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.touch-note { display: none; margin: 0; font-size: 14px; font-weight: 800; color: var(--grass-deep); }
+@media (pointer: coarse) {
+  .touch-note { display: block; }
+  .controls { display: none; }
+}
+#inventory-close {
+  font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: var(--grass); color: #fff; margin-right: 8px;
+}
+
+/* Primeros pasos. */
+#tutorial {
+  position: fixed; left: 12px; top: 12px; width: min(300px, calc(100vw - 180px)); z-index: 2;
+  background: rgba(255, 250, 235, 0.92); color: var(--ink); border: 3px solid var(--grass-deep);
+  box-shadow: 4px 4px 0 rgba(0,0,0,.2); font: 600 13px var(--body);
+}
+#tutorial[hidden] { display: none; }
+#tutorial header {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 6px 10px;
+  background: var(--grass-deep); color: #fff; cursor: pointer; font: 700 15px var(--display);
+}
+#tutorial ol { margin: 0; padding: 8px 10px 8px 30px; display: grid; gap: 4px; }
+#tutorial li.done { color: #7d8a74; text-decoration: line-through; }
+#tutorial li.done::marker { content: '✓  '; color: var(--grass); font-weight: 800; }
+#tutorial.collapsed ol { display: none; }
+#debug { top: auto; bottom: 90px; }
+
+/* Mando táctil. */
+#touch { position: fixed; inset: 0; z-index: 1; touch-action: none; user-select: none; -webkit-user-select: none; }
+#touch[hidden] { display: none; }
+.touch-look { position: absolute; inset: 0; }
+.touch-stick {
+  position: absolute; left: 0; top: 0; width: 96px; height: 96px; border-radius: 50%;
+  background: rgba(255,255,255,.18); border: 3px solid rgba(255,255,255,.5); pointer-events: none;
+}
+.touch-stick[hidden] { display: none; }
+.touch-knob {
+  position: absolute; left: 26px; top: 26px; width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,255,255,.7);
+}
+.touch-btn {
+  position: absolute; border: 3px solid rgba(255,255,255,.7); background: rgba(35, 48, 31, .45); color: #fff;
+  font: 700 14px var(--display); border-radius: 50%; width: 72px; height: 72px; padding: 0; touch-action: none;
+}
+.touch-btn.pressed { background: rgba(110, 180, 80, .7); }
+.touch-btn.jump { right: 24px; bottom: 96px; width: 84px; height: 84px; }
+.touch-btn.use { right: 120px; bottom: 140px; }
+.touch-btn.break { right: 24px; bottom: 196px; }
+.touch-btn.top { top: 12px; width: auto; height: 36px; border-radius: 6px; padding: 0 10px; font-size: 13px; }
+.touch-btn.inv { right: 50%; transform: translateX(-4px); }
+.touch-btn.col { left: 50%; transform: translateX(4px); }
+.touch-btn.rot { right: 50%; top: 56px; transform: translateX(-4px); }
+.touch-btn.pause { left: 50%; top: 56px; transform: translateX(4px); }
+
+/* Que las ventanas quepan en pantallas bajas (móvil en horizontal) y se puedan desplazar. */
+.inv-panel, .shop-panel, .collection-panel { max-height: calc(100dvh - 32px); }
+@media (max-height: 500px) {
+  #inventory, #shop, #collection, #workbench { padding: 8px; }
+  .inv-panel, .shop-panel, .collection-panel { max-height: calc(100dvh - 16px); padding: 12px; }
+  #tutorial { font-size: 12px; }
+  /* El botón de cerrar arriba, a mano, en vez de al final de la lista. */
+  .inv-close, .shop-panel footer, .collection-panel footer { order: -1; }
+}
+
+/* El menú va por encima de todo y se puede desplazar si no cabe. */
+#overlay { z-index: 10; }
+.panel { max-height: calc(100dvh - 32px); overflow: auto; }
+@media (max-height: 500px) {
+  .panel { padding: 16px; gap: 10px; max-width: 520px; }
+  .panel h1 { font-size: 34px; }
+}

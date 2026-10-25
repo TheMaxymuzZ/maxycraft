@@ -26,6 +26,8 @@ export class Hud {
     for (let i = 0; i < HOTBAR_SIZE; i++) {
       const el = document.createElement('div');
       el.className = 'slot';
+      // En pantallas táctiles se elige casilla tocándola.
+      el.addEventListener('click', () => this.select(i));
       this.hotbarEl.appendChild(el);
       this.hotbarSlots.push(el);
     }

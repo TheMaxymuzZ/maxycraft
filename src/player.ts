@@ -21,6 +21,8 @@ export class Player {
   inWater = false;
 
   private keys = new Set<string>();
+  /** Mando táctil: palanca (-1 a 1 en cada eje) y botón de saltar. */
+  readonly touch = { forward: 0, strafe: 0, jump: false };
 
   constructor(private world: World, readonly camera: THREE.PerspectiveCamera) {
     window.addEventListener('keydown', (e) => this.keys.add(e.code));
@@ -37,11 +39,14 @@ export class Player {
   }
 
   update(dt: number) {
-    const forward = (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0);
-    const strafe = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0);
+    const forward = (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0) + this.touch.forward;
+    const strafe = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0) + this.touch.strafe;
+    const jump = this.keys.has('Space') || this.touch.jump;
+    // Con la palanca táctil casi al tope también se corre.
+    const pushed = Math.hypot(this.touch.forward, this.touch.strafe) > 0.92;
     // Solo se nada en agua de verdad (mar o río), no en una cueva por debajo del nivel del mar.
     this.inWater = this.position.y + 0.8 < WATER_SURFACE && !!this.world.waterKind(Math.floor(this.position.x), Math.floor(this.position.z));
-    let speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? SPRINT : WALK;
+    let speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || pushed ? SPRINT : WALK;
     if (this.inWater) speed *= 0.55;
 
     const sin = Math.sin(this.yaw);
@@ -50,8 +55,10 @@ export class Player {
     let mz = -cos * forward - sin * strafe;
     const len = Math.hypot(mx, mz);
     if (len > 0) {
-      mx = (mx / len) * speed;
-      mz = (mz / len) * speed;
+      // La palanca táctil permite ir despacio; el teclado siempre va a tope.
+      const amount = Math.min(1, len);
+      mx = (mx / len) * speed * amount;
+      mz = (mz / len) * speed * amount;
     }
     // Aceleración suave: en el suelo responde rápido, en el aire se controla menos.
     const accel = this.onGround || this.inWater ? 18 : 6;
@@ -62,11 +69,11 @@ export class Player {
     if (this.inWater) {
       // En el agua se flota despacio; con Espacio se nada hacia arriba.
       // Cerca de la superficie, Espacio da un impulso para subir a la orilla.
-      if (this.keys.has('Space') && this.position.y > WATER_SURFACE - 1.2) this.velocity.y = 7.5;
-      else if (this.keys.has('Space')) this.velocity.y = Math.min(this.velocity.y + 30 * dt, 3.2);
+      if (jump && this.position.y > WATER_SURFACE - 1.2) this.velocity.y = 7.5;
+      else if (jump) this.velocity.y = Math.min(this.velocity.y + 30 * dt, 3.2);
       else this.velocity.y = Math.max(this.velocity.y - 8 * dt, -2);
     } else {
-      if (this.onGround && this.keys.has('Space')) {
+      if (this.onGround && jump) {
         this.velocity.y = JUMP_SPEED;
         this.onGround = false;
       }
