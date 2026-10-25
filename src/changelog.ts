@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.7',
+    title: 'Tamaño de la interfaz',
+    items: [
+      'Opciones › Tamaño de la interfaz: botones, barra rápida, avisos, primeros pasos y ventanas del 70% al 150%.',
+      'Se ve al momento, sin reiniciar, y se recuerda para la próxima vez.',
+      'Si en tu pantalla no cabe tan grande, se queda en lo máximo que cabe sin que los botones se monten, y te lo dice.',
+      'Funciona junto con «Texto grande».',
+    ],
+  },
+  {
     version: '3.6',
     title: 'Controles cómodos en el móvil',
     items: [

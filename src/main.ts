@@ -48,7 +48,7 @@ import { raycast } from './raycast';
 import { type SaveData, activeSlot, loadGame, saveGame, setActiveSlot } from './save';
 import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
-import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings } from './settings';
+import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
 import { SunShadows } from './shadows';
 import { TouchControls } from './touch';
@@ -528,6 +528,7 @@ function applySettings(s: Settings) {
   for (const el of document.querySelectorAll<HTMLElement>('[data-key]')) el.textContent = keyLabel(s.keys[el.dataset.key as Action]);
   keysChanged();
   document.documentElement.classList.toggle('texto-grande', s.bigText);
+  applyUiScale();
   document.documentElement.classList.toggle('daltonico', s.colorblind);
   camera.fov = s.fov;
   camera.updateProjectionMatrix();
@@ -537,6 +538,19 @@ function applySettings(s: Settings) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[s.quality]));
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
+/** Tamaño de la interfaz (v3.7): el elegido, sin pasarse de lo que cabe; el CSS lo multiplica por el del texto grande. */
+function applyUiScale() {
+  const ui = uiScaleFor(settings.uiScale, window.innerWidth, window.innerHeight, touchMode);
+  document.documentElement.style.setProperty('--ui', String(ui));
+  document.documentElement.classList.toggle('ui-escalada', ui !== 1 || settings.bigText);
+  const hint = document.querySelector<HTMLElement>('#opt-uiScale-hint');
+  if (hint) {
+    hint.textContent = ui * 100 < settings.uiScale - 1
+      ? `En esta pantalla no cabe más grande: se ve al ${Math.round(ui * 100)}%. Gira el móvil o usa una pantalla mayor.`
+      : 'Botones, barra rápida, avisos y ventanas más grandes o más pequeños.';
+  }
+}
+window.addEventListener('resize', applyUiScale);
 const menu = new Menu(settings, touchMode, applySettings);
 // Después de una actualización, la portada enseña primero las novedades.
 if (hasUnseenNews(!!save)) menu.show('news');

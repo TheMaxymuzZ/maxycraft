@@ -10,7 +10,7 @@ export class Menu {
   readonly el = document.querySelector<HTMLDivElement>('#overlay')!;
   private views = [...this.el.querySelectorAll<HTMLElement>('.menu-view')];
   private qualityHint = document.querySelector<HTMLParagraphElement>('#opt-quality-hint')!;
-  private sliders: { key: 'music' | 'sfx' | 'sensitivity' | 'fov'; input: HTMLInputElement; out: HTMLOutputElement; format: (n: number) => string }[];
+  private sliders: { key: 'music' | 'sfx' | 'sensitivity' | 'fov' | 'uiScale'; input: HTMLInputElement; out: HTMLOutputElement; format: (n: number) => string }[];
   private qualityInputs: HTMLInputElement[] = [];
   private dayInputs: HTMLInputElement[] = [];
   private bigText = document.querySelector<HTMLInputElement>('#opt-bigtext')!;
@@ -30,7 +30,7 @@ export class Menu {
     private onChange: (s: Settings) => void,
   ) {
     const percent = (n: number) => `${n}%`;
-    const slider = (key: 'music' | 'sfx' | 'sensitivity' | 'fov', format: (n: number) => string) => ({
+    const slider = (key: 'music' | 'sfx' | 'sensitivity' | 'fov' | 'uiScale', format: (n: number) => string) => ({
       key,
       input: document.querySelector<HTMLInputElement>(`#opt-${key}`)!,
       out: document.querySelector<HTMLOutputElement>(`#opt-${key}-value`)!,
@@ -41,6 +41,7 @@ export class Menu {
       slider('sfx', percent),
       slider('sensitivity', (n) => `${n.toFixed(1).replace('.', ',')}×`),
       slider('fov', (n) => `${n}°`),
+      slider('uiScale', percent),
     ];
     for (const s of this.sliders) {
       s.input.addEventListener('input', () => {
