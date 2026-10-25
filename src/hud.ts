@@ -1,5 +1,5 @@
 import { HOTBAR_SIZE, INVENTORY_SIZE, type Inventory } from './inventory';
-import { type ItemStack, RECIPES, type Recipe, itemDef } from './items';
+import { type ItemStack, RECIPES, type Recipe, TOOL_USE, itemDef } from './items';
 import { RecipeBrowser } from './recipeBrowser';
 import { itemIcon } from './icons';
 import { Notices } from './notices';
@@ -88,7 +88,7 @@ export class Hud {
       html += `<span class="wear"><i style="width:${Math.round(left * 100)}%" class="${left < 0.25 ? 'low' : ''}"></i></span>`;
     }
     el.innerHTML = html;
-    el.title = def.name;
+    el.title = def.tool ? `${def.name}: ${TOOL_USE[def.tool].toLowerCase()}` : def.name;
   }
 
   render() {
@@ -113,10 +113,17 @@ export class Hud {
     this.selected = (i + HOTBAR_SIZE) % HOTBAR_SIZE;
     this.render();
     const s = this.selectedStack;
-    this.nameEl.textContent = s ? itemDef(s.id).name : 'Mano vacía';
+    const def = s ? itemDef(s.id) : null;
+    this.nameEl.textContent = def ? def.name : 'Mano vacía';
+    // Las herramientas dicen para qué sirven, así no hay que adivinarlo por el dibujo.
+    if (def?.tool) {
+      const use = document.createElement('small');
+      use.textContent = TOOL_USE[def.tool];
+      this.nameEl.append(use);
+    }
     this.nameEl.classList.add('show');
     clearTimeout(this.nameTimer);
-    this.nameTimer = window.setTimeout(() => this.nameEl.classList.remove('show'), 1200);
+    this.nameTimer = window.setTimeout(() => this.nameEl.classList.remove('show'), def?.tool ? 2000 : 1200);
   }
 
   /** Pasa lo de la casilla elegida a la otra mano, y lo de la otra mano a la casilla. */

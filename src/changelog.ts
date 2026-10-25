@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.5',
+    title: 'Herramientas nuevas',
+    items: [
+      'Hacha, pala, pico, caña, red y regadera redibujadas: mango gordo de madera con empuñadura, cabeza grande y contorno oscuro, como en Minecraft.',
+      'Cada una tiene su forma clara: el hacha con su hoja, el pico curvado, la pala con punta, la red con su aro.',
+      'Las sencillas son de piedra gris; las de hierro, plateadas y brillantes. Se distinguen a la primera.',
+      'Al coger una herramienta, debajo del nombre sale para qué sirve (por ejemplo, «Rompe piedra y minerales»).',
+    ],
+  },
+  {
     version: '3.4',
     title: 'Avisos que no se pisan',
     items: [

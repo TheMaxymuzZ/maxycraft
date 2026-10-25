@@ -48,6 +48,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #a8dcf5; fon
   opacity: 0; transition: opacity .3s; pointer-events: none;
 }
 #block-name.show { opacity: 1; }
+#block-name small { display: block; font: 700 13px var(--body); text-align: center; opacity: .9; }
+#block-name:has(small) { border-radius: 14px; padding: 3px 16px 5px; }
 
 #debug {
   position: fixed; left: 8px; top: 8px; padding: 4px 8px; background: rgba(0,0,0,.45); color: #fff;
