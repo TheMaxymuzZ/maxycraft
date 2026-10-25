@@ -100,6 +100,7 @@ export enum Tile {
   PineLeaves, PineSapling, SnowTop, SnowSide,
   DirtPathTop, StonePathTop, StreetTop, TilesTop,
   Basalt, Magma, CrystalCluster, Ice, MushroomStem, MushroomCap, SmallMushroom, Amethyst,
+  Blueprint,
 }
 
 /**
@@ -852,6 +853,12 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     '.bbbbbbbbbbbbbb.', '.bwwwwwwwwbwwwb.', '.bwbbbwwwwbwkwb.', '.bwwbwwwwwwwkwb.', '.bwbbbbbwwbwwwb.', '.bwwbwwwwwbwkwb.',
     '.bwwwwwwwwbwwwb.', '.bbbbbbbbbbbbbb.', ...Array(4).fill('................'),
   ], { b: [70, 130, 210], w: [250, 248, 236], k: [60, 60, 70] });
+  // Plano de casa: papel azul enrollado con una casita dibujada en blanco.
+  paintSprite(ctx, Tile.Blueprint, [
+    '................', '..bbbbbbbbbbbb..', '.dbbbbbbbbbbbbd.', '.dbbbbbwbbbbbbd.', '.dbbbbwbwbbbbbd.', '.dbbbwbbbwbbbbd.',
+    '.dbbwbbbbbwbbbd.', '.dbbwwwwwwwbbbd.', '.dbbwbbbbbwbbbd.', '.dbbwbwwbbwbbbd.', '.dbbwbwwbbwbbbd.', '.dbbwwwwwwwbbbd.',
+    '.dbbbbbbbbbbbbd.', '.dbbbbbbbbbbbbd.', '..dddddddddddd..', '................',
+  ], { b: [64, 120, 196], d: [40, 84, 150], w: [236, 244, 255] });
   void leaf;
 }
 

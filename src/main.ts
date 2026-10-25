@@ -52,7 +52,8 @@ import { CONTAINERS, Storage, StoragePanel, isContainer } from './storage';
 import { Orchard, canPlantOn, isSapling, treeKindOfFruit, treeKindOfSapling } from './orchard';
 import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel';
-import { type Guest, MAX_GUESTS, PILOT, type Villager, createVillagers, createVisitor, pickVisitor } from './villagers';
+import { LotGhosts, type Lot, describeMissing, inLot, lotFrom, lotPlot, lotProblem, lotProgress } from './lots';
+import { type Guest, PILOT, type Villager, createVillagers, createVisitor, pickVisitor } from './villagers';
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { Water } from './water';
@@ -138,6 +139,10 @@ const terrain = save ? save.terrain ?? 1 : TERRAIN_VERSION;
 const trip = save ? loadTrip(activeSlot()) : null;
 /** Vecinos invitados desde las islas misteriosas, que viven (o vivirán) en la isla de casa. */
 const guests: Guest[] = (save?.guests ?? []).map((g) => ({ ...g }));
+/** Casas que construye el jugador para vecinos nuevos (v2.10). */
+const lots: Lot[] = (save?.lots ?? []).map((l) => ({ ...l }));
+/** Casas terminadas en las que aún no vive nadie. */
+const freeLots = () => lots.filter((l) => l.done && !guests.some((g) => g.lot && g.x === l.x && g.z === l.z));
 /** El reloj de la isla: días de unos minutos y estaciones de una semana de juego (v2.4). */
 const clock = new GameClock(joined?.snapshot.clock ?? save?.clock, overrides, settings.dayLength);
 const gameDate = () => clock.date();
@@ -153,10 +158,11 @@ const world = joined
   ? new World(joined.snapshot.seed, material, joined.snapshot.edits, joined.snapshot.options)
   : trip
   ? new World(trip.seed, material, {}, { mystery: { kind: trip.kind, fruit: trip.fruit } })
-  : new World(seed, material, save?.edits ?? {}, { terrain, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) });
+  : new World(seed, material, save?.edits ?? {}, { terrain, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) });
 /** Todos los cambios de bloques pasan por aquí, para poder compartirlos con otros jugadores. */
 const sync = new WorldSync(world);
-// Los recién invitados se mudan al volver a casa: se les busca sitio una vez y se guarda.
+// Los invitados antes de la v2.10 se mudan al volver a casa: se les busca sitio una vez y se guarda.
+// Desde la v2.10 cada invitado ya trae su casa: la que construyó el jugador.
 if (!trip && !joined) {
   for (const g of guests) {
     if (g.x !== undefined) continue;
@@ -267,7 +273,7 @@ if (!save && !joined && !trip) {
   }
 }
 
-const villagers = createVillagers(world, save?.villagers ?? {}, guests);
+const villagers = createVillagers(world, save?.villagers ?? {}, guests, trip || joined ? [] : lots.map(lotPlot));
 // El piloto espera en la playa junto a la avioneta; en las islas misteriosas hay alguien de vacaciones.
 let pilot: Villager | null = null;
 if (airport) {
@@ -381,6 +387,7 @@ function persist() {
     storage: storage.serialize(),
     animals: animals.serialize(),
     guests,
+    lots,
     missions: missions.serialize(),
     clock: clock.serialize(),
     savedAt: 0,
@@ -673,9 +680,9 @@ const dialog = new Dialog({
       if (!inventory.remove('billete', 1)) return;
       record('viajar');
       const residents = [...villagers.filter((v) => !v.profile.role).map((v) => v.name), ...guests.map((g) => g.name)];
-      // Se mira antes de salir cuántas casas nuevas caben, para no invitar a quien no podrá mudarse.
-      const room = Math.min(MAX_GUESTS, guests.length + world.findGuestSpots(MAX_GUESTS - guests.length).length);
-      const trip = planTrip(activeSlot(), world.fruit, null, room);
+      // Se mira antes de salir cuántas casas libres hay, para no invitar a quien no tendría dónde vivir.
+      checkLots();
+      const trip = planTrip(activeSlot(), world.fruit, null, freeLots().length);
       trip.visitor = pickVisitor(residents, Math.random, trip.kind);
       saveTrip(trip);
       takeOff('Volando a una isla misteriosa…', () => {});
@@ -684,9 +691,11 @@ const dialog = new Dialog({
   },
   invite: (v) => {
     if (guests.some((g) => g.name === v.name)) return 'already';
-    if (guests.length >= (trip?.room ?? MAX_GUESTS)) return 'full';
-    guests.push({ name: v.name });
-    hud.toast(`¡${v.name} se mudará a tu isla!`);
+    // Solo se puede invitar si en casa hay una casa construida y libre esperándole.
+    const lot = freeLots()[0];
+    if (!lot) return 'full';
+    guests.push({ name: v.name, x: lot.x, z: lot.z, lot: true });
+    hud.toast(`¡${v.name} se mudará a la casa que construiste!`);
     persist();
     return 'ok';
   },
@@ -1302,6 +1311,11 @@ function useItem() {
     return;
   }
 
+  if (def?.id === 'plano_casa') {
+    useBlueprint(bx, by, bz);
+    return;
+  }
+
   if (useFarm(def, bx, by, bz, target)) return;
 
   if (def?.id === 'gallina' || def?.id === 'vaca') {
@@ -1381,6 +1395,76 @@ function pickUpFurniture(): boolean {
   if (!take(f.furniture.id)) return true;
   furniture.remove(f.furniture);
   return true;
+}
+
+// --- Casas para vecinos nuevos (v2.10) ---
+
+const lotGhosts = new LotGhosts();
+scene.add(lotGhosts.group);
+const lotStatus = document.querySelector<HTMLDivElement>('#lot-status')!;
+/** Lo que faltaba la última vez, para no rehacer los fantasmas si nada ha cambiado. */
+let lotKey = '';
+
+/** Marca un solar con el plano de casa, o lo quita si se usa sobre uno sin terminar. */
+function useBlueprint(x: number, y: number, z: number) {
+  if (trip || joined) {
+    hud.toast('Los planos de casa se usan en tu isla');
+    return;
+  }
+  const old = lots.find((l) => !l.done && inLot(l, x, z));
+  if (old) {
+    lots.splice(lots.indexOf(old), 1);
+    hud.toast('Has quitado el plano. Te lo devuelvo');
+    checkLots();
+    persist();
+    return;
+  }
+  const lot = lotFrom(x, y, z, player.position.x, player.position.z);
+  const problem = lotProblem(lot, (bx, by, bz) => world.getBlock(bx, by, bz), { plots: world.plots, lots });
+  if (problem) {
+    hud.toast(problem);
+    return;
+  }
+  inventory.remove('plano_casa', 1);
+  lots.push(lot);
+  sound.place();
+  hud.toast('¡Solar marcado! Pon bloques donde ves los fantasmas');
+  checkLots();
+  persist();
+}
+
+/** Mira cómo van las casas a medio construir: fantasmas de lo que falta y aviso al terminar. */
+function checkLots() {
+  if (trip || joined) return;
+  const ghosts: ReturnType<typeof lotProgress>['missing'] = [];
+  let near: { left: number; text: string } | null = null;
+  const free = freeLots();
+  for (const lot of lots) {
+    // Una casa con vecino ya es suya; una libre se vuelve a mirar por si se ha roto algo.
+    if (lot.done && !free.includes(lot)) continue;
+    const { missing } = lotProgress(lot, (x, y, z) => world.getBlock(x, y, z));
+    if (lot.done) {
+      if (missing.length) lot.done = false;
+      else continue;
+    }
+    if (!missing.length) {
+      lot.done = true;
+      sound.coin();
+      record('construir_casa');
+      hud.toast('¡Casa terminada! Ve a una isla misteriosa a buscar a quien viva en ella');
+      persist();
+      continue;
+    }
+    ghosts.push(...missing);
+    if (inLot(lot, player.position.x, player.position.z, 10)) near = { left: missing.length, text: describeMissing(missing) };
+  }
+  const key = ghosts.map((c) => `${c.x},${c.y},${c.z}`).join(';');
+  if (key !== lotKey) {
+    lotKey = key;
+    lotGhosts.show(ghosts);
+  }
+  lotStatus.hidden = !near;
+  if (near) lotStatus.textContent = `Plano de casa · faltan ${near.left}: ${near.text}`;
 }
 
 function placeFurniture(id: string, hit: { block: [number, number, number]; place: [number, number, number] }) {
@@ -1654,6 +1738,7 @@ function checkBiome(dt: number) {
   biomeHere = b;
 }
 
+let lotTimer = 0;
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
@@ -1710,6 +1795,11 @@ function frame(now: number) {
       farm.sync(sync, day);
       orchard.sync(sync, day);
     }
+  }
+  lotTimer -= dt;
+  if (lotTimer <= 0) {
+    lotTimer = 0.4;
+    checkLots();
   }
   if (net) net.update(now, { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.yaw, pitch: player.pitch });
   remotes.update(dt);
@@ -1796,6 +1886,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, lighting, sync, net, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, lots, useBlueprint, checkLots, lighting, sync, net, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

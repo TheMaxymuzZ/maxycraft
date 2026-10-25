@@ -11,7 +11,7 @@ export interface Trip {
   fruit: Block;
   /** Quien está de vacaciones allí, o null si ya viven todos en tu isla. */
   visitor: string | null;
-  /** Cuántos invitados caben en total en la isla de casa. */
+  /** Cuántas casas construidas y libres había en casa al salir. */
   room: number;
 }
 

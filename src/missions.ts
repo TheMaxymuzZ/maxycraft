@@ -3,7 +3,7 @@ import { dailyRandom } from './clock';
 /** Cosas que hace el jugador y que cuentan para las tareas y los logros. */
 export type MissionEvent =
   | 'pescar' | 'insecto' | 'vender' | 'sacudir' | 'regar' | 'charlar' | 'concha' | 'fabricar'
-  | 'mueble' | 'romper' | 'cosechar' | 'granja' | 'viajar' | 'donar' | 'regalar' | 'tareas';
+  | 'mueble' | 'romper' | 'cosechar' | 'granja' | 'viajar' | 'donar' | 'regalar' | 'tareas' | 'construir_casa';
 
 export interface TaskDef {
   id: string;
@@ -51,6 +51,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'cosecha20', name: 'Mano verde', text: 'Cosecha 20 veces', event: 'cosechar', goal: 20, points: 500 },
   { id: 'granja20', name: 'Granja feliz', text: 'Recoge 20 huevos o leches', event: 'granja', goal: 20, points: 500 },
   { id: 'viaje1', name: 'Despegue', text: 'Vuela a una isla misteriosa', event: 'viajar', goal: 1, points: 200 },
+  { id: 'casa1', name: 'Arquitecta, arquitecto', text: 'Construye una casa para un vecino nuevo', event: 'construir_casa', goal: 1, points: 500 },
   { id: 'viaje10', name: 'Trotamundos', text: 'Vuela 10 veces', event: 'viajar', goal: 10, points: 1000 },
   { id: 'mueble20', name: 'Decoradora, decorador', text: 'Coloca 20 muebles', event: 'mueble', goal: 20, points: 500 },
   { id: 'fabricar30', name: 'Manitas', text: 'Fabrica 30 cosas', event: 'fabricar', goal: 30, points: 500 },

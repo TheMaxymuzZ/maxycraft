@@ -511,3 +511,10 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
 .sign-panel footer { display: flex; gap: 8px; }
 .sign-panel footer button { font: 700 14px var(--display); padding: 8px 14px; border: 0; cursor: pointer; background: var(--grass); color: #fff; border-radius: 6px; }
 #sign-cancel { background: #8b5a35; }
+
+/* --- v2.10: casas para vecinos nuevos --- */
+#lot-status {
+  position: fixed; left: 50%; top: 14px; transform: translateX(-50%); max-width: calc(100vw - 32px);
+  padding: 6px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep);
+  font: 800 14px var(--body); text-align: center; pointer-events: none; z-index: 5;
+}
