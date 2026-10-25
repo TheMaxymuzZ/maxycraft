@@ -59,7 +59,7 @@ import { Water } from './water';
 import { Waterfalls } from './waterfall';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
-import { SEA_LEVEL, WATER_SURFACE, World } from './world';
+import { BIOME_NAMES, type Biome, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
 const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
@@ -131,6 +131,8 @@ const joined = netTest === 'invitado' ? await joinTestIsland() : null;
 
 const save = joined ? null : loadGame();
 const seed = joined?.snapshot.seed ?? save?.seed ?? Math.floor(Math.random() * 1e9);
+/** Las islas guardadas conservan su terreno; las nuevas son grandes y con biomas (v2.6). */
+const terrain = save ? save.terrain ?? 1 : TERRAIN_VERSION;
 // De viaje en una isla misteriosa: se juega en otra isla, pero los bolsillos y las bayas son los de casa.
 const trip = save ? loadTrip(activeSlot()) : null;
 /** Vecinos invitados desde las islas misteriosas, que viven (o vivirán) en la isla de casa. */
@@ -150,7 +152,7 @@ const world = joined
   ? new World(joined.snapshot.seed, material, joined.snapshot.edits, joined.snapshot.options)
   : trip
   ? new World(trip.seed, material, {}, { mystery: { kind: trip.kind, fruit: trip.fruit } })
-  : new World(seed, material, save?.edits ?? {}, { guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) });
+  : new World(seed, material, save?.edits ?? {}, { terrain, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) });
 /** Todos los cambios de bloques pasan por aquí, para poder compartirlos con otros jugadores. */
 const sync = new WorldSync(world);
 // Los recién invitados se mudan al volver a casa: se les busca sitio una vez y se guarda.
@@ -339,6 +341,7 @@ function persist() {
   } : {
     version: 1,
     seed,
+    terrain,
     edits: world.exportEdits(),
     player: { x: p.x, y: p.y, z: p.z, yaw: player.yaw, pitch: player.pitch },
     inventory: inventory.serialize(),
@@ -984,7 +987,7 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
     const t = orchard.remove(x, y, z);
     sync.setBlock(x, y, z, Block.Air);
     sound.rustle();
-    drops.spawn(t?.sapling ?? (b === Block.PalmSapling ? 'brote_palmera' : treeKindOfFruit(world.fruit)?.sapling ?? 'brote_manzano'), x + 0.5, y + 0.5, z + 0.5, { burst });
+    drops.spawn(t?.sapling ?? (b === Block.PalmSapling ? 'brote_palmera' : b === Block.PineSapling ? 'brote_pino' : treeKindOfFruit(world.fruit)?.sapling ?? 'brote_manzano'), x + 0.5, y + 0.5, z + 0.5, { burst });
     return;
   }
   // Al romper un cofre sale todo lo que tenía dentro.
@@ -1021,7 +1024,8 @@ function fell(x: number, y: number, z: number) {
   // El brote es del mismo árbol: de su fruta, o del tipo plantado, o de la fruta de la isla.
   const fruitKind = felled.fruits.length ? treeKindOfFruit(felled.fruits[0][3]) : undefined;
   const palm = felled.logs.some(([, , , lb]) => lb === Block.PalmLog);
-  const kind = fruitKind ?? (planted && treeKindOfSapling(planted.sapling)) ?? treeKindOfFruit(palm ? Block.Coconut : world.fruit);
+  const pine = felled.leaves.some(([, , , lb]) => lb === Block.PineLeaves);
+  const kind = fruitKind ?? (planted && treeKindOfSapling(planted.sapling)) ?? (pine ? treeKindOfSapling('brote_pino') : treeKindOfFruit(palm ? Block.Coconut : world.fruit));
   const all = [...felled.fruits, ...felled.leaves, ...felled.logs.reverse()];
   for (const [bx, by, bz] of all) sync.setBlock(bx, by, bz, Block.Air);
   for (const [bx, by, bz, lb] of felled.logs) drops.spawn(dropFor(lb)!, bx + 0.5, by + 0.5, bz + 0.5, { burst: true });
@@ -1127,7 +1131,7 @@ function placeAnimal(kind: AnimalKind, hit: { block: [number, number, number]; p
     return;
   }
   const [x, y, z] = hit.place;
-  if (isSolid(world.getBlock(x, y, z)) || !isSolid(world.getBlock(x, y - 1, z)) || world.waterKind(x, z) && y <= WATER_SURFACE + 1) {
+  if (isSolid(world.getBlock(x, y, z)) || !isSolid(world.getBlock(x, y - 1, z)) || world.waterKind(x, z) && y <= world.waterSurface(x, z) + 1) {
     hud.toast('Suéltala en el suelo, en un sitio despejado');
     return;
   }
@@ -1281,7 +1285,7 @@ function useItem() {
     removeBlock(bx, by, bz, target, true);
     return;
   }
-  if (target === Block.Log || target === Block.PalmLog || target === Block.Leaves || target === Block.PalmLeaves) {
+  if (target === Block.Log || target === Block.PalmLog || target === Block.Leaves || target === Block.PalmLeaves || target === Block.PineLeaves) {
     shakeTree(bx, by, bz);
   }
 }
@@ -1459,7 +1463,7 @@ const net = joined?.session
   ?? (netTest === 'anfitrion' ? NetSession.host(new TabTransport(identity!.id), identity!, () => ({
     seed: world.seed,
     edits: world.exportEdits(),
-    options: trip ? { mystery: { kind: trip.kind, fruit: trip.fruit } } : { guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) },
+    options: trip ? { mystery: { kind: trip.kind, fruit: trip.fruit } } : { terrain, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined ? [[g.x, g.z] as [number, number]] : [])) },
     clock: clock.serialize(),
   }), netEvents) : null);
 if (net) {
@@ -1559,6 +1563,19 @@ function updateSplash(now: number) {
   setTimeout(() => splash.remove(), 500);
 }
 
+/** Bioma por el que va el jugador, para avisar al entrar en otro (solo en las islas grandes). */
+let biomeHere: Biome | null = null;
+let biomeCheck = 0;
+function checkBiome(dt: number) {
+  biomeCheck -= dt;
+  if (biomeCheck > 0) return;
+  biomeCheck = 0.5;
+  const b = world.biomeAt(Math.floor(player.position.x), Math.floor(player.position.z));
+  if (!b || b === biomeHere) return;
+  if (biomeHere && isPlaying()) hud.toast(BIOME_NAMES[b]);
+  biomeHere = b;
+}
+
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
@@ -1572,6 +1589,7 @@ function frame(now: number) {
     spawned = true;
   }
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0);
+  if (spawned) checkBiome(dt);
   // En la portada la cámara da vueltas despacio por encima de la isla.
   if (!menu.hidden && menu.isTitle) {
     const a = now / 1000 * 0.08;
@@ -1637,7 +1655,7 @@ function frame(now: number) {
   else if (fish === 'escaped') hud.toast('Se ha escapado…');
 
   // Bajo el agua todo se ve azul y cerca.
-  const submerged = camera.position.y < WATER_SURFACE && !!world.waterKind(Math.floor(camera.position.x), Math.floor(camera.position.z));
+  const submerged = camera.position.y < world.waterSurface(Math.floor(camera.position.x), Math.floor(camera.position.z)) && !!world.waterKind(Math.floor(camera.position.x), Math.floor(camera.position.z));
   underwater.hidden = !submerged;
   sky.dome.visible = !submerged;
   if (submerged) {

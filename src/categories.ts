@@ -17,7 +17,7 @@ export const CATEGORIES: { id: CategoryId; name: string }[] = [
 ];
 
 const NATURE_BLOCKS: ReadonlySet<number> = new Set([
-  Block.Dirt, Block.Sand, Block.Log, Block.Leaves, Block.PalmLog, Block.Bamboo, Block.Sapling, Block.PalmSapling,
+  Block.Dirt, Block.Sand, Block.Log, Block.Leaves, Block.PalmLog, Block.Bamboo, Block.Sapling, Block.PalmSapling, Block.PineSapling, Block.PineLeaves, Block.SnowGrass,
   Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink,
 ]);
 const NATURE = new Set(['rama', 'concha', 'caracola', 'estrella', 'carbon', 'pepita_hierro', 'pepita_oro', 'amatista', 'huevo', 'leche', 'gallina', 'vaca']);

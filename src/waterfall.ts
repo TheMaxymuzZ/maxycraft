@@ -29,14 +29,17 @@ export class Waterfalls {
   private material = new THREE.MeshLambertMaterial({ map: this.texture, transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false });
   private foam: THREE.Points[] = [];
   private foamSeeds: Float32Array[] = [];
+  private foamWidth: number[] = [];
 
   constructor(spots: WaterfallSpot[]) {
     for (const s of spots) {
-      const height = s.top - s.bottom;
-      const width = 2;
+      // En el río de terrazas la lámina va de agua a agua, y baja un poco más para tapar el escalón.
+      const from = s.river ? s.bottom + 0.4 : s.bottom + 1;
+      const height = (s.river ? s.top + 0.85 : s.top + 1) - from;
+      const width = s.width ?? 2;
       const sheet = new THREE.Mesh(new THREE.PlaneGeometry(width, height), this.material);
       // La lámina pegada a la cara del acantilado que da al río, un pelín separada para que no parpadee.
-      sheet.position.set(s.x + 0.5 + s.dx * 0.52, s.bottom + 1 + height / 2, s.z + 0.5 + s.dz * 0.52);
+      sheet.position.set(s.x + 0.5 + s.dx * 0.52, from + height / 2, s.z + 0.5 + s.dz * 0.52);
       sheet.rotation.y = Math.atan2(s.dx, s.dz);
       // La textura se repite por bloque.
       const uv = sheet.geometry.getAttribute('uv') as THREE.BufferAttribute;
@@ -52,11 +55,12 @@ export class Waterfalls {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xf2fbff, size: 0.14, transparent: true, opacity: 0.9 }));
-      pts.position.set(s.x + 0.5 + s.dx * 1.1, s.bottom + 1, s.z + 0.5 + s.dz * 1.1);
+      pts.position.set(s.x + 0.5 + s.dx * 1.1, s.river ? s.bottom + 0.85 : s.bottom + 1, s.z + 0.5 + s.dz * 1.1);
       pts.rotation.y = Math.atan2(s.dx, s.dz);
       this.group.add(pts);
       this.foam.push(pts);
       this.foamSeeds.push(seeds);
+      this.foamWidth.push(width);
     }
   }
 
@@ -68,7 +72,7 @@ export class Waterfalls {
       for (let i = 0; i < seeds.length; i++) {
         // Cada gota hace un saltito parabólico y vuelve a empezar.
         const t = (seconds * 1.4 + seeds[i] * 7) % 1;
-        const spread = (seeds[i] - 0.5) * 2;
+        const spread = (seeds[i] - 0.5) * this.foamWidth[k];
         pos.setXYZ(i, spread, Math.sin(t * Math.PI) * 0.6 * (0.5 + seeds[i]), t * 0.9);
       }
       pos.needsUpdate = true;

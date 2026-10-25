@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { type Box, collisionBoxes, isSolid } from './blocks';
 import { type KeyMap, defaultKeys } from './keys';
-import { WATER_SURFACE, type World } from './world';
+import type { World } from './world';
 
 const HALF_WIDTH = 0.3;
 const HEIGHT = 1.8;
@@ -54,7 +54,8 @@ export class Player {
     // Con la palanca táctil casi al tope también se corre.
     const pushed = Math.hypot(this.touch.forward, this.touch.strafe) > 0.92;
     // Solo se nada en agua de verdad (mar o río), no en una cueva por debajo del nivel del mar.
-    this.inWater = this.position.y + 0.8 < WATER_SURFACE && !!this.world.waterKind(Math.floor(this.position.x), Math.floor(this.position.z));
+    const surface = this.world.waterSurface(Math.floor(this.position.x), Math.floor(this.position.z));
+    this.inWater = this.position.y + 0.8 < surface && !!this.world.waterKind(Math.floor(this.position.x), Math.floor(this.position.z));
     let speed = this.keys.has(keys.sprint) || pushed ? SPRINT : WALK;
     if (this.inWater) speed *= 0.55;
 
@@ -78,7 +79,7 @@ export class Player {
     if (this.inWater) {
       // En el agua se flota despacio; con Espacio se nada hacia arriba.
       // Cerca de la superficie, Espacio da un impulso para subir a la orilla.
-      if (jump && this.position.y > WATER_SURFACE - 1.2) this.velocity.y = 7.5;
+      if (jump && this.position.y > surface - 1.2) this.velocity.y = 7.5;
       else if (jump) this.velocity.y = Math.min(this.velocity.y + 30 * dt, 3.2);
       else this.velocity.y = Math.max(this.velocity.y - 8 * dt, -2);
     } else {

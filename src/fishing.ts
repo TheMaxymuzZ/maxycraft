@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { type Creature, pickCreature } from './creatures';
-import { WATER_SURFACE, type World } from './world';
+import { isSolid } from './blocks';
+import type { World } from './world';
 
 const CAST_RANGE = 12;
 /** Segundos para reaccionar cuando pica. */
@@ -49,11 +50,21 @@ export class Fishing {
     }
 
     // Punto donde el rayo de la mira corta la superficie del agua.
+    // El agua puede estar a distintas alturas (el río baja por terrazas): se avanza por el rayo hasta tocarla.
     if (ray.direction.y >= -0.01) return { kind: 'no-water' };
-    const t = (WATER_SURFACE - ray.origin.y) / ray.direction.y;
-    if (t < 0 || t > CAST_RANGE) return { kind: 'no-water' };
-    const p = ray.at(t, new THREE.Vector3());
-    const kind = this.world.waterKind(Math.floor(p.x), Math.floor(p.z));
+    const p = new THREE.Vector3();
+    let kind: 'mar' | 'río' | null = null;
+    for (let t = 0; t <= CAST_RANGE; t += 0.2) {
+      ray.at(t, p);
+      const x = Math.floor(p.x);
+      const z = Math.floor(p.z);
+      if (isSolid(this.world.getBlock(x, Math.floor(p.y), z))) break;
+      const surface = this.world.waterSurface(x, z);
+      if (p.y > surface) continue;
+      kind = this.world.waterKind(x, z);
+      p.y = surface;
+      break;
+    }
     if (!kind) return { kind: 'no-water' };
 
     this.spot.copy(p);
@@ -75,7 +86,7 @@ export class Fishing {
       return 'cancelled';
     }
     this.timer -= dt;
-    const y = WATER_SURFACE - 0.06;
+    const y = this.world.waterSurface(Math.floor(this.spot.x), Math.floor(this.spot.z)) - 0.06;
     if (this.phase === 'waiting') {
       this.bobber.position.y = y + Math.sin(this.t * 2.5) * 0.03;
       // Pequeños toques antes de picar de verdad.

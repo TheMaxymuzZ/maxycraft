@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
-import { fruitTreeShape, palmShape } from './trees';
+import { fruitTreeShape, palmShape, pineShape } from './trees';
 
 export const CHUNK = 16;
 export const HEIGHT = 64;
@@ -10,8 +10,17 @@ export const HEIGHT = 64;
 export const SEA_LEVEL = 16;
 /** Altura de la superficie del agua. */
 export const WATER_SURFACE = SEA_LEVEL + 0.85;
-/** Radio aproximado de la isla, en bloques. */
+/** Radio aproximado de la isla, en bloques (las islas de antes de la v2.6). */
 export const ISLAND_RADIUS = 72;
+/** Radio de las islas nuevas, con biomas (terreno 2). */
+export const BIG_ISLAND_RADIUS = 112;
+/** Versión del terreno de las islas nuevas. Las guardadas siguen con el suyo para que no se mueva nada. */
+export const TERRAIN_VERSION = 2;
+
+/** Zonas de la isla con su propio paisaje (solo en el terreno 2). */
+export type Biome = 'playa' | 'bosque' | 'pradera' | 'bambu' | 'montaña';
+export const BIOME_NAMES: Record<Biome, string> = { playa: 'Playa', bosque: 'Bosque', pradera: 'Pradera', bambu: 'Bambú', montaña: 'Montaña' };
+const INLAND_BIOMES: Biome[] = ['bosque', 'pradera', 'montaña', 'bambu'];
 
 class Chunk {
   readonly data = new Uint8Array(CHUNK * CHUNK * HEIGHT);
@@ -99,6 +108,8 @@ export interface WorldOptions {
   mystery?: { kind: MysteryKind; fruit: Block };
   /** Parcelas (x, z) de los vecinos invitados desde las islas misteriosas. */
   guests?: [number, number][];
+  /** Versión del terreno: 1 (o nada) las islas de antes, 2 las grandes con biomas. */
+  terrain?: number;
 }
 
 /** Sitio de la avioneta: la playa donde espera el piloto y el agua donde flota el avión, mirando al mar (dx, dz). */
@@ -117,6 +128,10 @@ export interface WaterfallSpot {
   bottom: number;
   dx: number;
   dz: number;
+  /** Ancho de la lámina de agua (2 si no se dice). */
+  width?: number;
+  /** Cascada del río entre dos terrazas: `top` y `bottom` son los niveles del agua, no del suelo. */
+  river?: boolean;
 }
 
 export class World {
@@ -131,6 +146,13 @@ export class World {
   readonly mystery: WorldOptions['mystery'];
   /** Radio de la isla: las misteriosas son mucho más pequeñas. */
   private readonly radius: number;
+  /** Versión del terreno (ver TERRAIN_VERSION). */
+  readonly terrain: number;
+  /** Terreno 2: orden de los biomas alrededor de la isla y giro, distintos en cada isla. */
+  private biomeOrder: Biome[] = INLAND_BIOMES;
+  private biomeTurn = 0;
+  /** Cuánto se alejan del centro las casas y las cuevas: más en las islas grandes. */
+  private readonly spread: number;
   /** Entradas de cueva: escaleras que bajan desde la superficie. */
   readonly caveEntrances: { x: number; z: number; y: number }[];
   /** Posiciones "x,y,z" de las antorchas, que iluminan las cuevas. */
@@ -141,7 +163,13 @@ export class World {
 
   constructor(readonly seed: number, private material: THREE.Material, edits: Edits = {}, options: WorldOptions = {}) {
     this.mystery = options.mystery;
-    this.radius = this.mystery ? 30 : ISLAND_RADIUS;
+    this.terrain = this.mystery ? 1 : options.terrain ?? 1;
+    this.radius = this.mystery ? 30 : this.terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS;
+    this.spread = this.terrain >= 2 ? 1.5 : 1;
+    if (this.terrain >= 2) {
+      this.biomeOrder = [...INLAND_BIOMES].sort((a, b) => columnRandom(a.length, 41, seed + a.charCodeAt(1)) - columnRandom(b.length, 41, seed + b.charCodeAt(1)));
+      this.biomeTurn = columnRandom(4, 42, seed) * Math.PI * 2;
+    }
     this.fruit = this.mystery?.fruit ?? islandFruit(seed);
     for (const [k, list] of Object.entries(edits)) {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
@@ -170,7 +198,7 @@ export class World {
     const found: { x: number; z: number; y: number }[] = [];
     for (let tries = 0; tries < 400 && found.length < count; tries++) {
       const a = columnRandom(tries, 55, this.seed) * Math.PI * 2;
-      const d = 15 + columnRandom(tries, 56, this.seed) * 30;
+      const d = (15 + columnRandom(tries, 56, this.seed) * 30) * this.spread;
       const x = Math.round(Math.cos(a) * d);
       const z = Math.round(Math.sin(a) * d);
       const y = this.naturalHeight(x, z);
@@ -206,7 +234,7 @@ export class World {
     const plots: Plot[] = [];
     for (let tries = 0; tries < 600 && plots.length < count; tries++) {
       const a = columnRandom(tries, 77, this.seed) * Math.PI * 2;
-      const d = 12 + columnRandom(tries, 78, this.seed) * 34;
+      const d = (12 + columnRandom(tries, 78, this.seed) * 34) * this.spread;
       const x = Math.round(Math.cos(a) * d);
       const z = Math.round(Math.sin(a) * d);
       const h = this.naturalHeight(x, z);
@@ -256,7 +284,7 @@ export class World {
     };
     for (let tries = 0; tries < 1500 && found.length < count; tries++) {
       const a = columnRandom(tries, 177, this.seed) * Math.PI * 2;
-      const d = 10 + columnRandom(tries, 178, this.seed) * 45;
+      const d = (10 + columnRandom(tries, 178, this.seed) * 45) * this.spread;
       const x = Math.round(Math.cos(a) * d);
       const z = Math.round(Math.sin(a) * d);
       const h = this.naturalHeight(x, z);
@@ -327,20 +355,88 @@ export class World {
 
   /** Qué agua hay en (x, z): río dentro de la isla, mar fuera, o null si es tierra. */
   waterKind(x: number, z: number): 'mar' | 'río' | null {
-    // Hay agua donde el terreno natural queda bajo el nivel del mar y nadie ha tapado el hueco.
-    if (this.naturalHeight(x, z) > SEA_LEVEL || this.getBlock(x, SEA_LEVEL, z) !== Block.Air) return null;
-    return this.landMask(x, z) >= 0.26 ? 'río' : 'mar';
+    // Hay agua donde el terreno natural queda bajo el nivel del agua y nadie ha tapado el hueco.
+    const level = this.waterLevel(x, z);
+    if (this.naturalHeight(x, z) >= level || this.getBlock(x, level, z) !== Block.Air) return null;
+    return level > SEA_LEVEL || this.landMask(x, z) >= 0.26 ? 'río' : 'mar';
+  }
+
+  /**
+   * Altura (y del bloque) hasta la que llega el agua en esta columna. Es el nivel del mar,
+   * salvo en el río de las islas grandes, que baja de terraza en terraza (y forma cascadas).
+   */
+  waterLevel(x: number, z: number): number {
+    if (this.terrain < 2 || this.mystery) return SEA_LEVEL;
+    const { dist, u } = this.riverAt(x, z);
+    return dist < 3.6 && this.landMask(x, z) >= 0.26 ? this.riverLevel(u) : SEA_LEVEL;
+  }
+
+  /** Altura de la superficie del agua en (x, z). */
+  waterSurface(x: number, z: number): number {
+    return this.waterLevel(x, z) + (WATER_SURFACE - SEA_LEVEL);
   }
 
   /** Distancia en bloques al centro del río, que cruza la isla serpenteando. */
   private river(x: number, z: number): number {
-    if (this.mystery) return Infinity; // las islas misteriosas no tienen río
+    return this.riverAt(x, z).dist;
+  }
+
+  /** El río en coordenadas propias: `u` a lo largo y `dist` a su centro. */
+  private riverAt(x: number, z: number): { dist: number; u: number } {
+    if (this.mystery) return { dist: Infinity, u: 0 }; // las islas misteriosas no tienen río
     const a = columnRandom(2, 2, this.seed) * Math.PI;
-    const phase = columnRandom(3, 3, this.seed) * Math.PI * 2;
     const u = x * Math.cos(a) + z * Math.sin(a);
     const v = -x * Math.sin(a) + z * Math.cos(a);
-    const center = 14 * Math.sin(u / 23 + phase) + (fbm(u / 30, 0, this.seed + 5, 2) - 0.5) * 16;
-    return Math.abs(v - center);
+    return { dist: Math.abs(v - this.riverCenter(u)), u };
+  }
+
+  private riverCenter(u: number): number {
+    const phase = columnRandom(3, 3, this.seed) * Math.PI * 2;
+    return 14 * Math.sin(u / 23 + phase) + (fbm(u / 30, 0, this.seed + 5, 2) - 0.5) * 16;
+  }
+
+  /** Punto (x, z) del centro del río a la altura `u`. */
+  private riverPoint(u: number): [number, number] {
+    const a = columnRandom(2, 2, this.seed) * Math.PI;
+    const v = this.riverCenter(u);
+    return [u * Math.cos(a) - v * Math.sin(a), u * Math.sin(a) + v * Math.cos(a)];
+  }
+
+  /** Niveles del río a lo largo de `u` (terreno 2), calculados una vez. */
+  private riverLevels: Int16Array | null = null;
+
+  /**
+   * Nivel del agua del río (terreno 2): el de la terraza por la que pasa, igual en todo su ancho.
+   * Desde su punto más alto solo baja, así el agua cae en cascadas y nunca sube.
+   */
+  private riverLevel(u: number): number {
+    const reach = Math.ceil(this.radius * 1.6);
+    if (!this.riverLevels) {
+      const levels = new Int16Array(reach * 2 + 1);
+      for (let i = 0; i < levels.length; i++) {
+        const [x, z] = this.riverPoint(i - reach);
+        const mask = this.landMask(x, z);
+        levels[i] = mask < 0.26 ? SEA_LEVEL : Math.max(SEA_LEVEL, this.landHeight(x, z, mask) - 2);
+      }
+      // El nacimiento: la mitad del tramo más alto. Hacia los dos lados el río solo puede bajar.
+      // Si ese tramo es muy corto (un charquito entre dos cascadas), se baja un piso.
+      let first = 0;
+      let last = 0;
+      for (;;) {
+        const top = Math.max(...levels);
+        first = levels.indexOf(top);
+        last = first;
+        while (last + 1 < levels.length && levels[last + 1] === top) last++;
+        if (last - first >= 8 || top <= SEA_LEVEL) break;
+        for (let i = first; i <= last; i++) levels[i] = top - 4;
+      }
+      const source = Math.floor((first + last) / 2);
+      for (let i = source + 1; i < levels.length; i++) levels[i] = Math.min(levels[i], levels[i - 1]);
+      for (let i = source - 1; i >= 0; i--) levels[i] = Math.min(levels[i], levels[i + 1]);
+      this.riverLevels = levels;
+    }
+    const i = Math.round(u) + reach;
+    return i < 0 || i >= this.riverLevels.length ? SEA_LEVEL : this.riverLevels[i];
   }
 
   heightAt(x: number, z: number): number {
@@ -357,19 +453,74 @@ export class World {
     if (mask < 0.14) return SEA_LEVEL; // orilla poco profunda
     if (mask < 0.26) return SEA_LEVEL + 1; // playa
 
+    if (this.terrain >= 2) {
+      const { dist, u } = this.riverAt(x, z);
+      if (dist < 6) {
+        const level = this.riverLevel(u);
+        if (dist < 2.2) return level - 2;
+        if (dist < 3.6) return level + 1;
+        // La orilla nunca queda por debajo del agua, para que el río no se derrame.
+        return Math.max(level + 2, this.landHeight(x, z, mask));
+      }
+      return this.landHeight(x, z, mask);
+    }
+
     const r = this.river(x, z);
     if (r < 2.2) return SEA_LEVEL - 2;
     if (r < 3.6) return SEA_LEVEL + 1;
+    return this.landHeight(x, z, mask);
+  }
 
-    // Terrazas con acantilados, como los niveles de Animal Crossing.
+  /** Terrazas con acantilados, como los niveles de Animal Crossing. En la montaña hay más pisos. */
+  private landHeight(x: number, z: number, mask: number): number {
     const hills = fbm(x / 70, z / 70, this.seed, 3);
-    const t = (mask - 0.26) / 0.74 * (0.5 + hills);
-    const tier = t > 0.85 ? 2 : t > 0.45 ? 1 : 0;
+    let t = (mask - 0.26) / 0.74 * (0.5 + hills);
+    if (this.terrain < 2) return SEA_LEVEL + 2 + (t > 0.85 ? 2 : t > 0.45 ? 1 : 0) * 4;
+    t *= 1 + 1.6 * this.mountainWeight(x, z);
+    const tier = t > 1.9 ? 4 : t > 1.3 ? 3 : t > 0.85 ? 2 : t > 0.45 ? 1 : 0;
     return SEA_LEVEL + 2 + tier * 4;
+  }
+
+  /** Ángulo alrededor del centro, deformado con ruido para que los biomas no tengan bordes rectos. */
+  private biomeAngle(x: number, z: number): number {
+    const a = Math.atan2(z, x) - this.biomeTurn + (fbm(x / 50, z / 50, this.seed + 40, 2) - 0.5) * 1.4;
+    return ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  }
+
+  /** 1 en el corazón de la montaña, 0 fuera; el pueblo del centro siempre queda llano. */
+  private mountainWeight(x: number, z: number): number {
+    const i = this.biomeOrder.indexOf('montaña');
+    const center = (i + 0.5) * (Math.PI / 2);
+    let d = Math.abs(this.biomeAngle(x, z) - center);
+    d = Math.min(d, Math.PI * 2 - d);
+    const around = Math.max(0, Math.min(1, (Math.PI / 4 - d) / (Math.PI / 8)));
+    const out = Math.max(0, Math.min(1, (Math.hypot(x, z) / this.radius - 0.25) / 0.25));
+    return around * out;
+  }
+
+  /** Bioma de (x, z) en las islas grandes; null en las de antes y en las misteriosas. */
+  biomeAt(x: number, z: number): Biome | null {
+    if (this.terrain < 2) return null;
+    if (this.landMask(x, z) < 0.26) return 'playa';
+    return this.biomeOrder[Math.floor(this.biomeAngle(x, z) / (Math.PI / 2)) % 4];
   }
 
   private isBeach(h: number): boolean {
     return h <= SEA_LEVEL + 1;
+  }
+
+  /** Bloque de arriba y de debajo de una columna de altura `h`, y si es arena de playa o de río. */
+  private surfaceAt(x: number, z: number, h: number): { top: Block; under: Block; beach: boolean } {
+    // Arena en la playa y en el fondo y las orillas del río (también el de las terrazas altas).
+    const beach = this.isBeach(h) || (this.terrain >= 2 && h <= this.waterLevel(x, z) + 1 && this.river(x, z) < 3.6);
+    if (beach) return { top: Block.Sand, under: Block.Sand, beach };
+    // En la montaña los acantilados son de roca y las cumbres tienen nieve.
+    if (this.terrain >= 2 && !this.plotAt(x, z) && this.biomeAt(x, z) === 'montaña') {
+      const low = Math.min(this.heightAt(x + 1, z), this.heightAt(x - 1, z), this.heightAt(x, z + 1), this.heightAt(x, z - 1));
+      if (h - low >= 4) return { top: Block.Stone, under: Block.Stone, beach };
+      if (h >= SEA_LEVEL + 2 + 4 * 4) return { top: Block.SnowGrass, under: Block.Dirt, beach };
+    }
+    return { top: Block.Grass, under: Block.Dirt, beach };
   }
 
   private generate(chunk: Chunk) {
@@ -384,20 +535,21 @@ export class World {
         const wz = oz + z;
         const h = this.heightAt(wx, wz);
         heights[z * CHUNK + x] = h;
-        const beach = this.isBeach(h);
+        const biome = this.biomeAt(wx, wz);
+        const { top, under, beach } = this.surfaceAt(wx, wz, h);
         // Bajo la isla hay cuevas, solo donde hay tierra firme encima.
         const caves = !beach && !this.plotAt(wx, wz, 2);
         for (let y = 0; y <= h; y++) {
           let b: Block;
-          if (y === h) b = beach ? Block.Sand : Block.Grass;
-          else if (y > h - 4) b = beach ? Block.Sand : Block.Dirt;
+          if (y === h) b = top;
+          else if (y > h - 4) b = under;
           else if (y > 0 && caves && y < h - 5 && this.isCave(wx, y, wz)) b = Block.Air;
           else if (y > 0) b = this.oreAt(wx, y, wz);
           else b = Block.Stone;
           d[index(x, y, z)] = b;
         }
         // Flores y hierba alta sobre el césped. Hay zonas especiales: bosquecillos de bambú y praderas de flores.
-        if (!beach && h + 1 < HEIGHT && !this.plotAt(wx, wz)) {
+        if (!beach && top === Block.Grass && h + 1 < HEIGHT && !this.plotAt(wx, wz)) {
           const r = columnRandom(wx, wz, this.seed + 11);
           const patch = fbm(wx / 12, wz / 12, this.seed + 12, 2);
           const zone = this.zoneAt(wx, wz);
@@ -411,7 +563,7 @@ export class World {
             plant = MEADOW_FLOWERS[Math.floor(blockRandom(wx, 14, wz, this.seed) * MEADOW_FLOWERS.length)];
           } else if (r < 0.025 && patch > 0.5) {
             plant = [Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite][Math.floor(patch * 30) % 3];
-          } else if (r < 0.09) {
+          } else if (r < (biome === 'bosque' ? 0.18 : 0.09)) {
             plant = Block.TallGrass;
           }
           if (plant) d[index(x, h + 1, z)] = plant;
@@ -432,6 +584,8 @@ export class World {
         const kind = this.treeAt(wx, wz);
         if (kind === 'fruit') this.placeFruitTree(wx, wz, tx, tz, set);
         else if (kind === 'palm') this.placePalm(this.heightAt(wx, wz) + 1, tx, tz, set);
+        else if (kind === 'pine') for (const [dx, dy, dz, b, replace] of pineShape()) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
+        else if (kind === 'boulder') this.placeBoulder(wx, wz, tx, tz, set);
         else if (kind === 'rock') this.placeRock(wx, wz, tx, tz, set);
       }
     }
@@ -572,6 +726,12 @@ export class World {
    */
   zoneAt(x: number, z: number): 'bambu' | 'pradera' | null {
     if (this.landMask(x, z) < 0.35 || this.river(x, z) < 6) return null;
+    if (this.terrain >= 2) {
+      const biome = this.biomeAt(x, z);
+      if (biome === 'pradera') return 'pradera';
+      if (biome === 'bambu') return fbm(x / 20, z / 20, this.seed + 21, 2) > 0.42 ? 'bambu' : null;
+      return null;
+    }
     if (this.mystery?.kind === 'flores') return 'pradera';
     if (this.mystery?.kind === 'bambu') return fbm(x / 20, z / 20, this.seed + 21, 2) > 0.45 ? 'bambu' : 'pradera';
     if (fbm(x / 34, z / 34, this.seed + 21, 2) > 0.66) return 'bambu';
@@ -579,10 +739,20 @@ export class World {
     return null;
   }
 
-  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | null {
+  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | null {
     if (this.plotAt(x, z, 3) || this.zoneAt(x, z) === 'bambu') return null;
     const r = columnRandom(x, z, this.seed);
     const h = this.heightAt(x, z);
+    if (this.terrain >= 2) {
+      // Cada bioma con sus árboles: bosque espeso, pinos en la montaña, pocos árboles en la pradera.
+      const biome = this.biomeAt(x, z);
+      if (biome === 'playa' || h === SEA_LEVEL + 1) return h === SEA_LEVEL + 1 && r < 0.012 ? 'palm' : null;
+      if (this.river(x, z) <= 6 || this.surfaceAt(x, z, h).top !== Block.Grass) return null;
+      if (biome === 'bosque') return r < 0.022 ? 'fruit' : r < 0.04 ? 'pine' : null;
+      if (biome === 'montaña') return r < 0.025 ? 'pine' : r > 0.993 ? 'boulder' : null;
+      if (biome === 'pradera') return r < 0.004 ? 'fruit' : null;
+      return r < 0.006 ? 'fruit' : null;
+    }
     if (h === SEA_LEVEL + 1 && r < 0.008) return 'palm';
     const kind = this.mystery?.kind;
     // Las islas misteriosas de fruta están llenas de árboles; las de minerales, de rocas con vetas.
@@ -604,6 +774,14 @@ export class World {
           set(tx + dx, base + dy, tz + dz, b, true);
         }
       }
+    }
+  }
+
+  /** Pedrusco de adoquín y piedra en la montaña. */
+  private placeBoulder(wx: number, wz: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
+    const base = this.heightAt(wx, wz) + 1;
+    for (const [dx, dy, dz] of [[0, 0, 0], [1, 0, 0], [0, 0, 1], [1, 0, 1], [0, 1, 0]]) {
+      set(tx + dx, base + dy, tz + dz, blockRandom(wx + dx, base + dy, wz + dz, this.seed + 33) < 0.5 ? Block.Cobble : Block.Stone, true);
     }
   }
 
@@ -719,6 +897,7 @@ export class World {
    * y hacia dónde cae el agua (`dx`, `dz`: del acantilado al río).
    */
   waterfallSpots(count: number): WaterfallSpot[] {
+    if (this.terrain >= 2 && !this.mystery) return this.riverFalls();
     const found: WaterfallSpot[] = [];
     const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (let tries = 0; tries < 3000 && found.length < count; tries++) {
@@ -738,6 +917,40 @@ export class World {
         found.push({ x: cx, z: cz, top, bottom, dx, dz });
         break;
       }
+    }
+    return found;
+  }
+
+  /**
+   * Cascadas del río de las islas grandes: donde el río baja de una terraza a otra,
+   * el agua de arriba cae sobre la de abajo.
+   */
+  private riverFalls(): WaterfallSpot[] {
+    const found: WaterfallSpot[] = [];
+    const a = columnRandom(2, 2, this.seed) * Math.PI;
+    const reach = Math.ceil(this.radius * 1.6);
+    for (let u = -reach; u < reach && found.length < 8; u++) {
+      const here = this.riverLevel(u);
+      const next = this.riverLevel(u + 1);
+      if (here === next) continue;
+      let [bx, bz] = this.riverPoint(u + 0.5);
+      if (this.landMask(bx, bz) < 0.26) continue;
+      // El agua cae hacia donde el río está más bajo.
+      const sign = next < here ? 1 : -1;
+      const dx = Math.cos(a) * sign;
+      const dz = Math.sin(a) * sign;
+      // Ajustar la lámina al escalón de verdad, que va por bloques enteros.
+      const low = Math.min(here, next);
+      for (let t = -2.5; t <= 2.5; t += 0.1) {
+        const px = bx + dx * t;
+        const pz = bz + dz * t;
+        if (this.waterLevel(Math.floor(px), Math.floor(pz)) !== low) continue;
+        bx = px;
+        bz = pz;
+        break;
+      }
+      // La lámina se dibuja en (x + 0.5 + dx * 0.52, z + 0.5 + dz * 0.52): que quede justo en el escalón.
+      found.push({ x: bx - 0.5 - dx * 0.52, z: bz - 0.5 - dz * 0.52, top: Math.max(here, next), bottom: Math.min(here, next), dx, dz, width: 5, river: true });
     }
     return found;
   }
@@ -1110,7 +1323,7 @@ export class World {
     for (let z = 0; z < CHUNK; z++) {
       for (let x = 0; x < CHUNK; x++) {
         if (!this.waterKind(ox + x, oz + z)) continue;
-        const y = WATER_SURFACE;
+        const y = this.waterSurface(ox + x, oz + z);
         water.push(x, y, z, x + 1, y, z, x, y, z + 1, x, y, z + 1, x + 1, y, z, x + 1, y, z + 1);
       }
     }
