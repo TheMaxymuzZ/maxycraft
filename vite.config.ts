@@ -42,6 +42,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,woff2}'],
+        // La página del proyecto (capturas y vídeo) no se guarda para jugar sin internet, y se abre tal cual.
+        globIgnores: ['proyecto/**'],
+        navigateFallbackDenylist: [/\/proyecto\//],
       },
     }),
   ],

@@ -1,6 +1,8 @@
+import { CHANGELOG } from './changelog';
+import { ACTIONS, type Action, bindKey, canBind, defaultKeys, keyLabel } from './keys';
 import { QUALITIES, type Settings, defaultSettings, saveSettings } from './settings';
 
-export type View = 'main' | 'options' | 'islands' | 'controls';
+export type View = 'main' | 'options' | 'islands' | 'controls' | 'keys' | 'news';
 
 /** El menú: portada al abrir el juego, pausa durante la partida, opciones y controles. */
 export class Menu {
@@ -9,6 +11,12 @@ export class Menu {
   private qualityHint = document.querySelector<HTMLParagraphElement>('#opt-quality-hint')!;
   private sliders: { key: 'music' | 'sfx' | 'sensitivity' | 'fov'; input: HTMLInputElement; out: HTMLOutputElement; format: (n: number) => string }[];
   private qualityInputs: HTMLInputElement[] = [];
+  private bigText = document.querySelector<HTMLInputElement>('#opt-bigtext')!;
+  private colorblind = document.querySelector<HTMLInputElement>('#opt-colorblind')!;
+  private keysList = document.querySelector<HTMLUListElement>('#keys-list')!;
+  private controlsList = document.querySelector<HTMLUListElement>('#controls-list')!;
+  /** Acción esperando a que se pulse su tecla nueva. */
+  private capturing: Action | null = null;
   view: View = 'main';
   /** Se llama al cambiar de pantalla dentro del menú. */
   onView: (v: View) => void = () => {};
@@ -56,6 +64,33 @@ export class Menu {
       this.qualityInputs.push(input);
     }
 
+    this.bigText.addEventListener('change', () => {
+      this.settings.bigText = this.bigText.checked;
+      this.changed();
+    });
+    this.colorblind.addEventListener('change', () => {
+      this.settings.colorblind = this.colorblind.checked;
+      this.changed();
+    });
+    document.querySelector('#keys-reset')!.addEventListener('click', () => {
+      this.settings.keys = defaultKeys();
+      this.capturing = null;
+      this.changed();
+    });
+    // Al cambiar una tecla, la siguiente que se pulse es la nueva (y no hace nada más en el juego).
+    window.addEventListener('keydown', (e) => {
+      if (!this.capturing) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.code !== 'Escape') {
+        if (!canBind(e.code)) return;
+        this.settings.keys = bindKey(this.settings.keys, this.capturing, e.code);
+      }
+      this.capturing = null;
+      this.changed();
+    }, true);
+    this.renderNews();
+
     document.querySelector('#options-reset')!.addEventListener('click', () => {
       Object.assign(this.settings, defaultSettings(this.touch));
       this.changed();
@@ -89,8 +124,15 @@ export class Menu {
     return this.el.classList.contains('title');
   }
 
+  /** Vuelve atrás: de las teclas a las opciones y de lo demás al menú principal. */
+  back() {
+    this.show(this.view === 'keys' ? 'options' : 'main');
+  }
+
   show(view: View) {
+    this.capturing = null;
     this.view = view;
+    this.render();
     for (const v of this.views) v.hidden = v.dataset.view !== view;
     this.onView(view);
     const first = this.views.find((v) => !v.hidden)?.querySelector<HTMLElement>('button, input');
@@ -110,5 +152,66 @@ export class Menu {
     }
     for (const input of this.qualityInputs) input.checked = input.value === this.settings.quality;
     this.qualityHint.textContent = QUALITIES.find((q) => q.id === this.settings.quality)!.hint;
+    this.bigText.checked = this.settings.bigText;
+    this.colorblind.checked = this.settings.colorblind;
+    this.renderKeys();
+    this.renderControls();
+  }
+
+  private renderKeys() {
+    this.keysList.innerHTML = '';
+    for (const a of ACTIONS) {
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.textContent = a.name;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'secondary';
+      const waiting = this.capturing === a.id;
+      b.textContent = waiting ? 'Pulsa una tecla…' : keyLabel(this.settings.keys[a.id]);
+      b.classList.toggle('waiting', waiting);
+      b.addEventListener('click', () => {
+        this.capturing = a.id;
+        this.renderKeys();
+        this.keysList.querySelector<HTMLButtonElement>('.waiting')?.focus();
+      });
+      li.append(name, b);
+      this.keysList.appendChild(li);
+    }
+  }
+
+  /** La ayuda de controles con las teclas que se hayan elegido. */
+  private renderControls() {
+    const k = (a: Action) => `<kbd>${keyLabel(this.settings.keys[a]).replace(/</g, '&lt;')}</kbd>`;
+    const lines = [
+      `${k('forward')}${k('left')}${k('back')}${k('right')} caminar`,
+      `${k('jump')} saltar · ${k('sprint')} correr`,
+      '<kbd>Clic izq.</kbd> (mantener) romper',
+      '<kbd>Clic der.</kbd> colocar, usar, sacudir un árbol o hablar',
+      `${k('inventory')} bolsillos · ${k('collection')} enciclopedia · ${k('missions')} tareas`,
+      '<kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir',
+      'Con la caña o la red en la mano, <kbd>Clic der.</kbd> para pescar o cazar',
+      `${k('rotate')} girar un mueble · ${k('sound')} sonido · ${k('help')} primeros pasos`,
+      `${k('debug')} datos de depuración · <kbd>Esc</kbd> pausa`,
+      `${k('jump')} en el agua: nadar hacia arriba`,
+    ];
+    this.controlsList.innerHTML = lines.map((l) => `<li>${l}</li>`).join('');
+  }
+
+  private renderNews() {
+    const list = document.querySelector<HTMLDivElement>('#news-list')!;
+    for (const r of CHANGELOG) {
+      const sec = document.createElement('section');
+      const h = document.createElement('h3');
+      h.textContent = `v${r.version} · ${r.title}`;
+      const ul = document.createElement('ul');
+      for (const item of r.items) {
+        const li = document.createElement('li');
+        li.textContent = item;
+        ul.appendChild(li);
+      }
+      sec.append(h, ul);
+      list.appendChild(sec);
+    }
   }
 }

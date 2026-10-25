@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { isFence, isSolid } from './blocks';
+import { type KeyMap, defaultKeys } from './keys';
 import { WATER_SURFACE, type World } from './world';
 
 const HALF_WIDTH = 0.3;
@@ -23,6 +24,8 @@ export class Player {
   sensitivity = 1;
 
   private keys = new Set<string>();
+  /** Teclas elegidas en las opciones. Las flechas siempre sirven para andar. */
+  bindings: KeyMap = defaultKeys();
   /** Mando táctil: palanca (-1 a 1 en cada eje) y botón de saltar. */
   readonly touch = { forward: 0, strafe: 0, jump: false };
 
@@ -41,14 +44,16 @@ export class Player {
   }
 
   update(dt: number) {
-    const forward = (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0) + this.touch.forward;
-    const strafe = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0) + this.touch.strafe;
-    const jump = this.keys.has('Space') || this.touch.jump;
+    const keys = this.bindings;
+    const down = (code: string, arrow: string) => this.keys.has(code) || this.keys.has(arrow);
+    const forward = (down(keys.forward, 'ArrowUp') ? 1 : 0) - (down(keys.back, 'ArrowDown') ? 1 : 0) + this.touch.forward;
+    const strafe = (down(keys.right, 'ArrowRight') ? 1 : 0) - (down(keys.left, 'ArrowLeft') ? 1 : 0) + this.touch.strafe;
+    const jump = this.keys.has(keys.jump) || this.touch.jump;
     // Con la palanca táctil casi al tope también se corre.
     const pushed = Math.hypot(this.touch.forward, this.touch.strafe) > 0.92;
     // Solo se nada en agua de verdad (mar o río), no en una cueva por debajo del nivel del mar.
     this.inWater = this.position.y + 0.8 < WATER_SURFACE && !!this.world.waterKind(Math.floor(this.position.x), Math.floor(this.position.z));
-    let speed = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || pushed ? SPRINT : WALK;
+    let speed = this.keys.has(keys.sprint) || pushed ? SPRINT : WALK;
     if (this.inWater) speed *= 0.55;
 
     const sin = Math.sin(this.yaw);

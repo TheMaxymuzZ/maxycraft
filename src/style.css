@@ -418,3 +418,39 @@ fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template
 .panel button.menu-btn.install { background: var(--grass-deep); color: #fff; border-color: var(--grass-deep); }
 .panel button.menu-btn.install::before { content: '⬇ '; }
 .install-ios { color: var(--grass-deep); }
+
+/* --- v2.0: accesibilidad --- */
+.option.access { gap: 8px; }
+.option .check { display: flex; align-items: center; gap: 10px; font: 700 15px var(--body); cursor: pointer; }
+.option .check input { width: 20px; height: 20px; accent-color: var(--grass); }
+.keys-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.keys-list li { display: grid; grid-template-columns: 1fr 130px; gap: 10px; align-items: center; font: 700 15px var(--body); }
+.panel .keys-list button { margin: 0; padding: 6px 10px; font-size: 14px; }
+.panel .keys-list button.waiting { background: #ffe9a8; border-color: #e0b84a; }
+.news { display: grid; gap: 12px; max-height: 50vh; overflow: auto; padding-right: 4px; }
+.news h3 { margin: 0 0 4px; font: 700 17px var(--display); color: var(--grass-deep); }
+.news ul { margin: 0; padding-left: 20px; display: grid; gap: 2px; font-size: 14px; }
+.news section:first-child { padding: 10px 12px; background: #f1f8e9; border: 2px solid var(--grass); }
+
+/* Texto grande: las ventanas y los textos del juego se ven un 25% más grandes (el mundo no cambia).
+   El zoom va en las cajas, no en los fondos de pantalla completa, y se les quita lo que crecen para que quepan. */
+.texto-grande :is(#hotbar, #block-name, #toast, #save-indicator, .dialog-box, #tutorial, #clock, #labels .name-tag) { zoom: 1.25; }
+.texto-grande #hotbar { zoom: 1.15; }
+.texto-grande :is(.inv-panel, .shop-panel, .collection-panel, #overlay .panel) { zoom: 1.25; max-height: calc((100dvh - 32px) / 1.25); }
+.texto-grande .inv-panel { max-width: calc((100vw - 32px) / 1.25); }
+.texto-grande .shop-panel { width: min(860px, calc((100vw - 32px) / 1.25)); }
+.texto-grande .shop-panel.workbench-panel { width: min(600px, calc((100vw - 32px) / 1.25)); }
+.texto-grande .collection-panel { width: min(900px, calc((100vw - 32px) / 1.25)); }
+.texto-grande #overlay .panel, .texto-grande #overlay.title .panel { max-width: min(460px, calc((100vw - 32px) / 1.25)); }
+
+/* Colores para daltonismo: lo bueno en azul y lo malo en naranja, que se distinguen con cualquier tipo de daltonismo. */
+.daltonico { --ok: #2f6fb0; --bad: #d55e00; }
+.daltonico .slot .wear i { background: var(--ok); }
+.daltonico .slot .wear i.low { background: var(--bad); }
+.daltonico .workbench-panel .missing { color: var(--bad); text-decoration: underline wavy; }
+.daltonico .task-list progress { accent-color: var(--ok); }
+.daltonico .task-list li.done b, .daltonico #tutorial li.done::marker { color: var(--ok); }
+.daltonico #save-indicator.error { background: var(--bad); }
+.daltonico .panel button.secondary.danger, .daltonico .panel button.island-btn.danger { color: var(--bad); border-color: var(--bad); }
+.daltonico .island-card.active { border-color: var(--ok); box-shadow: 4px 4px 0 var(--ok); }
+.daltonico .shop-list button:disabled { background: #d9d4c4; color: #6b6656; }

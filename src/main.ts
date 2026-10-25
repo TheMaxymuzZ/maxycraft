@@ -27,6 +27,8 @@ import { Menu } from './menu';
 import { Animals, MAX_ANIMALS, type AnimalKind } from './animals';
 import { Farm, cropForSeed, cropOfBlock, isFarmland } from './farm';
 import { Inventory, starterKit } from './inventory';
+import { type Action, keyLabel } from './keys';
+import { hasUnseenNews, markNewsSeen } from './changelog';
 import { type MissionEvent, Missions } from './missions';
 import { MissionsPanel } from './missionsPanel';
 import { countPlaced, rateIsland } from './rating';
@@ -386,9 +388,16 @@ playButton.textContent = save ? 'Continuar' : 'Empezar en la isla';
 islandInfo.textContent = `Fruta de la isla: ${BLOCKS[world.fruit].name.toLowerCase()}`;
 
 /** Aplica las opciones al momento, sin recargar. */
+/** Avisa de que han cambiado las teclas (el tutorial, que se crea más abajo, se apunta aquí). */
+let keysChanged = () => {};
 function applySettings(s: Settings) {
   sound.setVolumes(s.music / 100, s.sfx / 100);
   player.sensitivity = s.sensitivity;
+  player.bindings = s.keys;
+  for (const el of document.querySelectorAll<HTMLElement>('[data-key]')) el.textContent = keyLabel(s.keys[el.dataset.key as Action]);
+  keysChanged();
+  document.documentElement.classList.toggle('texto-grande', s.bigText);
+  document.documentElement.classList.toggle('daltonico', s.colorblind);
   camera.fov = s.fov;
   camera.updateProjectionMatrix();
   renderRadius = RENDER_RADIUS[s.quality];
@@ -396,6 +405,9 @@ function applySettings(s: Settings) {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 const menu = new Menu(settings, touchMode, applySettings);
+// Después de una actualización, la portada enseña primero las novedades.
+if (hasUnseenNews(!!save)) menu.show('news');
+markNewsSeen();
 applySettings(settings);
 
 const hud = new Hud(inventory, atlas);
@@ -468,6 +480,9 @@ const tutorial = new Tutorial(save?.tutorial, save ? (save.tutorialDone ?? save.
   hud.toast(`¡Primeros pasos completados! Avellana te regala ${formatBerries(TUTORIAL_REWARD)} bayas`);
   persist();
 });
+tutorial.keyName = (a) => keyLabel(settings.keys[a as Action] ?? a);
+tutorial.refresh();
+keysChanged = () => tutorial.refresh();
 // Fabricar, en los bolsillos o en la mesa de trabajo, también cuenta.
 {
   const craft = inventory.craft.bind(inventory);
@@ -702,9 +717,10 @@ function talkTo(v: Villager) {
 }
 
 window.addEventListener('keydown', (e) => {
+  const keys = settings.keys;
   if (!menu.hidden) {
-    if (e.code === 'Escape' && menu.view !== 'main') menu.show('main');
-    if (e.code === 'KeyM') toggleSound();
+    if (e.code === 'Escape' && menu.view !== 'main') menu.back();
+    if (e.code === keys.sound) toggleSound();
     return;
   }
   if (panel === 'dialog') {
@@ -712,30 +728,30 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (panel === 'shop') {
-    if (e.code === 'Escape' || e.code === 'KeyE') closeShop();
+    if (e.code === 'Escape' || e.code === keys.inventory) closeShop();
     return;
   }
   if (panel === 'collection') {
-    if (e.code === 'Escape' || e.code === 'KeyC') closeCollection();
+    if (e.code === 'Escape' || e.code === keys.collection) closeCollection();
     return;
   }
   if (panel === 'missions') {
-    if (e.code === 'Escape' || e.code === 'KeyT') closeMissions();
+    if (e.code === 'Escape' || e.code === keys.missions) closeMissions();
     return;
   }
-  if (e.code === 'KeyT' && isPlaying()) {
+  if (e.code === keys.missions && isPlaying()) {
     openMissions();
     return;
   }
   if (panel === 'workbench') {
-    if (e.code === 'Escape' || e.code === 'KeyE') closeWorkbench();
+    if (e.code === 'Escape' || e.code === keys.inventory) closeWorkbench();
     return;
   }
-  if (e.code === 'KeyC' && isPlaying()) {
+  if (e.code === keys.collection && isPlaying()) {
     openCollection();
     return;
   }
-  if (e.code === 'KeyE') {
+  if (e.code === keys.inventory) {
     if (panel === 'inventory') closeInventory();
     else if (isPlaying()) openInventory();
     return;
@@ -744,16 +760,16 @@ window.addEventListener('keydown', (e) => {
     closeInventory();
     return;
   }
-  if (e.code === 'KeyR' && isPlaying()) {
+  if (e.code === keys.rotate && isPlaying()) {
     const f = furnitureInSight();
     if (f) furniture.rotate(f.furniture);
     return;
   }
-  if (e.code === 'KeyM') {
+  if (e.code === keys.sound) {
     toggleSound();
     return;
   }
-  if (e.code === 'KeyH') {
+  if (e.code === keys.help) {
     tutorial.toggle();
     return;
   }
@@ -761,7 +777,7 @@ window.addEventListener('keydown', (e) => {
     const n = Number(e.code.slice(5));
     hud.select(n === 0 ? 9 : n - 1);
   }
-  if (e.code === 'F3' || e.code === 'KeyF') {
+  if (e.code === 'F3' || e.code === keys.debug) {
     e.preventDefault();
     debugEl.hidden = !debugEl.hidden;
   }

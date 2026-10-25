@@ -23,6 +23,11 @@ export function setupInstall(toast: (text: string) => void) {
     registerSW({
       immediate: true,
       onOfflineReady: () => toast('Listo: ya puedes jugar sin internet'),
+      // Con el juego abierto mucho rato (o la app en segundo plano) también se busca versión nueva cada media hora.
+      // Si la hay, se guarda la partida y el juego se recarga solo con la versión nueva.
+      onRegisteredSW: (_url, registration) => {
+        if (registration) window.setInterval(() => void registration.update().catch(() => {}), 30 * 60 * 1000);
+      },
     });
   }
 
