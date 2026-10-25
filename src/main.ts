@@ -14,6 +14,7 @@ import { Fishing } from './fishing';
 import { Furniture, paintFurnitureIcons } from './furniture';
 import { Hud } from './hud';
 import { NameTags } from './labels';
+import { Menu } from './menu';
 import { Inventory, starterKit } from './inventory';
 import { SHELLS, dropFor, fruitItemFor, itemDef } from './items';
 import { Player } from './player';
@@ -21,6 +22,7 @@ import { raycast } from './raycast';
 import { deleteGame, loadGame, saveGame } from './save';
 import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
+import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings } from './settings';
 import { Sky } from './sky';
 import { TouchControls } from './touch';
 import { findTrunk } from './trees';
@@ -32,11 +34,12 @@ import { WATER_SURFACE, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
 const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
-// En el móvil se ve algo menos lejos para que vaya fluido.
-const RENDER_RADIUS = touchMode ? 4 : 6;
+// Opciones del jugador; en el móvil, por defecto, se ve algo menos lejos para que vaya fluido.
+const settings = loadSettings(touchMode);
+let renderRadius = RENDER_RADIUS[settings.quality];
 const REACH = 6;
-const FOG_NEAR = RENDER_RADIUS * 16 * 0.55;
-const FOG_FAR = RENDER_RADIUS * 16 * 0.95;
+const fogNear = () => renderRadius * 16 * 0.55;
+const fogFar = () => renderRadius * 16 * 0.95;
 /** Días reales que tarda en volver a salir la fruta de un árbol, como en Animal Crossing. */
 const FRUIT_REGROW_DAYS = 3;
 const SHELLS_PER_DAY = 7;
@@ -54,15 +57,15 @@ calendar.month = startDate.getMonth() + 1;
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, touchMode ? 1.5 : 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[settings.quality]));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-const fog = new THREE.Fog(0xa8dcf5, FOG_NEAR, FOG_FAR);
+const fog = new THREE.Fog(0xa8dcf5, fogNear(), fogFar());
 scene.fog = fog;
 scene.background = fog.color;
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 400);
+const camera = new THREE.PerspectiveCamera(settings.fov, window.innerWidth / window.innerHeight, 0.1, 400);
 
 const hemi = new THREE.HemisphereLight(0xfff4e0, 0x8a9a7a, 1.6);
 const sunLight = new THREE.DirectionalLight(0xfff1d6, 1.4);
@@ -231,7 +234,6 @@ scene.add(fishing.bobber);
 
 // --- Interfaz ---
 
-const overlay = document.querySelector<HTMLDivElement>('#overlay')!;
 const playButton = document.querySelector<HTMLButtonElement>('#play')!;
 const newIslandButton = document.querySelector<HTMLButtonElement>('#new-island')!;
 const islandInfo = document.querySelector<HTMLParagraphElement>('#island-info')!;
@@ -241,8 +243,21 @@ const clockDate = document.querySelector<HTMLSpanElement>('#clock-date')!;
 const underwater = document.querySelector<HTMLDivElement>('#underwater')!;
 
 document.querySelector('#version')!.textContent = `v${__APP_VERSION__}`;
-playButton.textContent = save ? 'Volver a la isla' : touchMode ? 'Toca para jugar' : 'Haz clic para jugar';
+playButton.textContent = save ? 'Continuar' : 'Empezar en la isla';
 islandInfo.textContent = `Fruta de la isla: ${BLOCKS[world.fruit].name.toLowerCase()}`;
+
+/** Aplica las opciones al momento, sin recargar. */
+function applySettings(s: Settings) {
+  sound.setVolumes(s.music / 100, s.sfx / 100);
+  player.sensitivity = s.sensitivity;
+  camera.fov = s.fov;
+  camera.updateProjectionMatrix();
+  renderRadius = RENDER_RADIUS[s.quality];
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[s.quality]));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+const menu = new Menu(settings, touchMode, applySettings);
+applySettings(settings);
 
 const hud = new Hud(inventory, atlas);
 hud.select(0);
@@ -456,6 +471,11 @@ function talkTo(v: Villager) {
 }
 
 window.addEventListener('keydown', (e) => {
+  if (!menu.hidden) {
+    if (e.code === 'Escape' && menu.view !== 'main') menu.show('main');
+    if (e.code === 'KeyM') toggleSound();
+    return;
+  }
   if (panel === 'dialog') {
     if (e.code === 'Escape') dialog.finish();
     return;
@@ -532,12 +552,12 @@ newIslandButton.addEventListener('click', (e) => {
   location.reload();
 });
 
-overlay.addEventListener('click', () => lockInput());
+playButton.addEventListener('click', () => lockInput());
 function onInputChange() {
   const locked = isPlaying();
   touch?.show(locked);
   if (locked) {
-    overlay.hidden = true;
+    menu.close();
     if (panel === 'inventory') hud.inventoryEl.hidden = true;
     if (panel === 'dialog') dialog.finish();
     if (panel === 'shop') shop.close();
@@ -548,7 +568,7 @@ function onInputChange() {
   }
   breaker.active = false;
   if (panel) return; // se ve la ventana abierta en vez del menú
-  overlay.hidden = false;
+  menu.open();
   persist();
   playButton.textContent = 'Volver a la isla';
   resetNewIslandButton();
@@ -556,7 +576,7 @@ function onInputChange() {
 document.addEventListener('pointerlockchange', onInputChange);
 // Si el navegador no deja volver a bloquear el ratón enseguida, se muestra el menú.
 document.addEventListener('pointerlockerror', () => {
-  if (!panel) overlay.hidden = false;
+  if (!panel) menu.open();
 });
 document.addEventListener('mousemove', (e) => {
   if (isPlaying()) player.look(e.movementX, e.movementY);
@@ -853,7 +873,7 @@ function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
 
-  world.update(player.position.x, player.position.z, RENDER_RADIUS);
+  world.update(player.position.x, player.position.z, renderRadius);
 
   // Esperar a que el suelo bajo el jugador exista antes de aplicar la gravedad.
   if (!spawned && world.isReady(player.position.x, player.position.z)) {
@@ -861,6 +881,12 @@ function frame(now: number) {
     spawned = true;
   }
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0);
+  // En la portada la cámara da vueltas despacio por encima de la isla.
+  if (!menu.hidden && menu.isTitle) {
+    const a = now / 1000 * 0.08;
+    camera.position.set(player.position.x + Math.sin(a) * 16, player.position.y + 9, player.position.z + Math.cos(a) * 16);
+    camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+  }
   breaker.update(dt, breaker.active ? currentHit()?.block ?? null : null);
   updateSteps(dt);
 
@@ -904,8 +930,8 @@ function frame(now: number) {
     fog.far = 22;
   } else {
     fog.color.copy(sky.color);
-    fog.near = FOG_NEAR;
-    fog.far = FOG_FAR;
+    fog.near = fogNear();
+    fog.far = fogFar();
   }
 
   clouds.update(now / 1000, sky.night, weather.gloom);

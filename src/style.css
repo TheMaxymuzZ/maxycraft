@@ -52,7 +52,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #a8dcf5; fon
 
 #overlay {
   position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
-  background: rgba(30, 50, 30, 0.45); cursor: pointer;
+  background: rgba(30, 50, 30, 0.45);
 }
 #overlay[hidden] { display: none; }
 .panel {
@@ -60,7 +60,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #a8dcf5; fon
   border: 4px solid var(--grass-deep); box-shadow: 8px 8px 0 rgba(0,0,0,.25); display: grid; gap: 14px;
 }
 .panel h1 { margin: 0; font: 700 48px/1 var(--display); color: var(--grass-deep); }
-.version { margin: -6px 0 0; font: 500 15px var(--display); color: var(--dirt); }
+.panel h2 { margin: 0; font: 700 30px/1 var(--display); color: var(--grass-deep); }
+.version { margin: 0; font: 500 13px var(--display); color: var(--dirt); text-align: center; opacity: .8; }
 .panel button {
   font: 700 20px var(--display); padding: 12px; border: 0; cursor: pointer;
   background: var(--grass); color: #fff; box-shadow: inset -4px -4px 0 rgba(0,0,0,.2), inset 4px 4px 0 rgba(255,255,255,.2);
@@ -226,8 +227,6 @@ kbd {
 #collection-close { font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: #4a6aa8; color: #fff; }
 #collection-close:focus-visible { outline: 3px solid var(--dirt); outline-offset: 2px; }
 
-/* Menú: botones pequeños uno al lado del otro. */
-.menu-buttons { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
 .touch-note { display: none; margin: 0; font-size: 14px; font-weight: 800; color: var(--grass-deep); }
 @media (pointer: coarse) {
   .touch-note { display: block; }
@@ -298,3 +297,60 @@ kbd {
   .panel { padding: 16px; gap: 10px; max-width: 520px; }
   .panel h1 { font-size: 34px; }
 }
+
+/* --- Menú: portada, pausa, opciones y controles --- */
+.menu-view { display: grid; gap: 14px; }
+.menu-view[hidden] { display: none; }
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-block {
+  flex: none; width: 56px; height: 56px;
+  background:
+    linear-gradient(var(--grass) 0 30%, transparent 30%),
+    repeating-linear-gradient(90deg, var(--grass) 0 7px, transparent 7px 14px) 0 30% / 100% 7px no-repeat,
+    linear-gradient(var(--dirt), var(--dirt));
+  box-shadow: inset -6px -6px 0 rgba(0,0,0,.18), inset 6px 6px 0 rgba(255,255,255,.14);
+}
+.tagline { margin: 4px 0 0; font: 800 15px var(--body); color: var(--dirt); }
+.pause-label { display: none; margin: -4px 0 0; font: 700 18px var(--display); color: var(--dirt); }
+#overlay.paused .pause-label { display: block; }
+#overlay.paused .tagline { display: none; }
+
+/* En la portada se ve la isla girando detrás, con el menú a un lado. */
+#overlay.title { background: linear-gradient(90deg, rgba(30, 50, 30, .55), rgba(30, 50, 30, .05) 70%); justify-items: start; padding-left: max(16px, 6vw); }
+#overlay.title .panel { animation: menu-in .5s ease-out both; }
+#overlay.title .panel { max-width: 460px; }
+#overlay.title .logo-block { width: 64px; height: 64px; }
+#overlay.title h1 { font-size: 52px; }
+/* En la portada solo se ve la isla: nada de barra, reloj ni lista de tareas. */
+body:has(#overlay.title:not([hidden])) :is(#tutorial, #hotbar, #clock, #crosshair, #wallet, #labels) { visibility: hidden; }
+@keyframes menu-in { from { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) { #overlay.title .panel { animation: none; } }
+@media (max-width: 640px) {
+  #overlay.title { justify-items: center; padding-left: 16px; background: rgba(30, 50, 30, .4); }
+  #overlay.title h1, .panel h1 { font-size: 38px; }
+  #overlay.title .logo-block, .logo-block { width: 44px; height: 44px; }
+}
+
+.menu-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.panel button.menu-btn {
+  font: 700 17px var(--display); padding: 10px; background: #fff; color: var(--grass-deep);
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,.12); border: 2px solid var(--grass-deep);
+}
+.panel button.menu-btn:hover { background: #f1f8e9; }
+.panel button.menu-back { background: var(--dirt); }
+
+.option { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+.option label, .option legend { font: 800 15px var(--body); }
+.option output { font: 700 15px var(--display); color: var(--dirt); font-variant-numeric: tabular-nums; }
+.option input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--grass); margin: 0; height: 24px; }
+fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr; }
+.option legend { padding: 0; margin-bottom: 6px; }
+.quality-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.quality-choices label {
+  display: grid; place-items: center; padding: 8px 4px; cursor: pointer;
+  font: 700 15px var(--display); border: 2px solid #c9c1a6; background: #fff; color: var(--ink);
+}
+.quality-choices input { position: absolute; opacity: 0; pointer-events: none; }
+.quality-choices label:has(input:checked) { border-color: var(--grass-deep); background: var(--grass); color: #fff; }
+.quality-choices label:has(input:focus-visible) { outline: 3px solid var(--dirt); outline-offset: 2px; }
+.option-hint { margin: 6px 0 0; font-size: 13px; color: #6b7466; }

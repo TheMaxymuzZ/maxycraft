@@ -6,7 +6,11 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.1**
+Versión actual: **v1.2**
+
+- **Portada**: al abrir el juego la cámara da vueltas sobre tu isla y el menú aparece a un lado. Durante la partida, el mismo menú hace de pausa.
+- **Opciones** que se guardan en el navegador: volumen de música y de efectos, sensibilidad al mirar, campo de visión y calidad gráfica (baja, media o alta: cuánto se ve a lo lejos y la nitidez). En el móvil empieza en calidad baja. Se aplican al momento.
+- Los controles tienen su propia pantalla en el menú.
 
 - **Pruebas automáticas** (50 comprobaciones) del mundo, los bolsillos, las recetas, la tienda, las estaciones y la partida guardada. Se pasan solas en cada pull request y, si alguna falla, no se publica nada.
 - El número de versión del menú sale de `package.json`.

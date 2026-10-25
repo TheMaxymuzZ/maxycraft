@@ -19,6 +19,8 @@ export class Player {
   onGround = false;
   /** El cuerpo está metido en el agua: se nada en vez de caminar. */
   inWater = false;
+  /** Multiplicador de las opciones: más alto, se gira más rápido. */
+  sensitivity = 1;
 
   private keys = new Set<string>();
   /** Mando táctil: palanca (-1 a 1 en cada eje) y botón de saltar. */
@@ -31,7 +33,7 @@ export class Player {
   }
 
   look(dx: number, dy: number) {
-    const sens = 0.0022;
+    const sens = 0.0022 * this.sensitivity;
     this.yaw -= dx * sens;
     this.pitch -= dy * sens;
     const limit = Math.PI / 2 - 0.01;
