@@ -20,6 +20,9 @@ export class RemotePlayer {
   private pitch = 0;
   private walkPhase = 0;
   private placed = false;
+  /** Gesto que está haciendo (un dibujito encima de la cabeza) y cuánto le queda. */
+  private bubble: THREE.Sprite | null = null;
+  private bubbleTime = 0;
 
   constructor(readonly info: PeerInfo) {
     const box = (w: number, h: number, d: number, color: number) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
@@ -64,6 +67,39 @@ export class RemotePlayer {
     }
   }
 
+  /** Enseña un gesto encima de la cabeza unos segundos, saludando con la mano. */
+  showGesture(emoji: string) {
+    this.clearBubble();
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.font = '48px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, 32, 36);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+    sprite.scale.set(0.7, 0.7, 0.7);
+    sprite.position.y = 2.55;
+    this.group.add(sprite);
+    this.bubble = sprite;
+    this.bubbleTime = 3;
+  }
+
+  private clearBubble() {
+    if (!this.bubble) return;
+    this.group.remove(this.bubble);
+    this.bubble.material.map?.dispose();
+    this.bubble.material.dispose();
+    this.bubble = null;
+  }
+
+  /** Caja para apuntarle (y darle cosas). */
+  bounds(out: THREE.Box3): THREE.Box3 {
+    const p = this.position;
+    return out.set(new THREE.Vector3(p.x - 0.4, p.y, p.z - 0.4), new THREE.Vector3(p.x + 0.4, p.y + 1.9, p.z + 0.4));
+  }
+
   update(dt: number) {
     const k = 1 - Math.exp(-dt / SMOOTH);
     const before = this.position.clone();
@@ -79,6 +115,16 @@ export class RemotePlayer {
     this.legs[1].rotation.x = -swing;
     this.arms[0].rotation.x = -swing;
     this.arms[1].rotation.x = swing;
+    if (this.bubbleTime > 0) {
+      this.bubbleTime -= dt;
+      // Mientras hace un gesto, levanta el brazo y lo mueve.
+      this.arms[1].rotation.x = Math.PI * 0.85;
+      this.arms[1].rotation.z = Math.sin(this.bubbleTime * 12) * 0.35;
+      if (this.bubbleTime <= 0) {
+        this.arms[1].rotation.z = 0;
+        this.clearBubble();
+      }
+    }
     this.head.rotation.x = -this.pitch * 0.6;
     this.group.position.copy(this.position);
     // La cámara mira hacia -z cuando yaw es 0; el modelo mira hacia +z.
@@ -87,6 +133,7 @@ export class RemotePlayer {
   }
 
   dispose() {
+    this.clearBubble();
     this.group.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         o.geometry.dispose();
@@ -122,6 +169,23 @@ export class RemotePlayers {
 
   setPose(id: string, pose: Pose) {
     this.players.get(id)?.setPose(pose);
+  }
+
+  gesture(id: string, emoji: string) {
+    this.players.get(id)?.showGesture(emoji);
+  }
+
+  /** Jugador al que apunta el rayo antes de `maxDist`. */
+  pick(ray: THREE.Ray, maxDist: number): string | null {
+    const box = new THREE.Box3();
+    const hit = new THREE.Vector3();
+    let best: { id: string; d: number } | null = null;
+    for (const [id, p] of this.players) {
+      if (!p.group.visible || !ray.intersectBox(p.bounds(box), hit)) continue;
+      const d = hit.distanceTo(ray.origin);
+      if (d < maxDist && (!best || d < best.d)) best = { id, d };
+    }
+    return best?.id ?? null;
   }
 
   update(dt: number) {

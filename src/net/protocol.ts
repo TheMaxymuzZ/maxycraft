@@ -1,9 +1,22 @@
 import type { ClockSave } from '../clock';
+import type { Lot } from '../lots';
+import type { Guest } from '../villagers';
 import type { Edits, WorldOptions } from '../world';
-import { type WorldAction, isWorldAction } from './actions';
+import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
 /** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. */
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
+/** Jugadores a la vez en una isla, contando al anfitrión. */
+export const MAX_PLAYERS = 6;
+/** Gestos que se pueden hacer a los demás. */
+export const GESTURES = ['saludo', 'alegria', 'risa', 'sorpresa', 'corazon', 'sueno'] as const;
+export type Gesture = (typeof GESTURES)[number];
+
+/** Algo que se regala a otro jugador. */
+export interface GiftItem {
+  id: string;
+  count: number;
+}
 
 /** Quién es cada jugador: un identificador fijo, su nombre y el color de su ropa. */
 export interface PeerInfo {
@@ -28,6 +41,10 @@ export interface Snapshot {
   options: WorldOptions;
   /** Día y hora de la isla del anfitrión (desde la v2.4). */
   clock?: ClockSave;
+  /** Desde la v2.11: muebles, y vecinos invitados con sus casas, para ver la misma isla. */
+  furniture?: PlacedThing[];
+  guests?: Guest[];
+  lots?: Lot[];
 }
 
 export type Message =
@@ -38,7 +55,9 @@ export type Message =
   | { t: 'sale'; id: string }
   | { t: 'accion'; from: string; a: WorldAction }
   | { t: 'pose'; id: string; p: Pose }
-  | { t: 'chat'; id: string; text: string };
+  | { t: 'chat'; id: string; text: string }
+  | { t: 'gesto'; id: string; g: Gesture }
+  | { t: 'regalo'; from: string; to: string; item: GiftItem };
 
 export const MAX_CHAT = 140;
 
@@ -55,7 +74,12 @@ function isPose(v: unknown): v is Pose {
 }
 
 function isSnapshot(v: unknown): v is Snapshot {
-  return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options);
+  const list = (x: unknown) => x === undefined || Array.isArray(x);
+  return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots);
+}
+
+export function isGift(v: unknown): v is GiftItem {
+  return isObj(v) && isId(v.id) && Number.isInteger(v.count) && (v.count as number) >= 1 && (v.count as number) <= 999;
 }
 
 /** Lee un mensaje recibido. Todo lo que no tenga la forma esperada se descarta. */
@@ -78,6 +102,10 @@ export function parseMessage(raw: unknown): Message | null {
       return isId(raw.id) && isPose(raw.p) ? (raw as Message) : null;
     case 'chat':
       return isId(raw.id) && typeof raw.text === 'string' && raw.text.length <= MAX_CHAT ? (raw as Message) : null;
+    case 'gesto':
+      return isId(raw.id) && GESTURES.includes(raw.g as Gesture) ? (raw as Message) : null;
+    case 'regalo':
+      return isId(raw.from) && isId(raw.to) && isGift(raw.item) ? (raw as Message) : null;
     default:
       return null;
   }

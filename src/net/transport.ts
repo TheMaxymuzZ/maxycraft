@@ -1,9 +1,8 @@
 import { type Message, parseMessage } from './protocol';
 
 /**
- * Cómo viajan los mensajes entre jugadores. Hoy hay un canal entre pestañas del mismo navegador
- * (para probar) y uno en memoria (para las pruebas automáticas); en la v2.11 llega la conexión
- * directa entre ordenadores (WebRTC), con esta misma forma.
+ * Cómo viajan los mensajes entre jugadores: de ordenador a ordenador (WebRTC, en rtc.ts), entre pestañas
+ * del mismo navegador (para probar) o en memoria (para las pruebas automáticas). Todos tienen esta misma forma.
  */
 export interface Transport {
   readonly selfId: string;

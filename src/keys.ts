@@ -2,7 +2,7 @@
 
 export type Action =
   | 'forward' | 'back' | 'left' | 'right' | 'jump' | 'sprint'
-  | 'inventory' | 'offhand' | 'collection' | 'missions' | 'rotate' | 'sound' | 'help' | 'debug';
+  | 'inventory' | 'offhand' | 'collection' | 'missions' | 'rotate' | 'sound' | 'help' | 'debug' | 'chat' | 'gesture';
 
 export type KeyMap = Record<Action, string>;
 
@@ -21,6 +21,8 @@ export const ACTIONS: { id: Action; name: string; key: string }[] = [
   { id: 'sound', name: 'Sonido sí o no', key: 'KeyM' },
   { id: 'help', name: 'Plegar los primeros pasos', key: 'KeyH' },
   { id: 'debug', name: 'Datos de depuración', key: 'KeyF' },
+  { id: 'chat', name: 'Chat con amigos', key: 'Enter' },
+  { id: 'gesture', name: 'Gestos', key: 'KeyG' },
 ];
 
 /** Teclas que no se pueden usar: la pausa y elegir casilla. */

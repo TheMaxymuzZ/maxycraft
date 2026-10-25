@@ -402,6 +402,10 @@ export class Furniture {
     if (def?.light) this.onLight?.(f.x, f.y + (def.lightHeight ?? 0), f.z, 0);
   }
 
+  known(id: string): boolean {
+    return !!furnitureDef(id);
+  }
+
   at(x: number, y: number, z: number): PlacedFurniture | undefined {
     return this.entries.find((e) => e.data.x === x && e.data.y === y && e.data.z === z)?.data;
   }

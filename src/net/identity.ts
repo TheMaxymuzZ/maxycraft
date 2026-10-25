@@ -33,6 +33,20 @@ export function loadIdentity(storage: Pick<Storage, 'getItem' | 'setItem'> | nul
   return me;
 }
 
+/** Cambia el nombre con el que te ven los demás. */
+export function renameIdentity(name: string, storage: Pick<Storage, 'getItem' | 'setItem'> | null = safeStorage()): PeerInfo {
+  const me = loadIdentity(storage);
+  const clean = name.trim().slice(0, 16);
+  if (!clean) return me;
+  const next = { ...me, name: clean };
+  try {
+    storage?.setItem(KEY, JSON.stringify(next));
+  } catch {
+    // Sin guardar: valdrá para esta partida.
+  }
+  return next;
+}
+
 /** En cada pestaña de prueba hace falta un jugador distinto aunque compartan navegador. */
 export function tabIdentity(base: PeerInfo): PeerInfo {
   return { ...base, id: `${base.id}-${randomId().slice(0, 4)}` };

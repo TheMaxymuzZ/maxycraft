@@ -3,7 +3,7 @@ import { DAY_LENGTHS } from './clock';
 import { ACTIONS, type Action, bindKey, canBind, defaultKeys, keyLabel } from './keys';
 import { QUALITIES, type Settings, defaultSettings, saveSettings } from './settings';
 
-export type View = 'main' | 'options' | 'islands' | 'controls' | 'keys' | 'news';
+export type View = 'main' | 'options' | 'islands' | 'controls' | 'keys' | 'news' | 'friends';
 
 /** El menú: portada al abrir el juego, pausa durante la partida, opciones y controles. */
 export class Menu {
@@ -212,6 +212,7 @@ export class Menu {
       '<kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir',
       'Con la caña o la red en la mano, <kbd>Clic der.</kbd> para pescar o cazar',
       `${k('rotate')} girar un mueble · ${k('sound')} sonido · ${k('help')} primeros pasos`,
+      `Con amigos: ${k('chat')} chat · ${k('gesture')} gestos · <kbd>Clic der.</kbd> a un amigo para darle lo que tienes en la mano`,
       `${k('debug')} datos de depuración · <kbd>Esc</kbd> pausa`,
       `${k('jump')} en el agua: nadar hacia arriba`,
     ];
