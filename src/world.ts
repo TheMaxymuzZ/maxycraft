@@ -646,6 +646,22 @@ export class World {
     return !!c && !!c.mesh;
   }
 
+  /** Parte de los chunks cercanos (dentro de `radius`) que ya se ven, de 0 a 1. Para la barra de carga. */
+  loadedFraction(x: number, z: number, radius: number): number {
+    const pcx = Math.floor(x / CHUNK);
+    const pcz = Math.floor(z / CHUNK);
+    let total = 0;
+    let ready = 0;
+    for (let dz = -radius; dz <= radius; dz++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dz * dz > radius * radius) continue;
+        total++;
+        if (this.chunks.get(key(pcx + dx, pcz + dz))?.mesh) ready++;
+      }
+    }
+    return ready / total;
+  }
+
   /** Busca, en espiral desde (x, z), una columna con hierba arriba y aire encima. */
   findSpawn(x: number, z: number): [number, number] {
     for (let r = 0; r < 60; r++) {

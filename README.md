@@ -6,7 +6,12 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.3**
+Versión actual: **v1.4**
+
+- **App instalable**: en Android y en el ordenador (Chrome o Edge) aparece el botón «Instalar Maxycraft» en el menú. En iPhone y iPad el menú explica cómo hacerlo: Compartir → Añadir a pantalla de inicio. Se abre a pantalla completa con su icono.
+- **Sin internet**: tras la primera visita el juego se guarda en el dispositivo y funciona sin conexión. Cuando hay una versión nueva se actualiza sola la próxima vez que se abre con internet. Las letras van dentro del juego.
+- **Pantalla de carga** con barra mientras se prepara la isla, y Three.js en un archivo aparte que el navegador reutiliza entre versiones.
+- Los iconos se dibujan con `python3 scripts/iconos.py`.
 
 - **Mis islas**: hasta 3 islas guardadas a la vez, cada una con su fruta, sus bayas y la fecha de la última vez que se guardó. Se cambia de una a otra desde el menú.
 - **Copias de seguridad**: «Guardar copia» descarga la isla en un archivo `.json`, y «Cargar copia» la recupera en cualquier hueco (sirve para llevarla a otro ordenador o al móvil). Borrar una isla pide confirmación.
