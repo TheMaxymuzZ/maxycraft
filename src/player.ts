@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { type Box, collisionBoxes, isSolid } from './blocks';
+import { waterFlow } from './fluids';
 import { type KeyMap, defaultKeys } from './keys';
 import type { World } from './world';
 
@@ -12,6 +13,8 @@ const WALK = 4.3;
 const SPRINT = 6.2;
 /** Altura que se sube andando, sin saltar (una losa o un escalón). */
 const STEP = 0.55;
+/** Fuerza con la que arrastra la corriente del agua (v3.8): unos 2 bloques por segundo si no te mueves. */
+const FLOW_PUSH = 36;
 
 export class Player {
   /** Posición de los pies. */
@@ -53,9 +56,12 @@ export class Player {
     const jump = this.keys.has(keys.jump) || this.touch.jump;
     // Con la palanca táctil casi al tope también se corre.
     const pushed = Math.hypot(this.touch.forward, this.touch.strafe) > 0.92;
-    // Solo se nada en agua de verdad (mar o río), no en una cueva por debajo del nivel del mar.
-    const surface = this.world.waterSurface(Math.floor(this.position.x), Math.floor(this.position.z));
-    this.inWater = this.position.y + 0.8 < surface && !!this.world.waterKind(Math.floor(this.position.x), Math.floor(this.position.z));
+    // Se nada con el agua por la cintura (v3.8: el agua son bloques, también la que corre o la que echas con un cubo).
+    const p = this.position;
+    this.inWater = this.world.inWater(p.x, p.y + 0.8, p.z);
+    const surface = this.world.waterSurfaceAbove(p.x, p.y + 0.8, p.z);
+    // Con los pies en agua que corre, la corriente te lleva; el agua que cae te empuja hacia abajo.
+    const feet = this.world.inWater(p.x, p.y + 0.1, p.z) ? waterFlow((x, y, z) => this.world.getBlock(x, y, z), Math.floor(p.x), Math.floor(p.y + 0.1), Math.floor(p.z)) : null;
     let speed = this.keys.has(keys.sprint) || pushed ? SPRINT : WALK;
     if (this.inWater) speed *= 0.55;
 
@@ -75,6 +81,10 @@ export class Player {
     const k = 1 - Math.exp(-accel * dt);
     this.velocity.x += (mx - this.velocity.x) * k;
     this.velocity.z += (mz - this.velocity.z) * k;
+    if (feet) {
+      this.velocity.x += feet.x * FLOW_PUSH * dt;
+      this.velocity.z += feet.z * FLOW_PUSH * dt;
+    }
 
     if (this.inWater) {
       // En el agua se flota despacio; con Espacio se nada hacia arriba.
@@ -82,6 +92,7 @@ export class Player {
       if (jump && this.position.y > surface - 1.2) this.velocity.y = 7.5;
       else if (jump) this.velocity.y = Math.min(this.velocity.y + 30 * dt, 3.2);
       else this.velocity.y = Math.max(this.velocity.y - 8 * dt, -2);
+      if (feet?.down && !jump) this.velocity.y = Math.max(this.velocity.y - 30 * dt, -5);
     } else {
       if (this.onGround && jump) {
         this.velocity.y = JUMP_SPEED;

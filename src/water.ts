@@ -24,14 +24,18 @@ export class Water {
           `#include <common>
 uniform float uTime;
 uniform float uWave;
-varying vec3 vWaterPos;`,
+attribute vec4 flow;
+varying vec3 vWaterPos;
+varying vec4 vFlow;`,
         )
         .replace(
           '#include <begin_vertex>',
           `#include <begin_vertex>
 vec3 wp = (modelMatrix * vec4(transformed, 1.0)).xyz;
-transformed.y += uWave * (sin(wp.x * 0.9 + uTime * 1.4) + sin(wp.z * 0.7 - uTime * 1.1)) - uWave * 1.2;
-vWaterPos = wp;`,
+// Olas solo en la superficie del agua quieta (v3.8): el agua que corre ya va inclinada.
+transformed.y += flow.w * (uWave * (sin(wp.x * 0.9 + uTime * 1.4) + sin(wp.z * 0.7 - uTime * 1.1)) - uWave * 1.2);
+vWaterPos = wp;
+vFlow = flow;`,
         );
       shader.fragmentShader = shader.fragmentShader
         .replace(
@@ -39,7 +43,8 @@ vWaterPos = wp;`,
           `#include <common>
 uniform float uTime;
 uniform float uSparkle;
-varying vec3 vWaterPos;`,
+varying vec3 vWaterPos;
+varying vec4 vFlow;`,
         )
         .replace(
           '#include <color_fragment>',
@@ -47,7 +52,15 @@ varying vec3 vWaterPos;`,
 // Manchas más claras y más oscuras que se desplazan, como el reflejo del cielo en el agua.
 float ripple = sin(vWaterPos.x * 0.55 + uTime * 0.9) * sin(vWaterPos.z * 0.6 - uTime * 0.7)
   + 0.5 * sin((vWaterPos.x + vWaterPos.z) * 1.3 - uTime * 1.6);
-diffuseColor.rgb *= 0.94 + 0.08 * ripple;`,
+diffuseColor.rgb *= 0.94 + 0.08 * ripple;
+// Agua que corre (v3.8): rayas claras que avanzan hacia donde va la corriente; en el agua que cae, hacia abajo.
+float along = vFlow.z > 0.5 ? vWaterPos.y + uTime * 2.6 : -dot(vWaterPos.xz, vFlow.xy) + uTime * 1.4;
+float across = vFlow.z > 0.5 ? vWaterPos.x + vWaterPos.z : dot(vWaterPos.xz, vec2(-vFlow.y, vFlow.x));
+float streak = step(0.82, fract(along * 1.6 + sin(across * 5.0) * 0.35));
+float moving = max(vFlow.z, length(vFlow.xy));
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.93, 1.0), streak * moving * 0.22);
+// La espuma blanca del agua que cae se ve más clara.
+diffuseColor.rgb += vFlow.z * 0.06;`,
         )
         .replace(
           '#include <opaque_fragment>',

@@ -62,10 +62,11 @@ const TOOL_USE: Record<string, string> = {
   hacha_hierro: 'Como el hacha, pero más rápida y duradera',
   pala_hierro: 'Como la pala, pero más rápida y duradera',
   pico_hierro: 'Como el pico, pero más rápido y duradero',
+  cubo: 'Coger agua quieta (vacío) y echarla en otro sitio (lleno)',
 };
 fill('tabla-herramientas', Object.keys(TOOL_USE).map((id) => {
   const def = itemDef(id);
-  return `<td>${item(id)}</td><td>${TOOL_USE[id]}</td><td class="num">${def.durability}</td><td>${howToGet(id) ?? '—'}</td>`;
+  return `<td>${item(id)}</td><td>${TOOL_USE[id]}</td><td class="num">${def.durability ?? 'No se gasta'}</td><td>${howToGet(id) ?? '—'}</td>`;
 }));
 
 // --- Recetas ---

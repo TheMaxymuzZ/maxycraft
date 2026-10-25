@@ -70,6 +70,11 @@ export enum Block {
   // Islas misteriosas nuevas (v2.9): volcán, cristales, nieve y setas.
   Basalt = 94, Magma = 95, CrystalCluster = 96, Ice = 97, MushroomStem = 98, MushroomCap = 99, SmallMushroom = 100,
   Amethyst = 101,
+  // Agua de verdad (v3.8), como en Minecraft: el bloque de agua quieta (fuente), el agua que corre (niveles 1 a 7,
+  // cada vez más baja según se aleja) y el agua que cae.
+  Water = 102,
+  WaterFlow1 = 103, WaterFlow2 = 104, WaterFlow3 = 105, WaterFlow4 = 106, WaterFlow5 = 107, WaterFlow6 = 108, WaterFlow7 = 109,
+  WaterFall = 110,
 }
 
 export const TILE = 16;
@@ -101,13 +106,15 @@ export enum Tile {
   DirtPathTop, StonePathTop, StreetTop, TilesTop,
   Basalt, Magma, CrystalCluster, Ice, MushroomStem, MushroomCap, SmallMushroom, Amethyst,
   Blueprint,
+  // Cubos para coger y echar agua (v3.8).
+  Bucket, WaterBucket,
 }
 
 /**
  * cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos.
  * gate: puerta de valla. door: puerta de casa (una tabla fina que se orienta según las paredes de los lados).
  */
-export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door' | 'slab' | 'stairs';
+export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door' | 'slab' | 'stairs' | 'liquid';
 
 export interface BlockDef {
   name: string;
@@ -231,6 +238,9 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.MushroomCap]: cube('Sombrero de seta', Tile.MushroomCap),
   [Block.SmallMushroom]: cross('Seta', Tile.SmallMushroom),
   [Block.Amethyst]: cube('Bloque de amatista', Tile.Amethyst),
+  [Block.Water]: { name: 'Agua', tiles: [Tile.WaterBucket, Tile.WaterBucket, Tile.WaterBucket], transparent: true, shape: 'liquid' },
+  ...Object.fromEntries(Array.from({ length: 7 }, (_, i) => [Block.WaterFlow1 + i, { name: 'Agua que corre', tiles: [Tile.WaterBucket, Tile.WaterBucket, Tile.WaterBucket], transparent: true, shape: 'liquid' }])),
+  [Block.WaterFall]: { name: 'Agua que cae', tiles: [Tile.WaterBucket, Tile.WaterBucket, Tile.WaterBucket], transparent: true, shape: 'liquid' },
 };
 /** Material de cada juego de escaleras: su primer bloque (mirando a -z), nombre y textura. */
 export const STAIRS: [Block, string, Tile][] = [
@@ -342,7 +352,42 @@ export const FRUITS = [Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block
 /** Bloquea el paso del jugador. */
 /** Si choca con el jugador. */
 export function isSolid(b: number): boolean {
-  return b !== Block.Air && BLOCKS[b].shape !== 'cross' && !OPEN.has(b);
+  return b !== Block.Air && BLOCKS[b].shape !== 'cross' && BLOCKS[b].shape !== 'liquid' && !OPEN.has(b);
+}
+
+// --- Agua (v3.8) ---
+
+/** Si es agua, de cualquier tipo. */
+export function isWater(b: number): boolean {
+  return b >= Block.Water && b <= Block.WaterFall;
+}
+
+/** Agua quieta que no se acaba nunca (la del mar, la del río o la que vacías con un cubo). */
+export function isWaterSource(b: number): boolean {
+  return b === Block.Water;
+}
+
+/**
+ * Nivel del agua, como en Minecraft: 0 la fuente (y el agua que cae, que empuja como una fuente),
+ * de 1 a 7 el agua que corre, cada vez más baja. -1 si no es agua.
+ */
+export function waterLevel(b: number): number {
+  if (b === Block.Water || b === Block.WaterFall) return 0;
+  if (b >= Block.WaterFlow1 && b <= Block.WaterFlow7) return b - Block.Water;
+  return -1;
+}
+
+/** Bloque de agua que corre con ese nivel (1 a 7). */
+export function flowingWater(level: number): Block {
+  return (Block.Water + level) as Block;
+}
+
+/** Altura de la superficie dentro del bloque (0 a 1) si no tiene más agua encima. */
+export const WATER_TOP = 0.85;
+export function waterHeight(b: number): number {
+  if (b === Block.WaterFall || b === Block.Water) return WATER_TOP;
+  const level = waterLevel(b);
+  return level < 0 ? 0 : (WATER_TOP * (8 - level)) / 8;
 }
 
 /** Barrera de bloque y medio que no se puede saltar: vallas y puertas de valla cerradas. */
@@ -362,7 +407,7 @@ export function isFullBlock(b: number): boolean {
 
 /** Se puede apuntar y romper. */
 export function isTargetable(b: number): boolean {
-  return b !== Block.Air;
+  return b !== Block.Air && !isWater(b);
 }
 
 export function isOpaque(b: number): boolean {
@@ -784,6 +829,14 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     '...rhrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrdr...', '....rrrrrrdd....', '.....rrrrrr.....',
     '................', '................', '................', '................',
   ], { a: [80, 150, 50], r: [222, 50, 40], h: [255, 200, 190], d: [170, 30, 30] });
+  // Cubos (v3.8): de hierro, vacío o lleno de agua.
+  const bucket = (tile: Tile, full: boolean) => toolSprite(ctx, tile, [
+    '................', '................', '................', '...hhhhhhhhhh...', '..h..........h..', '..h..........h..',
+    full ? '..iwwwwwwwwwwi..' : '..iddddddddddi..', full ? '..iWwwwwwwwwwi..' : '..iddddddddddi..', '..iHiiiiiiiiii..', '...iHiiiiiiii...', '...iHiiiiiiii...',
+    '....iiiiiiii....', '....iiiiiiii....', '.....dddddd.....', '................', '................',
+  ], { h: [120, 124, 136], i: [196, 202, 214], H: [244, 246, 252], d: [104, 110, 124], w: [64, 150, 220], W: [150, 210, 250] });
+  bucket(Tile.Bucket, false);
+  bucket(Tile.WaterBucket, true);
   toolSprite(ctx, Tile.WateringCan, [
     '................', '................', '.....hhhh.......', '....h....h......', '....h....h......', '...ccccccc...s..',
     '..cccccccccss...', '..ccccccccss....', '..ccccccccc.....', '..ccccccccc.....', '..ccccccccc.....', '..ddddddddd.....',

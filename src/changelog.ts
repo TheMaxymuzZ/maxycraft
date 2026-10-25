@@ -7,6 +7,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.8',
+    title: 'Agua de verdad',
+    items: [
+      'El agua funciona como en Minecraft: el mar y el río son bloques de agua quieta que no se acaba nunca.',
+      'El agua corre hasta 7 bloques, cada vez más baja, y busca el desnivel más cercano. Al llegar a un borde cae en cascada.',
+      'Si cavas una zanja hasta el mar o el río, se llena. Si pones un bloque en medio, cortas el agua; si quitas la fuente, se seca poco a poco.',
+      'Fuente infinita: un hueco con dos fuentes al lado y suelo debajo se llena de agua quieta.',
+      'La corriente te arrastra y se lleva lo que se cae al agua; los objetos flotan. El agua que cae te hunde.',
+      'Cubo nuevo (3 pepitas de hierro, o en la tienda): coge agua quieta y échala donde quieras.',
+      'El agua que corre va inclinada, con rayas que avanzan hacia donde va; el agua que cae tiene espuma.',
+      'Las islas guardadas se ven igual que antes: no se inunda nada al actualizar.',
+    ],
+  },
+  {
     version: '3.7',
     title: 'Tamaño de la interfaz',
     items: [

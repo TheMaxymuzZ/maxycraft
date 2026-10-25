@@ -182,3 +182,31 @@ describe('pradera de flores', () => {
     for (const b of [Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink]) expect(kinds).toContain(b);
   });
 });
+
+describe('agua de verdad (v3.8)', () => {
+  it('el mar son bloques de agua quieta hasta el nivel del mar', () => {
+    const world = new World(SEED, material);
+    const h = world.heightAt(200, 0);
+    expect(world.getBlock(200, SEA_LEVEL, 0)).toBe(Block.Water);
+    expect(world.getBlock(200, h + 1, 0)).toBe(Block.Water);
+    expect(world.getBlock(200, SEA_LEVEL + 1, 0)).toBe(Block.Air);
+    expect(world.inWater(200.5, SEA_LEVEL + 0.5, 0.5)).toBe(true);
+    expect(world.inWater(200.5, SEA_LEVEL + 0.95, 0.5)).toBe(false);
+    expect(world.waterSurface(200, 0)).toBeCloseTo(SEA_LEVEL + 0.85);
+  });
+
+  it('una zanja cavada hasta el mar se llena de agua', async () => {
+    const { Fluids, FLUID_STEP } = await import('../src/fluids');
+    const world = new World(SEED, material);
+    const fluids = new Fluids({ getBlock: (x, y, z) => world.getBlock(x, y, z), setBlock: (x, y, z, b) => world.setBlock(x, y, z, b), loaded: (x, z) => world.hasColumn(x, z) });
+    world.onBlockChange = (x, y, z) => fluids.wake(x, y, z);
+    // Buscar la orilla hacia +x.
+    let shore = 0;
+    while (world.waterKind(shore, 0) !== 'mar') shore++;
+    // Cavar 4 bloques hacia dentro, a la altura del agua.
+    for (let i = 1; i <= 4; i++) world.setBlock(shore - i, SEA_LEVEL, 0, Block.Air);
+    for (let i = 0; i < 40; i++) fluids.update(FLUID_STEP);
+    expect(world.getBlock(shore - 1, SEA_LEVEL, 0)).not.toBe(Block.Air);
+    expect(world.waterKind(shore - 1, 0)).not.toBeNull();
+  });
+});
