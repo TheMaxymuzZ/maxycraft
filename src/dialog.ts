@@ -68,6 +68,13 @@ const SHOP_GREETINGS = [
   '¡Hola! Si traes fruta o conchas, te las compro a buen precio, {c}.',
   '¡{saludo}! Los precios de venta cambian cada día. ¡Mira bien antes de vender, {c}!',
 ];
+const MUSEUM_GREETINGS = [
+  '¡Ejem! {saludo}. Bienvenida, bienvenido al museo de la isla, {c}.',
+  'Cada pez y cada insecto que dones ayuda a conocer mejor la isla, {c}.',
+  '{saludo}. ¿Traes algo nuevo para la colección? Me encantaría verlo, {c}.',
+];
+const DONATED = '¡Oh! ¡Un ejemplar magnífico! Lo pondré en la colección ahora mismo, {c}.';
+const NOTHING_NEW = 'Mmm, no veo nada que el museo no tenga ya. ¡Sigue buscando, {c}!';
 const GOODBYE = ['¡Hasta luego, {c}!', '¡Nos vemos!', 'Venga, ¡que vaya bien, {c}!'];
 
 const CATEGORY: Record<string, 'fruta' | 'conchas' | 'flores' | 'madera'> = {
@@ -92,6 +99,10 @@ export interface DialogContext {
   onClose: () => void;
   /** Abre la tienda (al hablar con la dependienta). */
   openShop: () => void;
+  /** Lo que se puede donar al museo y cómo donarlo. */
+  donatable: () => string[];
+  donate: (id: string) => boolean;
+  openCollection: () => void;
 }
 
 /** Ventana de conversación con un vecino, al estilo de Animal Crossing. */
@@ -130,6 +141,7 @@ export class Dialog {
       v.memory.friendship += 1;
     }
     if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
+    else if (v.isCurator) this.say(pick(MUSEUM_GREETINGS));
     else this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
   }
 
@@ -171,16 +183,33 @@ export class Dialog {
         this.finish(true);
         this.ctx.openShop();
       });
+    } else if (v.isCurator) {
+      add('Donar', () => this.donateAll());
+      add('Ver la colección', () => {
+        this.finish(true);
+        this.ctx.openCollection();
+      });
     } else {
       add('Charlar', () => this.say(pick(CHATS[v.profile.personality])));
     }
     const slot = this.ctx.selectedSlot();
     const stack = this.ctx.inventory.slots[slot];
-    if (stack && !itemDef(stack.id).tool) {
+    if (stack && !itemDef(stack.id).tool && !v.isCurator) {
       add(`Regalar ${itemDef(stack.id).name.toLowerCase()}`, () => this.gift(slot));
     }
     add('Adiós', () => this.finish());
     (this.choicesEl.firstElementChild as HTMLButtonElement | null)?.focus();
+  }
+
+  private donateAll() {
+    const ids = this.ctx.donatable();
+    if (!ids.length) {
+      this.say(NOTHING_NEW);
+      return;
+    }
+    const names = ids.filter((id) => this.ctx.donate(id)).map((id) => itemDef(id).name.toLowerCase());
+    this.ctx.toast(`Has donado: ${names.join(', ')}`);
+    this.say(DONATED);
   }
 
   private gift(slot: number) {

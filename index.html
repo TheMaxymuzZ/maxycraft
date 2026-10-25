@@ -41,6 +41,19 @@
     <div id="debug" hidden></div>
     <div id="underwater" hidden></div>
     <div id="clock" aria-live="off"><span id="clock-time"></span><span id="clock-date"></span><span id="wallet"><i aria-hidden="true"></i><span id="wallet-amount">0</span> bayas</span></div>
+    <div id="collection" hidden>
+      <div class="collection-panel">
+        <header>
+          <h2>Enciclopedia</h2>
+          <p id="collection-summary"></p>
+        </header>
+        <h3>Peces</h3>
+        <div id="collection-fish" class="cards"></div>
+        <h3>Insectos</h3>
+        <div id="collection-bugs" class="cards"></div>
+        <footer><button type="button" id="collection-close">Cerrar</button> <span><kbd>C</kbd> o <kbd>Esc</kbd> para volver</span></footer>
+      </div>
+    </div>
     <div id="shop" hidden>
       <div class="shop-panel">
         <header>
@@ -55,13 +68,13 @@
           <h3>Vender</h3>
           <ul id="shop-sell" class="shop-list"></ul>
         </section>
-        <footer><button type="button" id="shop-close">Salir de la tienda</button> <kbd>Esc</kbd></footer>
+        <footer><button type="button" id="shop-close">Salir de la tienda</button> <span><kbd>Esc</kbd> para volver</span></footer>
       </div>
     </div>
     <div id="overlay">
       <div class="panel">
         <h1>Maxycraft</h1>
-        <p class="version">v0.5 · Bayas y tienda</p>
+        <p class="version">v0.6 · Bichos y peces</p>
         <button type="button" id="play">Haz clic para jugar</button>
         <p id="island-info" class="island-info"></p>
         <ul class="controls">
@@ -69,7 +82,8 @@
           <li><kbd>Espacio</kbd> saltar · <kbd>Mayús</kbd> correr</li>
           <li><kbd>Clic izq.</kbd> (mantener) romper</li>
           <li><kbd>Clic der.</kbd> colocar, sacudir un árbol o hablar con un vecino</li>
-          <li><kbd>E</kbd> bolsillos · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
+          <li><kbd>E</kbd> bolsillos · <kbd>C</kbd> enciclopedia · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
+          <li>Con la caña o la red en la mano, <kbd>Clic der.</kbd> para pescar o cazar</li>
           <li><kbd>F</kbd> datos de depuración · <kbd>Esc</kbd> pausa</li>
           <li><kbd>Espacio</kbd> en el agua: nadar hacia arriba</li>
         </ul>

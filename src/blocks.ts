@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CREATURES, CREATURE_SPRITES } from './creatures';
 
 export enum Block {
   Air = 0,
@@ -28,10 +29,13 @@ export enum Block {
   RoofYellow = 24,
   Window = 25,
   ShopWall = 26,
+  MuseumWall = 27,
 }
 
 export const TILE = 16;
-export const ATLAS_TILES = 8; // 8x8 casillas de 16x16 píxeles
+export const ATLAS_TILES = 16; // 16x16 casillas de 16x16 píxeles
+/** Las casillas de peces e insectos empiezan aquí, una por criatura. */
+export const CREATURE_TILE_START = 128;
 
 // Índices de casilla dentro del atlas.
 export enum Tile {
@@ -41,6 +45,7 @@ export enum Tile {
   PalmSide, PalmTop, PalmLeaves, Coconut,
   Branch, Shell, Conch, Starfish, Axe, Shovel, Pickaxe,
   Wall, RoofRed, RoofBlue, RoofGreen, RoofYellow, Window, ShopWall, Berry,
+  Rod, Net, MuseumWall,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. */
@@ -88,11 +93,12 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.RoofYellow]: cube('Tejado amarillo', Tile.RoofYellow),
   [Block.Window]: cube('Ventana', Tile.Window, Tile.Window, Tile.Window, true),
   [Block.ShopWall]: cube('Pared de madera', Tile.ShopWall),
+  [Block.MuseumWall]: cube('Muro de piedra', Tile.MuseumWall),
 };
 
 /** Bloques de construcción: dentro de las parcelas de vecinos y tienda no se pueden romper. */
 export const HOUSE_BLOCKS: readonly Block[] = [
-  Block.Wall, Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow, Block.Window, Block.ShopWall, Block.Planks,
+  Block.Wall, Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow, Block.Window, Block.ShopWall, Block.MuseumWall, Block.Planks,
 ];
 export const ROOFS = [Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow] as const;
 
@@ -496,6 +502,52 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     '................',
     '................',
   ], { s: [96, 140, 60], b: [222, 196, 140], p: [120, 60, 150] });
+  paintTile(ctx, Tile.MuseumWall, (x, y, r) => {
+    const mortar = y % 5 === 4 || (x + (Math.floor(y / 5) % 2) * 4) % 8 === 0;
+    return mortar ? [150, 146, 136] : pick(r, [[204, 200, 188], [196, 192, 180], [212, 208, 196]]);
+  });
+  paintSprite(ctx, Tile.Rod, [
+    '..............s.',
+    '.............s.l',
+    '............s..l',
+    '...........s...l',
+    '..........s....l',
+    '.........s.....l',
+    '........s......l',
+    '.......s.......l',
+    '......s........l',
+    '.....s.........l',
+    '....s..........r',
+    '...hs..........w',
+    '..hh............',
+    '.hh.............',
+    '................',
+    '................',
+  ], { s: [150, 104, 60], h: [90, 60, 40], l: [230, 230, 230], r: [220, 50, 50], w: [250, 250, 250] });
+  paintSprite(ctx, Tile.Net, [
+    '.........nnnn...',
+    '........n.n.nn..',
+    '.......nnnnnnnn.',
+    '.......n.n.n.nn.',
+    '.......nnnnnnnn.',
+    '........nnnnnn..',
+    '.......s.nnnn...',
+    '......s.........',
+    '.....s..........',
+    '....s...........',
+    '...s............',
+    '..s.............',
+    '.s..............',
+    '................',
+    '................',
+    '................',
+  ], { s: [150, 104, 60], n: [240, 240, 240] });
+
+  // Peces e insectos, una casilla para cada uno.
+  CREATURES.forEach((c, i) => {
+    paintSprite(ctx, CREATURE_TILE_START + i, CREATURE_SPRITES[c.sprite], { e: [20, 20, 20], c: [255, 255, 200], ...c.colors });
+  });
+
   paintTile(ctx, Tile.Window, (x, y) => {
     if (x === 0 || y === 0 || x === 15 || y === 15 || x === 7 || x === 8 || y === 7 || y === 8) return [140, 104, 66];
     return null;

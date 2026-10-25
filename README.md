@@ -6,7 +6,11 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v0.5 · Bayas y tienda**
+Versión actual: **v0.6 · Bichos y peces**
+
+- Caña de pescar y red (se fabrican con 5 ramas o se compran). Con la caña, clic derecho al agua, espera a que pique y vuelve a hacer clic a tiempo.
+- 10 peces (6 de mar y 4 de río) y 7 insectos, cada uno con su sitio y su horario.
+- Enciclopedia con la tecla C. Matilde, la tortuga del museo, recoge las donaciones de ejemplares nuevos.
 
 - Las bayas son la moneda de la isla; se empieza con 500 y se ven bajo el reloj.
 - La tienda de Avellana (la ardilla) abre de 8:00 a 22:00. Vende herramientas siempre y cinco cosas más que cambian cada día: tejados de colores, paredes, ventanas, flores, piedra…
@@ -39,6 +43,7 @@ Versión actual: **v0.5 · Bayas y tienda**
 | Clic izquierdo (mantener) | Romper bloque |
 | Clic derecho | Colocar bloque o sacudir un árbol |
 | E | Bolsillos y fabricar |
+| C | Enciclopedia de peces e insectos |
 | 1–0 o rueda | Elegir casilla |
 | Espacio en el agua | Nadar hacia arriba |
 | F | Datos de depuración |

@@ -1,6 +1,7 @@
-import { BLOCKS, Block, Tile, blockIconTile } from './blocks';
+import { BLOCKS, Block, CREATURE_TILE_START, Tile, blockIconTile } from './blocks';
+import { CREATURES } from './creatures';
 
-export type ToolKind = 'axe' | 'shovel' | 'pickaxe';
+export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net';
 
 export interface ItemDef {
   id: string;
@@ -80,6 +81,12 @@ add({ id: 'estrella', name: 'Estrella de mar', tile: Tile.Starfish, maxStack: 10
 add({ id: 'hacha', name: 'Hacha', tile: Tile.Axe, maxStack: 1, tool: 'axe', durability: 40, sell: 50, buy: 400 });
 add({ id: 'pala', name: 'Pala', tile: Tile.Shovel, maxStack: 1, tool: 'shovel', durability: 40, sell: 50, buy: 400 });
 add({ id: 'pico', name: 'Pico', tile: Tile.Pickaxe, maxStack: 1, tool: 'pickaxe', durability: 40, sell: 50, buy: 500 });
+add({ id: 'cana', name: 'Caña de pescar', tile: Tile.Rod, maxStack: 1, tool: 'rod', durability: 30, sell: 50, buy: 400 });
+add({ id: 'red', name: 'Red', tile: Tile.Net, maxStack: 1, tool: 'net', durability: 30, sell: 50, buy: 400 });
+add({ id: 'muro_piedra', name: 'Muro de piedra', tile: blockIconTile(Block.MuseumWall), maxStack: 99, block: Block.MuseumWall, sell: 30, buy: 100 });
+
+// Peces e insectos: se pueden vender o donar al museo.
+CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell }));
 
 /** Todo lo que la tienda puede tener a la venta. */
 export const CATALOG = defs.filter((d) => d.buy !== undefined).map((d) => d.id);
@@ -161,7 +168,8 @@ export function breakInfo(b: Block, tool: ToolKind | undefined): { seconds: numb
 export function toolNameFor(b: Block): string | null {
   const h = HARDNESS[b];
   if (!h?.needsTool || !h.tool) return null;
-  return { axe: 'un hacha', shovel: 'una pala', pickaxe: 'un pico' }[h.tool];
+  const names: Record<ToolKind, string> = { axe: 'un hacha', shovel: 'una pala', pickaxe: 'un pico', rod: 'una caña', net: 'una red' };
+  return names[h.tool];
 }
 
 // --- Recetas sencillas (la mesa de trabajo llegará en la v0.9) ---
@@ -177,4 +185,6 @@ export const RECIPES: Recipe[] = [
   { result: 'hacha', count: 1, needs: [['rama', 5]] },
   { result: 'pala', count: 1, needs: [['rama', 5]] },
   { result: 'pico', count: 1, needs: [['rama', 6]] },
+  { result: 'cana', count: 1, needs: [['rama', 5]] },
+  { result: 'red', count: 1, needs: [['rama', 5]] },
 ];

@@ -4,7 +4,7 @@ import { columnRandom } from './noise';
 import { SEA_LEVEL, type Plot, type World } from './world';
 
 export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido';
-type Species = 'gato' | 'conejo' | 'oso' | 'pato' | 'perro' | 'rana' | 'ardilla';
+type Species = 'gato' | 'conejo' | 'oso' | 'pato' | 'perro' | 'rana' | 'ardilla' | 'tortuga';
 
 interface SpeciesLook {
   fur: number;
@@ -21,6 +21,7 @@ const LOOKS: Record<Species, SpeciesLook> = {
   perro: { fur: 0xd8b07a, belly: 0xfff4e0, ears: 'caidas' },
   rana: { fur: 0x7cc46a, belly: 0xe8f5c8, ears: 'ninguna' },
   ardilla: { fur: 0xb8743a, belly: 0xf4dcb8, ears: 'punta' },
+  tortuga: { fur: 0x9cc48a, belly: 0xf0ecc8, ears: 'ninguna' },
 };
 
 interface Profile {
@@ -34,14 +35,21 @@ interface Profile {
   likes: 'fruta' | 'conchas' | 'flores' | 'madera';
   /** Horario propio de sueño; si no, el de su personalidad. */
   sleep?: [number, number];
-  /** No pasea: se queda en la puerta (la dependienta de la tienda). */
+  /** No pasea: se queda en la puerta (la dependienta y la conservadora). */
   stationary?: boolean;
+  role?: 'shop' | 'museum';
 }
+
+/** La conservadora del museo, que está siempre abierto. */
+const CURATOR: Profile = {
+  name: 'Matilde', species: 'tortuga', personality: 'dormilón', catchphrase: 'ejem', shirt: 0x6a5acd,
+  likes: 'conchas', sleep: [0, 0], stationary: true, role: 'museum',
+};
 
 /** La dependienta de la tienda, abierta de 8:00 a 22:00. */
 const SHOPKEEPER: Profile = {
   name: 'Avellana', species: 'ardilla', personality: 'alegre', catchphrase: 'cric', shirt: 0x3f8f5a,
-  likes: 'fruta', sleep: [22, 8], stationary: true,
+  likes: 'fruta', sleep: [22, 8], stationary: true, role: 'shop',
 };
 
 const PROFILES: Profile[] = [
@@ -95,7 +103,11 @@ export class Villager {
   }
 
   get isShopkeeper() {
-    return !!this.profile.stationary;
+    return this.profile.role === 'shop';
+  }
+
+  get isCurator() {
+    return this.profile.role === 'museum';
   }
 
   // --- Modelo de bloques: cabeza grande, como los vecinos de Animal Crossing ---
@@ -133,6 +145,10 @@ export class Villager {
     if (look.beak) box(0.26, 0.1, 0.16, look.beak, 0, headY - 0.1, 0.36);
     else box(0.08, 0.06, 0.04, 0x5a3a2a, 0, headY - 0.07, 0.34); // nariz
 
+    if (this.profile.species === 'tortuga') {
+      box(0.62, 0.5, 0.26, 0x6b8e4e, 0, 0.6, -0.28); // caparazón
+      box(0.5, 0.06, 0.2, 0x4f6e38, 0, 0.7, -0.42);
+    }
     if (this.profile.species === 'ardilla') {
       box(0.3, 0.7, 0.24, look.fur, 0, 0.75, -0.34); // cola grande
       box(0.3, 0.24, 0.3, look.fur, 0, 1.18, -0.42);
@@ -289,7 +305,9 @@ export function createVillagers(world: World, memories: Record<string, VillagerM
   const pool = [...PROFILES];
   const shop = world.plots.find((p) => p.kind === 'shop');
   const keeper = shop ? [new Villager(SHOPKEEPER, shop, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
-  return [...keeper, ...world.plots.filter((p) => p.kind === 'house').map((plot, i) => {
+  const museum = world.plots.find((p) => p.kind === 'museum');
+  const curator = museum ? [new Villager(CURATOR, museum, world, memories[CURATOR.name] ?? { friendship: 0 })] : [];
+  return [...keeper, ...curator, ...world.plots.filter((p) => p.kind === 'house').map((plot, i) => {
     const pick = Math.floor(columnRandom(i, 99, world.seed) * pool.length);
     const profile = pool.splice(pick, 1)[0];
     return new Villager(profile, plot, world, memories[profile.name] ?? { friendship: 0 });
