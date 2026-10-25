@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
-import { BLOCKS, Block, FRUITS, createAtlasCanvas, createAtlasTexture, isCross } from './blocks';
+import { BLOCKS, Block, FRUITS, HOUSE_BLOCKS, createAtlasCanvas, createAtlasTexture, isCross } from './blocks';
+import { Dialog } from './dialog';
 import { Drops } from './drops';
 import { Hud } from './hud';
 import { Inventory, starterKit } from './inventory';
@@ -9,6 +10,7 @@ import { Player } from './player';
 import { raycast } from './raycast';
 import { deleteGame, loadGame, saveGame } from './save';
 import { Sky } from './sky';
+import { type Villager, createVillagers } from './villagers';
 import { WATER_SURFACE, World } from './world';
 
 const RENDER_RADIUS = 6;
@@ -83,6 +85,9 @@ if (save?.player) {
   player.spawnAt(sx, sz);
 }
 
+const villagers = createVillagers(world, save?.villagers ?? {});
+for (const v of villagers) scene.add(v.group);
+
 const inventory = new Inventory();
 if (save?.inventory) inventory.load(save.inventory);
 else starterKit(inventory);
@@ -101,6 +106,7 @@ function persist() {
     harvested,
     shells: { day: today, taken: [...shellsTaken] },
     branches: { day: today, trees: [...branchTrees] },
+    villagers: Object.fromEntries(villagers.map((v) => [v.name, v.memory])),
   });
   savedRevision = world.revision;
 }
@@ -193,12 +199,14 @@ function take(id: string): boolean {
   return true;
 }
 
-// --- Bolsillos y bloqueo del puntero ---
+// --- Bolsillos, conversaciones y bloqueo del puntero ---
 
-let inventoryOpen = false;
+/** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
+let panel: 'inventory' | 'dialog' | null = null;
+let currentHour = 12;
 
 function openInventory() {
-  inventoryOpen = true;
+  panel = 'inventory';
   hud.openInventory();
   document.exitPointerLock();
 }
@@ -206,17 +214,43 @@ function openInventory() {
 function closeInventory() {
   hud.closeInventory();
   if (!hud.inventoryEl.hidden) return; // aún lleva algo en la mano
-  inventoryOpen = false;
+  panel = null;
   canvas.requestPointerLock();
 }
 
+const dialog = new Dialog({
+  inventory,
+  selectedSlot: () => hud.selected,
+  today,
+  get hour() {
+    return currentHour;
+  },
+  fruitName: BLOCKS[world.fruit].name.toLowerCase(),
+  toast: (t) => hud.toast(t),
+  onClose: () => {
+    panel = null;
+    canvas.requestPointerLock();
+  },
+});
+
+function talkTo(v: Villager) {
+  panel = 'dialog';
+  breaking = false;
+  dialog.start(v);
+  document.exitPointerLock();
+}
+
 window.addEventListener('keydown', (e) => {
+  if (panel === 'dialog') {
+    if (e.code === 'Escape') dialog.finish();
+    return;
+  }
   if (e.code === 'KeyE') {
-    if (inventoryOpen) closeInventory();
+    if (panel === 'inventory') closeInventory();
     else if (document.pointerLockElement === canvas) openInventory();
     return;
   }
-  if (e.code === 'Escape' && inventoryOpen) {
+  if (e.code === 'Escape' && panel === 'inventory') {
     closeInventory();
     return;
   }
@@ -259,12 +293,13 @@ document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   if (locked) {
     overlay.hidden = true;
-    inventoryOpen = false;
-    hud.inventoryEl.hidden = true;
+    if (panel === 'inventory') hud.inventoryEl.hidden = true;
+    if (panel === 'dialog') dialog.finish();
+    panel = null;
     return;
   }
   breaking = false;
-  if (inventoryOpen) return; // se ve la pantalla de bolsillos en vez del menú
+  if (panel) return; // se ve la ventana abierta en vez del menú
   overlay.hidden = false;
   persist();
   playButton.textContent = 'Volver a la isla';
@@ -272,7 +307,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 // Si el navegador no deja volver a bloquear el ratón enseguida, se muestra el menú.
 document.addEventListener('pointerlockerror', () => {
-  if (!inventoryOpen) overlay.hidden = false;
+  if (!panel) overlay.hidden = false;
 });
 document.addEventListener('mousemove', (e) => {
   if (document.pointerLockElement === canvas) player.look(e.movementX, e.movementY);
@@ -324,6 +359,11 @@ function updateBreaking(dt: number) {
   if (y === 0) return; // la capa del fondo no se rompe
 
   const b = world.getBlock(x, y, z);
+  if (HOUSE_BLOCKS.includes(b)) {
+    if (warnedKey !== key) hud.toast('Es la casa de un vecino. Mejor no tocarla');
+    warnedKey = key;
+    return;
+  }
   const stack = hud.selectedStack;
   const tool = stack ? itemDef(stack.id).tool : undefined;
   const info = breakInfo(b, tool);
@@ -348,8 +388,36 @@ function updateBreaking(dt: number) {
   }
 }
 
+const villagerBox = new THREE.Box3();
+const ray = new THREE.Ray();
+const rayHit = new THREE.Vector3();
+
+/** Vecino al que apunta la mira, si está más cerca que el bloque apuntado. */
+function villagerInSight(blockDistance: number): Villager | null {
+  camera.getWorldDirection(dir);
+  ray.set(camera.position, dir);
+  let best: Villager | null = null;
+  let bestDist = Math.min(blockDistance, REACH);
+  for (const v of villagers) {
+    if (!v.group.visible) continue;
+    if (!ray.intersectBox(v.bounds(villagerBox), rayHit)) continue;
+    const d = rayHit.distanceTo(camera.position);
+    if (d < bestDist) {
+      best = v;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
 function useItem() {
   const hit = currentHit();
+  const blockDist = hit ? camera.position.distanceTo(new THREE.Vector3(hit.block[0] + 0.5, hit.block[1] + 0.5, hit.block[2] + 0.5)) : Infinity;
+  const villager = villagerInSight(blockDist);
+  if (villager) {
+    talkTo(villager);
+    return;
+  }
   if (!hit) return;
   const [bx, by, bz] = hit.block;
   const target = world.getBlock(bx, by, bz);
@@ -422,6 +490,28 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// Nombre encima de cada vecino cercano.
+const labelsEl = document.querySelector<HTMLDivElement>('#labels')!;
+const labels = villagers.map((v) => {
+  const el = document.createElement('div');
+  el.className = 'name-tag';
+  el.textContent = v.name;
+  labelsEl.appendChild(el);
+  return el;
+});
+const projected = new THREE.Vector3();
+function updateLabels() {
+  villagers.forEach((v, i) => {
+    const el = labels[i];
+    const dist = v.position.distanceTo(player.position);
+    projected.copy(v.position).setY(v.position.y + 1.85).project(camera);
+    const show = v.group.visible && dist < 8 && projected.z < 1 && Math.abs(projected.x) < 1.1 && Math.abs(projected.y) < 1.1;
+    el.hidden = !show;
+    if (!show) return;
+    el.style.transform = `translate(${((projected.x + 1) / 2) * window.innerWidth}px, ${((1 - projected.y) / 2) * window.innerHeight}px) translate(-50%, -100%)`;
+  });
+}
+
 // --- Reloj con la hora local, como en Animal Crossing ---
 
 const timeFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
@@ -460,7 +550,10 @@ function frame(now: number) {
   const date = new Date();
   if (hourOverride !== null) date.setHours(Math.floor(hourOverride), (hourOverride % 1) * 60, 0);
   const hour = Sky.hourOf(date);
+  currentHour = hour;
   sky.update(hour, camera);
+  for (const v of villagers) v.update(dt, hour, player.position);
+  updateLabels();
   updateClock(date);
   drops.update(dt, player.position, take, 1 - sky.night * 0.5);
 
@@ -512,6 +605,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, camera, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+    game: { world, player, camera, villagers, talkTo, dialog, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
   });
 }
