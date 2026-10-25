@@ -27,9 +27,9 @@ export interface Settings {
 }
 
 export const QUALITIES: { id: Quality; name: string; hint: string }[] = [
-  { id: 'baja', name: 'Baja', hint: 'Se ve menos lejos. Para móviles y ordenadores sencillos.' },
-  { id: 'media', name: 'Media', hint: 'Equilibrada.' },
-  { id: 'alta', name: 'Alta', hint: 'Se ve muy lejos. Necesita un buen ordenador.' },
+  { id: 'baja', name: 'Baja', hint: 'Se ve menos lejos y sin sombras. Para móviles y ordenadores sencillos.' },
+  { id: 'media', name: 'Media', hint: 'Equilibrada, con sombras del sol.' },
+  { id: 'alta', name: 'Alta', hint: 'Se ve muy lejos, con sombras más finas. Necesita un buen ordenador.' },
 ];
 
 /** Cuántos trozos de mundo (chunks) se ven alrededor en cada calidad. */

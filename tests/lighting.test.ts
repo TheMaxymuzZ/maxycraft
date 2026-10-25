@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { Block } from '../src/blocks';
+import { Block, LIGHT_COLOR, LIGHT_COLORS } from '../src/blocks';
 import { Inventory } from '../src/inventory';
 import { defaultKeys } from '../src/keys';
 import { HAND_LIGHT } from '../src/lighting';
+import { Sky } from '../src/sky';
 import { World } from '../src/world';
 
 const material = new THREE.MeshBasicMaterial();
@@ -90,6 +91,39 @@ describe('luz del cielo (v3.1)', () => {
     expect(skyLevel).toBeLessThan(0.5); // cerca de la superficie, como dentro de una casa: oscuro pero no negro
     expect(glow).toBeCloseTo(12 / 15);
     expect(world.lightAt(x0, 70, z0)).toEqual([1, 0]);
+  });
+});
+
+describe('luz global (v3.2)', () => {
+  const hemi = new THREE.HemisphereLight();
+  const sun = new THREE.DirectionalLight();
+  const sky = new Sky(new THREE.Scene(), hemi, sun);
+  const camera = new THREE.PerspectiveCamera();
+
+  it('la sombra la da el sol de día y la luna de noche, siempre desde arriba', () => {
+    sky.update(12, camera);
+    expect(sky.lightDir.y).toBeGreaterThan(0.8);
+    const noon = sun.intensity;
+    sky.update(1, camera);
+    expect(sky.lightDir.y).toBeGreaterThan(0);
+    expect(sun.intensity).toBeLessThan(noon / 3);
+  });
+
+  it('cada luz tiene su color: la lava roja, la antorcha cálida', () => {
+    const world = new World(20261025, material);
+    cave(world, 4, 40, 4);
+    world.setBlock(4, 40, 5, Block.Magma);
+    world.setBlock(12, 40, 5, Block.Torch);
+    const at = world['blockLightRegion'](0, 0);
+    expect(LIGHT_COLORS[at.color(5, 40, 5)]).toBe(LIGHT_COLORS[LIGHT_COLOR[Block.Magma]!]);
+    expect(at.color(11, 40, 5)).toBe(0);
+  });
+
+  it('el atardecer es más cálido que el mediodía', () => {
+    sky.update(12, camera);
+    const noon = sun.color.clone();
+    sky.update(18.6, camera);
+    expect(sun.color.b / sun.color.r).toBeLessThan(noon.b / noon.r);
   });
 });
 

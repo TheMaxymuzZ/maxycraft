@@ -306,6 +306,18 @@ export const SWAYING: ReadonlySet<number> = new Set([
 
 /** Bloques que dan luz y cuánta (nivel de 1 a 15: la luz baja uno por cada bloque que avanza). */
 export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 13, [Block.LightBlock]: 15, [Block.Magma]: 11, [Block.CrystalCluster]: 8, [Block.Amethyst]: 10 };
+/**
+ * Color de la luz de cada bloque (v3.2), en la paleta LIGHT_COLORS: la lava da luz roja, los cristales azul…
+ * Lo que no sale aquí (antorchas, farolas, lámparas) da la luz cálida de una llama, la 0.
+ */
+export const LIGHT_COLORS: readonly [number, number, number][] = [
+  [1.15, 0.92, 0.62], // llama
+  [1.05, 1.0, 0.9], // bloque de luz: blanca
+  [1.35, 0.55, 0.25], // magma: roja
+  [0.6, 0.95, 1.25], // cristal: azul
+  [0.95, 0.6, 1.3], // amatista: morada
+];
+export const LIGHT_COLOR: Partial<Record<Block, number>> = { [Block.LightBlock]: 1, [Block.Magma]: 2, [Block.CrystalCluster]: 3, [Block.Amethyst]: 4 };
 /** Nivel máximo de luz. */
 export const MAX_LIGHT = 15;
 

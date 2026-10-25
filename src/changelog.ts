@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.2',
+    title: 'Luz global',
+    items: [
+      'Sombras de verdad: los árboles, las casas, los vecinos y los muebles dejan sombra en el suelo, y se mueve con el sol.',
+      'De noche la luna también da sombras suaves, con una luz fría y azulada.',
+      'El cielo ilumina la isla con su color: azul de día, dorado al atardecer, azul marino de noche. El suelo devuelve luz cálida.',
+      'Tus ojos se acostumbran a la oscuridad: en una cueva o de noche todo se aclara poco a poco, y al salir al sol vuelve a lo normal.',
+      'Las antorchas titilan como una llama, y sus brillos ya no se queman en blanco.',
+      'Opciones › Calidad: Media y Alta tienen sombras; Baja no, para que el móvil vaya fluido.',
+    ],
+  },
+  {
     version: '3.1',
     title: 'Luz suave',
     items: [
