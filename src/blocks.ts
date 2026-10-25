@@ -39,6 +39,15 @@ export enum Block {
   Workbench = 34,
   Fence = 35,
   WhiteFence = 36,
+  Bamboo = 37,
+  FlowerBlue = 38,
+  FlowerPink = 39,
+  Farmland = 40,
+  FarmlandWet = 41,
+  // Cultivos: cuatro fases cada uno, de brote a listo para cosechar.
+  Wheat0 = 42, Wheat1 = 43, Wheat2 = 44, Wheat3 = 45,
+  Carrot0 = 46, Carrot1 = 47, Carrot2 = 48, Carrot3 = 49,
+  Tomato0 = 50, Tomato1 = 51, Tomato2 = 52, Tomato3 = 53,
 }
 
 export const TILE = 16;
@@ -59,6 +68,9 @@ export enum Tile {
   Rod, Net, MuseumWall,
   CoalOre, IronOre, GoldOre, GemOre, Torch, Coal, IronNugget, GoldNugget, Gem, IronAxe, IronPickaxe, IronShovel,
   Canvas, WorkbenchTop, WorkbenchSide, Bottle, WhiteWood, FenceIcon, WhiteFenceIcon,
+  Bamboo, FlowerBlue, FlowerPink,
+  FarmlandTop, FarmlandWetTop, Sprout, WheatYoung, WheatTall, WheatRipe, CarrotYoung, CarrotTall, CarrotRipe, TomatoYoung, TomatoTall, TomatoRipe,
+  Seeds, SeedsCarrot, SeedsTomato, WheatItem, CarrotItem, TomatoItem, WateringCan, Egg, Milk, Bread, Omelette, Soup, Cake, ChickenIcon, CowIcon,
 }
 
 /** cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos. */
@@ -119,7 +131,30 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.Workbench]: cube('Mesa de trabajo', Tile.WorkbenchSide, Tile.WorkbenchTop, Tile.Planks),
   [Block.Fence]: fence('Valla de madera', Tile.Planks),
   [Block.WhiteFence]: fence('Valla blanca', Tile.WhiteWood),
+  [Block.Bamboo]: cross('Bambú', Tile.Bamboo),
+  [Block.FlowerBlue]: cross('Nomeolvides azul', Tile.FlowerBlue),
+  [Block.FlowerPink]: cross('Clavel rosa', Tile.FlowerPink),
+  [Block.Farmland]: cube('Tierra de cultivo', Tile.Dirt, Tile.FarmlandTop, Tile.Dirt),
+  [Block.FarmlandWet]: cube('Tierra de cultivo regada', Tile.Dirt, Tile.FarmlandWetTop, Tile.Dirt),
+  [Block.Wheat0]: cross('Brote de trigo', Tile.Sprout),
+  [Block.Wheat1]: cross('Trigo', Tile.WheatYoung),
+  [Block.Wheat2]: cross('Trigo', Tile.WheatTall),
+  [Block.Wheat3]: cross('Trigo maduro', Tile.WheatRipe),
+  [Block.Carrot0]: cross('Brote de zanahoria', Tile.Sprout),
+  [Block.Carrot1]: cross('Zanahoria', Tile.CarrotYoung),
+  [Block.Carrot2]: cross('Zanahoria', Tile.CarrotTall),
+  [Block.Carrot3]: cross('Zanahoria lista', Tile.CarrotRipe),
+  [Block.Tomato0]: cross('Brote de tomate', Tile.Sprout),
+  [Block.Tomato1]: cross('Tomatera', Tile.TomatoYoung),
+  [Block.Tomato2]: cross('Tomatera', Tile.TomatoTall),
+  [Block.Tomato3]: cross('Tomatera con tomates', Tile.TomatoRipe),
 };
+
+/** Plantas que se mueven con el viento. */
+export const SWAYING: ReadonlySet<number> = new Set([
+  Block.TallGrass, Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink, Block.Bamboo,
+  Block.Wheat1, Block.Wheat2, Block.Wheat3, Block.Carrot1, Block.Carrot2, Block.Carrot3, Block.Tomato1, Block.Tomato2, Block.Tomato3,
+]);
 
 /** Bloques que dan luz y cuánta (alcance en bloques). */
 export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 8 };
@@ -432,6 +467,138 @@ const PICKAXE = [
   '................',
 ];
 
+/** Huerto y granja: tierra de cultivo, cultivos en sus fases y los objetos de la granja y la cocina. */
+function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
+  const furrows = (wet: boolean) => (_x: number, y: number, r: () => number): RGB => {
+    const k = wet ? 0.62 : 1;
+    const c = y % 4 === 0 ? [104, 70, 46] : pick(r, DIRT);
+    return [Math.round(c[0] * k), Math.round(c[1] * k), Math.round(c[2] * (wet ? 0.75 : 1))];
+  };
+  paintTile(ctx, Tile.FarmlandTop, furrows(false));
+  paintTile(ctx, Tile.FarmlandWetTop, furrows(true));
+
+  const g: RGB = [96, 170, 60];
+  const dg: RGB = [64, 130, 44];
+  paintSprite(ctx, Tile.Sprout, [
+    ...Array(10).fill('................'),
+    '......a..a......',
+    '.......aa.......',
+    '....a..b..a.....',
+    '.....a.b.a......',
+    '......bbb.......',
+    '.......b........',
+  ], { a: g, b: dg });
+  const wheat = (tile: Tile, ear: RGB, stem: RGB, rows: string[]) => paintSprite(ctx, tile, rows, { a: stem, e: ear, b: dg });
+  const WHEAT_YOUNG = [
+    ...Array(6).fill('................'),
+    '...a......a.....', '...a..a...a..a..', '....a.a..a...a..', '....a.a..a..a...', '.a..aa.a.a..a...',
+    '..a..a.a.aa.a...', '..a..a..a.a.a...', '...a.a..a.aa....', '...aaa..aaa.....', '....bb...bb.....',
+  ];
+  wheat(Tile.WheatYoung, g, g, WHEAT_YOUNG);
+  const WHEAT_TALL = [
+    '................', '..e.....e....e..', '..e..e..e....e..', '..a..e..a..e.a..', '..a..a..a..e.a..', '.a..a..a...a.a..',
+    '.a..a..a..a..a..', '..a.a..a..a..a..', '..a.a.a...a.a...', '...aa.a..a..a...', '...a.a.a.a.a....',
+    '...a.a.a.aa.....', '....aa.a.a......', '....a.aaa.......', '.....aaa........', '.....bbb........',
+  ];
+  wheat(Tile.WheatTall, [150, 190, 80], g, WHEAT_TALL);
+  wheat(Tile.WheatRipe, [236, 196, 80], [204, 170, 70], WHEAT_TALL);
+
+  const carrot = (tile: Tile, tall: boolean, ripe: boolean) =>
+    paintSprite(ctx, tile, [
+      ...Array(tall ? 3 : 7).fill('................'),
+      ...(tall ? ['....a.....a.....', '.....a...a..a...', '..a..a..a..a....', '...a.a.a..a.....'] : []),
+      '....a..a..a.....', '.....a.a.a......', '..a...aaa...a...', '...a..aaa..a....', '....a.aaa.a.....',
+      ripe ? '......ooo.......' : '......aaa.......', ripe ? '......ooo.......' : '................', ...Array(tall ? 2 : 2).fill('................'),
+    ].slice(0, 16), { a: g, o: [240, 130, 40] });
+  carrot(Tile.CarrotYoung, false, false);
+  carrot(Tile.CarrotTall, true, false);
+  carrot(Tile.CarrotRipe, true, true);
+
+  const tomato = (tile: Tile, fruit: RGB | null) =>
+    paintSprite(ctx, tile, [
+      '................', '......a.........', '.....aaa..a.....', '..a..a.a.aa.....', '...a.a.aaa..r...', '..raaa..a..rr...',
+      '..rr.a..a.a.....', '.....a.aaa..a...', '..a..aaa.a.aa...', '...aa.a..a.r....', '....a.a.a.rr....',
+      '..rr..aaa.......', '..rr...a...a....', '.......a..a.....', '.......aaa......', '.......b........',
+    ], { a: dg, b: [110, 80, 50], r: fruit ?? dg });
+  paintSprite(ctx, Tile.TomatoYoung, [
+    ...Array(8).fill('................'),
+    '.......a........', '.....a.a.a......', '......aaa.......', '...a..a..a......', '....a.a.a.......', '.....aaa........', '......a.........', '......b.........',
+  ], { a: dg, b: [110, 80, 50] });
+  tomato(Tile.TomatoTall, null);
+  tomato(Tile.TomatoRipe, [222, 50, 40]);
+
+  // Objetos.
+  // Sobres de semillas: el dibujo del sobre es del color de lo que crece.
+  const packet = (tile: Tile, crop: RGB) => paintSprite(ctx, tile, [
+    '................', '................', '....pppppppp....', '...pppppppppp...', '...pkkkkkkkkp...', '...pkkggkkkkp...',
+    '...pkggggkkkp...', '...pkkggkkkkp...', '...pkkkkkkkkp...', '...pppppppppp...', '...pppppppppp...', '...p.s.s.s.sp...',
+    '...pppppppppp...', '....pppppppp....', '................', '................',
+  ], { p: [214, 186, 132], k: [240, 226, 196], g: crop, s: [150, 120, 70] });
+  packet(Tile.Seeds, [226, 186, 70]);
+  packet(Tile.SeedsCarrot, [240, 130, 40]);
+  packet(Tile.SeedsTomato, [222, 50, 40]);
+  paintSprite(ctx, Tile.WheatItem, [
+    '....e..e..e.....', '...e.e.e.e.e....', '...e.ee.ee.e....', '....eeeeeee.....', '.....eeeee......', '......aaa.......',
+    '......aaa.......', '.....rrrrr......', '......aaa.......', '......aaa.......', '.....a.a.a......', '.....a.a.a......',
+    '....a..a..a.....', '....a..a..a.....', '................', '................',
+  ], { e: [236, 196, 80], a: [204, 170, 70], r: [180, 60, 50] });
+  paintSprite(ctx, Tile.CarrotItem, [
+    '........a.a.....', '.......a.a......', '......aaa.......', '.....oooo.......', '.....ooooo......', '......oooo......',
+    '......oodo......', '.......ooo......', '.......oo.......', '........o.......', '........o.......', ...Array(5).fill('................'),
+  ], { a: [96, 170, 60], o: [240, 130, 40], d: [200, 100, 30] });
+  paintSprite(ctx, Tile.TomatoItem, [
+    '................', '................', '.......aa.......', '.....aaaaa......', '....rrrrrrrr....', '...rrhrrrrrrr...',
+    '...rhrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrdr...', '....rrrrrrdd....', '.....rrrrrr.....',
+    '................', '................', '................', '................',
+  ], { a: [80, 150, 50], r: [222, 50, 40], h: [255, 200, 190], d: [170, 30, 30] });
+  paintSprite(ctx, Tile.WateringCan, [
+    '................', '................', '.....hhhh.......', '....h....h......', '....h....h......', '...ccccccc...s..',
+    '..cccccccccss...', '..ccccccccss....', '..ccccccccc.....', '..ccccccccc.....', '..ccccccccc.....', '..ddddddddd.....',
+    '................', '................', '................', '................',
+  ], { c: [110, 170, 120], d: [80, 130, 90], h: [90, 140, 100], s: [150, 200, 160] });
+  paintSprite(ctx, Tile.Egg, [
+    ...Array(4).fill('................'),
+    '.......ww.......', '......wwww......', '.....wwwwww.....', '.....whwwww.....', '....wwwwwwww....', '....wwwwwwws....',
+    '....wwwwwwws....', '.....wwwwss.....', '......ssss......', '................', '................', '................',
+  ], { w: [250, 240, 220], h: [255, 255, 255], s: [222, 206, 180] });
+  paintSprite(ctx, Tile.Milk, [
+    '................', '.......bb.......', '......bbbb......', '......wwww......', '......wwww......', '.....wwwwww.....',
+    '....wwwwwwww....', '....wbbbbbbw....', '....wbwwwwbw....', '....wbbbbbbw....', '....wwwwwwww....', '....wwwwwwww....',
+    '....wwwwwwww....', '.....wwwwww.....', '................', '................',
+  ], { w: [244, 244, 240], b: [100, 150, 220] });
+  paintSprite(ctx, Tile.Bread, [
+    ...Array(5).fill('................'),
+    '.....bbbbbb.....', '...bbcbbbcbbb...', '..bbbbcbbbcbbb..', '..bbbbbbbbbbbb..', '..dddddddddddd..', '...dddddddddd...',
+    ...Array(5).fill('................'),
+  ], { b: [214, 160, 80], c: [240, 200, 120], d: [170, 116, 56] });
+  paintSprite(ctx, Tile.Omelette, [
+    ...Array(5).fill('................'),
+    '....pppppppp....', '...pyyyyyyyyp...', '..pyyyryyyryyp..', '..pyyyyyryyyyp..', '..pyyyyyyyyyyp..', '...pppppppppp...',
+    ...Array(5).fill('................'),
+  ], { p: [230, 230, 236], y: [246, 206, 80], r: [222, 60, 40] });
+  paintSprite(ctx, Tile.Soup, [
+    ...Array(5).fill('................'),
+    '...oooooooooo...', '...ooOoooOooo...', '..bbbbbbbbbbbb..', '..bbbbbbbbbbbb..', '...bbbbbbbbbb...', '....bbbbbbbb....',
+    '......dddd......', ...Array(4).fill('................'),
+  ], { o: [240, 150, 60], O: [255, 210, 150], b: [210, 120, 90], d: [170, 90, 70] });
+  paintSprite(ctx, Tile.Cake, [
+    '................', '................', '.......r........', '.......c........', '....wwwwwwww....', '...wwwwwwwwww...',
+    '...pwpwpwpwpw...', '...ssssssssss...', '...cccccccccc...', '...ssssssssss...', '...cccccccccc...', '...ssssssssss...',
+    '..dddddddddddd..', '................', '................', '................',
+  ], { r: [222, 50, 60], w: [252, 250, 244], p: [246, 170, 200], s: [210, 160, 100], c: [250, 236, 210], d: [200, 200, 210] });
+  paintSprite(ctx, Tile.ChickenIcon, [
+    '................', '......rr........', '.....wwww.......', '.....wkww.......', '...oowwww.......', '.....wwww.......',
+    '.....wwwwwwww...', '....wwwwwwwwww..', '....wwwwwwwwww..', '....wwwwwwwww...', '.....wwwwwww....', '......o...o.....',
+    '......o...o.....', '.....oo..oo.....', '................', '................',
+  ], { w: [248, 246, 240], k: [30, 30, 30], o: [240, 160, 40], r: [222, 50, 50] });
+  paintSprite(ctx, Tile.CowIcon, [
+    '................', '................', '..h..........h..', '..wwww....wwww..', '..wkwbbbbbwwkw..', '..wwwbbbbbbwww..',
+    '...wwwwwwwwww...', '...wwwbbwwwbw...', '...pppppppppp...', '...pkppppppkp...', '...pppppppppp...', '....pppppppp....',
+    ...Array(4).fill('................'),
+  ], { w: [248, 248, 244], b: [40, 40, 44], k: [20, 20, 20], h: [220, 210, 180], p: [244, 180, 180] });
+  void leaf;
+}
+
 export function createAtlasCanvas(): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = TILE * ATLAS_TILES;
@@ -442,12 +609,18 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     const edge = 3 + Math.floor(r() * 2);
     return y < edge ? pick(r, GRASS) : pick(r, DIRT);
   });
-  paintTile(ctx, Tile.Dirt, (_x, _y, r) => pick(r, DIRT));
+  // Tierra con alguna piedrecita clara.
+  paintTile(ctx, Tile.Dirt, (x, y, r) => ((x * 7 + y * 13) % 29 === 0 ? [176, 150, 120] : pick(r, DIRT)));
+  // Piedra con manchas más oscuras y grietas, para que no parezca ruido.
   paintTile(ctx, Tile.Stone, (x, y, r) => {
     const crack = (x * 3 + y * 5) % 11 === 0;
-    return crack ? [104, 106, 112] : pick(r, STONE);
+    if (crack) return [104, 106, 112];
+    const blotch = Math.sin(x * 0.9 + y * 0.4) + Math.cos(y * 1.1 - x * 0.3) > 1.2;
+    const c = pick(r, STONE);
+    return blotch ? [c[0] - 12, c[1] - 12, c[2] - 10] : c;
   });
-  paintTile(ctx, Tile.Sand, (_x, _y, r) => pick(r, SAND));
+  // Arena con algún granito brillante.
+  paintTile(ctx, Tile.Sand, (_x, _y, r) => (r() < 0.04 ? [252, 244, 214] : pick(r, SAND)));
   paintTile(ctx, Tile.LogSide, (x, _y, r) => {
     const groove = x % 4 === 1;
     const c = pick(r, BARK);
@@ -471,6 +644,19 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   paintSprite(ctx, Tile.FlowerYellow, FLOWER, { a: [240, 196, 52], b: [252, 226, 110], s: STEM, l: leaf });
   paintSprite(ctx, Tile.FlowerWhite, DAISY, { a: [248, 248, 240], b: [240, 196, 52], s: STEM, l: leaf });
   paintSprite(ctx, Tile.TallGrass, TALL_GRASS, { a: [116, 190, 76], b: [90, 160, 58] });
+  paintSprite(ctx, Tile.FlowerBlue, DAISY, { a: [110, 150, 236], b: [250, 230, 120], s: STEM, l: leaf });
+  paintSprite(ctx, Tile.FlowerPink, FLOWER, { a: [240, 130, 180], b: [252, 190, 214], s: STEM, l: leaf });
+  paintFarm(ctx, leaf);
+  // Bambú: dos cañas con nudos y alguna hoja, para que al apilarlo se vea un bosquecillo.
+  paintTile(ctx, Tile.Bamboo, (x, y, r) => {
+    const cane = x === 4 || x === 5 || x === 10 || x === 11;
+    if (cane) {
+      const knot = (x < 8 ? y === 3 : y === 10);
+      return knot ? [96, 142, 52] : x === 5 || x === 11 ? [128, 176, 70] : pick(r, [[150, 198, 86], [140, 190, 80]]);
+    }
+    const leafy = (x === 6 || x === 7) && (y === 2 || y === 3) || (x === 12 || x === 13) && (y === 9 || y === 10) || (x === 2 || x === 3) && y === 12;
+    return leafy ? pick(r, [[110, 180, 70], [96, 166, 60]]) : null;
+  });
 
   const fruit = (tile: Tile, main: RGB, shade: RGB) =>
     paintSprite(ctx, tile, FRUIT, { a: main, b: shade, h: [255, 255, 240], s: [110, 76, 44], l: leaf });

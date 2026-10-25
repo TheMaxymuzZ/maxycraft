@@ -1,8 +1,14 @@
 import * as THREE from 'three';
+// Las letras van dentro del juego (sin Google Fonts) para que se vean también sin internet.
+import '@fontsource/nunito/latin-600.css';
+import '@fontsource/nunito/latin-800.css';
+import '@fontsource/pixelify-sans/latin-500.css';
+import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
 import { Breaker } from './breaking';
+import { Birds } from './birds';
 import { Bugs } from './bugs';
 import { dailyRandom, dayKey, gameDate as dateWith, timeOverrides } from './clock';
 import { Clouds } from './clouds';
@@ -12,15 +18,22 @@ import { Dialog, HOUSE_COSTS, HOUSE_NAMES } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, paintFurnitureIcons } from './furniture';
+import { HeldItem } from './held';
 import { Hud } from './hud';
+import { setupInstall } from './install';
+import { Islands } from './islands';
 import { NameTags } from './labels';
+import { Menu } from './menu';
+import { Animals, MAX_ANIMALS, type AnimalKind } from './animals';
+import { Farm, cropForSeed, cropOfBlock, isFarmland } from './farm';
 import { Inventory, starterKit } from './inventory';
 import { SHELLS, dropFor, fruitItemFor, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
-import { deleteGame, loadGame, saveGame } from './save';
+import { type SaveData, activeSlot, loadGame, saveGame, setActiveSlot } from './save';
 import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
+import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings } from './settings';
 import { Sky } from './sky';
 import { TouchControls } from './touch';
 import { findTrunk } from './trees';
@@ -28,15 +41,19 @@ import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { type Villager, createVillagers } from './villagers';
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
+import { Water } from './water';
+import { Waterfalls } from './waterfall';
+import { Wind } from './wind';
 import { WATER_SURFACE, World } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
 const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
-// En el móvil se ve algo menos lejos para que vaya fluido.
-const RENDER_RADIUS = touchMode ? 4 : 6;
+// Opciones del jugador; en el móvil, por defecto, se ve algo menos lejos para que vaya fluido.
+const settings = loadSettings(touchMode);
+let renderRadius = RENDER_RADIUS[settings.quality];
 const REACH = 6;
-const FOG_NEAR = RENDER_RADIUS * 16 * 0.55;
-const FOG_FAR = RENDER_RADIUS * 16 * 0.95;
+const fogNear = () => renderRadius * 16 * 0.55;
+const fogFar = () => renderRadius * 16 * 0.95;
 /** Días reales que tarda en volver a salir la fruta de un árbol, como en Animal Crossing. */
 const FRUIT_REGROW_DAYS = 3;
 const SHELLS_PER_DAY = 7;
@@ -54,15 +71,15 @@ calendar.month = startDate.getMonth() + 1;
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, touchMode ? 1.5 : 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[settings.quality]));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-const fog = new THREE.Fog(0xa8dcf5, FOG_NEAR, FOG_FAR);
+const fog = new THREE.Fog(0xa8dcf5, fogNear(), fogFar());
 scene.fog = fog;
 scene.background = fog.color;
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 400);
+const camera = new THREE.PerspectiveCamera(settings.fov, window.innerWidth / window.innerHeight, 0.1, 400);
 
 const hemi = new THREE.HemisphereLight(0xfff4e0, 0x8a9a7a, 1.6);
 const sunLight = new THREE.DirectionalLight(0xfff1d6, 1.4);
@@ -84,8 +101,16 @@ const material = new THREE.MeshLambertMaterial({
 const save = loadGame();
 const seed = save?.seed ?? Math.floor(Math.random() * 1e9);
 const sound = new Sound(seed);
+sound.season = season;
 const world = new World(seed, material, save?.edits ?? {});
 scene.add(world.group);
+const water = new Water();
+world.waterMaterial = water.material;
+const wind = new Wind(material);
+const waterfalls = new Waterfalls(world.waterfallSpots(2));
+scene.add(waterfalls.group);
+const birds = new Birds();
+scene.add(birds.group);
 
 const today = dayKey(startDate);
 
@@ -100,6 +125,12 @@ for (const [k, t] of Object.entries(harvested)) {
 let bottleTaken = save?.bottle?.day === today && save.bottle.taken;
 const shellsTaken = new Set(save?.shells?.day === today ? save.shells.taken : []);
 const branchTrees = new Set(save?.branches?.day === today ? save.branches.trees : []);
+
+// El huerto y la granja.
+const farm = new Farm(save?.farm);
+farm.sync(world, today);
+const animals = new Animals(world, save?.animals);
+scene.add(animals.group);
 
 const player = new Player(world, camera);
 if (save?.player) {
@@ -160,10 +191,21 @@ setWallet(wallet);
 
 let savedRevision = world.revision;
 let saving = true;
+/** Lo último que se guardó, para avisar solo cuando de verdad hay algo nuevo. */
+let lastSaved = save ? JSON.stringify({ ...save, savedAt: 0 }) : '';
+let saveFailed = false;
+const saveIndicator = document.querySelector<HTMLDivElement>('#save-indicator')!;
+function showSaveIndicator(text: string, error = false) {
+  saveIndicator.textContent = text;
+  saveIndicator.classList.toggle('error', error);
+  saveIndicator.classList.remove('show');
+  void saveIndicator.offsetWidth; // para que la animación vuelva a empezar
+  saveIndicator.classList.add('show');
+}
 function persist() {
   if (!saving) return;
   const p = player.position;
-  saveGame({
+  const data: SaveData = {
     version: 1,
     seed,
     edits: world.exportEdits(),
@@ -182,8 +224,22 @@ function persist() {
     tutorialDone: tutorial.finished,
     recipes: [...workbench.known],
     bottle: { day: today, taken: bottleTaken },
-  });
+    farm: farm.serialize(),
+    animals: animals.serialize(),
+    savedAt: 0,
+  };
+  const text = JSON.stringify(data);
+  if (text === lastSaved) return;
+  data.savedAt = Date.now();
+  if (!saveGame(data)) {
+    // Solo se avisa una vez: el navegador no deja guardar (modo privado o sin espacio).
+    if (!saveFailed) showSaveIndicator('No se puede guardar en este navegador', true);
+    saveFailed = true;
+    return;
+  }
+  lastSaved = text;
   savedRevision = world.revision;
+  showSaveIndicator('Guardado');
 }
 setInterval(persist, 10_000);
 document.addEventListener('visibilitychange', () => {
@@ -231,9 +287,7 @@ scene.add(fishing.bobber);
 
 // --- Interfaz ---
 
-const overlay = document.querySelector<HTMLDivElement>('#overlay')!;
 const playButton = document.querySelector<HTMLButtonElement>('#play')!;
-const newIslandButton = document.querySelector<HTMLButtonElement>('#new-island')!;
 const islandInfo = document.querySelector<HTMLParagraphElement>('#island-info')!;
 const debugEl = document.querySelector<HTMLDivElement>('#debug')!;
 const clockTime = document.querySelector<HTMLSpanElement>('#clock-time')!;
@@ -241,11 +295,26 @@ const clockDate = document.querySelector<HTMLSpanElement>('#clock-date')!;
 const underwater = document.querySelector<HTMLDivElement>('#underwater')!;
 
 document.querySelector('#version')!.textContent = `v${__APP_VERSION__}`;
-playButton.textContent = save ? 'Volver a la isla' : touchMode ? 'Toca para jugar' : 'Haz clic para jugar';
+playButton.textContent = save ? 'Continuar' : 'Empezar en la isla';
 islandInfo.textContent = `Fruta de la isla: ${BLOCKS[world.fruit].name.toLowerCase()}`;
+
+/** Aplica las opciones al momento, sin recargar. */
+function applySettings(s: Settings) {
+  sound.setVolumes(s.music / 100, s.sfx / 100);
+  player.sensitivity = s.sensitivity;
+  camera.fov = s.fov;
+  camera.updateProjectionMatrix();
+  renderRadius = RENDER_RADIUS[s.quality];
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[s.quality]));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+const menu = new Menu(settings, touchMode, applySettings);
+applySettings(settings);
 
 const hud = new Hud(inventory, atlas);
 hud.select(0);
+const held = new HeldItem(atlas, material.map!);
+setupInstall((t) => hud.toast(t));
 
 /** Mete un objeto en los bolsillos y lo anuncia. Devuelve false si no cabe. */
 function take(id: string): boolean {
@@ -456,6 +525,11 @@ function talkTo(v: Villager) {
 }
 
 window.addEventListener('keydown', (e) => {
+  if (!menu.hidden) {
+    if (e.code === 'Escape' && menu.view !== 'main') menu.show('main');
+    if (e.code === 'KeyM') toggleSound();
+    return;
+  }
   if (panel === 'dialog') {
     if (e.code === 'Escape') dialog.finish();
     return;
@@ -512,32 +586,30 @@ window.addEventListener('wheel', (e) => {
   hud.select(hud.selected + (e.deltaY > 0 ? 1 : -1));
 });
 
-// Empezar una isla nueva pide un segundo clic para confirmar.
-let confirmNew = false;
-function resetNewIslandButton() {
-  confirmNew = false;
-  newIslandButton.textContent = 'Empezar una isla nueva';
-  newIslandButton.classList.remove('danger');
-}
-newIslandButton.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (!confirmNew) {
-    confirmNew = true;
-    newIslandButton.textContent = 'Se borrará tu isla. Pulsa otra vez para confirmar';
-    newIslandButton.classList.add('danger');
-    return;
-  }
-  saving = false;
-  deleteGame();
-  location.reload();
+// Varias islas y copias de seguridad.
+const islands = new Islands({
+  active: activeSlot(),
+  flush: persist,
+  stopSaving: () => (saving = false),
+  switchTo: (slot) => {
+    persist();
+    saving = false;
+    setActiveSlot(slot);
+    location.reload();
+  },
+  toast: (t) => hud.toast(t),
 });
+menu.onView = (v) => {
+  islands.reset();
+  if (v === 'islands') islands.render();
+};
 
-overlay.addEventListener('click', () => lockInput());
+playButton.addEventListener('click', () => lockInput());
 function onInputChange() {
   const locked = isPlaying();
   touch?.show(locked);
   if (locked) {
-    overlay.hidden = true;
+    menu.close();
     if (panel === 'inventory') hud.inventoryEl.hidden = true;
     if (panel === 'dialog') dialog.finish();
     if (panel === 'shop') shop.close();
@@ -548,15 +620,14 @@ function onInputChange() {
   }
   breaker.active = false;
   if (panel) return; // se ve la ventana abierta en vez del menú
-  overlay.hidden = false;
+  menu.open();
   persist();
   playButton.textContent = 'Volver a la isla';
-  resetNewIslandButton();
 }
 document.addEventListener('pointerlockchange', onInputChange);
 // Si el navegador no deja volver a bloquear el ratón enseguida, se muestra el menú.
 document.addEventListener('pointerlockerror', () => {
-  if (!panel) overlay.hidden = false;
+  if (!panel) menu.open();
 });
 document.addEventListener('mousemove', (e) => {
   if (isPlaying()) player.look(e.movementX, e.movementY);
@@ -595,6 +666,13 @@ window.addEventListener('mouseup', (e) => {
 });
 
 function removeBlock(x: number, y: number, z: number, b: number, burst: boolean) {
+  // Quitar la tierra de cultivo arranca lo que hubiera plantado encima.
+  if (isFarmland(b) && farm.has(x, y + 1, z)) harvestCrop(x, y + 1, z, true);
+  if (cropOfBlock(b)) {
+    world.setBlock(x, y, z, Block.Air);
+    harvestCrop(x, y, z, burst);
+    return;
+  }
   world.setBlock(x, y, z, Block.Air);
   if (!burst) sound.dig(materialOf(BLOCKS[b].name));
   // Un mueble sin suelo debajo se cae y se puede recoger.
@@ -606,6 +684,97 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
   if (isFruit(b)) harvested[posKey(x, y, z)] = Date.now();
   const id = dropFor(b);
   if (id) drops.spawn(id, x + 0.5, y + 0.5, z + 0.5, { burst });
+}
+
+/** Recoge una planta del huerto: la cosecha si está madura o la semilla si no. */
+function harvestCrop(x: number, y: number, z: number, burst: boolean) {
+  const h = farm.harvest(x, y, z, dayKey(gameDate()));
+  if (world.getBlock(x, y, z) !== Block.Air) world.setBlock(x, y, z, Block.Air);
+  if (!h) return;
+  sound.rustle();
+  for (let i = 0; i < h.count; i++) drops.spawn(h.produce!, x + 0.5, y + 0.5, z + 0.5, { burst: true });
+  // Al cosechar a veces sale una semilla de más.
+  const seeds = h.seeds + (h.produce && Math.random() < 0.3 ? 1 : 0);
+  for (let i = 0; i < seeds; i++) drops.spawn(h.seed, x + 0.5, y + 0.5, z + 0.5, { burst: burst || !!h.produce });
+  if (h.produce) hud.toast(`¡Has cosechado ${h.count} ${itemDef(h.produce).name.toLowerCase()}!`);
+}
+
+/** Usar algo en el huerto: labrar con la pala, plantar semillas, regar o cosechar. Devuelve si ha hecho algo. */
+function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z: number, target: number): boolean {
+  const day = dayKey(gameDate());
+  const crop = cropOfBlock(target);
+  // Lo maduro se cosecha con la mano o con cualquier cosa (menos la regadera).
+  if (crop && crop.stage === 3 && def?.tool !== 'can') {
+    removeBlock(x, y, z, target, true);
+    return true;
+  }
+  if (def?.tool === 'can') {
+    const [cx, cy, cz] = crop ? [x, y, z] : [x, y + 1, z];
+    if (!crop && !isFarmland(target)) {
+      hud.toast('Riega las plantas del huerto');
+      return true;
+    }
+    if (!farm.has(cx, cy, cz)) {
+      hud.toast('Aquí no hay nada plantado');
+      return true;
+    }
+    sound.splash();
+    if (!farm.water(cx, cy, cz, day)) {
+      hud.toast('Ya está regada hoy. ¡Mañana habrá crecido!');
+      return true;
+    }
+    farm.sync(world, day);
+    if (inventory.wearTool(hud.selected)) hud.toast('¡Tu regadera se ha roto!');
+    return true;
+  }
+  if (def?.tool === 'shovel' && (target === Block.Grass || target === Block.Dirt)) {
+    const above = world.getBlock(x, y + 1, z);
+    if (above !== Block.Air && above !== Block.TallGrass) return false;
+    // En el terreno de un vecino o de la tienda no; en el tuyo sí.
+    const plot = world.plotAt(x, z);
+    if (plot && plot.kind !== 'player') {
+      hud.toast('Aquí no se puede hacer un huerto');
+      return true;
+    }
+    if (above === Block.TallGrass) world.setBlock(x, y + 1, z, Block.Air);
+    world.setBlock(x, y, z, Block.Farmland);
+    sound.dig('hierba');
+    if (inventory.wearTool(hud.selected)) hud.toast('¡Tu pala se ha roto!');
+    return true;
+  }
+  const seed = def ? cropForSeed(def.id) : null;
+  if (seed) {
+    if (!isFarmland(target) || world.getBlock(x, y + 1, z) !== Block.Air) {
+      hud.toast('Las semillas van en tierra de cultivo: labra la hierba con la pala (clic derecho)');
+      return true;
+    }
+    farm.plant(x, y + 1, z, seed.id);
+    world.setBlock(x, y + 1, z, seed.stages[0]);
+    farm.sync(world, day);
+    inventory.consume(hud.selected);
+    sound.place();
+    return true;
+  }
+  return false;
+}
+
+/** Suelta una gallina o una vaca donde se apunta. */
+function placeAnimal(kind: AnimalKind, hit: { block: [number, number, number]; place: [number, number, number] }) {
+  if (animals.full) {
+    hud.toast(`Ya tienes ${MAX_ANIMALS} animales: ¡no caben más en la granja!`);
+    return;
+  }
+  const [x, y, z] = hit.place;
+  if (isSolid(world.getBlock(x, y, z)) || !isSolid(world.getBlock(x, y - 1, z)) || world.waterKind(x, z) && y <= WATER_SURFACE + 1) {
+    hud.toast('Suéltala en el suelo, en un sitio despejado');
+    return;
+  }
+  const a = animals.add({ kind, x, y, z });
+  a.happy();
+  inventory.consume(hud.selected);
+  sound.fanfare();
+  hud.toast(kind === 'gallina' ? 'La gallina pondrá un huevo cada día' : 'La vaca te dará leche cada día');
+  persist();
 }
 
 const villagerBox = new THREE.Box3();
@@ -631,11 +800,22 @@ function villagerInSight(blockDistance: number): Villager | null {
 }
 
 function useItem() {
+  held.use();
   const hit = currentHit();
   const blockDist = hit ? camera.position.distanceTo(new THREE.Vector3(hit.block[0] + 0.5, hit.block[1] + 0.5, hit.block[2] + 0.5)) : Infinity;
   const villager = villagerInSight(blockDist);
   if (villager) {
     talkTo(villager);
+    return;
+  }
+  const animal = animals.pick(aimRay(), Math.min(blockDist, REACH));
+  if (animal) {
+    const product = animals.collect(animal, dayKey(gameDate()));
+    if (!product) hud.toast(animal.data.kind === 'gallina' ? 'Ya ha puesto su huevo hoy. ¡Vuelve mañana!' : 'Ya te ha dado su leche hoy. ¡Vuelve mañana!');
+    else {
+      drops.spawn(product, animal.position.x, animal.position.y + 0.6, animal.position.z, { burst: true });
+      sound.coin();
+    }
     return;
   }
   const stack = hud.selectedStack;
@@ -661,6 +841,13 @@ function useItem() {
 
   if (target === Block.Workbench) {
     openWorkbench();
+    return;
+  }
+
+  if (useFarm(def, bx, by, bz, target)) return;
+
+  if (def?.id === 'gallina' || def?.id === 'vaca') {
+    placeAnimal(def.id, hit);
     return;
   }
 
@@ -793,16 +980,32 @@ function shakeTree(x: number, y: number, z: number) {
 
 // Pasos: un sonido cada poco más de un bloque andado, según lo que haya bajo los pies.
 let stepDistance = 0;
+let farmTimer = 0;
 let rainTimer = 0;
 const spawnPoint = player.position.clone();
 function updateSteps(dt: number) {
   const speed = Math.hypot(player.velocity.x, player.velocity.z);
-  if (!player.onGround || player.inWater || speed < 1) return;
+  if (player.inWater && speed > 0.5) {
+    // Nadando: una brazada cada poco.
+    stepDistance += speed * dt;
+    if (stepDistance > 1.4) {
+      stepDistance = 0;
+      sound.swim();
+    }
+    return;
+  }
+  if (!player.onGround || speed < 1) return;
   stepDistance += speed * dt;
   if (stepDistance < 1.7) return;
   stepDistance = 0;
-  const below = world.getBlock(Math.floor(player.position.x), Math.floor(player.position.y - 0.1), Math.floor(player.position.z));
-  if (below) sound.step(materialOf(BLOCKS[below].name));
+  const [fx, fy, fz] = [Math.floor(player.position.x), Math.floor(player.position.y), Math.floor(player.position.z)];
+  const below = world.getBlock(fx, Math.floor(player.position.y - 0.1), fz);
+  // Pasar entre hierba alta, flores o bambú suena a hojas; en invierno la hierba y la arena crujen.
+  if (SWAYING.has(world.getBlock(fx, fy, fz))) sound.step('plantas');
+  else if (below) {
+    const m = materialOf(BLOCKS[below].name);
+    sound.step(season === 'invierno' && (m === 'hierba' || m === 'arena') ? 'nieve' : m);
+  }
   if (Math.hypot(player.position.x - spawnPoint.x, player.position.z - spawnPoint.z) > 8) tutorial.complete('mover');
 }
 
@@ -849,18 +1052,38 @@ let fpsTime = 0;
 let fps = 0;
 let spawned = !!save?.player;
 
+// Pantalla de carga: se quita cuando ya se ve la isla alrededor (o, como mucho, a los 20 segundos).
+const splash = document.querySelector<HTMLDivElement>('#splash');
+const splashBar = splash?.querySelector<HTMLElement>('#splash-bar i');
+if (splash) splash.querySelector('#splash-text')!.textContent = 'Preparando tu isla…';
+function updateSplash(now: number) {
+  if (!splash || splash.classList.contains('done')) return;
+  const loaded = world.loadedFraction(player.position.x, player.position.z, Math.min(renderRadius, 3));
+  splashBar!.style.width = `${Math.round(20 + loaded * 80)}%`;
+  if (loaded < 1 && now < 20_000) return;
+  splash.classList.add('done');
+  setTimeout(() => splash.remove(), 500);
+}
+
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
 
-  world.update(player.position.x, player.position.z, RENDER_RADIUS);
+  world.update(player.position.x, player.position.z, renderRadius);
 
   // Esperar a que el suelo bajo el jugador exista antes de aplicar la gravedad.
+  updateSplash(now);
   if (!spawned && world.isReady(player.position.x, player.position.z)) {
     player.spawnAt(player.position.x, player.position.z);
     spawned = true;
   }
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0);
+  // En la portada la cámara da vueltas despacio por encima de la isla.
+  if (!menu.hidden && menu.isTitle) {
+    const a = now / 1000 * 0.08;
+    camera.position.set(player.position.x + Math.sin(a) * 16, player.position.y + 9, player.position.z + Math.cos(a) * 16);
+    camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+  }
   breaker.update(dt, breaker.active ? currentHit()?.block ?? null : null);
   updateSteps(dt);
 
@@ -875,7 +1098,21 @@ function frame(now: number) {
   hemi.intensity *= 1 - weather.gloom * 0.3;
   sunLight.intensity *= 1 - weather.gloom * 0.7;
   sky.color.lerp(gloomColor.setRGB(0.55, 0.6, 0.65).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.75);
+  sky.syncDome(weather.gloom);
+  water.update(now / 1000, settings.quality !== 'baja', (1 - sky.night) * (1 - weather.gloom));
+  wind.update(now / 1000, 1 + weather.gloom * 1.5);
+  waterfalls.update(now / 1000);
+  birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), (x, z) => world.waterKind(x, z) === 'mar');
   for (const v of villagers) v.update(dt, hour, player.position);
+  animals.update(dt, player.position);
+  // Cada segundo el huerto crece si ha cambiado el día, y la lluvia lo riega.
+  farmTimer -= dt;
+  if (farmTimer <= 0) {
+    farmTimer = 1;
+    const day = dayKey(date);
+    if (weather.raining) farm.waterAll(day);
+    farm.sync(world, day);
+  }
   nameTags.update(camera, player.position);
   updateClock(date);
   drops.update(dt, player.position, take, 1 - sky.night * 0.5);
@@ -898,17 +1135,18 @@ function frame(now: number) {
   // Bajo el agua todo se ve azul y cerca.
   const submerged = camera.position.y < WATER_SURFACE && !!world.waterKind(Math.floor(camera.position.x), Math.floor(camera.position.z));
   underwater.hidden = !submerged;
+  sky.dome.visible = !submerged;
   if (submerged) {
     fog.color.setHex(0x2a6d99);
     fog.near = 1;
     fog.far = 22;
   } else {
     fog.color.copy(sky.color);
-    fog.near = FOG_NEAR;
-    fog.far = FOG_FAR;
+    fog.near = fogNear();
+    fog.far = fogFar();
   }
 
-  clouds.update(now / 1000, sky.night, weather.gloom);
+  clouds.update(now / 1000, sky.night, weather.gloom, sky.glow, sky.glowColor);
 
   const hit = currentHit();
   const aimed = furnitureInSight();
@@ -925,6 +1163,15 @@ function frame(now: number) {
   }
 
   renderer.render(scene, camera);
+  // La mano va encima de todo, en otra pasada, y no se ve en la portada ni con el menú abierto.
+  if (menu.hidden && !panel) {
+    const walking = player.onGround ? Math.hypot(player.velocity.x, player.velocity.z) : 0;
+    held.update(dt, camera, hud.selectedStack?.id ?? null, breaker.active && !!hit, walking, 1 - sky.night * 0.6);
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(held.scene, camera);
+    renderer.autoClear = true;
+  }
 
   frames++;
   fpsTime += dt;
@@ -946,6 +1193,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { world, player, farm, animals, useItem, birds, waterfalls, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

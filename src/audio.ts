@@ -1,9 +1,11 @@
 // Música y sonidos hechos con el sintetizador del navegador: no hace falta ningún archivo.
 // La música cambia cada hora, como en Animal Crossing: alegre por la mañana, tranquila de noche.
+// Y cada estación le da su aire: el verano más animado, el invierno lento y con campanillas.
 
 const KEY = 'maxycraft.sonido';
 
-type Material = 'hierba' | 'arena' | 'piedra' | 'madera';
+export type Material = 'hierba' | 'arena' | 'piedra' | 'madera' | 'nieve' | 'plantas';
+export type Season = 'primavera' | 'verano' | 'otoño' | 'invierno';
 
 const PENTA_MAJOR = [0, 2, 4, 7, 9];
 const PENTA_MINOR = [0, 3, 5, 7, 10];
@@ -31,11 +33,30 @@ interface Note {
   len: number;
 }
 
+/** Cómo cambia la música con la estación: velocidad, tono y si suenan campanillas. */
+export const SEASON_STYLE: Record<Season, { tempo: number; transpose: number; bells: boolean; hat: boolean | null; wave: OscillatorType | null }> = {
+  primavera: { tempo: 4, transpose: 2, bells: false, hat: null, wave: null },
+  verano: { tempo: 10, transpose: 0, bells: false, hat: true, wave: null },
+  'otoño': { tempo: -8, transpose: -3, bells: false, hat: false, wave: 'triangle' },
+  invierno: { tempo: -14, transpose: -1, bells: true, hat: false, wave: 'sine' },
+};
+
 /** Una canción de 8 compases que se repite durante toda la hora. */
-function compose(hour: number, seed: number) {
-  const r = rng(seed * 31 + hour * 977);
-  const style = hourStyle(hour);
-  const root = 57 + Math.floor(r() * 7); // de La3 a Mi4 (MIDI)
+export function compose(hour: number, seed: number, season: Season = 'verano') {
+  const seasonIndex = ['primavera', 'verano', 'otoño', 'invierno'].indexOf(season);
+  const r = rng(seed * 31 + hour * 977 + seasonIndex * 7919);
+  const base = hourStyle(hour);
+  const sty = SEASON_STYLE[season];
+  // De noche la música siempre es tranquila: la estación no le pone platillos.
+  const night = hour < 5 || hour >= 21;
+  const style = {
+    ...base,
+    tempo: base.tempo + sty.tempo,
+    wave: sty.wave && !night ? sty.wave : base.wave,
+    hat: night ? false : (sty.hat ?? base.hat),
+    bells: sty.bells,
+  };
+  const root = 57 + Math.floor(r() * 7) + sty.transpose; // de La3 a Mi4 (MIDI), movido según la estación
   const melody: Note[] = [];
   let degree = 5;
   for (let step = 0; step < 64; step++) {
@@ -62,8 +83,14 @@ export class Sound {
   private song: ReturnType<typeof compose> | null = null;
   private songHour = -1;
   private hour = 12;
+  /** Estación de la partida; cambia la música. */
+  season: Season = 'verano';
   private nextStep = 0;
   private stepTime = 0;
+  /** Volumen elegido en las opciones, de 0 a 1. */
+  private musicVolume = 1;
+  private sfxVolume = 1;
+  private rainAmount = 0;
   enabled: boolean;
 
   constructor(private seed: number) {
@@ -89,10 +116,10 @@ export class Sound {
     this.master.gain.value = this.enabled ? 1 : 0;
     this.master.connect(this.ctx.destination);
     this.music = this.ctx.createGain();
-    this.music.gain.value = 0.16;
+    this.music.gain.value = this.musicGain;
     this.music.connect(this.master);
     this.sfx = this.ctx.createGain();
-    this.sfx.gain.value = 0.5;
+    this.sfx.gain.value = 0.5 * this.sfxVolume;
     this.sfx.connect(this.master);
     this.noise = this.ctx.createBuffer(1, this.ctx.sampleRate, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -112,6 +139,20 @@ export class Sound {
     return this.enabled;
   }
 
+  /** Volúmenes de música y efectos, de 0 a 1. */
+  setVolumes(music: number, sfx: number) {
+    this.musicVolume = music;
+    this.sfxVolume = sfx;
+    if (!this.ctx) return;
+    this.music.gain.setTargetAtTime(this.musicGain, this.ctx.currentTime, 0.05);
+    this.sfx.gain.setTargetAtTime(0.5 * sfx, this.ctx.currentTime, 0.05);
+  }
+
+  /** Con lluvia la música baja un poco para que se oiga. */
+  private get musicGain() {
+    return 0.16 * this.musicVolume * (1 - this.rainAmount * 0.4);
+  }
+
   setHour(hour: number) {
     this.hour = Math.floor(hour);
   }
@@ -126,7 +167,7 @@ export class Sound {
     while (this.stepTime < ctx.currentTime + 0.35) {
       // La canción cambia al empezar la vuelta, para que no se corte a mitad de frase.
       if (this.nextStep === 0 && this.songHour !== this.hour) {
-        this.song = compose(this.hour, this.seed);
+        this.song = compose(this.hour, this.seed, this.season);
         this.songHour = this.hour;
       }
       this.playStep(this.nextStep, this.stepTime);
@@ -140,7 +181,10 @@ export class Sound {
     const song = this.song!;
     const beat = 60 / song.style.tempo / 2;
     for (const n of song.melody) {
-      if (n.step === step) this.tone(midi(song.root + n.pitch + 12), t, beat * n.len * 0.9, song.style.wave, 0.22 * song.style.bright, this.music);
+      if (n.step !== step) continue;
+      this.tone(midi(song.root + n.pitch + 12), t, beat * n.len * 0.9, song.style.wave, 0.22 * song.style.bright, this.music);
+      // Campanillas de invierno: la misma nota dos octavas más arriba, cortita, en los tiempos fuertes.
+      if (song.style.bells && step % 4 === 0) this.tone(midi(song.root + n.pitch + 36), t, beat * 2.5, 'sine', 0.07, this.music);
     }
     if (step % 8 === 0 || step % 8 === 4) {
       const bass = song.root - 12 + song.progression[Math.floor(step / 8)];
@@ -189,7 +233,7 @@ export class Sound {
   dig(material: Material) {
     const t = this.now;
     if (t < 0) return;
-    const freq = { hierba: 900, arena: 1400, piedra: 500, madera: 350 }[material];
+    const freq = { hierba: 900, arena: 1400, piedra: 500, madera: 350, nieve: 600, plantas: 2400 }[material];
     this.hiss(t, 0.12, 0.6, freq, this.sfx, 'bandpass');
     if (material === 'madera' || material === 'piedra') this.tone(freq / 3, t, 0.08, 'square', 0.15, this.sfx);
   }
@@ -204,8 +248,22 @@ export class Sound {
   step(material: Material) {
     const t = this.now;
     if (t < 0) return;
-    const freq = { hierba: 700, arena: 1100, piedra: 1800, madera: 500 }[material];
-    this.hiss(t, 0.06, 0.18, freq, this.sfx, 'bandpass');
+    if (material === 'nieve') {
+      // Crujido: más grave y largo, con un segundo golpecito.
+      this.hiss(t, 0.1, 0.22, 450, this.sfx, 'lowpass');
+      this.hiss(t + 0.05, 0.06, 0.12, 900, this.sfx, 'bandpass');
+      return;
+    }
+    const freq = { hierba: 700, arena: 1100, piedra: 1800, madera: 500, plantas: 3200 }[material];
+    this.hiss(t, material === 'plantas' ? 0.1 : 0.06, material === 'plantas' ? 0.12 : 0.18, freq, this.sfx, 'bandpass');
+  }
+
+  /** Brazada al nadar. */
+  swim() {
+    const t = this.now;
+    if (t < 0) return;
+    this.hiss(t, 0.3, 0.3, 700, this.sfx, 'lowpass');
+    this.hiss(t + 0.08, 0.15, 0.1, 1600, this.sfx, 'bandpass');
   }
 
   pickup() {
@@ -268,11 +326,13 @@ export class Sound {
       f.frequency.value = 1800;
       this.rain = ctx.createGain();
       this.rain.gain.value = 0;
-      src.connect(f).connect(this.rain).connect(this.master);
+      src.connect(f).connect(this.rain).connect(this.sfx);
       src.start();
     }
-    this.rain.gain.setTargetAtTime(amount * 0.12, ctx.currentTime, 0.5);
-    this.music.gain.setTargetAtTime(0.16 * (1 - amount * 0.4), ctx.currentTime, 0.5);
+    this.rainAmount = amount;
+    // La lluvia va con los efectos, que ya llevan su volumen (0,5).
+    this.rain.gain.setTargetAtTime(amount * 0.24, ctx.currentTime, 0.5);
+    this.music.gain.setTargetAtTime(this.musicGain, ctx.currentTime, 0.5);
   }
 }
 

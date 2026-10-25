@@ -32,7 +32,7 @@ export class Shop {
   private buyEl = document.querySelector<HTMLUListElement>('#shop-buy')!;
   private sellEl = document.querySelector<HTMLUListElement>('#shop-sell')!;
   private icons = new Map<string, string>();
-  /** Lo que hay a la venta hoy: las herramientas siempre, tres muebles y cinco cosas más. */
+  /** Lo que hay a la venta hoy: las herramientas y lo del huerto siempre, tres muebles y cinco cosas más. */
   readonly stock: string[];
 
   constructor(private ctx: ShopContext) {
@@ -40,8 +40,9 @@ export class Shop {
     const tools = CATALOG.filter((id) => itemDef(id).tool);
     const seasonal = CATALOG.filter((id) => itemDef(id).holiday && itemDef(id).holiday === ctx.holiday);
     const furniture = daily(CATALOG.filter((id) => itemDef(id).furniture && !itemDef(id).holiday));
-    const rest = daily(CATALOG.filter((id) => !itemDef(id).tool && !itemDef(id).furniture));
-    this.stock = [...seasonal, ...tools, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
+    const farm = CATALOG.filter((id) => itemDef(id).farm);
+    const rest = daily(CATALOG.filter((id) => !itemDef(id).tool && !itemDef(id).furniture && !itemDef(id).farm));
+    this.stock = [...seasonal, ...tools, ...farm, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
     ctx.inventory.onChange(() => {
       if (!this.el.hidden) this.render();
     });

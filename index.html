@@ -4,17 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Maxycraft</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Nunito:wght@600;800&display=swap" />
+    <meta name="description" content="Una mezcla de Minecraft y Animal Crossing: construye y vive tranquilo en tu isla de bloques." />
+    <meta name="theme-color" content="#3d7a1f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Maxycraft" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <style>
+      /* Pantalla de carga: va aquí para que se vea antes de que llegue el resto del juego. */
+      #splash {
+        position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 18px;
+        background: linear-gradient(#7ec8f0, #bfe6fa); font-family: 'Pixelify Sans', 'Courier New', monospace; color: #3d7a1f;
+        transition: opacity .4s;
+      }
+      #splash.done { opacity: 0; pointer-events: none; }
+      #splash img { width: 96px; height: 96px; image-rendering: pixelated; }
+      #splash strong { font-size: 40px; line-height: 1; }
+      #splash-bar { width: min(260px, 70vw); height: 14px; background: rgba(255,255,255,.55); border: 3px solid #3d7a1f; }
+      #splash-bar i { display: block; height: 100%; width: 12%; background: #5aa832; transition: width .2s; }
+      #splash p { margin: 0; font: 800 14px 'Nunito', system-ui, sans-serif; color: #2d5a17; }
+    </style>
   </head>
   <body>
+    <div id="splash" role="progressbar" aria-label="Cargando Maxycraft">
+      <img src="icono-192.png" alt="" width="96" height="96" />
+      <strong>Maxycraft</strong>
+      <div id="splash-bar"><i></i></div>
+      <p id="splash-text">Cargando…</p>
+    </div>
     <canvas id="game"></canvas>
     <div id="crosshair" aria-hidden="true"></div>
     <div id="block-name"></div>
     <div id="hotbar"></div>
     <div id="labels" aria-hidden="true"></div>
     <div id="toast" role="status"></div>
+    <div id="save-indicator" aria-hidden="true"></div>
     <div id="dialog" hidden>
       <div class="dialog-box">
         <span id="dialog-name"></span>
@@ -85,29 +111,83 @@
         <footer><button type="button" id="workbench-close">Cerrar</button> <span>Aprende recetas nuevas con los vecinos y con las botellas de la playa · <kbd>Esc</kbd> para volver</span></footer>
       </div>
     </div>
-    <div id="overlay">
+    <div id="overlay" class="title">
       <div class="panel">
-        <h1>Maxycraft</h1>
-        <p class="version" id="version"></p>
-        <button type="button" id="play">Haz clic para jugar</button>
-        <p id="island-info" class="island-info"></p>
-        <ul class="controls">
-          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> caminar</li>
-          <li><kbd>Espacio</kbd> saltar · <kbd>Mayús</kbd> correr</li>
-          <li><kbd>Clic izq.</kbd> (mantener) romper</li>
-          <li><kbd>Clic der.</kbd> colocar, sacudir un árbol o hablar con un vecino</li>
-          <li><kbd>E</kbd> bolsillos · <kbd>C</kbd> enciclopedia · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
-          <li>Con la caña o la red en la mano, <kbd>Clic der.</kbd> para pescar o cazar</li>
-          <li><kbd>R</kbd> girar un mueble · <kbd>M</kbd> sonido · <kbd>H</kbd> primeros pasos</li>
-          <li><kbd>F</kbd> datos de depuración · <kbd>Esc</kbd> pausa</li>
-          <li><kbd>Espacio</kbd> en el agua: nadar hacia arriba</li>
-        </ul>
-        <p class="touch-note">En el móvil o la tableta: palanca a la izquierda para caminar, arrastra a la derecha para mirar y usa los botones.</p>
-        <p class="note">El día, la noche y las estaciones siguen tu fecha y hora reales. La isla se guarda sola en este navegador.</p>
-        <div class="menu-buttons">
-          <button type="button" id="sound-toggle" class="secondary">Sonido: sí</button>
-          <button type="button" id="new-island" class="secondary">Empezar una isla nueva</button>
-        </div>
+        <section class="menu-view" data-view="main">
+          <div class="logo">
+            <div class="logo-block" aria-hidden="true"></div>
+            <div>
+              <h1>Maxycraft</h1>
+              <p class="tagline">Tu isla de bloques</p>
+            </div>
+          </div>
+          <p class="pause-label">En pausa</p>
+          <button type="button" id="play">Jugar</button>
+          <p id="island-info" class="island-info"></p>
+          <div class="menu-row">
+            <button type="button" class="menu-btn" data-open="options">Opciones</button>
+            <button type="button" class="menu-btn" data-open="controls">Controles</button>
+          </div>
+          <button type="button" id="install" class="menu-btn install" hidden>Instalar Maxycraft</button>
+          <p id="install-ios" class="note install-ios" hidden>Para instalarlo en el iPhone o el iPad: toca <strong>Compartir</strong> y luego <strong>Añadir a pantalla de inicio</strong>.</p>
+          <p class="note">El día, la noche y las estaciones siguen tu fecha y hora reales. La isla se guarda sola en este navegador.</p>
+          <button type="button" class="menu-btn" data-open="islands">Mis islas y copias</button>
+          <p class="version" id="version"></p>
+        </section>
+
+        <section class="menu-view" data-view="options" hidden>
+          <h2>Opciones</h2>
+          <div class="option">
+            <label for="opt-music">Música</label><output id="opt-music-value" for="opt-music"></output>
+            <input type="range" id="opt-music" min="0" max="100" step="5" />
+          </div>
+          <div class="option">
+            <label for="opt-sfx">Efectos</label><output id="opt-sfx-value" for="opt-sfx"></output>
+            <input type="range" id="opt-sfx" min="0" max="100" step="5" />
+          </div>
+          <div class="option">
+            <label for="opt-sensitivity">Sensibilidad al mirar</label><output id="opt-sensitivity-value" for="opt-sensitivity"></output>
+            <input type="range" id="opt-sensitivity" min="0.3" max="3" step="0.1" />
+          </div>
+          <div class="option">
+            <label for="opt-fov">Campo de visión</label><output id="opt-fov-value" for="opt-fov"></output>
+            <input type="range" id="opt-fov" min="60" max="100" step="5" />
+          </div>
+          <fieldset class="option quality">
+            <legend>Calidad gráfica</legend>
+            <div class="quality-choices" id="opt-quality"></div>
+            <p class="option-hint" id="opt-quality-hint"></p>
+          </fieldset>
+          <div class="menu-row">
+            <button type="button" id="sound-toggle" class="secondary">Sonido: sí</button>
+            <button type="button" id="options-reset" class="secondary">Valores de siempre</button>
+          </div>
+          <button type="button" class="menu-back">Volver</button>
+        </section>
+
+        <section class="menu-view" data-view="islands" hidden>
+          <h2>Mis islas</h2>
+          <p class="note">Puedes tener hasta 3 islas. Guarda una copia en un archivo para no perder nunca tu isla, o para llevarla a otro ordenador.</p>
+          <ul class="islands" id="islands-list"></ul>
+          <button type="button" class="menu-back">Volver</button>
+        </section>
+
+        <section class="menu-view" data-view="controls" hidden>
+          <h2>Controles</h2>
+          <ul class="controls">
+            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> caminar</li>
+            <li><kbd>Espacio</kbd> saltar · <kbd>Mayús</kbd> correr</li>
+            <li><kbd>Clic izq.</kbd> (mantener) romper</li>
+            <li><kbd>Clic der.</kbd> colocar, sacudir un árbol o hablar con un vecino</li>
+            <li><kbd>E</kbd> bolsillos · <kbd>C</kbd> enciclopedia · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
+            <li>Con la caña o la red en la mano, <kbd>Clic der.</kbd> para pescar o cazar</li>
+            <li><kbd>R</kbd> girar un mueble · <kbd>M</kbd> sonido · <kbd>H</kbd> primeros pasos</li>
+            <li><kbd>F</kbd> datos de depuración · <kbd>Esc</kbd> pausa</li>
+            <li><kbd>Espacio</kbd> en el agua: nadar hacia arriba</li>
+          </ul>
+          <p class="touch-note">En el móvil o la tableta: palanca a la izquierda para caminar, arrastra a la derecha para mirar y usa los botones.</p>
+          <button type="button" class="menu-back">Volver</button>
+        </section>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

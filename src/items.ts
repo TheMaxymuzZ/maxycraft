@@ -2,7 +2,7 @@ import { BLOCKS, Block, CREATURE_TILE_START, Tile, blockIconTile } from './block
 import { CREATURES } from './creatures';
 import { FURNITURE, FURNITURE_TILE } from './furniture';
 
-export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net';
+export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net' | 'can';
 
 export interface ItemDef {
   id: string;
@@ -25,6 +25,8 @@ export interface ItemDef {
   furniture?: boolean;
   /** Solo se vende en esa fiesta. */
   holiday?: string;
+  /** Cosas del huerto y la granja: la tienda las tiene siempre. */
+  farm?: boolean;
 }
 
 export interface ItemStack {
@@ -56,6 +58,9 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.FlowerRed, 'tulipan', 40, 120],
   [Block.FlowerYellow, 'pensamiento', 40, 120],
   [Block.FlowerWhite, 'cosmos', 40, 120],
+  [Block.FlowerBlue, 'nomeolvides', 40, 120],
+  [Block.FlowerPink, 'clavel', 40, 120],
+  [Block.Bamboo, 'bambu', 20],
   [Block.Wall, 'pared', 30, 100],
   [Block.ShopWall, 'pared_madera', 30, 100],
   [Block.RoofRed, 'tejado_rojo', 25, 80],
@@ -104,6 +109,23 @@ add({ id: 'pepita_oro', name: 'Pepita de oro', tile: Tile.GoldNugget, maxStack: 
 add({ id: 'amatista', name: 'Amatista', tile: Tile.Gem, maxStack: 30, sell: 800 });
 add({ id: 'muro_piedra', name: 'Muro de piedra', tile: blockIconTile(Block.MuseumWall), maxStack: 99, block: Block.MuseumWall, sell: 30, buy: 100 });
 
+// Huerto y granja (v1.8).
+add({ id: 'regadera', name: 'Regadera', tile: Tile.WateringCan, maxStack: 1, tool: 'can', durability: 60, sell: 50, buy: 500 });
+add({ id: 'semillas_trigo', name: 'Semillas de trigo', tile: Tile.Seeds, maxStack: 30, sell: 10, buy: 40, farm: true });
+add({ id: 'semillas_zanahoria', name: 'Semillas de zanahoria', tile: Tile.SeedsCarrot, maxStack: 30, sell: 10, buy: 50, farm: true });
+add({ id: 'semillas_tomate', name: 'Semillas de tomate', tile: Tile.SeedsTomato, maxStack: 30, sell: 10, buy: 60, farm: true });
+add({ id: 'trigo', name: 'Trigo', tile: Tile.WheatItem, maxStack: 30, sell: 60 });
+add({ id: 'zanahoria', name: 'Zanahoria', tile: Tile.CarrotItem, maxStack: 30, sell: 80 });
+add({ id: 'tomate', name: 'Tomate', tile: Tile.TomatoItem, maxStack: 30, sell: 90 });
+add({ id: 'huevo', name: 'Huevo', tile: Tile.Egg, maxStack: 30, sell: 50 });
+add({ id: 'leche', name: 'Leche', tile: Tile.Milk, maxStack: 10, sell: 70 });
+add({ id: 'gallina', name: 'Gallina', tile: Tile.ChickenIcon, maxStack: 1, sell: 500, buy: 2000, farm: true });
+add({ id: 'vaca', name: 'Vaca', tile: Tile.CowIcon, maxStack: 1, sell: 1000, buy: 4000, farm: true });
+add({ id: 'pan', name: 'Pan', tile: Tile.Bread, maxStack: 10, sell: 300 });
+add({ id: 'tortilla', name: 'Tortilla', tile: Tile.Omelette, maxStack: 10, sell: 400 });
+add({ id: 'sopa', name: 'Sopa de zanahoria', tile: Tile.Soup, maxStack: 10, sell: 450 });
+add({ id: 'pastel', name: 'Pastel', tile: Tile.Cake, maxStack: 10, sell: 900 });
+
 // Peces e insectos: se pueden vender o donar al museo.
 CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell }));
 
@@ -147,6 +169,9 @@ export function dropFor(b: Block): string | null {
       return 'cereza';
     case Block.Coconut:
       return 'coco';
+    case Block.Farmland:
+    case Block.FarmlandWet:
+      return 'tierra';
     case Block.CoalOre:
       return 'carbon';
     case Block.IronOre:
@@ -192,6 +217,8 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Workbench]: { time: 1.6, tool: 'axe' },
   [Block.Fence]: { time: 0.8, tool: 'axe' },
   [Block.WhiteFence]: { time: 0.8, tool: 'axe' },
+  [Block.Farmland]: { time: 0.5, tool: 'shovel' },
+  [Block.FarmlandWet]: { time: 0.5, tool: 'shovel' },
   [Block.Leaves]: { time: 0.25 },
   [Block.PalmLeaves]: { time: 0.25 },
 };
@@ -206,7 +233,7 @@ export function breakInfo(b: Block, toolItem: ItemDef | null): { seconds: number
 export function toolNameFor(b: Block): string | null {
   const h = HARDNESS[b];
   if (!h?.needsTool || !h.tool) return null;
-  const names: Record<ToolKind, string> = { axe: 'un hacha', shovel: 'una pala', pickaxe: 'un pico', rod: 'una caña', net: 'una red' };
+  const names: Record<ToolKind, string> = { axe: 'un hacha', shovel: 'una pala', pickaxe: 'un pico', rod: 'una caña', net: 'una red', can: 'una regadera' };
   return names[h.tool];
 }
 
@@ -228,6 +255,11 @@ export const RECIPES: Recipe[] = [
   { result: 'cana', count: 1, needs: [['rama', 5]] },
   { result: 'red', count: 1, needs: [['rama', 5]] },
   { result: 'antorcha', count: 4, needs: [['rama', 1], ['carbon', 1]] },
+  // Cocina: lo que sale del huerto y la granja vale mucho más cocinado.
+  { result: 'pan', count: 1, needs: [['trigo', 3]] },
+  { result: 'tortilla', count: 1, needs: [['huevo', 2], ['tomate', 1]] },
+  { result: 'sopa', count: 1, needs: [['zanahoria', 2], ['leche', 1]] },
+  { result: 'pastel', count: 1, needs: [['trigo', 2], ['huevo', 2], ['leche', 1]] },
 ];
 
 /** Recetas de la mesa de trabajo. Hay que aprenderlas: de los vecinos o de las botellas de la playa. */

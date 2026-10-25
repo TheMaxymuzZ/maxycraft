@@ -41,10 +41,58 @@ function lerpColor(a: number, b: number, t: number): number {
   return ca.setHex(a).lerp(cb.setHex(b), t).getHex();
 }
 
+// Cúpula del cielo: degradado del horizonte (el color de la niebla) a lo alto, con un resplandor junto al sol al amanecer y al atardecer.
+const DOME_VERTEX = `
+varying vec3 vDir;
+void main() {
+  vDir = normalize(position);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+const DOME_FRAGMENT = `
+uniform vec3 uHorizon;
+uniform vec3 uZenith;
+uniform vec3 uGlowColor;
+uniform vec3 uSunDir;
+uniform float uGlow;
+varying vec3 vDir;
+void main() {
+  float h = max(vDir.y, 0.0);
+  vec3 col = mix(uHorizon, uZenith, pow(h, 0.55));
+  // El resplandor es más fuerte cerca del sol y del horizonte.
+  float toSun = max(dot(normalize(vec3(vDir.x, 0.0, vDir.z)), normalize(vec3(uSunDir.x, 0.0, uSunDir.z))), 0.0);
+  float glow = uGlow * pow(toSun, 3.0) * (1.0 - smoothstep(0.0, 0.45, h));
+  col = mix(col, uGlowColor, glow);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// Color de lo alto del cielo a lo largo del día.
+const ZENITH_KEYS: [number, number][] = [
+  [0, 0x070d22],
+  [5, 0x070d22],
+  [6, 0x5a6fa8],
+  [7.5, 0x4a90d8],
+  [17, 0x4a90d8],
+  [18.5, 0x5a5f9e],
+  [19.5, 0x1a1d45],
+  [20.5, 0x070d22],
+  [24, 0x070d22],
+];
+
 export class Sky {
   readonly color = new THREE.Color();
   /** 0 de día, 1 de noche cerrada. */
   night = 0;
+  /** Resplandor del amanecer o del atardecer, de 0 a 1, y su color: tiñe también las nubes. */
+  glow = 0;
+  readonly glowColor = new THREE.Color(0xffb070);
+  readonly dome: THREE.Mesh;
+  private domeUniforms = {
+    uHorizon: { value: new THREE.Color() },
+    uZenith: { value: new THREE.Color() },
+    uGlowColor: { value: this.glowColor },
+    uSunDir: { value: new THREE.Vector3(1, 0, 0) },
+    uGlow: { value: 0 },
+  };
   private sunMesh: THREE.Mesh;
   private moonMesh: THREE.Mesh;
   private stars: THREE.Points;
@@ -72,7 +120,19 @@ export class Sky {
       new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, transparent: true, fog: false, depthWrite: false }),
     );
 
-    this.group.add(this.sunMesh, this.moonMesh, this.stars);
+    this.dome = new THREE.Mesh(
+      new THREE.SphereGeometry(340, 24, 12),
+      new THREE.ShaderMaterial({
+        vertexShader: DOME_VERTEX,
+        fragmentShader: DOME_FRAGMENT,
+        uniforms: this.domeUniforms,
+        side: THREE.BackSide,
+        depthWrite: false,
+        fog: false,
+      }),
+    );
+    this.dome.renderOrder = -1;
+    this.group.add(this.dome, this.sunMesh, this.moonMesh, this.stars);
     scene.add(this.group);
   }
 
@@ -96,6 +156,12 @@ export class Sky {
     this.moonMesh.position.copy(sunDir).multiplyScalar(-250);
     this.sunMesh.lookAt(camera.position);
     this.moonMesh.lookAt(camera.position);
+    // Cielo: el horizonte es el color de siempre (y de la niebla) y lo alto va más azul.
+    // El resplandor sale cuando el sol está cerca del horizonte, y se apaga de noche.
+    this.glow = Math.max(0, 1 - Math.abs(sunDir.y) * 3.2) * (1 - Math.max(0, this.night - 0.5) * 2);
+    this.domeUniforms.uZenith.value.setHex(sample(ZENITH_KEYS, hour, lerpColor));
+    this.domeUniforms.uSunDir.value.copy(sunDir);
+    this.domeUniforms.uGlow.value = this.glow * 0.55;
     this.sunMesh.visible = sunDir.y > -0.1;
     this.moonMesh.visible = sunDir.y < 0.1;
     (this.stars.material as THREE.PointsMaterial).opacity = this.night;
@@ -107,6 +173,18 @@ export class Sky {
     this.sun.intensity = Math.max(0, sunDir.y) * 1.4 * light + 0.15;
     if (sunDir.y > 0) this.sun.position.copy(sunDir);
     else this.sun.position.copy(sunDir).negate(); // de noche ilumina la luna
-    this.sun.color.setHex(sunDir.y > 0 ? 0xfff1d6 : 0xbfcaf0);
+    // El sol bajo da una luz más anaranjada.
+    this.sun.color.setHex(sunDir.y > 0 ? lerpColor(0xfff1d6, 0xffb27a, this.glow) : 0xbfcaf0);
+    (this.sunMesh.material as THREE.MeshBasicMaterial).color.setHex(lerpColor(0xfff3b0, 0xffb060, this.glow));
+  }
+
+  /**
+   * El horizonte de la cúpula sigue al color del cielo, que la lluvia puede oscurecer después de `update`.
+   * `gloom` (0 a 1) apaga también lo alto del cielo.
+   */
+  syncDome(gloom: number) {
+    this.domeUniforms.uHorizon.value.copy(this.color);
+    this.domeUniforms.uZenith.value.lerp(this.color, gloom * 0.8);
+    this.domeUniforms.uGlow.value *= 1 - gloom;
   }
 }

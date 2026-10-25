@@ -6,7 +6,41 @@ Una mezcla de Minecraft y Animal Crossing que se juega en el navegador: construy
 
 ## Estado
 
-Versión actual: **v1.1**
+Versión actual: **v1.8**
+
+- **Huerto**: con la pala en la mano, clic derecho sobre la hierba la convierte en tierra de cultivo. Ahí se plantan semillas de trigo, zanahoria o tomate (siempre a la venta en la tienda).
+- **Regadera**: cada día que riegas una planta crece una fase al día siguiente; a los tres días regados está madura. La tierra regada se ve más oscura y la lluvia riega sola. Lo maduro se cosecha con clic derecho o rompiéndolo, y a veces da una semilla de más.
+- **Granja**: la tienda vende gallinas y vacas. Se sueltan en el suelo y pasean cerca de allí; una vez al día la gallina da un huevo y la vaca leche (clic derecho sobre ellas). Hasta 8 animales.
+- **Cocina** (en los bolsillos, tecla E): pan, tortilla, sopa de zanahoria y pastel, que valen mucho más que sus ingredientes.
+
+- **En la mano**: abajo a la derecha se ve lo que llevas, como en Minecraft: el brazo, las herramientas y objetos con grosor (hechos píxel a píxel de su icono) o un cubo pequeño si es un bloque. Se balancea al andar y golpea al romper o usar.
+- **Música por estación**: la primavera más alegre, el verano más rápido, el otoño más grave y tranquilo, y el invierno lento y con campanillas. De noche siempre es tranquila.
+- **Pasos**: la hierba y la arena crujen como nieve en invierno, al pasar entre plantas suenan las hojas y al nadar se oyen brazadas.
+- Texturas retocadas: piedrecitas en la tierra, manchas en la piedra y granitos brillantes en la arena.
+
+- **Bosquecillos de bambú**: zonas de cañas de 3 a 5 bloques sin árboles. El bambú se puede romper y vender.
+- **Praderas de flores** llenas de flores de cinco colores, con dos nuevas: nomeolvides azul y clavel rosa (también en la tienda).
+- **Cascadas** donde el río pasa junto a un acantilado alto, con espuma al pie.
+- **Viento**: la hierba alta, las flores y el bambú se balancean, más fuerte cuando llueve.
+- **Pájaros** volando en círculos sobre la isla y **gaviotas** sobre el mar. De noche y con lluvia se van.
+- Las zonas nuevas solo cambian plantas, no el terreno, así que las islas guardadas siguen encajando.
+
+- **Cielo con degradado**: más azul arriba que en el horizonte, con un resplandor naranja junto al sol al amanecer y al atardecer. El sol se vuelve anaranjado cuando está bajo y la luz también.
+- **Agua animada**: olas suaves (en calidad media y alta), manchas de luz que se mueven y brillos pixelados que se apagan de noche y con lluvia.
+- **Nubes nuevas** hechas de varias piezas, con sombra por debajo, que se tiñen de rosa y naranja al amanecer y al atardecer.
+
+- **App instalable**: en Android y en el ordenador (Chrome o Edge) aparece el botón «Instalar Maxycraft» en el menú. En iPhone y iPad el menú explica cómo hacerlo: Compartir → Añadir a pantalla de inicio. Se abre a pantalla completa con su icono.
+- **Sin internet**: tras la primera visita el juego se guarda en el dispositivo y funciona sin conexión. Cuando hay una versión nueva se actualiza sola la próxima vez que se abre con internet. Las letras van dentro del juego.
+- **Pantalla de carga** con barra mientras se prepara la isla, y Three.js en un archivo aparte que el navegador reutiliza entre versiones.
+- Los iconos se dibujan con `python3 scripts/iconos.py`.
+
+- **Mis islas**: hasta 3 islas guardadas a la vez, cada una con su fruta, sus bayas y la fecha de la última vez que se guardó. Se cambia de una a otra desde el menú.
+- **Copias de seguridad**: «Guardar copia» descarga la isla en un archivo `.json`, y «Cargar copia» la recupera en cualquier hueco (sirve para llevarla a otro ordenador o al móvil). Borrar una isla pide confirmación.
+- **Aviso de guardado** arriba en el centro cuando se guarda algo nuevo, o si el navegador no deja guardar (modo privado).
+
+- **Portada**: al abrir el juego la cámara da vueltas sobre tu isla y el menú aparece a un lado. Durante la partida, el mismo menú hace de pausa.
+- **Opciones** que se guardan en el navegador: volumen de música y de efectos, sensibilidad al mirar, campo de visión y calidad gráfica (baja, media o alta: cuánto se ve a lo lejos y la nitidez). En el móvil empieza en calidad baja. Se aplican al momento.
+- Los controles tienen su propia pantalla en el menú.
 
 - **Pruebas automáticas** (50 comprobaciones) del mundo, los bolsillos, las recetas, la tienda, las estaciones y la partida guardada. Se pasan solas en cada pull request y, si alguna falla, no se publica nada.
 - El número de versión del menú sale de `package.json`.
@@ -74,7 +108,7 @@ En móvil o tableta se juega con el mando en pantalla. Con teclado y ratón:
 | Espacio | Saltar |
 | Mayús | Correr |
 | Clic izquierdo (mantener) | Romper bloque |
-| Clic derecho | Colocar bloque o mueble, sacudir un árbol, hablar |
+| Clic derecho | Colocar bloque o mueble, sacudir un árbol, hablar, labrar, plantar, regar, cosechar y recoger huevos o leche |
 | R | Girar el mueble al que apuntas |
 | M | Sonido sí / no |
 | H | Plegar los primeros pasos |
