@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.4',
+    title: 'El mapa de la isla',
+    items: [
+      'Mapa nuevo en la tienda de Avellana (2.500 bayas). Con él en los bolsillos ves un minimapa redondo debajo del reloj.',
+      'Con la tecla M (o tocando el minimapa) se abre el mapa grande de toda la isla: casas de los vecinos con su nombre, tienda, museo, avioneta, cuevas, tu casa, las casas de tus amigos y dónde está cada uno.',
+      'Lo que construyes aparece en el mapa al poco rato. Funciona también en las islas misteriosas y en la isla de un amigo, y no se pierde al desmayarte.',
+      'El sonido pasa a la tecla N (la M es la del mapa).',
+    ],
+  },
+  {
     version: '4.3',
     title: 'Cada amigo con su casa',
     items: [

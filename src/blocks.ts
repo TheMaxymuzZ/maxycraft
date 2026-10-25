@@ -108,6 +108,8 @@ export enum Tile {
   Blueprint,
   // Cubos para coger y echar agua (v3.8).
   Bucket, WaterBucket,
+  // Mapa de la isla (v4.4). Es la última casilla libre antes de los peces (CREATURE_TILE_START).
+  Map,
 }
 
 /**
@@ -977,6 +979,12 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     '.dbbwbbbbbwbbbd.', '.dbbwwwwwwwbbbd.', '.dbbwbbbbbwbbbd.', '.dbbwbwwbbwbbbd.', '.dbbwbwwbbwbbbd.', '.dbbwwwwwwwbbbd.',
     '.dbbbbbbbbbbbbd.', '.dbbbbbbbbbbbbd.', '..dddddddddddd..', '................',
   ], { b: [64, 120, 196], d: [40, 84, 150], w: [236, 244, 255] });
+  // Mapa: papel doblado con la isla verde, el mar azul y una cruz roja.
+  toolSprite(ctx, Tile.Map, [
+    '................', '................', '..pppppppppppp..', '..pbbbbbbbbbbp..', '..pbbgggbbbbbp..', '..pbgggggbbbbp..',
+    '..pbggyggggbbp..', '..pbbgggrgggbp..', '..pbbbggrrggbp..', '..pbbbgggggbbp..', '..pbbbbgggbbbp..', '..pbbbbbbbbbbp..',
+    '..pppppppppppp..', '................', '................', '................',
+  ], { p: [232, 214, 170], b: [92, 160, 220], g: [104, 176, 72], y: [236, 216, 140], r: [214, 50, 50] });
   void leaf;
 }
 

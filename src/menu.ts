@@ -212,7 +212,7 @@ export class Menu {
       `${k('inventory')} bolsillos · ${k('collection')} enciclopedia · ${k('missions')} tareas`,
       '<kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir',
       'Con la caña o la red en la mano, <kbd>Clic der.</kbd> para pescar o cazar',
-      `${k('rotate')} girar un mueble · ${k('sound')} sonido · ${k('help')} primeros pasos`,
+      `${k('rotate')} girar un mueble · ${k('map')} mapa · ${k('sound')} sonido · ${k('help')} primeros pasos`,
       `Con amigos: ${k('chat')} chat · ${k('gesture')} gestos · <kbd>Clic der.</kbd> a un amigo para darle lo que tienes en la mano`,
       `${k('debug')} datos de depuración · <kbd>Esc</kbd> pausa`,
       `${k('jump')} en el agua: nadar hacia arriba`,

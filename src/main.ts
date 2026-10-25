@@ -67,6 +67,7 @@ import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
 import { MAX_HOMES, type PlayerHome, buildHome, isPlayerHome, pickHomeSpot } from './homes';
+import { IslandMap, type MapMarker, drawFullMap, drawMinimap } from './map';
 import { Beds, WAKE_CHOICES, hourText, wakeClock } from './sleep';
 import { MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals';
 import { VitalsHud } from './vitalsHud';
@@ -679,7 +680,7 @@ function unlockInput() {
 }
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | 'sleep' | 'sleeping' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | 'sleep' | 'sleeping' | 'map' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -1072,6 +1073,14 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') getUp();
     return;
   }
+  if (panel === 'map') {
+    if (e.code === 'Escape' || e.code === keys.map) closeMap();
+    return;
+  }
+  if (e.code === keys.map && isPlaying()) {
+    openMap();
+    return;
+  }
   if (panel === 'gestures') {
     if (e.code === 'Escape' || e.code === keys.gesture) friends.closeGestures();
     else friends.gestureKey(e.code);
@@ -1174,6 +1183,7 @@ function closeAnyPanel() {
   if (panel === 'gestures') friends.closeGestures();
   if (panel === 'faint') wakeUpAtHome();
   if (panel === 'sleep' || panel === 'sleeping') leaveBed();
+  if (panel === 'map') mapPanel.hidden = true;
   panel = null;
 }
 let arrived = false;
@@ -1663,7 +1673,7 @@ function faint(cause: HurtCause) {
     closeAnyPanel();
     panel = 'faint';
   }
-  const loss = faintLoss(wallet, inventory.slots, (id) => !!itemDef(id).tool);
+  const loss = faintLoss(wallet, inventory.slots, (id) => !!itemDef(id).tool || id === 'mapa');
   for (const l of loss.items) {
     const s = inventory.slots[l.slot];
     if (!s) continue;
@@ -1711,6 +1721,74 @@ document.querySelector('#faint-wake')!.addEventListener('click', () => {
   wakeUpAtHome();
   lockInput();
 });
+
+// --- Mapa de la isla (v4.4) ---
+
+const islandMap = new IslandMap(world, atlas);
+const minimap = document.querySelector<HTMLCanvasElement>('#minimap')!;
+const minimapCtx = minimap.getContext('2d')!;
+const mapPanel = document.querySelector<HTMLDivElement>('#map-panel')!;
+const mapCanvas = mapPanel.querySelector<HTMLCanvasElement>('#map-canvas')!;
+let minimapTimer = 0;
+minimap.addEventListener('click', () => openMap());
+mapPanel.querySelector('#map-close')!.addEventListener('click', () => closeMap());
+
+/** El mapa funciona si lo llevas en los bolsillos o en la otra mano. */
+function hasMap(): boolean {
+  return inventory.countOf('mapa') > 0 || inventory.offhand?.id === 'mapa';
+}
+
+/** Lo que sale en el mapa: casas, tienda, museo, avioneta, cuevas, casas de amigos y amigos. */
+function mapMarkers(): MapMarker[] {
+  const out: MapMarker[] = [];
+  for (const p of world.plots) {
+    if (p.kind === 'shop') out.push({ x: p.x, z: p.z, icon: '🛒', label: 'Tienda' });
+    if (p.kind === 'museum') out.push({ x: p.x, z: p.z, icon: '🏛️', label: 'Museo' });
+    if (p.kind === 'player') out.push({ x: p.x, z: p.z, icon: '🏡', label: joined ? `Casa de ${net?.hostPeer?.name ?? 'tu amigo'}` : 'Tu casa' });
+  }
+  for (const v of villagers) if (!v.profile.role && !v.visitor) out.push({ x: v.home.x, z: v.home.z, icon: '🏠', label: v.name });
+  const me = myUid();
+  for (const h of friendHomes) out.push({ x: h.x, z: h.z, icon: '⛺', label: h.uid === me ? 'Tu casa' : `Casa de ${h.name}` });
+  if (airport) out.push({ x: airport.x, z: airport.z, icon: '✈️', label: 'Avioneta' });
+  for (const e of world.caveEntrances) out.push({ x: e.x, z: e.z, icon: '⛏️', label: 'Cueva' });
+  for (const r of remotes.players.values()) {
+    out.push({ x: r.position.x, z: r.position.z, icon: '', label: r.info.name, color: `#${r.info.color.toString(16).padStart(6, '0')}` });
+  }
+  return out;
+}
+
+function openMap() {
+  if (!hasMap()) {
+    hud.toast('Necesitas un mapa. Lo venden en la tienda de Avellana');
+    return;
+  }
+  breaker.active = false;
+  panel = 'map';
+  mapPanel.querySelector('#map-title')!.textContent = trip ? `Mapa de la ${MYSTERY_NAMES[trip.kind]}` : joined ? `Mapa de la isla de ${net?.hostPeer?.name ?? 'tu amigo'}` : 'Mapa de tu isla';
+  drawFullMap(mapCanvas.getContext('2d')!, islandMap, player.position.x, player.position.z, player.yaw, mapMarkers());
+  mapPanel.hidden = false;
+  unlockInput();
+}
+
+function closeMap() {
+  if (panel !== 'map') return;
+  mapPanel.hidden = true;
+  panel = null;
+  lockInput();
+}
+
+/** Cada fotograma: el mapa se va pintando y el minimapa sigue al jugador. */
+function updateMap(dt: number) {
+  const show = hasMap() && menu.hidden;
+  minimap.hidden = !show;
+  if (!show) return;
+  islandMap.update(dt, player.position.x, player.position.z);
+  minimapTimer -= dt;
+  if (minimapTimer > 0) return;
+  minimapTimer = 0.15;
+  drawMinimap(minimapCtx, islandMap, player.position.x, player.position.z, player.yaw, mapMarkers());
+  if (panel === 'map') drawFullMap(mapCanvas.getContext('2d')!, islandMap, player.position.x, player.position.z, player.yaw, mapMarkers());
+}
 
 // --- Dormir (v4.2) ---
 
@@ -2467,6 +2545,7 @@ function newDay() {
     ctx.clearRect(0, 0, atlas.width, atlas.height);
     ctx.drawImage(fresh, 0, 0);
     atlasTexture.needsUpdate = true;
+    islandMap.repaint();
     hud.toast(`¡Ha llegado ${season === 'otoño' ? 'el otoño' : season === 'invierno' ? 'el invierno' : season === 'verano' ? 'el verano' : 'la primavera'}!`);
   }
   const nextHoliday = holidayOf(date);
@@ -2529,6 +2608,7 @@ function frame(now: number) {
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0, isPlaying());
   if (spawned) checkBiome(dt);
   updateVitals(dt);
+  updateMap(dt);
   // En la portada la cámara da vueltas despacio por encima de la isla.
   if (!menu.hidden && menu.isTitle) {
     const a = now / 1000 * 0.08;
@@ -2700,6 +2780,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { islandMap, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }
