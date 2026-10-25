@@ -112,6 +112,27 @@
         <footer><button type="button" id="workbench-close">Cerrar</button> <span>Aprende recetas nuevas con los vecinos y con las botellas de la playa · <kbd>Esc</kbd> para volver</span></footer>
       </div>
     </div>
+    <div id="missions" hidden>
+      <div class="shop-panel missions-panel">
+        <header>
+          <h2>Tareas</h2>
+          <p id="missions-points"></p>
+        </header>
+        <section>
+          <h3>Valoración de la isla</h3>
+          <div id="missions-rating"></div>
+          <h3>Tareas de hoy</h3>
+          <ul id="missions-tasks" class="task-list"></ul>
+          <h3>Premios</h3>
+          <ul id="missions-prizes" class="shop-list"></ul>
+        </section>
+        <section>
+          <h3>Logros <span id="missions-ach-count"></span></h3>
+          <ul id="missions-achievements" class="ach-list"></ul>
+        </section>
+        <footer><button type="button" id="missions-close">Cerrar</button> <span>Cada día hay tareas nuevas · <kbd>T</kbd> o <kbd>Esc</kbd> para volver</span></footer>
+      </div>
+    </div>
     <div id="overlay" class="title">
       <div class="panel">
         <section class="menu-view" data-view="main">
@@ -180,7 +201,7 @@
             <li><kbd>Espacio</kbd> saltar · <kbd>Mayús</kbd> correr</li>
             <li><kbd>Clic izq.</kbd> (mantener) romper</li>
             <li><kbd>Clic der.</kbd> colocar, sacudir un árbol o hablar con un vecino</li>
-            <li><kbd>E</kbd> bolsillos · <kbd>C</kbd> enciclopedia · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
+            <li><kbd>E</kbd> bolsillos · <kbd>C</kbd> enciclopedia · <kbd>T</kbd> tareas · <kbd>1</kbd>–<kbd>0</kbd> o rueda: elegir</li>
             <li>Con la caña o la red en la mano, <kbd>Clic der.</kbd> para pescar o cazar</li>
             <li><kbd>R</kbd> girar un mueble · <kbd>M</kbd> sonido · <kbd>H</kbd> primeros pasos</li>
             <li><kbd>F</kbd> datos de depuración · <kbd>Esc</kbd> pausa</li>
