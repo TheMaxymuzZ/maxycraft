@@ -157,6 +157,8 @@ export class World {
   readonly caveEntrances: { x: number; z: number; y: number }[];
   /** Posiciones "x,y,z" de las antorchas, que iluminan las cuevas. */
   private torches = new Map<string, [number, number, number]>();
+  /** Luces que no son bloques (farolas, lámparas…): "x,y,z" → [x, y, z, nivel]. */
+  private lamps = new Map<string, [number, number, number, number]>();
 
   /** Material del agua; se pone desde fuera para que coincida con el resto de la escena. */
   waterMaterial: THREE.Material = new THREE.MeshLambertMaterial({ color: 0x3fa9d6, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
@@ -238,7 +240,7 @@ export class World {
       const x = Math.round(Math.cos(a) * d);
       const z = Math.round(Math.sin(a) * d);
       const h = this.naturalHeight(x, z);
-      if (h <= SEA_LEVEL + 1 || this.river(x, z) < 9) continue;
+      if (h <= SEA_LEVEL + 1 || this.river(x, z) < 9 || this.biomeAt(x, z) === 'montaña') continue;
       if (plots.some((p) => Math.hypot(p.x - x, p.z - z) < 16)) continue;
       // Con el tiempo se relaja: al principio se busca un sitio totalmente llano.
       const tolerance = tries < 300 ? 0 : 1;
@@ -288,7 +290,7 @@ export class World {
       const x = Math.round(Math.cos(a) * d);
       const z = Math.round(Math.sin(a) * d);
       const h = this.naturalHeight(x, z);
-      if (h <= SEA_LEVEL + 1 || this.river(x, z) < 9) continue;
+      if (h <= SEA_LEVEL + 1 || this.river(x, z) < 9 || this.biomeAt(x, z) === 'montaña') continue;
       if ([...this.plots, ...found].some((p) => Math.hypot(p.x - x, p.z - z) < 15)) continue;
       if (this.caveEntrances.some((e) => Math.abs(x - e.x - 10) < 22 && Math.abs(z - e.z) < 14)) continue;
       let flat = true;
@@ -835,7 +837,7 @@ export class World {
       else this.torches.delete(k);
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.markDirty(cx + dx, cz + dz);
     } else {
-      for (const [tx, ty, tz] of this.torches.values()) {
+      for (const [tx, ty, tz] of [...this.torches.values(), ...this.lamps.values()]) {
         if (Math.abs(tx - x) + Math.abs(ty - y) + Math.abs(tz - z) > MAX_LIGHT) continue;
         for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.markDirty(cx + dx, cz + dz);
         break;
@@ -1092,6 +1094,16 @@ export class World {
     return 1;
   }
 
+  /** Pone (nivel > 0) o quita (0) una luz que no es un bloque, como la bombilla de una farola. */
+  setLamp(x: number, y: number, z: number, level: number) {
+    const k = `${x},${y},${z}`;
+    if (level > 0) this.lamps.set(k, [x, y, z, Math.min(MAX_LIGHT, level)]);
+    else if (!this.lamps.delete(k)) return;
+    const cx = Math.floor(x / CHUNK);
+    const cz = Math.floor(z / CHUNK);
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.markDirty(cx + dx, cz + dz);
+  }
+
   /**
    * Luz de antorchas y bloques de luz alrededor de un chunk, de 0 a 1. Se extiende bloque a bloque
    * (bajando un nivel cada vez) y no atraviesa bloques opacos: una pared deja el otro lado a oscuras.
@@ -1101,13 +1113,17 @@ export class World {
     const W = CHUNK + 2 * R;
     const x0 = ox - R;
     const z0 = oz - R;
-    const emitters = [...this.torches.values()].filter(([tx, , tz]) => tx >= x0 && tx < x0 + W && tz >= z0 && tz < z0 + W);
+    const inside = ([tx, ty, tz]: number[]) => tx >= x0 && tx < x0 + W && tz >= z0 && tz < z0 + W && ty >= 0 && ty < HEIGHT;
+    const emitters: [number, number, number, number][] = [];
+    for (const [tx, ty, tz] of this.torches.values()) {
+      if (inside([tx, ty, tz])) emitters.push([tx, ty, tz, LIGHT_RADIUS[this.getBlock(tx, ty, tz) as Block] ?? 0]);
+    }
+    for (const lamp of this.lamps.values()) if (inside(lamp)) emitters.push(lamp);
     if (!emitters.length) return () => 0;
     const grid = new Uint8Array(W * W * HEIGHT);
     const at = (x: number, y: number, z: number) => (y * W + (z - z0)) * W + (x - x0);
     const queue: number[] = [];
-    for (const [tx, ty, tz] of emitters) {
-      const level = LIGHT_RADIUS[this.getBlock(tx, ty, tz) as Block] ?? 0;
+    for (const [tx, ty, tz, level] of emitters) {
       if (level <= grid[at(tx, ty, tz)]) continue;
       grid[at(tx, ty, tz)] = level;
       queue.push(tx, ty, tz);

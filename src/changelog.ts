@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '2.8',
+    title: 'Calles y decoración',
+    items: [
+      'Caminos de tierra y de losas, calles empedradas y baldosas: se ponen en lugar del suelo, a ras.',
+      'Farolas que alumbran de verdad la calle, como las lámparas, los faroles y las calabazas.',
+      'Fuente de la plaza, papelera, buzón, macetero y carteles en los que puedes escribir (clic derecho).',
+      'Todas sus recetas se saben desde el principio en la mesa de trabajo.',
+      'En las islas nuevas, la tienda y el museo ya tienen farolas en la puerta.',
+    ],
+  },
+  {
     version: '2.7',
     title: 'Vecinos con personalidad',
     items: [

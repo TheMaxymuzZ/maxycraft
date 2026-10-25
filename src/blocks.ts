@@ -65,6 +65,8 @@ export enum Block {
   Chest = 84, Trunk = 85, Crate = 86,
   // Biomas (v2.6): pinos de la montaña y nieve en las cumbres.
   PineLeaves = 87, PineSapling = 88, SnowGrass = 89,
+  // Caminos y calles (v2.8): sustituyen al suelo, no se ponen encima.
+  DirtPath = 90, StonePath = 91, Street = 92, Tiles = 93,
 }
 
 export const TILE = 16;
@@ -93,6 +95,7 @@ export enum Tile {
   Brick, Cobble, PolishedStone, Glass, PalmPlanks, LightBlock,
   ChestFront, ChestTop, TrunkFront, TrunkTop, CrateSide,
   PineLeaves, PineSapling, SnowTop, SnowSide,
+  DirtPathTop, StonePathTop, StreetTop, TilesTop,
 }
 
 /**
@@ -211,6 +214,10 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.PineLeaves]: cube('Hojas de pino', Tile.PineLeaves, Tile.PineLeaves, Tile.PineLeaves, true),
   [Block.PineSapling]: cross('Brote de pino', Tile.PineSapling),
   [Block.SnowGrass]: cube('Hierba nevada', Tile.SnowSide, Tile.SnowTop, Tile.Dirt),
+  [Block.DirtPath]: cube('Camino de tierra', Tile.Dirt, Tile.DirtPathTop, Tile.Dirt),
+  [Block.StonePath]: cube('Camino de losas', Tile.Dirt, Tile.StonePathTop, Tile.Dirt),
+  [Block.Street]: cube('Calle empedrada', Tile.Cobble, Tile.StreetTop, Tile.Cobble),
+  [Block.Tiles]: cube('Baldosas', Tile.Brick, Tile.TilesTop, Tile.Brick),
 };
 /** Material de cada juego de escaleras: su primer bloque (mirando a -z), nombre y textura. */
 export const STAIRS: [Block, string, Tile][] = [
@@ -288,6 +295,16 @@ export const SWAYING: ReadonlySet<number> = new Set([
 export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 13, [Block.LightBlock]: 15 };
 /** Nivel máximo de luz. */
 export const MAX_LIGHT = 15;
+
+/** Caminos y calles: se ponen en lugar del suelo. */
+export function isPath(b: number): boolean {
+  return b === Block.DirtPath || b === Block.StonePath || b === Block.Street || b === Block.Tiles;
+}
+
+/** Suelo que un camino puede sustituir. */
+export function isGround(b: number): boolean {
+  return b === Block.Grass || b === Block.Dirt || b === Block.Sand || b === Block.SnowGrass || isPath(b);
+}
 
 /** Bloques de construcción: dentro de las parcelas de vecinos y tienda no se pueden romper. */
 export const HOUSE_BLOCKS: readonly Block[] = [
@@ -898,6 +915,23 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   paintTile(ctx, Tile.PalmTop, (x, y, r) => {
     const d = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5));
     return d > 6.5 ? pick(r, PALM_BARK) : [214, 190, 140];
+  });
+  // Caminos: tierra pisada, losas sobre la hierba, calle de adoquines y baldosas de barro.
+  paintTile(ctx, Tile.DirtPathTop, (x, y, r) => ((x * 5 + y * 3) % 17 === 0 ? [178, 146, 104] : pick(r, [[172, 132, 92], [162, 124, 86], [180, 140, 98]])));
+  paintTile(ctx, Tile.StonePathTop, (x, y, r) => {
+    // Cuatro losas con hierba entre ellas.
+    const gap = x % 8 === 0 || x % 8 === 7 || y % 8 === 0 || y % 8 === 7;
+    return gap ? pick(r, GRASS) : pick(r, [[176, 176, 170], [166, 166, 160], [186, 186, 180]]);
+  });
+  paintTile(ctx, Tile.StreetTop, (x, y, r) => {
+    const cx = (x + (Math.floor(y / 4) % 2) * 2) % 4;
+    if (cx === 3 || y % 4 === 3) return [96, 98, 104];
+    return pick(r, [[136, 132, 128], [128, 124, 120], [146, 142, 136]]);
+  });
+  paintTile(ctx, Tile.TilesTop, (x, y, r) => {
+    if (x % 8 === 7 || y % 8 === 7) return [214, 200, 180];
+    const dark = (Math.floor(x / 8) + Math.floor(y / 8)) % 2 === 0;
+    return pick(r, dark ? [[192, 108, 72], [184, 100, 66]] : [[212, 132, 88], [204, 124, 82]]);
   });
   // Agujas de pino: verde oscuro, en franjas, con pocos huecos.
   paintTile(ctx, Tile.PineLeaves, (x, y, r) => ((x + y * 3) % 7 === 0 && r() < 0.5 ? null : y % 4 === 0 ? pick(r, PINE_LEAF.slice(2)) : pick(r, PINE_LEAF)));

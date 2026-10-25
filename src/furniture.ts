@@ -15,6 +15,11 @@ export interface FurnitureDef {
   glow?: number;
   /** Solo se vende en esa fiesta. */
   holiday?: 'halloween' | 'navidad';
+  /** Luz que da (nivel de 1 a 15) y a qué altura sobre su casilla está la bombilla. */
+  light?: number;
+  lightHeight?: number;
+  /** Cuántos caben en una casilla de los bolsillos (1 si no se dice). */
+  stack?: number;
 }
 
 const WOOD = 0xb9824f;
@@ -53,7 +58,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'lampara', name: 'Lámpara', sell: 250, buy: 1000, glow: 0xffd98a,
+    id: 'lampara', name: 'Lámpara', sell: 250, buy: 1000, glow: 0xffd98a, light: 12, lightHeight: 1,
     parts: [
       [0.4, 0.06, 0.4, 0x50504a, 0, 0, 0],
       [0.08, 0.7, 0.08, 0x50504a, 0, 0.06, 0],
@@ -111,7 +116,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'farol', name: 'Farol', sell: 450, glow: 0xffc864,
+    id: 'farol', name: 'Farol', sell: 450, glow: 0xffc864, light: 13,
     parts: [
       [0.36, 0.06, 0.36, 0x3a3a3a, 0, 0, 0],
       [0.06, 0.06, 0.06, 0x3a3a3a, 0, 0.42, 0],
@@ -130,7 +135,7 @@ export const FURNITURE: FurnitureDef[] = [
   },
   // De temporada: la tienda solo los vende en su fiesta.
   {
-    id: 'calabaza', name: 'Calabaza de Halloween', sell: 300, buy: 1000, glow: 0xffa030, holiday: 'halloween',
+    id: 'calabaza', name: 'Calabaza de Halloween', sell: 300, buy: 1000, glow: 0xffa030, holiday: 'halloween', light: 9,
     parts: [
       [0.06, 0.12, 0.06, 0x5b7a2e, 0, 0.62, 0],
       [0.7, 0.62, 0.6, 0xe07b24, 0, 0, 0],
@@ -138,7 +143,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'arbol_navidad', name: 'Árbol de Navidad', sell: 500, buy: 2000, glow: 0xfff0a0, holiday: 'navidad',
+    id: 'arbol_navidad', name: 'Árbol de Navidad', sell: 500, buy: 2000, glow: 0xfff0a0, holiday: 'navidad', light: 10, lightHeight: 1,
     parts: [
       [0.18, 0.2, 0.18, 0x6b4a2b, 0, 0, 0],
       [0.9, 0.3, 0.9, 0x2f7d46, 0, 0.2, 0],
@@ -170,6 +175,64 @@ export const FURNITURE: FurnitureDef[] = [
       [0.16, 0.5, 0.16, 0xa8a8a0, 0, 0.3, 0],
       [0.4, 0.08, 0.4, 0xb8b8b0, 0, 0.72, 0],
       [0.24, 0.16, 0.24, 0x8fd0f0, 0, 0.8, 0],
+    ],
+  },
+  // Calles y decoración (v2.8).
+  {
+    id: 'farola', name: 'Farola', sell: 300, glow: 0xffe08a, light: 15, lightHeight: 2, stack: 10,
+    parts: [
+      [0.36, 0.14, 0.36, 0x3a3f44, 0, 0, 0],
+      [0.12, 2.0, 0.12, 0x3a3f44, 0, 0.14, 0],
+      [0.42, 0.08, 0.42, 0x3a3f44, 0, 2.5, 0],
+      [0.3, 0.36, 0.3, 0xfff2c0, 0, 2.14, 0],
+    ],
+  },
+  {
+    id: 'papelera', name: 'Papelera', sell: 80, stack: 10,
+    parts: [
+      [0.4, 0.56, 0.4, 0x3f8f5a, 0, 0, 0],
+      [0.46, 0.06, 0.46, 0x2f6f44, 0, 0.56, 0],
+      [0.3, 0.02, 0.3, 0x24302a, 0, 0.62, 0],
+    ],
+  },
+  {
+    id: 'cartel', name: 'Cartel', sell: 60, stack: 10,
+    parts: [
+      [0.1, 0.7, 0.1, DARK, 0, 0, 0],
+      [0.86, 0.5, 0.08, WOOD, 0, 0.62, 0],
+    ],
+  },
+  {
+    id: 'macetero', name: 'Macetero', sell: 150, stack: 10,
+    parts: [
+      [0.9, 0.36, 0.9, 0xb0603e, 0, 0, 0],
+      [0.8, 0.04, 0.8, 0x6a4a32, 0, 0.36, 0],
+      [0.14, 0.24, 0.14, 0xe8505b, -0.22, 0.4, -0.2],
+      [0.14, 0.2, 0.14, 0xf2c94c, 0.2, 0.4, 0.18],
+      [0.14, 0.28, 0.14, 0xf4f1e8, 0.18, 0.4, -0.22],
+      [0.14, 0.22, 0.14, 0x9a6bd6, -0.18, 0.4, 0.22],
+      [0.5, 0.1, 0.5, 0x5fae4a, 0, 0.4, 0],
+    ],
+  },
+  {
+    id: 'fuente_plaza', name: 'Fuente de la plaza', sell: 900,
+    parts: [
+      [1, 0.36, 1, 0xc8c8c0, 0, 0, 0],
+      [0.84, 0.06, 0.84, 0x4aa6d8, 0, 0.32, 0],
+      [0.2, 0.7, 0.2, 0xb8b8b0, 0, 0.36, 0],
+      [0.52, 0.1, 0.52, 0xc8c8c0, 0, 0.9, 0],
+      [0.42, 0.04, 0.42, 0x6ac0e8, 0, 0.98, 0],
+      [0.1, 0.3, 0.1, 0xa8dcf6, 0, 1.0, 0],
+      [0.16, 0.08, 0.16, 0xe8f6ff, 0, 1.3, 0],
+    ],
+  },
+  {
+    id: 'buzon', name: 'Buzón', sell: 120, stack: 10,
+    parts: [
+      [0.1, 0.8, 0.1, DARK, 0, 0, 0],
+      [0.36, 0.3, 0.5, 0x2f6fb0, 0, 0.8, 0],
+      [0.38, 0.12, 0.52, 0x2a5f98, 0, 1.06, 0],
+      [0.04, 0.24, 0.1, 0xe8505b, 0.2, 0.9, -0.12],
     ],
   },
 ];
@@ -248,6 +311,42 @@ export interface PlacedFurniture {
   z: number;
   /** Cuartos de vuelta (0 a 3). */
   rot: number;
+  /** Lo que pone en un cartel. */
+  text?: string;
+}
+
+/** Tabla con el texto del cartel, delante de la madera. */
+function signText(text: string): THREE.Mesh {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 72;
+  const ctx = c.getContext('2d');
+  // Sin canvas (en las pruebas) el cartel se queda en blanco.
+  if (!ctx) return new THREE.Mesh();
+  ctx.fillStyle = '#c99561';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = '#3a2614';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Hasta dos líneas: se parte por la palabra más cercana a la mitad.
+  const words = text.trim().split(/\s+/);
+  let lines = [words.join(' ')];
+  if (lines[0].length > 14 && words.length > 1) {
+    let best = 1;
+    for (let i = 1; i < words.length; i++) {
+      const a = words.slice(0, i).join(' ').length;
+      if (Math.abs(a - lines[0].length / 2) < Math.abs(words.slice(0, best).join(' ').length - lines[0].length / 2)) best = i;
+    }
+    lines = [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+  }
+  const size = Math.min(26, Math.floor(118 / Math.max(...lines.map((l) => l.length)) * 1.7));
+  ctx.font = `700 ${size}px sans-serif`;
+  lines.forEach((l, i) => ctx.fillText(l, 64, 36 + (i - (lines.length - 1) / 2) * size * 1.05));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.46), new THREE.MeshLambertMaterial({ map: tex }));
+  mesh.position.set(0, 0.87, 0.045);
+  return mesh;
 }
 
 interface Entry {
@@ -255,23 +354,52 @@ interface Entry {
   model: THREE.Group;
 }
 
+/** Avisa de que un mueble da luz (nivel > 0) o deja de darla (0) en (x, y, z). */
+export type LightHook = (x: number, y: number, z: number, level: number) => void;
+
 /** Los muebles colocados en la isla. No son sólidos: se puede pasar por encima, como por las alfombras. */
 export class Furniture {
   readonly group = new THREE.Group();
   private entries: Entry[] = [];
   private bounds = new THREE.Box3();
 
-  constructor(saved: PlacedFurniture[]) {
-    for (const f of saved) if (furnitureDef(f.id)) this.place(f.id, f.x, f.y, f.z, f.rot);
+  constructor(saved: PlacedFurniture[], private onLight: LightHook | null = null) {
+    for (const f of saved) if (furnitureDef(f.id)) this.place(f.id, f.x, f.y, f.z, f.rot, f.text);
   }
 
-  place(id: string, x: number, y: number, z: number, rot: number) {
+  place(id: string, x: number, y: number, z: number, rot: number, text?: string) {
     const def = furnitureDef(id)!;
-    const model = buildModel(def);
-    model.position.set(x + 0.5, y, z + 0.5);
-    model.rotation.y = (rot * Math.PI) / 2;
+    const data: PlacedFurniture = { id, x, y, z, rot };
+    if (text) data.text = text;
+    const model = this.model(data);
     this.group.add(model);
-    this.entries.push({ data: { id, x, y, z, rot }, model });
+    this.entries.push({ data, model });
+    if (def.light) this.onLight?.(x, y + (def.lightHeight ?? 0), z, def.light);
+  }
+
+  private model(data: PlacedFurniture): THREE.Group {
+    const model = buildModel(furnitureDef(data.id)!);
+    if (data.text) model.add(signText(data.text));
+    model.position.set(data.x + 0.5, data.y, data.z + 0.5);
+    model.rotation.y = (data.rot * Math.PI) / 2;
+    return model;
+  }
+
+  /** Cambia lo que pone en un cartel. */
+  setText(f: PlacedFurniture, text: string) {
+    const e = this.entries.find((en) => en.data === f);
+    if (!e) return;
+    const clean = text.trim().slice(0, 40);
+    if (clean) f.text = clean;
+    else delete f.text;
+    this.group.remove(e.model);
+    e.model = this.model(f);
+    this.group.add(e.model);
+  }
+
+  private unlight(f: PlacedFurniture) {
+    const def = furnitureDef(f.id);
+    if (def?.light) this.onLight?.(f.x, f.y + (def.lightHeight ?? 0), f.z, 0);
   }
 
   at(x: number, y: number, z: number): PlacedFurniture | undefined {
@@ -280,7 +408,10 @@ export class Furniture {
 
   /** Quita todos los muebles (los adornos de una fiesta que se acaba, por ejemplo). */
   clear() {
-    for (const e of this.entries) this.group.remove(e.model);
+    for (const e of this.entries) {
+      this.group.remove(e.model);
+      this.unlight(e.data);
+    }
     this.entries = [];
   }
 
@@ -289,6 +420,7 @@ export class Furniture {
     if (i < 0) return;
     this.group.remove(this.entries[i].model);
     this.entries.splice(i, 1);
+    this.unlight(f);
   }
 
   rotate(f: PlacedFurniture) {
