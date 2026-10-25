@@ -414,6 +414,17 @@ function paintSprite(ctx: CanvasRenderingContext2D, tile: number, rows: string[]
   });
 }
 
+const OUTLINE: RGB = [40, 32, 30];
+
+/** Como paintSprite, pero con un contorno oscuro de 1 píxel alrededor: así las herramientas se leen sobre cualquier fondo. */
+function toolSprite(ctx: CanvasRenderingContext2D, tile: number, rows: string[], colors: Record<string, RGB>) {
+  const filled = (x: number, y: number) => (rows[y]?.[x] ?? '.') !== '.';
+  paintTile(ctx, tile, (x, y) => {
+    if (filled(x, y)) return colors[rows[y][x]];
+    return filled(x + 1, y) || filled(x - 1, y) || filled(x, y + 1) || filled(x, y - 1) ? OUTLINE : null;
+  });
+}
+
 // Paleta algo más suave y cálida que Minecraft, para el aire de Animal Crossing.
 const GRASS: RGB[] = [[112, 186, 74], [100, 172, 64], [124, 196, 86], [92, 160, 60]];
 const DIRT: RGB[] = [[146, 102, 70], [134, 92, 62], [158, 112, 78], [122, 84, 58]];
@@ -592,57 +603,99 @@ const STARFISH = [
   '..aa........aa..',
   '................',
 ];
+// Herramientas (v3.5): mango gordo de madera con empuñadura y cabeza grande con brillo y sombra,
+// como en Minecraft, para que se reconozcan de un vistazo. El contorno oscuro lo pone toolSprite.
+// s/S madera clara y oscura, g empuñadura, h metal, H brillo, d sombra del metal.
+const PICKAXE = [
+  '................',
+  '....HHHHH.......',
+  '...Hhhhhhhh.....',
+  '..Hhhhhhhhhhd...',
+  '...ddd...dhhhd..',
+  '.........Shhhd..',
+  '........sS.hhhd.',
+  '.......sS...hhH.',
+  '......sS....dhH.',
+  '.....sS.....dhH.',
+  '....sS.......hH.',
+  '...sS........dH.',
+  '..sS..........d.',
+  '.gg.............',
+  '................',
+  '................',
+];
 const AXE = [
   '................',
-  '.........hhh....',
-  '........hhhhh...',
-  '........hhhhhh..',
-  '.......shhhhh...',
-  '......s..hhh....',
-  '.....s..........',
-  '....s...........',
-  '...s............',
-  '..s.............',
-  '.s..............',
-  '................',
-  '................',
-  '................',
+  '......HHh.......',
+  '.....HhhhhhdsS..',
+  '.....HhhhhdsS...',
+  '.....HhhhdsS....',
+  '.....HhhdsS.....',
+  '......hdsS......',
+  '.......sS.......',
+  '......sS........',
+  '.....sS.........',
+  '....sS..........',
+  '...sS...........',
+  '..sS............',
+  '.gg.............',
   '................',
   '................',
 ];
 const SHOVEL = [
   '................',
-  '...........hhh..',
-  '..........hhhhh.',
-  '..........hhhhh.',
-  '.........hhhhh..',
-  '........s.hhh...',
-  '.......s........',
-  '......s.........',
-  '.....s..........',
-  '....s...........',
-  '...s............',
-  '..ss............',
-  '..s.............',
+  '...........HH...',
+  '..........HhhH..',
+  '.........Hhhhhh.',
+  '.........hhhhhd.',
+  '.........hhhhd..',
+  '........Shhdd...',
+  '.......sS.......',
+  '......sS........',
+  '.....sS.........',
+  '....sS..........',
+  '...sS...........',
+  '..sS............',
+  '.gg.............',
+  '................',
+  '................',
+];
+const WOOD_HANDLE: Record<string, RGB> = { s: [164, 116, 66], S: [116, 80, 46], g: [86, 58, 38] };
+const STONE_HEAD: Record<string, RGB> = { h: [150, 150, 144], H: [200, 200, 192], d: [102, 102, 98] };
+const IRON_HEAD: Record<string, RGB> = { h: [208, 214, 224], H: [252, 252, 255], d: [140, 148, 166] };
+const ROD = [
+  '................',
+  '............sSl.',
+  '...........sS.l.',
+  '..........sS..l.',
+  '.........sS...l.',
+  '........sS....l.',
+  '.......sS.....l.',
+  '......sS......l.',
+  '.....sS.......l.',
+  '....sS.......rr.',
+  '...sS........ww.',
+  '..gg............',
+  '.gg.............',
   '................',
   '................',
   '................',
 ];
-const PICKAXE = [
+const NET = [
   '................',
-  '....hhhhhh......',
-  '...h......hh....',
-  '..........shh...',
-  '.........s..h...',
-  '........s...h...',
-  '.......s.....h..',
-  '......s.........',
-  '.....s..........',
-  '....s...........',
-  '...s............',
-  '..s.............',
-  '................',
-  '................',
+  '.........nnnn...',
+  '........nmkmkn..',
+  '.......nmkmkmkn.',
+  '.......nkmkmkmn.',
+  '.......nmkmkmkn.',
+  '........nkmkmn..',
+  '.......sSnnnn...',
+  '......sS........',
+  '.....sS.........',
+  '....sS..........',
+  '...sS...........',
+  '..sS............',
+  '.gg.............',
   '................',
   '................',
 ];
@@ -731,7 +784,7 @@ function paintFarm(ctx: CanvasRenderingContext2D, leaf: RGB) {
     '...rhrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrdr...', '....rrrrrrdd....', '.....rrrrrr.....',
     '................', '................', '................', '................',
   ], { a: [80, 150, 50], r: [222, 50, 40], h: [255, 200, 190], d: [170, 30, 30] });
-  paintSprite(ctx, Tile.WateringCan, [
+  toolSprite(ctx, Tile.WateringCan, [
     '................', '................', '.....hhhh.......', '....h....h......', '....h....h......', '...ccccccc...s..',
     '..cccccccccss...', '..ccccccccss....', '..ccccccccc.....', '..ccccccccc.....', '..ccccccccc.....', '..ddddddddd.....',
     '................', '................', '................', '................',
@@ -1003,15 +1056,14 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   paintTile(ctx, Tile.PalmLeaves, (x, y, r) => ((x + y) % 5 === 0 && r() < 0.6 ? null : pick(r, PALM_LEAF)));
 
   // Objetos que no son bloques.
-  const stick: RGB = [150, 104, 60];
-  const metal: RGB = [176, 184, 196];
   paintSprite(ctx, Tile.Branch, BRANCH, { s: [126, 88, 52], l: leaf });
   paintSprite(ctx, Tile.Shell, SHELL, { a: [246, 196, 176], b: [232, 160, 140], c: [214, 140, 120] });
   paintSprite(ctx, Tile.Conch, CONCH, { a: [244, 226, 196], b: [222, 180, 140], c: [240, 150, 150] });
   paintSprite(ctx, Tile.Starfish, STARFISH, { a: [220, 110, 60], b: [246, 150, 86] });
-  paintSprite(ctx, Tile.Axe, AXE, { s: stick, h: metal });
-  paintSprite(ctx, Tile.Shovel, SHOVEL, { s: stick, h: metal });
-  paintSprite(ctx, Tile.Pickaxe, PICKAXE, { s: stick, h: metal });
+  // Las herramientas sencillas son de piedra gris; las de hierro, plateadas y brillantes.
+  toolSprite(ctx, Tile.Axe, AXE, { ...WOOD_HANDLE, ...STONE_HEAD });
+  toolSprite(ctx, Tile.Shovel, SHOVEL, { ...WOOD_HANDLE, ...STONE_HEAD });
+  toolSprite(ctx, Tile.Pickaxe, PICKAXE, { ...WOOD_HANDLE, ...STONE_HEAD });
 
   // Casas de los vecinos.
   paintTile(ctx, Tile.Wall, (x, y, r) => {
@@ -1058,42 +1110,8 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     const mortar = y % 5 === 4 || (x + (Math.floor(y / 5) % 2) * 4) % 8 === 0;
     return mortar ? [150, 146, 136] : pick(r, [[204, 200, 188], [196, 192, 180], [212, 208, 196]]);
   });
-  paintSprite(ctx, Tile.Rod, [
-    '..............s.',
-    '.............s.l',
-    '............s..l',
-    '...........s...l',
-    '..........s....l',
-    '.........s.....l',
-    '........s......l',
-    '.......s.......l',
-    '......s........l',
-    '.....s.........l',
-    '....s..........r',
-    '...hs..........w',
-    '..hh............',
-    '.hh.............',
-    '................',
-    '................',
-  ], { s: [150, 104, 60], h: [90, 60, 40], l: [230, 230, 230], r: [220, 50, 50], w: [250, 250, 250] });
-  paintSprite(ctx, Tile.Net, [
-    '.........nnnn...',
-    '........n.n.nn..',
-    '.......nnnnnnnn.',
-    '.......n.n.n.nn.',
-    '.......nnnnnnnn.',
-    '........nnnnnn..',
-    '.......s.nnnn...',
-    '......s.........',
-    '.....s..........',
-    '....s...........',
-    '...s............',
-    '..s.............',
-    '.s..............',
-    '................',
-    '................',
-    '................',
-  ], { s: [150, 104, 60], n: [240, 240, 240] });
+  toolSprite(ctx, Tile.Rod, ROD, { ...WOOD_HANDLE, l: [236, 236, 240], r: [222, 52, 52], w: [250, 250, 250] });
+  toolSprite(ctx, Tile.Net, NET, { ...WOOD_HANDLE, n: [214, 178, 96], m: [248, 248, 250], k: [196, 212, 226] });
 
   // Minerales: piedra con motas de color.
   const ore = (tile: Tile, spot: RGB, shade: RGB) =>
@@ -1164,10 +1182,9 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     '................',
     '................',
   ], { a: [184, 110, 230], b: [130, 70, 180], h: [240, 220, 255] });
-  const iron: RGB = [120, 130, 150];
-  paintSprite(ctx, Tile.IronAxe, AXE, { s: stick, h: iron });
-  paintSprite(ctx, Tile.IronPickaxe, PICKAXE, { s: stick, h: iron });
-  paintSprite(ctx, Tile.IronShovel, SHOVEL, { s: stick, h: iron });
+  toolSprite(ctx, Tile.IronAxe, AXE, { ...WOOD_HANDLE, ...IRON_HEAD });
+  toolSprite(ctx, Tile.IronPickaxe, PICKAXE, { ...WOOD_HANDLE, ...IRON_HEAD });
+  toolSprite(ctx, Tile.IronShovel, SHOVEL, { ...WOOD_HANDLE, ...IRON_HEAD });
 
   paintTile(ctx, Tile.Canvas, (x, y, r) => {
     if (y % 8 === 0) return [70, 130, 90];

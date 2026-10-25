@@ -5,6 +5,16 @@ import { TREE_KINDS } from './orchard';
 
 export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net' | 'can';
 
+/** Para qué sirve cada herramienta, en pocas palabras (v3.5): sale debajo del nombre al cogerla. */
+export const TOOL_USE: Record<ToolKind, string> = {
+  axe: 'Tala árboles y rompe madera',
+  shovel: 'Cava tierra, arena y hierba',
+  pickaxe: 'Rompe piedra y minerales',
+  rod: 'Pesca en el agua',
+  net: 'Atrapa bichos',
+  can: 'Riega los cultivos',
+};
+
 export interface ItemDef {
   id: string;
   name: string;
