@@ -1,4 +1,5 @@
 import type { ClockSave } from '../clock';
+import { type PlayerHome, isPlayerHome } from '../homes';
 import type { Lot } from '../lots';
 import type { Guest } from '../villagers';
 import type { Edits, WorldOptions } from '../world';
@@ -23,6 +24,8 @@ export interface PeerInfo {
   id: string;
   name: string;
   color: number;
+  /** Desde la v4.3: quién es siempre (el id guardado), aunque cada conexión tenga un id distinto. */
+  uid?: string;
 }
 
 /** Dónde tiene los pies un jugador y hacia dónde mira. */
@@ -49,6 +52,8 @@ export interface Snapshot {
   visitor?: string | null;
   /** Dónde aparece quien entra: al lado del anfitrión. */
   spawn?: [number, number];
+  /** Desde la v4.3: las casas de los amigos en esta isla. */
+  homes?: PlayerHome[];
 }
 
 export type Message =
@@ -69,7 +74,9 @@ export type Message =
   /** Desde la v4.2: alguien se mete en la cama queriendo despertarse a ese minuto del día (null: se levanta). */
   | { t: 'cama'; id: string; wake: number | null }
   /** El reloj del anfitrión, cada poco; `slept` si acaba de saltar porque todos estaban durmiendo. */
-  | { t: 'hora'; clock: ClockSave; slept: boolean };
+  | { t: 'hora'; clock: ClockSave; slept: boolean }
+  /** Desde la v4.3: el anfitrión ha dado casa a un amigo (o le recuerda la que ya tenía). */
+  | { t: 'casa'; home: PlayerHome };
 
 export const MAX_CHAT = 140;
 
@@ -78,7 +85,7 @@ const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
 export function isPeerInfo(v: unknown): v is PeerInfo {
-  return isObj(v) && isId(v.id) && typeof v.name === 'string' && v.name.length <= 24 && Number.isInteger(v.color);
+  return isObj(v) && isId(v.id) && typeof v.name === 'string' && v.name.length <= 24 && Number.isInteger(v.color) && (v.uid === undefined || isId(v.uid));
 }
 
 function isPose(v: unknown): v is Pose {
@@ -88,7 +95,8 @@ function isPose(v: unknown): v is Pose {
 function isSnapshot(v: unknown): v is Snapshot {
   const list = (x: unknown) => x === undefined || Array.isArray(x);
   const spot = (x: unknown) => x === undefined || (Array.isArray(x) && x.length === 2 && x.every(Number.isInteger));
-  return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots) && spot(v.spawn);
+  const homes = v && (v as Record<string, unknown>).homes;
+  return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots) && spot(v.spawn) && (homes === undefined || (Array.isArray(homes) && homes.every(isPlayerHome)));
 }
 
 export function isGift(v: unknown): v is GiftItem {
@@ -125,6 +133,8 @@ export function parseMessage(raw: unknown): Message | null {
       return typeof raw.text === 'string' && raw.text.length <= 80 ? (raw as Message) : null;
     case 'cama':
       return isId(raw.id) && (raw.wake === null || (isNum(raw.wake) && raw.wake >= 0 && raw.wake < 1440)) ? (raw as Message) : null;
+    case 'casa':
+      return isPlayerHome(raw.home) ? (raw as Message) : null;
     case 'hora':
       return isObj(raw.clock) && isNum(raw.clock.day) && isNum(raw.clock.minute) && typeof raw.slept === 'boolean' ? (raw as Message) : null;
     default:
