@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import './style.css';
-import { BLOCKS, Block, FRUITS, HOUSE_BLOCKS, ROOFS, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
+import { BLOCKS, Block, FRUITS, HOUSE_BLOCKS, ROOFS, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isSolid } from './blocks';
 import { Bugs } from './bugs';
 import { Collection } from './collection';
-import { creature } from './creatures';
+import { calendar, creature } from './creatures';
 import { Dialog, HOUSE_COSTS, HOUSE_NAMES } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
@@ -15,8 +15,10 @@ import { Player } from './player';
 import { raycast } from './raycast';
 import { deleteGame, loadGame, saveGame } from './save';
 import { Shop, formatBerries } from './shop';
+import { WEATHER_TEXT, dateOverride, holidayOf, seasonOf, weatherAt } from './seasons';
 import { Sky } from './sky';
 import { type Villager, createVillagers } from './villagers';
+import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { WATER_SURFACE, World } from './world';
 
@@ -31,6 +33,20 @@ const SHELLS_PER_DAY = 7;
 // Para probar otras horas: ?hora=21.5
 const params = new URLSearchParams(location.search);
 const hourOverride = params.has('hora') && Number.isFinite(Number(params.get('hora'))) ? Number(params.get('hora')) : null;
+// Y otros días: ?fecha=2026-12-24
+const dayOverride = dateOverride(params);
+
+/** Fecha y hora del juego: las reales, salvo que se hayan cambiado para probar. */
+function gameDate(): Date {
+  const d = new Date();
+  if (dayOverride) d.setFullYear(dayOverride.getFullYear(), dayOverride.getMonth(), dayOverride.getDate());
+  if (hourOverride !== null) d.setHours(Math.floor(hourOverride), (hourOverride % 1) * 60, 0);
+  return d;
+}
+const startDate = gameDate();
+const season = seasonOf(startDate);
+const holiday = holidayOf(startDate);
+calendar.month = startDate.getMonth() + 1;
 
 // --- Escena ---
 
@@ -53,6 +69,7 @@ const sky = new Sky(scene, hemi, sunLight);
 
 const atlas = createAtlasCanvas();
 paintFurnitureIcons(atlas);
+applySeason(atlas, season);
 const material = new THREE.MeshLambertMaterial({
   map: createAtlasTexture(atlas),
   vertexColors: true,
@@ -68,7 +85,7 @@ const world = new World(seed, material, save?.edits ?? {});
 scene.add(world.group);
 
 const today = (() => {
-  const d = new Date();
+  const d = startDate;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 })();
 
@@ -103,11 +120,26 @@ if (world.playerPlot && home.level > 0) world.playerPlot.roof = ROOFS[home.roof]
 
 const furniture = new Furniture(save?.furniture ?? []);
 scene.add(furniture.group);
+
+// Adornos de las fiestas: calabazas en las puertas o un árbol junto a la tienda. No se guardan.
+const decor = new Furniture([]);
+scene.add(decor.group);
+for (const p of world.plots) {
+  const [dx, dy, dz] = p.door;
+  if (holiday?.id === 'halloween' && p.kind !== 'player') {
+    decor.place('calabaza', dx - 2, dy, dz, 0);
+    decor.place('calabaza', dx + 2, dy, dz, 0);
+  }
+  if (holiday?.id === 'navidad' && p.kind === 'shop') decor.place('arbol_navidad', dx + 3, dy, dz + 1, 0);
+}
 // En la tienda de campaña hay una cama para empezar.
 if (!save && world.playerPlot) furniture.place('cama', world.playerPlot.x, world.playerPlot.y + 1, world.playerPlot.z, 0);
 
 const villagers = createVillagers(world, save?.villagers ?? {});
-for (const v of villagers) scene.add(v.group);
+for (const v of villagers) {
+  scene.add(v.group);
+  if (v.isBirthday(startDate)) v.addPartyHat();
+}
 
 const inventory = new Inventory();
 if (save?.inventory) inventory.load(save.inventory);
@@ -181,6 +213,9 @@ highlight.visible = false;
 scene.add(highlight);
 
 // --- Objetos por el suelo ---
+
+const weather = new WeatherFx(world);
+scene.add(weather.points);
 
 const drops = new Drops(world, atlas);
 scene.add(drops.group);
@@ -272,6 +307,8 @@ document.querySelector('#workbench-close')!.addEventListener('click', closeWorkb
 
 const dialog = new Dialog({
   learnRecipe: () => workbench.learnRandom(),
+  holiday,
+  isBirthday: (v) => v.isBirthday(gameDate()),
   inventory,
   selectedSlot: () => hud.selected,
   today,
@@ -333,6 +370,7 @@ const shop = new Shop({
   atlas,
   today,
   islandFruit: fruitItemFor(world.fruit) ?? '',
+  holiday: holiday?.id ?? null,
   getWallet: () => wallet,
   setWallet,
   toast: (t) => hud.toast(t),
@@ -765,12 +803,14 @@ function updateLabels() {
 const timeFormat = new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit' });
 const dateFormat = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'short' });
 let lastClock = '';
+const gloomColor = new THREE.Color();
+const seasonText = season.charAt(0).toUpperCase() + season.slice(1);
 function updateClock(now: Date) {
   const t = timeFormat.format(now);
   if (t === lastClock) return;
   lastClock = t;
   clockTime.textContent = t;
-  clockDate.textContent = dateFormat.format(now);
+  clockDate.textContent = `${dateFormat.format(now)} · ${holiday ? holiday.name : seasonText}`;
 }
 
 // --- Bucle principal ---
@@ -795,11 +835,17 @@ function frame(now: number) {
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0);
   updateBreaking(dt);
 
-  const date = new Date();
-  if (hourOverride !== null) date.setHours(Math.floor(hourOverride), (hourOverride % 1) * 60, 0);
+  const date = gameDate();
   const hour = Sky.hourOf(date);
   currentHour = hour;
   sky.update(hour, camera);
+  // Con lluvia o nieve el día se oscurece y la niebla se vuelve gris.
+  const nowWeather = params.get('tiempo') as keyof typeof WEATHER_TEXT | null;
+  weather.set(nowWeather && nowWeather in WEATHER_TEXT ? nowWeather : weatherAt(date, seed));
+  weather.update(dt, camera.position);
+  hemi.intensity *= 1 - weather.gloom * 0.3;
+  sunLight.intensity *= 1 - weather.gloom * 0.7;
+  sky.color.lerp(gloomColor.setRGB(0.55, 0.6, 0.65).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.75);
   for (const v of villagers) v.update(dt, hour, player.position);
   updateLabels();
   updateClock(date);
@@ -825,7 +871,8 @@ function frame(now: number) {
   }
 
   clouds.position.x = ((now / 1000) * 1.2) % 300;
-  cloudMat.color.setScalar(1 - sky.night * 0.6);
+  cloudMat.color.setScalar((1 - sky.night * 0.6) * (1 - weather.gloom * 0.35));
+  cloudMat.opacity = 0.8 + weather.gloom * 0.2;
 
   const hit = currentHit();
   const aimed = furnitureInSight();
@@ -863,6 +910,6 @@ requestAnimationFrame(frame);
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { world, player, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
+    game: { world, player, weather, decor, season, holiday, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, get breaking() { return breaking; }, get breakProgress() { return breakProgress; } },
   });
 }

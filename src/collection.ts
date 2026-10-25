@@ -1,5 +1,5 @@
 import { CREATURE_TILE_START, tileCanvas } from './blocks';
-import { CREATURES, HABITAT_TEXT, hoursText } from './creatures';
+import { CREATURES, HABITAT_TEXT, hoursText, monthsText } from './creatures';
 import type { Inventory } from './inventory';
 
 /** Enciclopedia de peces e insectos y lo donado al museo. */
@@ -60,7 +60,7 @@ export class Collection {
         const known = this.caught.has(c.id);
         const card = document.createElement('div');
         card.className = `card${known ? '' : ' unknown'}`;
-        const where = known ? `${HABITAT_TEXT[c.habitat]}, ${hoursText(c)}` : 'Aún no lo has visto';
+        const where = known ? `${HABITAT_TEXT[c.habitat]}, ${hoursText(c)}, ${monthsText(c)}` : 'Aún no lo has visto';
         const badge = this.donated.has(c.id) ? '<span class="badge">En el museo</span>' : '';
         card.innerHTML = `<img alt="" src="${this.icons[CREATURES.indexOf(c)]}"><b>${known ? c.name : '???'}</b><small>${where}</small>${badge}`;
         el.appendChild(card);

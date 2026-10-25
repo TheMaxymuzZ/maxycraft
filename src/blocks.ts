@@ -744,6 +744,51 @@ export function blockIconTile(b: Block): number {
   return def.tiles[b === Block.Grass || def.shape === 'cross' ? 0 : 1];
 }
 
+/** Recolorea la hierba y las hojas del atlas según la estación. El verano se queda como está. */
+export function applySeason(atlas: HTMLCanvasElement, season: 'primavera' | 'verano' | 'otoño' | 'invierno') {
+  if (season === 'verano') return;
+  const ctx = atlas.getContext('2d')!;
+  const recolor = (tile: number, fn: (c: RGB, x: number, y: number, r: number) => RGB) => {
+    const ox = (tile % ATLAS_TILES) * TILE;
+    const oy = Math.floor(tile / ATLAS_TILES) * TILE;
+    const img = ctx.getImageData(ox, oy, TILE, TILE);
+    const d = img.data;
+    const r = rng(tile * 131 + season.length);
+    for (let i = 0; i < d.length; i += 4) {
+      const roll = r();
+      if (d[i + 3] === 0) continue;
+      // Solo los píxeles verdes: el borde de tierra del lateral de la hierba no cambia.
+      if (!(d[i + 1] > d[i] && d[i + 1] > d[i + 2])) continue;
+      const [nr, ng, nb] = fn([d[i], d[i + 1], d[i + 2]], (i / 4) % TILE, Math.floor(i / 4 / TILE), roll);
+      d[i] = nr;
+      d[i + 1] = ng;
+      d[i + 2] = nb;
+    }
+    ctx.putImageData(img, ox, oy);
+  };
+  const mix = (c: RGB, t: RGB, k: number): RGB => [
+    Math.round(c[0] + (t[0] - c[0]) * k), Math.round(c[1] + (t[1] - c[1]) * k), Math.round(c[2] + (t[2] - c[2]) * k),
+  ];
+  if (season === 'invierno') {
+    const snow = (_c: RGB, _x: number, _y: number, r: number): RGB => (r < 0.15 ? [222, 232, 244] : r < 0.25 ? [236, 242, 250] : [248, 250, 255]);
+    recolor(Tile.GrassTop, snow);
+    recolor(Tile.GrassSide, snow);
+    recolor(Tile.Leaves, (c, _x, _y, r) => (r < 0.45 ? snow(c, 0, 0, r) : mix(c, [40, 90, 70], 0.4)));
+    recolor(Tile.TallGrass, (c) => mix(c, [170, 160, 120], 0.6));
+  } else if (season === 'otoño') {
+    recolor(Tile.GrassTop, (c) => mix(c, [180, 170, 70], 0.35));
+    recolor(Tile.GrassSide, (c) => mix(c, [180, 170, 70], 0.35));
+    recolor(Tile.TallGrass, (c) => mix(c, [196, 160, 70], 0.5));
+    const AUTUMN: RGB[] = [[214, 102, 44], [232, 150, 52], [196, 64, 40], [236, 190, 70]];
+    recolor(Tile.Leaves, (c, _x, _y, r) => mix(c, AUTUMN[Math.floor(r * AUTUMN.length)], 0.8));
+  } else {
+    // Primavera: hierba más clara y flores rosas en los árboles.
+    recolor(Tile.GrassTop, (c) => mix(c, [150, 214, 100], 0.3));
+    recolor(Tile.GrassSide, (c) => mix(c, [150, 214, 100], 0.3));
+    recolor(Tile.Leaves, (c, _x, _y, r) => (r < 0.22 ? [246, 178, 206] : r < 0.28 ? [252, 214, 228] : c));
+  }
+}
+
 /** Recorta una casilla del atlas en su propio canvas de 16x16. */
 export function tileCanvas(atlas: HTMLCanvasElement, tile: number): HTMLCanvasElement {
   const c = document.createElement('canvas');

@@ -1,5 +1,6 @@
 import type { Inventory } from './inventory';
 import { itemDef } from './items';
+import type { Holiday } from './seasons';
 import { formatBerries } from './shop';
 import type { Personality, Villager } from './villagers';
 
@@ -76,6 +77,8 @@ const MUSEUM_GREETINGS = [
   'Cada pez y cada insecto que dones ayuda a conocer mejor la isla, {c}.',
   '{saludo}. ¿Traes algo nuevo para la colección? Me encantaría verlo, {c}.',
 ];
+const BIRTHDAY = '¡Hoy es mi cumpleaños! ¿Has venido a felicitarme? ¡Qué ilusión, {c}!';
+const BIRTHDAY_GIFT = '¡Un regalo de cumpleaños! Es el mejor regalo que me han hecho nunca. ¡Toma, esto para ti, {c}!';
 const DONATED = '¡Oh! ¡Un ejemplar magnífico! Lo pondré en la colección ahora mismo, {c}.';
 const NOTHING_NEW = 'Mmm, no veo nada que el museo no tenga ya. ¡Sigue buscando, {c}!';
 const GOODBYE = ['¡Hasta luego, {c}!', '¡Nos vemos!', 'Venga, ¡que vaya bien, {c}!'];
@@ -126,6 +129,9 @@ export interface DialogContext {
   home: HomeActions;
   /** Aprende una receta nueva para la mesa de trabajo; devuelve su nombre o null. */
   learnRecipe: () => string | null;
+  /** Fiesta de hoy, si la hay. */
+  holiday: Holiday | null;
+  isBirthday: (v: Villager) => boolean;
 }
 
 /** Ventana de conversación con un vecino, al estilo de Animal Crossing. */
@@ -165,7 +171,10 @@ export class Dialog {
       v.memory.talkedDay = this.ctx.today;
       v.memory.friendship += 1;
     }
-    if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
+    const party = first && this.ctx.isBirthday(v);
+    if (party) this.say(BIRTHDAY);
+    else if (first && this.ctx.holiday && !v.isCurator) this.say(this.ctx.holiday.greeting);
+    else if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
     else if (v.isCurator) this.say(pick(MUSEUM_GREETINGS));
     else if (first && v.memory.friendship >= 3 && Math.random() < 0.4 && this.teach()) return;
     else this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
@@ -311,6 +320,15 @@ export class Dialog {
     const liked = CATEGORY[stack.id] === v.profile.likes;
     this.ctx.inventory.consume(slot);
     v.memory.giftDay = this.ctx.today;
+    if (this.ctx.isBirthday(v)) {
+      // En su cumpleaños cualquier regalo hace mucha ilusión, y siempre devuelve uno.
+      v.memory.friendship += 5;
+      const back = pick(RETURN_ITEMS);
+      this.ctx.inventory.add(back, back === 'tablones' ? 4 : 1);
+      this.ctx.toast(`${v.name} te ha regalado: ${itemDef(back).name.toLowerCase()}`);
+      this.say(BIRTHDAY_GIFT);
+      return;
+    }
     v.memory.friendship += liked ? 3 : 1;
     if (v.memory.friendship >= 4 && Math.random() < 0.5) {
       const back = pick(RETURN_ITEMS);

@@ -13,6 +13,8 @@ export interface FurnitureDef {
   parts: [number, number, number, number, number, number, number][];
   /** Si brilla de noche (las lámparas). */
   glow?: number;
+  /** Solo se vende en esa fiesta. */
+  holiday?: 'halloween' | 'navidad';
 }
 
 const WOOD = 0xb9824f;
@@ -124,6 +126,28 @@ export const FURNITURE: FurnitureDef[] = [
       [0.96, 0.3, 0.08, WOOD, 0, 0.56, -0.12],
       [0.08, 0.4, 0.36, DARK, -0.4, 0, 0.1],
       [0.08, 0.4, 0.36, DARK, 0.4, 0, 0.1],
+    ],
+  },
+  // De temporada: la tienda solo los vende en su fiesta.
+  {
+    id: 'calabaza', name: 'Calabaza de Halloween', sell: 300, buy: 1000, glow: 0xffa030, holiday: 'halloween',
+    parts: [
+      [0.06, 0.12, 0.06, 0x5b7a2e, 0, 0.62, 0],
+      [0.7, 0.62, 0.6, 0xe07b24, 0, 0, 0],
+      [0.32, 0.22, 0.04, 0x3a2008, 0, 0.22, 0.31], // la cara, que brilla de noche
+    ],
+  },
+  {
+    id: 'arbol_navidad', name: 'Árbol de Navidad', sell: 500, buy: 2000, glow: 0xfff0a0, holiday: 'navidad',
+    parts: [
+      [0.18, 0.2, 0.18, 0x6b4a2b, 0, 0, 0],
+      [0.9, 0.3, 0.9, 0x2f7d46, 0, 0.2, 0],
+      [0.66, 0.3, 0.66, 0x2f7d46, 0, 0.5, 0],
+      [0.42, 0.3, 0.42, 0x2f7d46, 0, 0.8, 0],
+      [0.08, 0.08, 0.08, 0xe8505b, 0.3, 0.42, 0.42],
+      [0.08, 0.08, 0.08, 0x4f8fe0, -0.25, 0.7, 0.3],
+      [0.08, 0.08, 0.08, 0xe8505b, 0.12, 0.98, 0.2],
+      [0.16, 0.16, 0.16, 0xffd84a, 0, 1.1, 0],
     ],
   },
 ];

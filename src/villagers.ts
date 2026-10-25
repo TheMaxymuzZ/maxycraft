@@ -38,27 +38,29 @@ interface Profile {
   /** No pasea: se queda en la puerta (la dependienta y la conservadora). */
   stationary?: boolean;
   role?: 'shop' | 'museum';
+  /** Cumpleaños: [mes, día]. */
+  birthday: [number, number];
 }
 
 /** La conservadora del museo, que está siempre abierto. */
 const CURATOR: Profile = {
   name: 'Matilde', species: 'tortuga', personality: 'dormilón', catchphrase: 'ejem', shirt: 0x6a5acd,
-  likes: 'conchas', sleep: [0, 0], stationary: true, role: 'museum',
+  likes: 'conchas', sleep: [0, 0], stationary: true, role: 'museum', birthday: [6, 5],
 };
 
 /** La dependienta de la tienda, abierta de 8:00 a 22:00. */
 const SHOPKEEPER: Profile = {
   name: 'Avellana', species: 'ardilla', personality: 'alegre', catchphrase: 'cric', shirt: 0x3f8f5a,
-  likes: 'fruta', sleep: [22, 8], stationary: true, role: 'shop',
+  likes: 'fruta', sleep: [22, 8], stationary: true, role: 'shop', birthday: [9, 18],
 };
 
 const PROFILES: Profile[] = [
-  { name: 'Canela', species: 'gato', personality: 'alegre', catchphrase: 'miau', shirt: 0xe86a8a, likes: 'flores' },
-  { name: 'Bruno', species: 'oso', personality: 'dormilón', catchphrase: 'ñam', shirt: 0x5b8bd6, likes: 'fruta' },
-  { name: 'Pelusa', species: 'conejo', personality: 'presumido', catchphrase: 'boing', shirt: 0x9b6bd6, likes: 'conchas' },
-  { name: 'Ramón', species: 'rana', personality: 'gruñón', catchphrase: 'croac', shirt: 0xd9a441, likes: 'madera' },
-  { name: 'Lola', species: 'perro', personality: 'alegre', catchphrase: 'guau', shirt: 0x5fb07a, likes: 'fruta' },
-  { name: 'Toto', species: 'pato', personality: 'dormilón', catchphrase: 'cuac', shirt: 0xe0704a, likes: 'conchas' },
+  { name: 'Canela', species: 'gato', personality: 'alegre', catchphrase: 'miau', shirt: 0xe86a8a, likes: 'flores', birthday: [3, 14] },
+  { name: 'Bruno', species: 'oso', personality: 'dormilón', catchphrase: 'ñam', shirt: 0x5b8bd6, likes: 'fruta', birthday: [11, 2] },
+  { name: 'Pelusa', species: 'conejo', personality: 'presumido', catchphrase: 'boing', shirt: 0x9b6bd6, likes: 'conchas', birthday: [4, 22] },
+  { name: 'Ramón', species: 'rana', personality: 'gruñón', catchphrase: 'croac', shirt: 0xd9a441, likes: 'madera', birthday: [8, 9] },
+  { name: 'Lola', species: 'perro', personality: 'alegre', catchphrase: 'guau', shirt: 0x5fb07a, likes: 'fruta', birthday: [10, 27] },
+  { name: 'Toto', species: 'pato', personality: 'dormilón', catchphrase: 'cuac', shirt: 0xe0704a, likes: 'conchas', birthday: [1, 30] },
 ];
 
 /** Horas en las que cada personalidad está en casa durmiendo. */
@@ -108,6 +110,21 @@ export class Villager {
 
   get isCurator() {
     return this.profile.role === 'museum';
+  }
+
+  isBirthday(date: Date): boolean {
+    return this.profile.birthday[0] === date.getMonth() + 1 && this.profile.birthday[1] === date.getDate();
+  }
+
+  /** Gorro de fiesta para el día de su cumpleaños. */
+  addPartyHat() {
+    const mat = (c: number) => new THREE.MeshLambertMaterial({ color: c });
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.36, 4), mat(0xf2c94c));
+    hat.position.set(0.08, 1.54, 0);
+    hat.rotation.set(0, Math.PI / 4, -0.2);
+    const pom = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), mat(0xe8505b));
+    pom.position.set(0.12, 1.74, 0);
+    this.group.add(hat, pom);
   }
 
   // --- Modelo de bloques: cabeza grande, como los vecinos de Animal Crossing ---
