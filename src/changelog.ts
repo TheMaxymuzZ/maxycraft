@@ -7,6 +7,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.6',
+    title: 'Controles cómodos en el móvil',
+    items: [
+      'Como en Minecraft: deja el dedo quieto en la pantalla un momento y rompes el bloque de la mira.',
+      'Mientras rompes puedes seguir arrastrando el dedo para mirar alrededor. Si la mira se sale del bloque, ese bloque deja de romperse.',
+      'Un toque rápido en la pantalla es «usar»: sacudir un árbol, hablar, poner un bloque…',
+      'Con el dedo en el botón Romper también puedes arrastrar para mirar.',
+      'Botones nuevos con dibujo: Saltar, Romper y Usar juntos a mano del pulgar; arriba, un menú pequeño de iconos.',
+      'La barra rápida encoge para caber entera en el móvil en vertical, y los primeros pasos empiezan plegados.',
+      'Los avisos ya no tapan la mira ni los botones.',
+    ],
+  },
+  {
     version: '3.5',
     title: 'Herramientas nuevas',
     items: [

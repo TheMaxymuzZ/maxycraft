@@ -4,8 +4,8 @@ export type StepId = 'mover' | 'sacudir' | 'romper' | 'fabricar' | 'hablar' | 'v
 
 const STEPS: { id: StepId; text: string; touch?: string }[] = [
   { id: 'mover', text: 'Da un paseo por la isla ({forward} {left} {back} {right})', touch: 'Da un paseo por la isla (palanca de la izquierda)' },
-  { id: 'sacudir', text: 'Sacude un árbol con clic derecho', touch: 'Sacude un árbol con el botón Usar' },
-  { id: 'romper', text: 'Rompe un bloque manteniendo el clic izquierdo', touch: 'Rompe un bloque manteniendo el botón Romper' },
+  { id: 'sacudir', text: 'Sacude un árbol con clic derecho', touch: 'Sacude un árbol: tócalo o pulsa Usar' },
+  { id: 'romper', text: 'Rompe un bloque manteniendo el clic izquierdo', touch: 'Rompe un bloque: deja el dedo quieto encima o mantén Romper' },
   { id: 'fabricar', text: 'Fabrica algo en los bolsillos ({inventory})', touch: 'Fabrica algo en los bolsillos (botón Bolsillos)' },
   { id: 'hablar', text: 'Habla con un vecino' },
   { id: 'vender', text: 'Vende algo en la tienda de Avellana' },
@@ -30,8 +30,8 @@ export class Tutorial {
     this.done = new Set(saved ?? []);
     this.finished = finished;
     this.el.querySelector('header')!.addEventListener('click', () => this.toggle());
-    // En pantallas bajas empieza plegada para no tapar el juego.
-    if (window.innerHeight < 500) this.el.classList.add('collapsed');
+    // En pantallas bajas y en el móvil empieza plegada para no tapar el juego; se abre tocando el título.
+    if (window.innerHeight < 500 || touch) this.el.classList.add('collapsed');
     this.render();
   }
 
