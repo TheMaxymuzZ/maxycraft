@@ -54,6 +54,45 @@ describe('luz', () => {
   });
 });
 
+describe('luz del cielo (v3.1)', () => {
+  const world = new World(20261025, material);
+  const [x0, z0] = [4, 4];
+  const y0 = 40;
+  cave(world, x0, y0, z0);
+  // Abrir la pared de un lado: la luz entra por ahí.
+  for (let y = y0; y <= y0 + 2; y++) for (let z = z0; z <= z0 + 2; z++) world.setBlock(x0 - 1, y, z, Block.Air);
+  const sky = () => world['skyLightRegion'](0, 0);
+
+  it('al aire libre la luz del cielo es total', () => {
+    expect(sky()(x0 - 3, y0 + 10, z0)).toBe(1);
+  });
+
+  it('dentro de una cueva la luz baja poco a poco, sin cortes', () => {
+    const at = sky();
+    let before = at(x0 - 2, y0, z0 + 1);
+    expect(before).toBe(1);
+    for (let x = x0 - 1; x <= x0 + 8; x++) {
+      const now = at(x, y0, z0 + 1);
+      expect(before - now).toBeCloseTo(1 / 15);
+      before = now;
+    }
+  });
+
+  it('si se tapa la entrada, la cueva queda a oscuras', () => {
+    for (let y = y0; y <= y0 + 2; y++) for (let z = z0; z <= z0 + 2; z++) world.setBlock(x0 - 1, y, z, Block.Stone);
+    expect(sky()(x0 + 4, y0, z0 + 1)).toBe(0);
+  });
+
+  it('lightAt da la luz guardada al dibujar el chunk', () => {
+    world.setBlock(x0 + 2, y0, z0 + 1, Block.Torch);
+    world['buildMesh'](world['getChunk'](0, 0));
+    const [skyLevel, glow] = world.lightAt(x0 + 3, y0, z0 + 1);
+    expect(skyLevel).toBeLessThan(0.5); // cerca de la superficie, como dentro de una casa: oscuro pero no negro
+    expect(glow).toBeCloseTo(12 / 15);
+    expect(world.lightAt(x0, 70, z0)).toEqual([1, 0]);
+  });
+});
+
 describe('dos manos', () => {
   it('cambiar de mano pasa la casilla a la otra mano y al revés', () => {
     const inv = new Inventory();

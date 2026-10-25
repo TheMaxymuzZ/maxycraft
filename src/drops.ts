@@ -63,7 +63,7 @@ export class Drops {
   }
 
   /** Mueve los objetos y entrega los que el jugador toca. `take` devuelve false si no caben. */
-  update(dt: number, player: THREE.Vector3, take: (id: string) => boolean, light: number) {
+  update(dt: number, player: THREE.Vector3, take: (id: string) => boolean, light: (p: THREE.Vector3) => number) {
     for (let i = this.drops.length - 1; i >= 0; i--) {
       const d = this.drops[i];
       d.age += dt;
@@ -96,7 +96,7 @@ export class Drops {
         // Si quitan el bloque de debajo, vuelve a caer.
         if (!isSolid(this.world.getBlock(Math.floor(p.x), Math.floor(p.y - 0.4), Math.floor(p.z)))) d.resting = false;
       }
-      d.sprite.material.color.setScalar(light);
+      d.sprite.material.color.setScalar(light(p));
 
       const dx = player.x - p.x;
       const dy = player.y + 0.9 - p.y;

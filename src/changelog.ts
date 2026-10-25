@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '3.1',
+    title: 'Luz suave',
+    items: [
+      'La luz del sol entra de verdad en las cuevas: la entrada se va oscureciendo poco a poco, sin cortes de golpe.',
+      'Luz suave en las esquinas de cada bloque, como en Minecraft: paredes y techos pasan de la luz a la sombra sin escalones.',
+      'Bajo un tejado o un porche hay sombra, pero las casas nunca quedan negras.',
+      'Lo que cae al suelo y lo que llevas en la mano se ven oscuros en una cueva y brillan junto a una antorcha.',
+      'Lo más oscuro de una cueva tiene un tono azulado en vez de negro.',
+    ],
+  },
+  {
     version: '3.0',
     title: 'Maxycraft 3',
     items: [

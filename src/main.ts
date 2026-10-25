@@ -2092,8 +2092,10 @@ function frame(now: number) {
   remotes.update(dt);
   nameTags.update(camera, player.position);
   updateClock(date);
-  drops.update(dt, player.position, take, 1 - sky.night * 0.5);
-  bugs.update(dt, hour, player.position, 1 - sky.night * 0.5);
+  const daylight = 1 - sky.night * 0.5;
+  // Lo que cae al suelo se ve tan iluminado como el sitio donde está: oscuro en una cueva, claro junto a una antorcha.
+  drops.update(dt, player.position, take, (p) => brightnessAt(p, daylight));
+  bugs.update(dt, hour, player.position, daylight);
   furniture.setNight(sky.night);
   sound.setHour(hour);
   rainTimer -= dt;
@@ -2140,13 +2142,12 @@ function frame(now: number) {
   }
 
   // Una antorcha en cualquiera de las dos manos alumbra alrededor.
-  const handLight = Math.max(HAND_LIGHT[hud.selectedStack?.id ?? ''] ?? 0, HAND_LIGHT[inventory.offhand?.id ?? ''] ?? 0);
-  lighting.setHand(camera.position, handLight);
+  lighting.setHand(camera.position, carriedLight());
   renderer.render(scene, camera);
   // La mano va encima de todo, en otra pasada, y no se ve en la portada ni con el menú abierto.
   if (menu.hidden && !panel) {
     const walking = player.onGround ? Math.hypot(player.velocity.x, player.velocity.z) : 0;
-    held.update(dt, camera, hud.selectedStack?.id ?? null, inventory.offhand?.id ?? null, breaker.active && !!hit, walking, 1 - sky.night * 0.6);
+    held.update(dt, camera, hud.selectedStack?.id ?? null, inventory.offhand?.id ?? null, breaker.active && !!hit, walking, brightnessAt(camera.position, 1 - sky.night * 0.6));
     renderer.autoClear = false;
     renderer.clearDepth();
     renderer.render(held.scene, camera);
@@ -2169,6 +2170,23 @@ function frame(now: number) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+/** Alcance de la luz que llevas en cualquiera de las dos manos (0 si no llevas ninguna). */
+function carriedLight(): number {
+  return Math.max(HAND_LIGHT[hud.selectedStack?.id ?? ''] ?? 0, HAND_LIGHT[inventory.offhand?.id ?? ''] ?? 0);
+}
+
+/**
+ * Lo iluminado que está un punto, de 0 a 1 (v3.1): la luz del cielo según la hora (`daylight`),
+ * la de las antorchas de alrededor o la que llevas en la mano, la que más alumbre.
+ */
+function brightnessAt(p: THREE.Vector3, daylight: number): number {
+  const [skyLevel, glow] = world.lightAt(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
+  const reach = carriedLight();
+  const hand = reach ? Math.max(0, 1 - p.distanceTo(camera.position) / reach) : 0;
+  const torch = Math.max(glow, hand);
+  return Math.max(skyLevel * Math.sqrt(skyLevel) * daylight, torch * torch, 0.08);
+}
 
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
