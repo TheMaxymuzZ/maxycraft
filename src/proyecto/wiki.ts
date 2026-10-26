@@ -11,6 +11,7 @@ import { DIY_RECIPES, ITEMS, ITEM_KINDS, RARITIES, RECIPES, type Recipe, STARTER
 import { ACHIEVEMENTS, PRIZES, TASKS } from '../missions';
 import { Portraits } from '../portraits';
 import { formatBerries } from '../shop';
+import { HALL_LEVELS, PUBLIC_WORKS } from '../townhall';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
 import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
 import './comun';
@@ -258,6 +259,13 @@ fill('tabla-horarios', (Object.keys(SLEEP) as (keyof typeof SLEEP)[]).map((p) =>
   const [bed, wake] = SLEEP[p];
   return `<td><b>${PERSONALITY_NAMES[p]}</b></td><td class="num">${hh(wake)}</td><td class="num">${hh(bed === 0 ? 23 : bed - 1)}</td><td class="num">${hh(bed)}</td>`;
 }));
+
+// Ayuntamiento (v4.13): niveles y obras públicas.
+fill('tabla-ayuntamiento', HALL_LEVELS.map((l) => `<td><b>${l.name}</b></td><td class="num">${l.cost ? l.cost.toLocaleString('es') : 'Gratis'}</td><td><div class="needs">${l.materials.map(([id, n]) => item(id, n, false)).join('') || '—'}</div></td><td>${l.opens}</td>`));
+fill('tabla-obras', [
+  `<td><b>Puente a un islote</b></td><td class="num">desde 8.000</td><td class="num">1</td><td>Puente de madera con barandilla y pilares de piedra, hasta la orilla de la isla.</td>`,
+  ...PUBLIC_WORKS.map((w) => `<td><b>${w.name}</b></td><td class="num">${w.cost.toLocaleString('es')}</td><td class="num">${w.level}</td><td>${w.text}</td>`),
+]);
 
 // Casas de los vecinos (v4.12): niveles de amistad y estilo de decoración de cada vecino.
 fill('tabla-amistad', FRIEND_LEVELS.map((l) => `<td><b>${l.name}</b></td><td class="num">${l.min}</td><td>${l.unlock}</td>`));

@@ -75,6 +75,8 @@ export enum Block {
   Water = 102,
   WaterFlow1 = 103, WaterFlow2 = 104, WaterFlow3 = 105, WaterFlow4 = 106, WaterFlow5 = 107, WaterFlow6 = 108, WaterFlow7 = 109,
   WaterFall = 110,
+  // Ayuntamiento y obras públicas (v4.13): tablones de puente, barandilla, pilares y la esfera del reloj.
+  BridgeDeck = 111, BridgeRail = 112, BridgePillar = 113, ClockFace = 114,
 }
 
 export const TILE = 16;
@@ -87,6 +89,16 @@ export const ATLAS_TILES = 32;
 export const EXTRA_TILE_START = 256;
 /** Las casillas de peces e insectos empiezan aquí, una por criatura. */
 export const CREATURE_TILE_START = 128;
+/** Casillas nuevas desde la v4.13, a partir de EXTRA_TILE_START. */
+export const XTile = {
+  BridgeDeck: EXTRA_TILE_START,
+  BridgeRailIcon: EXTRA_TILE_START + 1,
+  BridgePillar: EXTRA_TILE_START + 2,
+  BridgePillarTop: EXTRA_TILE_START + 3,
+  ClockFace: EXTRA_TILE_START + 4,
+  DarkWood: EXTRA_TILE_START + 5,
+} as const;
+
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
 export const FURNITURE_TILE_START = 176;
 
@@ -134,10 +146,10 @@ export interface BlockDef {
   facing?: number;
 }
 
-const cube = (name: string, side: Tile, top = side, bottom = top, transparent = false): BlockDef => ({
+const cube = (name: string, side: number, top = side, bottom = top, transparent = false): BlockDef => ({
   name, tiles: [side, top, bottom], transparent, shape: 'cube',
 });
-const fence = (name: string, tile: Tile): BlockDef => ({
+const fence = (name: string, tile: number): BlockDef => ({
   name, tiles: [tile, tile, tile], transparent: true, shape: 'fence',
 });
 const gate = (name: string): BlockDef => ({
@@ -193,6 +205,10 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.Workbench]: cube('Mesa de trabajo', Tile.WorkbenchSide, Tile.WorkbenchTop, Tile.Planks),
   [Block.Fence]: fence('Valla de madera', Tile.Planks),
   [Block.WhiteFence]: fence('Valla blanca', Tile.WhiteWood),
+  [Block.BridgeDeck]: cube('Tablones de puente', XTile.BridgeDeck),
+  [Block.BridgeRail]: fence('Barandilla', XTile.DarkWood),
+  [Block.BridgePillar]: cube('Pilar de puente', XTile.BridgePillar, XTile.BridgePillarTop),
+  [Block.ClockFace]: cube('Reloj', XTile.ClockFace, Tile.Brick, Tile.Brick),
   [Block.Bamboo]: cross('Bambú', Tile.Bamboo),
   [Block.FlowerBlue]: cross('Nomeolvides azul', Tile.FlowerBlue),
   [Block.FlowerPink]: cross('Clavel rosa', Tile.FlowerPink),
@@ -1319,6 +1335,30 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   ];
   paintSprite(ctx, Tile.FenceIcon, FENCE, { a: [206, 166, 108], b: [150, 112, 66] });
   paintSprite(ctx, Tile.WhiteFenceIcon, FENCE, { a: [250, 250, 246], b: [204, 204, 196] });
+  // Obras públicas (v4.13): puentes de madera oscura sobre pilares de piedra, y la esfera del reloj.
+  const DARK_WOOD: RGB[] = [[122, 84, 52], [112, 76, 46], [132, 92, 58]];
+  paintTile(ctx, XTile.DarkWood, (_x, y, r) => (y % 4 === 3 ? [86, 58, 36] : pick(r, DARK_WOOD)));
+  paintTile(ctx, XTile.BridgeDeck, (x, y, r) => {
+    if (x % 8 === 7) return [80, 54, 34]; // juntas entre tablas
+    if ((x % 8 === 1 || x % 8 === 5) && (y === 2 || y === 13)) return [60, 60, 64]; // clavos
+    return pick(r, DARK_WOOD);
+  });
+  paintSprite(ctx, XTile.BridgeRailIcon, FENCE, { a: [132, 92, 58], b: [86, 58, 36] });
+  paintTile(ctx, XTile.BridgePillar, (x, y, r) => {
+    const row = Math.floor(y / 4);
+    const joint = y % 4 === 3 || (x + (row % 2) * 4) % 8 === 0;
+    return joint ? [98, 100, 106] : pick(r, STONE);
+  });
+  paintTile(ctx, XTile.BridgePillarTop, (x, y, r) => (x === 0 || y === 0 || x === 15 || y === 15 ? [98, 100, 106] : pick(r, STONE)));
+  paintTile(ctx, XTile.ClockFace, (x, y) => {
+    const d = Math.hypot(x - 7.5, y - 7.5);
+    if (d > 7.6) return [150, 78, 60];
+    if (d > 6.4) return [212, 176, 72]; // aro dorado
+    if ((x === 7 || x === 8) && y >= 3 && y <= 8) return [40, 40, 44]; // aguja larga
+    if (y >= 7 && y <= 8 && x >= 8 && x <= 11) return [40, 40, 44]; // aguja corta
+    const tick = [[7, 2], [8, 2], [13, 7], [13, 8], [7, 13], [8, 13], [2, 7], [2, 8]].some(([tx, ty]) => tx === x && ty === y);
+    return tick ? [90, 90, 96] : [248, 244, 228];
+  });
   paintSprite(ctx, Tile.Bottle, [
     '................',
     '................',
@@ -1365,6 +1405,8 @@ export function blockIconTile(b: Block): number {
   const def = BLOCKS[b];
   if (b === Block.Fence) return Tile.FenceIcon;
   if (b === Block.WhiteFence) return Tile.WhiteFenceIcon;
+  if (b === Block.BridgeRail) return XTile.BridgeRailIcon;
+  if (b === Block.ClockFace) return XTile.ClockFace;
   if (isDoor(b)) return Tile.DoorIcon;
   if (isGate(b)) return Tile.GateIcon;
   if (def.shape === 'slab' || def.shape === 'stairs' || b === Block.Chest || b === Block.Trunk) return def.tiles[0];

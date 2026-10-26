@@ -1,5 +1,6 @@
 import { BUSINESS, DECORATE_LEVEL, FRIEND_LEVELS, HOUSE_LEVELS, type DecorPiece, STYLE_NAMES, addDecor, decorLine, decorTaste, furnitureName, friendLevel, houseLevel, likesFurniture, moveDecor } from './decor';
 import { furnitureDef } from './furniture';
+import { FLAG_COLORS } from './townhall';
 import type { Inventory } from './inventory';
 import { itemDef } from './items';
 import type { Holiday } from './seasons';
@@ -292,6 +293,15 @@ const VISITOR_GREETINGS = [
   '¡{saludo}! Estoy de vacaciones en esta isla. ¡Qué casualidad encontrar a alguien aquí, {c}!',
   '¡Hola! Me encanta esta isla, aunque está un poco solitaria, {c}.',
 ];
+const MAYOR_GREETINGS = [
+  '¡Uhú! {saludo}. Soy Don Gregorio, el alcalde. ¿En qué puede ayudarte el ayuntamiento, {c}?',
+  '{saludo}. Los búhos no dormimos de noche, así que el ayuntamiento está siempre abierto, {c}.',
+  'Ejem, ejem. {saludo}. Tengo el tablón lleno de avisos y la cabeza llena de obras, {c}.',
+];
+const PLANNER_GREETINGS = [
+  '¡{saludo}! Soy Ladrillo, el urbanista. Si hay que construir algo, ¡aquí estoy, {c}!',
+  '¡Hola! Me paso el día dibujando planos. ¿Necesitas uno, {c}?',
+];
 const GOODBYE = ['¡Hasta luego, {c}!', '¡Nos vemos!', 'Venga, ¡que vaya bien, {c}!'];
 
 const CATEGORY: Record<string, 'fruta' | 'conchas' | 'flores' | 'madera'> = {
@@ -328,6 +338,27 @@ export interface DecorActions {
   changed(v: Villager): void;
   /** Pinta el tejado de su casa grande (índice de ROOFS). */
   roof(v: Villager, roof: number): void;
+}
+
+/** El ayuntamiento (v4.13): lo que hacen el alcalde y el urbanista. */
+export interface TownActions {
+  /** Nivel del ayuntamiento (1 a 4). */
+  level(): number;
+  rating(): { stars: number; tip: string };
+  /** Lo que pone hoy en el tablón de avisos. */
+  notices(): string[];
+  /** Obras que se pueden encargar ahora (las ya hechas no salen). */
+  works(): { id: string; name: string; cost: number; text: string }[];
+  order(id: string): 'ok' | 'money';
+  /** El siguiente nivel del ayuntamiento y lo que falta para pagarlo, o null si ya está al máximo. */
+  next(): { name: string; cost: number; missing: string[]; opens: string } | null;
+  upgrade(): 'ok' | 'money' | 'materials';
+  /** Nombres para la isla que propone el alcalde. */
+  names(): string[];
+  setName(name: string): void;
+  setFlag(color: number): void;
+  /** El urbanista vende un plano de casa. */
+  buyBlueprint(): 'ok' | 'money';
 }
 
 type Option = [string, () => void];
@@ -370,6 +401,8 @@ export interface DialogContext {
   learn?: (v: Villager, step: number) => void;
   /** Casas de vecinos decorables (v4.12). */
   decor?: DecorActions;
+  /** Ayuntamiento, alcalde y urbanista (v4.13). */
+  town?: TownActions;
 }
 
 export interface TravelActions {
@@ -431,6 +464,8 @@ export class Dialog {
     else if (v.visitor && first) this.say(pick(VISITOR_GREETINGS));
     else if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
     else if (v.isCurator) this.say(pick(MUSEUM_GREETINGS));
+    else if (v.isMayor) this.say(pick(MAYOR_GREETINGS));
+    else if (v.isPlanner) this.say(pick(PLANNER_GREETINGS));
     else if (first && this.houseNews(v)) return;
     else if (first && v.memory.friendship >= 3 && Math.random() < 0.4 && this.teach()) return;
     else this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
@@ -493,6 +528,16 @@ export class Dialog {
         this.finish(true);
         this.ctx.openCollection();
       });
+    } else if (v.isMayor && this.ctx.town) {
+      const t = this.ctx.town;
+      add('Valoración de la isla', () => this.rating());
+      add('Tablón de avisos', () => this.notices());
+      add('Obras públicas', () => this.worksMenu());
+      add('El ayuntamiento', () => this.hallMenu());
+      if (t.level() >= 3) add('Nombre y bandera', () => this.nameMenu());
+    } else if (v.isPlanner && this.ctx.town) {
+      add('Plano de casa', () => this.blueprint());
+      add('Parcelas y mudanzas', () => this.say('Estoy preparando los papeles de las parcelas, las ampliaciones y las mudanzas. ¡Muy pronto podrás mover tu casa donde quieras, {c}!', [['Volver', this.back]]));
     } else {
       add('Charlar', () => this.chat());
       add('Háblame de ti', () => this.aboutMe());
@@ -762,6 +807,89 @@ export class Dialog {
         this.decorPiece(p);
       }],
       ['Listo', () => this.say('¡Ha quedado genial! Tienes buen ojo, {c}.')],
+    ]);
+  }
+
+  // --- Ayuntamiento (v4.13) ---
+
+  private rating() {
+    const r = this.ctx.town!.rating();
+    const stars = '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars);
+    this.say(`Ejem… según mis cuentas, la isla tiene ${stars}. ${r.tip} ¡Sigue así, {c}!`, [['Volver', this.back]]);
+  }
+
+  private notices() {
+    const list = this.ctx.town!.notices();
+    this.say(list.length ? `En el tablón pone: ${list.join(' · ')}` : 'El tablón está vacío hoy. ¡Una isla tranquila, {c}!', [['Volver', this.back]]);
+  }
+
+  private worksMenu() {
+    const t = this.ctx.town!;
+    const works = t.works();
+    if (!works.length) {
+      this.say('Ahora mismo no hay obras que encargar. Cuando mejoremos el ayuntamiento habrá más, {c}.', [['Volver', this.back]]);
+      return;
+    }
+    this.say('Estas son las obras que podemos hacer. ¿Cuál encargamos, {c}?', [
+      ...works.map((w): Option => [`${w.name} (${formatBerries(w.cost)})`, () => this.say(`${w.text} Cuesta ${formatBerries(w.cost)} bayas. ¿La encargamos, {c}?`, [
+        ['¡Sí!', () => {
+          const r = t.order(w.id);
+          if (r === 'money') this.say('Uhú… no llevas bayas suficientes. ¡Ahorra un poquito y vuelve, {c}!', [['Volver', this.back]]);
+          else this.say('¡Hecho! Los castores de Ladrillo han trabajado rapidísimo. Ve a verla, {c}.');
+        }],
+        ['Ahora no', this.back],
+      ])]),
+      ['Volver', this.back],
+    ]);
+  }
+
+  private hallMenu() {
+    const t = this.ctx.town!;
+    const next = t.next();
+    if (!next) {
+      this.say('¡El ayuntamiento ya es el más bonito del archipiélago! Gracias por tu ayuda, {c}.', [['Volver', this.back]]);
+      return;
+    }
+    const missing = next.missing.length ? ` Te falta: ${next.missing.join(', ')}.` : '';
+    this.say(`Podemos convertir el ayuntamiento en ${next.name.toLowerCase()} por ${formatBerries(next.cost)} bayas. ${next.opens}${missing}`, [
+      ['¡Mejorarlo!', () => {
+        const r = t.upgrade();
+        if (r === 'ok') this.say(`¡Ya tenemos ${next.name.toLowerCase()}! Qué orgullo de isla, {c}.`);
+        else if (r === 'money') this.say('Uhú… no llevas bayas suficientes. ¡Vuelve cuando tengas más, {c}!', [['Volver', this.back]]);
+        else this.say(`Faltan materiales: ${t.next()?.missing.join(', ')}. ¡Tráelos en los bolsillos, {c}!`, [['Volver', this.back]]);
+      }],
+      ['Ahora no', this.back],
+    ]);
+  }
+
+  private nameMenu() {
+    const t = this.ctx.town!;
+    this.say('¿Qué quieres cambiar, {c}?', [
+      ['El nombre', () => this.say('¿Qué te parece alguno de estos nombres, {c}?', [
+        ...t.names().map((n): Option => [n, () => {
+          t.setName(n);
+          this.say(`¡${n}! Lo apunto en el registro y en todos los carteles, {c}.`);
+        }]),
+        ['Volver', this.back],
+      ])],
+      ['La bandera', () => this.say('¿De qué color la hacemos, {c}?', [
+        ...FLAG_COLORS.map(([name], i): Option => [name, () => {
+          t.setFlag(i);
+          this.say(`¡Bandera ${name.toLowerCase()} izada! Ondea preciosa junto al ayuntamiento, {c}.`);
+        }]),
+        ['Volver', this.back],
+      ])],
+      ['Volver', this.back],
+    ]);
+  }
+
+  private blueprint() {
+    this.say('Con un plano de casa marcas un solar y lo construyes, y así puede venir a vivir un vecino nuevo. Cuesta 1.000 bayas. ¿Te lo preparo, {c}?', [
+      ['¡Sí!', () => {
+        const r = this.ctx.town!.buyBlueprint();
+        this.say(r === 'ok' ? '¡Aquí tienes tu plano! Úsalo donde quieras construir la casa, {c}.' : 'No llevas bayas suficientes. ¡Vuelve cuando tengas, {c}!', [['Volver', this.back]]);
+      }],
+      ['Ahora no', this.back],
     ]);
   }
 

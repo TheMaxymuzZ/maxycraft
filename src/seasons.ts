@@ -27,6 +27,17 @@ const HOLIDAYS: { from: [number, number]; to: [number, number]; holiday: Holiday
   { from: [12, 31], to: [12, 31], holiday: { id: 'nochevieja', name: 'Nochevieja', greeting: '¡Hoy es el último día del año! ¿Qué deseo vas a pedir para el año nuevo, {c}?' } },
 ];
 
+/** La próxima fiesta en los próximos `days` días (sin contar la de hoy), para el tablón del ayuntamiento (v4.13). */
+export function upcomingHoliday(date: Date, days = 14): string | null {
+  const today = holidayOf(date);
+  for (let i = 1; i <= days; i++) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + i);
+    const h = holidayOf(d);
+    if (h && h.id !== today?.id) return `${h.name}, ${i === 1 ? 'mañana' : `dentro de ${i} días`}`;
+  }
+  return null;
+}
+
 export function holidayOf(date: Date): Holiday | null {
   const md = (date.getMonth() + 1) * 100 + date.getDate();
   for (const h of HOLIDAYS) {

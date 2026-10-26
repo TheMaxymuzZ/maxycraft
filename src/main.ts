@@ -44,7 +44,7 @@ import { type Action, keyLabel } from './keys';
 import { hasUnseenNews, markNewsSeen } from './changelog';
 import { type MissionEvent, Missions } from './missions';
 import { MissionsPanel } from './missionsPanel';
-import { countPlaced, rateIsland } from './rating';
+import { type Rating, countPlaced, rateIsland } from './rating';
 import { LEAF_BRANCH_CHANCE, SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
@@ -53,7 +53,7 @@ import { onStoreError } from './store';
 import { Shop, formatBerries } from './shop';
 import { Economy } from './economy';
 import { itemCard } from './itemCard';
-import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
+import { WEATHER_TEXT, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
 import { SunShadows } from './shadows';
@@ -82,6 +82,8 @@ import { startMesher } from './game/mesher';
 import { pathsFor } from './pathfind';
 import { Horizon } from './horizon';
 import { PerfPanel } from './game/perfPanel';
+import { Town } from './game/town';
+import { isTownSave } from './townhall';
 import { VitalsHud } from './vitalsHud';
 import { BIOME_NAMES, type Biome, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
 
@@ -534,6 +536,7 @@ function persist(urgent = false) {
     guests,
     lots,
     homes: friendHomes,
+    town: town.state ?? undefined,
     missions: missions.serialize(),
     clock: clock.serialize(),
     savedAt: 0,
@@ -839,7 +842,7 @@ document.querySelector('#workbench-close')!.addEventListener('click', closeWorkb
 // Voz de cada especie, más aguda o más grave.
 const VOICES: Record<string, number> = {
   gato: 760, oso: 260, conejo: 900, rana: 380, perro: 560, pato: 820, ardilla: 1050, tortuga: 220,
-  oveja: 680, cerdo: 420, 'pingüino': 940, koala: 330, zorro: 720, elefante: 180,
+  oveja: 680, cerdo: 420, 'pingüino': 940, koala: 330, zorro: 720, elefante: 180, 'búho': 300, castor: 480,
 };
 
 /** Despega la avioneta, funde la pantalla y recarga en la otra isla. */
@@ -863,6 +866,38 @@ function takeOff(text: string, next: () => void) {
     next();
     reloadTo();
   }, 2700);
+}
+
+// Ayuntamiento, alcalde y urbanista (v4.13). En las islas de antes también aparece, cerca de la plaza.
+const town = new Town({
+  world,
+  villagers,
+  scene,
+  put: (x, y, z, b) => sync.setBlock(x, y, z, b),
+  placeFurniture: (id, x, y, z, rot) => sync.placeFurniture(id, x, y, z, rot),
+  inventory,
+  wallet: () => wallet,
+  pay: (n) => setWallet(wallet - n),
+  memories: save?.villagers ?? {},
+  rating: () => islandRating(),
+  notices: () => townNotices(),
+  host: !joined && !trip,
+  changed: () => shop.restock(),
+  toast: (t) => hud.toast(t),
+  persist: () => persist(),
+  avoid: (x, z) => lots.some((l) => Math.hypot(l.x - x, l.z - z) < 9),
+}, [trip ? null : joined ? joined.snapshot.town : save?.town].find(isTownSave) ?? null);
+
+/** Lo que pone en el tablón de avisos del ayuntamiento, además de las obras. */
+function townNotices(): string[] {
+  const out: string[] = [];
+  const date = gameDate();
+  for (const v of villagers) if (!v.profile.role && v.isBirthday(date)) out.push(`¡Hoy es el cumpleaños de ${v.name}!`);
+  if (holiday) out.push(`Hoy es ${holiday.name}`);
+  const soon = upcomingHoliday(date);
+  if (soon) out.push(`Pronto: ${soon}`);
+  if (town.name) out.push(`Bienvenidos a ${town.name}`);
+  return out;
 }
 
 const dialog = new Dialog({
@@ -937,6 +972,7 @@ const dialog = new Dialog({
     return ok;
   },
   gifted: () => record('regalar'),
+  town: town.actions(),
   decor: {
     available: (v) => !trip && hasDecorableHome(v),
     slots: (v) => villagerHomes.slots(v).length,
@@ -975,7 +1011,7 @@ const dialog = new Dialog({
 });
 
 /** Valoración de la isla de casa (de viaje se mira lo guardado). */
-function islandRating() {
+function islandRating(): Rating {
   const saved = trip ? save : null;
   return rateIsland({
     ...countPlaced(saved ? saved.edits : world.exportEdits()),
@@ -984,6 +1020,7 @@ function islandRating() {
     guests: guests.length,
     donated: collection.donated.size,
     farm: saved ? Object.keys(saved.farm ?? {}).length + (saved.animals?.length ?? 0) : farm.crops.size + animals.list.length,
+    works: town.worksDone,
   });
 }
 
@@ -1051,6 +1088,9 @@ const shop = new Shop({
     return currentHour;
   },
   economy,
+  get planner() {
+    return town.level >= 2;
+  },
   getWallet: () => wallet,
   setWallet,
   toast: (t) => hud.toast(t),
@@ -1818,6 +1858,7 @@ function mapMarkers(): MapMarker[] {
   for (const v of villagers) if (!v.profile.role && !v.visitor) out.push({ x: v.home.x, z: v.home.z, icon: '🏠', label: v.name, kind: 'vecinos' });
   const me = myUid();
   for (const h of friendHomes) out.push({ x: h.x, z: h.z, icon: '⛺', label: h.uid === me ? 'Tu casa' : `Casa de ${h.name}`, kind: 'casas' });
+  out.push(...town.markers());
   if (airport) out.push({ x: airport.x, z: airport.z, icon: '✈️', label: 'Avioneta', kind: 'edificios' });
   for (const e of world.caveEntrances) out.push({ x: e.x, z: e.z, icon: '⛏️', label: 'Cueva', kind: 'cuevas' });
   for (const r of remotes.players.values()) {
@@ -2382,6 +2423,7 @@ function islandSnapshot(): Snapshot {
     visitor: trip?.visitor ?? null,
     spawn: [Math.floor(player.position.x), Math.floor(player.position.z)],
     homes: friendHomes,
+    town: trip ? undefined : town.state ?? undefined,
   };
 }
 
@@ -2845,6 +2887,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { mesher, villagerHomes, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { mesher, villagerHomes, town, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }
