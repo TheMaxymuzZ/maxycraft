@@ -1,8 +1,10 @@
 import * as THREE from 'three';
-import { Block, isBarrier, isSolid } from './blocks';
+import { Block } from './blocks';
 import { columnRandom } from './noise';
+import { type Cell, pathsFor, standable } from './pathfind';
+import { type Activity, type AgendaItem, type Errand, activityAt, agendaFor } from './schedule';
 import { type Species, buildVillagerModel } from './villagerModel';
-import { type MysteryKind, SEA_LEVEL, type Plot, type World } from './world';
+import { type MysteryKind, type Plot, type World } from './world';
 
 export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido' | 'deportista' | 'dulce';
 export type { Species };
@@ -112,11 +114,29 @@ export interface VillagerMemory {
 }
 
 const WALK_SPEED = 1.4;
+/** Lo lejos que pasea alrededor de su casa. */
+const WANDER_RADIUS = 10;
+/** Más lejos que esto del jugador, el vecino va en línea recta sin buscar camino: nadie le ve y así no hace falta
+ * tener cargada esa parte de la isla. */
+const FAR = 56;
+
+/** Estado de un vecino que manda el anfitrión a los invitados (v4.8). */
+export interface VillagerState {
+  n: string;
+  x: number;
+  y: number;
+  z: number;
+  /** Hacia dónde mira, en radianes. */
+  f: number;
+  /** Se ve (no está dentro de casa). */
+  v: boolean;
+  /** Va andando. */
+  w: boolean;
+}
 
 export class Villager {
   readonly group = new THREE.Group();
   readonly position = new THREE.Vector3();
-  private target: THREE.Vector3 | null = null;
   private wait = 0;
   private legs: THREE.Mesh[] = [];
   private arms: THREE.Mesh[] = [];
@@ -127,8 +147,27 @@ export class Villager {
   private facing = 0;
   /** Está hablando con el jugador: se para y le mira. */
   talking = false;
+  /** Está dentro de su casa (durmiendo o cenando): no se ve. */
   asleep = false;
   greeted = false;
+
+  // --- Caminos y agenda (v4.8) ---
+  /** Casillas por las que va pasando y por cuál va. */
+  private path: Cell[] | null = null;
+  private step = 0;
+  /** Altura de la casilla de la que viene, para subir y bajar escalones suavemente. */
+  private fromY = 0;
+  /** Adónde va y para qué. */
+  private goal: { cell: Cell; kind: 'casa' | 'recado' | 'pasear' } | null = null;
+  private cancelSearch: (() => void) | null = null;
+  /** Sitios a los que puede ir de recado (puerta de la tienda, del museo, la plaza). */
+  private places: Partial<Record<Errand, Cell>> = {};
+  private agenda: AgendaItem[] | null = null;
+  private agendaDay = -1;
+  /** Lo que está haciendo ahora según su agenda. */
+  activity: Activity = 'pasear';
+  /** En multijugador, en casa de un amigo: lo mueve el anfitrión y aquí solo se sigue (v4.8). */
+  remote: VillagerState | null = null;
 
   constructor(readonly profile: Profile, readonly home: Plot, private world: World, public memory: VillagerMemory) {
     this.buildModel();
@@ -187,23 +226,65 @@ export class Villager {
     return out.set(new THREE.Vector3(p.x - 0.4, p.y, p.z - 0.4), new THREE.Vector3(p.x + 0.4, p.y + 1.6, p.z + 0.4));
   }
 
+  /** Horas de dormir: las suyas o las de su personalidad. */
+  get sleepHours(): [number, number] {
+    return this.profile.sleep ?? SLEEP[this.profile.personality];
+  }
+
   isSleepTime(hour: number): boolean {
     if (this.visitor) return false; // de vacaciones no se va a dormir
-    const [from, to] = this.profile.sleep ?? SLEEP[this.profile.personality];
+    const [from, to] = this.sleepHours;
     return from > to ? hour >= from || hour < to : hour >= from && hour < to;
   }
 
-  update(dt: number, hour: number, player: THREE.Vector3) {
-    const sleepy = this.isSleepTime(hour);
-    const [dx, dy, dz] = this.home.door;
+  /** Dónde está la tienda, el museo y la plaza de la isla, para ir de recado. */
+  setPlaces(places: Partial<Record<Errand, Cell>>) {
+    this.places = places;
+    this.agenda = null;
+  }
 
-    if (this.asleep) {
-      if (sleepy) return;
-      // Sale de casa por la mañana.
-      this.asleep = false;
-      this.group.visible = true;
-      this.position.set(dx + 0.5, dy, dz + 0.5);
-      this.target = null;
+  /** La agenda de hoy (cambia el recado según el día de la semana). */
+  agendaFor(weekday: number): AgendaItem[] {
+    if (!this.agenda || this.agendaDay !== weekday) {
+      const places = (Object.keys(this.places) as Errand[]).filter((k) => this.places[k]);
+      this.agenda = agendaFor({ name: this.name, sleep: this.sleepHours, works: !!this.profile.role }, weekday, places.length ? places : ['plaza']);
+      this.agendaDay = weekday;
+    }
+    return this.agenda;
+  }
+
+  /** Va andando hasta esa casilla por el mejor camino (para pruebas y para quien quiera llamarle). */
+  goTo(cell: Cell, kind: 'casa' | 'recado' | 'pasear' = 'pasear') {
+    this.goal = { cell, kind };
+    this.dropPath();
+  }
+
+  /** Ha llegado (o no tiene adónde ir). */
+  get idle(): boolean {
+    return !this.goal && !this.path;
+  }
+
+  private dropPath() {
+    this.cancelSearch?.();
+    this.cancelSearch = null;
+    this.path = null;
+  }
+
+  /** Estado para mandar a los invitados (v4.8). */
+  state(): VillagerState {
+    const r = (n: number) => Math.round(n * 100) / 100;
+    return { n: this.name, x: r(this.position.x), y: r(this.position.y), z: r(this.position.z), f: r(this.facing), v: this.group.visible, w: !!this.path };
+  }
+
+  /** Está lejos del jugador (ver FAR). */
+  private far = false;
+
+  update(dt: number, hour: number, player: THREE.Vector3, weekday = 0) {
+    if (this.remote) return this.follow(dt, this.remote);
+    const far = Math.hypot(player.x - this.position.x, player.z - this.position.z) > FAR;
+    if (far !== this.far) {
+      this.far = far;
+      this.dropPath(); // el camino se vuelve a pedir (o se deja de buscar) según dónde esté
     }
 
     if (this.talking) {
@@ -213,78 +294,194 @@ export class Villager {
       return;
     }
 
-    if (sleepy && !this.target) this.target = new THREE.Vector3(dx + 0.5, dy, dz + 0.5);
+    if (this.profile.stationary) return this.stand(dt, hour);
 
-    if (!this.target) {
-      this.wait -= dt;
-      if (this.profile.stationary) this.faceTowards(this.position.x, this.position.z + 1, dt * 4);
-      else if (this.wait <= 0) this.pickTarget();
-      this.animate(dt, false);
-    } else {
-      const to = this.target;
-      const ddx = to.x - this.position.x;
-      const ddz = to.z - this.position.z;
-      const dist = Math.hypot(ddx, ddz);
-      if (dist < 0.15) {
-        this.target = null;
-        this.wait = 2 + Math.random() * 5;
-        if (sleepy) {
-          // Ha llegado a la puerta: entra a dormir.
-          this.asleep = true;
-          this.group.visible = false;
-        }
-      } else {
-        const step = Math.min(dist, WALK_SPEED * dt);
-        const nx = this.position.x + (ddx / dist) * step;
-        const nz = this.position.z + (ddz / dist) * step;
-        const ground = this.groundAt(nx, nz, this.position.y);
-        if (ground === null || Math.abs(ground - this.position.y) > 1.01) {
-          this.target = null; // camino cortado: busca otro sitio
-          this.wait = 0.5;
-          // Si de noche no puede llegar a su puerta (por una valla, por ejemplo), entra igualmente.
-          if (sleepy) {
-            this.asleep = true;
-            this.group.visible = false;
-          }
-        } else {
-          this.position.set(nx, ground, nz);
-          this.faceTowards(to.x, to.z, dt * 6);
-        }
-        this.animate(dt, true);
-      }
+    const item = this.visitor ? { from: 0, activity: 'pasear' as Activity } : activityAt(this.agendaFor(weekday), hour);
+    this.activity = item.activity;
+    const door: Cell = [...this.home.door];
+    const atHome = item.activity === 'dormir' || item.activity === 'casa';
+
+    if (this.asleep) {
+      if (atHome) return;
+      // Sale de casa.
+      this.asleep = false;
+      this.group.visible = true;
+      this.position.set(door[0] + 0.5, door[1], door[2] + 0.5);
+      this.dropPath();
+      this.goal = null;
     }
+
+    // Qué quiere hacer ahora: si ha cambiado de actividad, cambia de destino.
+    if (atHome && this.goal?.kind !== 'casa') this.goTo(door, 'casa');
+    else if (item.activity === 'recado' && this.goal?.kind !== 'recado' && !this.lingering) {
+      const place = item.errand && this.places[item.errand];
+      if (place) this.goTo(place, 'recado');
+    }
+
+    if (!this.goal && !this.path) {
+      this.wait -= dt;
+      if (this.wait <= 0) this.wander(item.activity === 'recado');
+      this.animate(dt, false);
+    } else this.walk(dt);
     this.group.position.copy(this.position);
   }
 
-  private pickTarget() {
+  /** Ya ha llegado al sitio del recado y da vueltas por allí. */
+  private lingering = false;
+
+  /** La dependienta, la conservadora y el piloto: en su puerta, mirando al frente; de noche, dentro. */
+  private stand(dt: number, hour: number) {
+    const sleepy = this.isSleepTime(hour);
+    this.asleep = sleepy;
+    this.group.visible = !sleepy;
+    this.activity = sleepy ? 'dormir' : 'trabajo';
+    if (!sleepy) {
+      const [dx, dy, dz] = this.home.door;
+      this.position.set(dx + 0.5, dy, dz + 0.5);
+      this.faceTowards(this.position.x, this.position.z + 1, dt * 4);
+      this.animate(dt, false);
+      this.group.position.copy(this.position);
+    }
+  }
+
+  /** Elige un sitio cerca para dar un paseo (o, si está de recado, cerca del sitio del recado). */
+  private wander(nearErrand: boolean) {
+    const around = nearErrand && this.lastErrand ? this.lastErrand : null;
+    const cx = around ? around[0] : this.home.x;
+    const cz = around ? around[2] : this.home.z + 4;
+    const radius = around ? 3 : WANDER_RADIUS;
     for (let i = 0; i < 8; i++) {
       const a = Math.random() * Math.PI * 2;
-      const d = 2 + Math.random() * 10;
-      const x = this.home.x + Math.cos(a) * d;
-      const z = this.home.z + 4 + Math.sin(a) * d;
-      const g = this.groundAt(x, z, this.position.y);
-      if (g !== null) {
-        this.target = new THREE.Vector3(x, g, z);
+      const d = 2 + Math.random() * radius;
+      const x = Math.floor(cx + Math.cos(a) * d);
+      const z = Math.floor(cz + Math.sin(a) * d);
+      const y = this.groundNear(x, Math.floor(this.position.y), z);
+      if (y !== null) {
+        this.goTo([x, y, z], 'pasear');
         return;
       }
     }
     this.wait = 1;
   }
 
-  /** Altura donde se pisa en (x, z), o null si es agua, un hueco o un muro. */
-  private groundAt(x: number, z: number, fromY: number): number | null {
-    const bx = Math.floor(x);
-    const bz = Math.floor(z);
-    for (let y = Math.floor(fromY) + 1; y >= Math.floor(fromY) - 2; y--) {
-      if (!isSolid(this.world.getBlock(bx, y, bz))) continue;
-      if (y < SEA_LEVEL + 1 || this.world.waterKind(bx, bz)) return null; // no se meten en el agua
-      if (isSolid(this.world.getBlock(bx, y + 1, bz)) || isSolid(this.world.getBlock(bx, y + 2, bz))) return null;
-      const top = this.world.getBlock(bx, y, bz);
-      // No se suben a los árboles ni saltan vallas o puertas cerradas.
-      if (top === Block.Leaves || top === Block.PalmLeaves || top === Block.PineLeaves || isBarrier(top)) return null;
-      return y + 1;
+  private lastErrand: Cell | null = null;
+
+  private groundNear(x: number, y: number, z: number): number | null {
+    if (this.far) return this.world.heightAt(x, z) + 1;
+    for (const dy of [0, 1, -1, 2, -2, 3, -3]) if (standable(this.world, x, y + dy, z)) return y + dy;
+    return null;
+  }
+
+  /** Una casilla donde se pueda estar de pie, al lado de `cell` si esa no vale. */
+  private snap(cell: Cell): Cell | null {
+    for (let r = 0; r <= 2; r++) {
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          const y = this.groundNear(cell[0] + dx, cell[1], cell[2] + dz);
+          if (y !== null) return [cell[0] + dx, y, cell[2] + dz];
+        }
+      }
     }
     return null;
+  }
+
+  /** Anda por el camino; si aún no lo tiene, lo pide. */
+  private walk(dt: number) {
+    if (!this.path && this.far && this.goal) {
+      // Lejos del jugador: en línea recta (nadie lo ve y no hace falta cargar esa parte de la isla).
+      const [x, , z] = this.goal.cell;
+      this.path = [[x, this.world.heightAt(x, z) + 1, z]];
+      this.step = 0;
+      this.fromY = this.position.y;
+    }
+    if (!this.path) {
+      if (!this.cancelSearch && this.goal) {
+        const from: Cell = [Math.floor(this.position.x), Math.round(this.position.y), Math.floor(this.position.z)];
+        const goal = this.goal;
+        const to = this.snap(goal.cell);
+        if (!to) return this.arrive(false);
+        this.cancelSearch = pathsFor(this.world).request(from, to, (path) => {
+          this.cancelSearch = null;
+          if (this.goal !== goal) return;
+          if (path) {
+            this.path = path;
+            this.step = 0;
+            this.fromY = this.position.y;
+          } else this.arrive(false);
+        });
+      }
+      this.animate(dt, false);
+      return;
+    }
+    const cell = this.path[this.step];
+    const tx = cell[0] + 0.5;
+    const tz = cell[2] + 0.5;
+    const ddx = tx - this.position.x;
+    const ddz = tz - this.position.z;
+    const dist = Math.hypot(ddx, ddz);
+    if (dist < 0.08) {
+      this.position.set(tx, cell[1], tz);
+      this.fromY = cell[1];
+      this.step++;
+      if (this.step >= this.path.length) {
+        this.path = null;
+        this.arrive(true);
+      } else if (!this.far && !standable(this.world, ...this.path[this.step])) {
+        // Alguien ha puesto algo en medio: busca otro camino.
+        this.path = null;
+      }
+      this.animate(dt, true);
+      return;
+    }
+    const stepLen = Math.min(dist, WALK_SPEED * dt);
+    const nx = this.position.x + (ddx / dist) * stepLen;
+    const nz = this.position.z + (ddz / dist) * stepLen;
+    // Sube o baja el escalón a mitad de camino entre casilla y casilla.
+    const t = 1 - Math.min(1, (dist - stepLen) / 1);
+    const y = this.fromY + (cell[1] - this.fromY) * Math.min(1, t * 1.6);
+    this.position.set(nx, y, nz);
+    this.faceTowards(tx, tz, dt * 6);
+    this.animate(dt, true);
+  }
+
+  /** Ha llegado al destino (o no hay camino). */
+  private arrive(reached: boolean) {
+    const goal = this.goal;
+    this.goal = null;
+    this.wait = 2 + Math.random() * 5;
+    if (!goal) return;
+    if (goal.kind === 'casa') {
+      // En la puerta (o, si no puede llegar por una valla, igualmente): entra en casa.
+      this.asleep = true;
+      this.group.visible = false;
+      const [dx, dy, dz] = this.home.door;
+      this.position.set(dx + 0.5, dy, dz + 0.5);
+    } else if (goal.kind === 'recado') {
+      this.lingering = true;
+      this.lastErrand = reached ? goal.cell : null;
+    } else if (this.activity !== 'recado') this.lingering = false;
+    if (!reached && goal.kind !== 'casa') this.wait = 1;
+  }
+
+  /** En casa de un amigo: va hacia donde dice el anfitrión. */
+  private follow(dt: number, s: VillagerState) {
+    this.group.visible = s.v;
+    this.asleep = !s.v;
+    const ddx = s.x - this.position.x;
+    const ddz = s.z - this.position.z;
+    const far = Math.hypot(ddx, ddz) > 4 || Math.abs(s.y - this.position.y) > 3;
+    if (far || !s.v) this.position.set(s.x, s.y, s.z);
+    else {
+      const k = Math.min(1, dt * 8);
+      this.position.set(this.position.x + ddx * k, this.position.y + (s.y - this.position.y) * k, this.position.z + ddz * k);
+    }
+    let diff = s.f - this.facing;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    this.facing += diff * Math.min(1, dt * 8);
+    this.group.rotation.y = this.facing;
+    this.animate(dt, s.w);
+    this.group.position.copy(this.position);
   }
 
   private faceTowards(x: number, z: number, t: number) {
@@ -383,5 +580,19 @@ export function createVillagers(world: World, memories: Record<string, VillagerM
     const plot = (g.lot ? built : world.plots).find((p) => p.guest && p.x === g.x && p.z === g.z);
     return profile && plot ? [new Villager(profile, plot, world, memories[profile.name] ?? { friendship: 0 })] : [];
   });
-  return [...keeper, ...curator, ...locals, ...newcomers];
+  const all = [...keeper, ...curator, ...locals, ...newcomers];
+  const places = errandPlaces(world);
+  for (const v of all) v.setPlaces(places);
+  return all;
+}
+
+/** Los sitios de la isla a los que los vecinos van de recado (v4.8): delante de la tienda y del museo, y la plaza. */
+export function errandPlaces(world: World): Partial<Record<Errand, Cell>> {
+  const out: Partial<Record<Errand, Cell>> = {};
+  const front = (p: Plot | undefined): Cell | undefined => (p ? [p.door[0], p.door[1], p.door[2] + 2] : undefined);
+  out.tienda = front(world.plots.find((p) => p.kind === 'shop'));
+  out.museo = front(world.plots.find((p) => p.kind === 'museum'));
+  const [px, pz] = world.findSpawn(0, 0);
+  out.plaza = [px, world.heightAt(px, pz) + 1, pz];
+  return out;
 }

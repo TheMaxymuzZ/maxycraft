@@ -78,7 +78,7 @@ describe('v4.5: registro de bloques', () => {
   });
 
   it('el protocolo sube para no mezclar versiones', () => {
-    expect(PROTOCOL).toBe(4);
+    expect(PROTOCOL).toBeGreaterThanOrEqual(4);
   });
 });
 

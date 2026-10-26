@@ -75,6 +75,7 @@ import { FaintScreen } from './game/faintScreen';
 import { MapScreen } from './game/mapScreen';
 import { SleepScreen } from './game/sleepScreen';
 import { startMesher } from './game/mesher';
+import { pathsFor } from './pathfind';
 import { Horizon } from './horizon';
 import { PerfPanel } from './game/perfPanel';
 import { VitalsHud } from './vitalsHud';
@@ -378,6 +379,8 @@ if (!save && !joined && !trip) {
   }
 }
 
+/** Caminos de los vecinos (v4.8): se buscan a trozos, un poco en cada fotograma. */
+const paths = pathsFor(world);
 const villagers = createVillagers(world, save?.villagers ?? {}, guests, trip ? [] : lots.map(lotPlot));
 // El piloto espera en la playa junto a la avioneta; en las islas misteriosas hay alguien de vacaciones.
 let pilot: Villager | null = null;
@@ -2189,6 +2192,13 @@ Object.assign(netEvents, {
     else friendHomes.push(h);
     if (h.uid === myUid()) hud.toast('Tienes casa en esta isla: la tienda de campaña con tu nombre en el cartel. Ahí duermes y despiertas');
   },
+  villagers: (states) => {
+    // En casa de un amigo, sus vecinos van donde dice él (v4.8).
+    for (const st of states) {
+      const v = villagers.find((o) => o.name === st.n);
+      if (v) v.remote = st;
+    }
+  },
   time: (c, slept) => {
     const before = clock.day;
     // Pequeñas diferencias no se corrigen, para que el reloj no dé saltitos.
@@ -2310,6 +2320,8 @@ function updateNet(now: number) {
 window.setInterval(() => updateNet(performance.now()), 1000);
 // El anfitrión cuenta la hora cada poco, para que todos tengan el mismo reloj (v4.2).
 window.setInterval(() => net?.sendTime(clock.serialize(), false), 10_000);
+// El anfitrión cuenta dónde están los vecinos cuatro veces por segundo (v4.8).
+window.setInterval(() => net?.sendVillagers(villagers.map((v) => v.state())), 250);
 /** Código de la isla abierta a amigos. */
 let netCode: string | null = null;
 let netBusy = false;
@@ -2618,7 +2630,8 @@ function frame(now: number) {
   water.update(now / 1000, settings.quality !== 'baja', (1 - sky.night) * (1 - weather.gloom));
   wind.update(now / 1000, 1 + weather.gloom * 1.5);
   birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), birdWorld, livingBeings());
-  for (const v of villagers) v.update(dt, hour, player.position);
+  paths.update();
+  for (const v of villagers) v.update(dt, hour, player.position, date.getDay());
   plane.update(dt, now / 1000);
   animals.update(dt, player.position);
   // Cada segundo el huerto crece si ha cambiado el día, y la lluvia lo riega.

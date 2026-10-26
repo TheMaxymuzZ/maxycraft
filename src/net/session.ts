@@ -3,6 +3,7 @@ import { type Gesture, type GiftItem, MAX_CHAT, MAX_PLAYERS, type Message, PROTO
 import type { Transport } from './transport';
 import type { ClockSave } from '../clock';
 import type { PlayerHome } from '../homes';
+import type { VillagerState } from '../villagers';
 
 /** Veces por segundo que cada jugador cuenta dónde está. */
 export const POSE_RATE = 10;
@@ -29,6 +30,8 @@ export interface SessionEvents {
   home?(home: PlayerHome): void;
   /** Llega el reloj del anfitrión; `slept` si se acaba de dormir todo el mundo. */
   time?(clock: ClockSave, slept: boolean): void;
+  /** Dónde están los vecinos del anfitrión (v4.8). */
+  villagers?(states: VillagerState[]): void;
 }
 
 interface Peer extends PeerInfo {
@@ -166,6 +169,11 @@ export class NetSession {
   /** El anfitrión cuenta a todos qué hora es en la isla. */
   sendTime(clock: ClockSave, slept: boolean) {
     if (this.role === 'anfitrion') this.transport.send({ t: 'hora', clock, slept });
+  }
+
+  /** El anfitrión cuenta a todos dónde están sus vecinos. */
+  sendVillagers(states: VillagerState[]) {
+    if (this.role === 'anfitrion' && this.peers.size) this.transport.send({ t: 'vecinos', s: states });
   }
 
   get hostPeer(): PeerInfo | null {
@@ -317,6 +325,9 @@ export class NetSession {
         return;
       case 'casa':
         this.events.home?.(msg.home);
+        return;
+      case 'vecinos':
+        this.events.villagers?.(msg.s);
         return;
       case 'viaje':
         // Mientras dure el viaje no se da por ido al anfitrión: volverá a abrir la isla con el mismo código.
