@@ -444,6 +444,37 @@ export class World {
     return by + waterHeight(this.getBlock(bx, by, bz));
   }
 
+  /** Medio lado de la isla en bloques, para saber cuánto ocupa el mapa (v4.4). */
+  get islandRadius(): number {
+    return this.radius;
+  }
+
+  /**
+   * Lo que se ve desde el cielo en la columna (x, z), para el mapa (v4.4): el bloque de arriba (sin contar
+   * flores ni hierba), su altura y, si es agua, lo honda que es. Donde aún no hay isla cargada se calcula
+   * con el terreno de siempre, sin crear el trozo.
+   */
+  mapColumn(x: number, z: number): { block: number; y: number; depth: number } {
+    const c = this.chunks.get(key(Math.floor(x / CHUNK), Math.floor(z / CHUNK)));
+    if (!c) {
+      const h = this.naturalHeight(x, z);
+      const level = this.waterLevel(x, z);
+      if (h < level) return { block: Block.Water, y: level, depth: level - h };
+      return { block: this.surfaceAt(x, z, h).top, y: h, depth: 0 };
+    }
+    const lx = x - c.cx * CHUNK;
+    const lz = z - c.cz * CHUNK;
+    for (let y = HEIGHT - 1; y > 0; y--) {
+      const b = c.data[index(lx, y, lz)];
+      if (b === Block.Air || isCross(b)) continue;
+      if (!isWater(b)) return { block: b, y, depth: 0 };
+      let floor = y;
+      while (floor > 0 && isWater(c.data[index(lx, floor, lz)])) floor--;
+      return { block: b, y, depth: y - floor };
+    }
+    return { block: Block.Air, y: 0, depth: 0 };
+  }
+
   /** Si ya existe el trozo de isla de la columna (x, z): el agua no corre hacia los que aún no se han creado. */
   hasColumn(x: number, z: number): boolean {
     return this.chunks.has(key(Math.floor(x / CHUNK), Math.floor(z / CHUNK)));

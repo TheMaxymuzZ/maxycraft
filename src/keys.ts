@@ -2,7 +2,7 @@
 
 export type Action =
   | 'forward' | 'back' | 'left' | 'right' | 'jump' | 'sprint'
-  | 'inventory' | 'offhand' | 'collection' | 'missions' | 'rotate' | 'sound' | 'help' | 'debug' | 'chat' | 'gesture';
+  | 'inventory' | 'offhand' | 'collection' | 'missions' | 'rotate' | 'sound' | 'help' | 'debug' | 'chat' | 'gesture' | 'map';
 
 export type KeyMap = Record<Action, string>;
 
@@ -18,11 +18,12 @@ export const ACTIONS: { id: Action; name: string; key: string }[] = [
   { id: 'collection', name: 'Enciclopedia', key: 'KeyC' },
   { id: 'missions', name: 'Tareas', key: 'KeyT' },
   { id: 'rotate', name: 'Girar un mueble', key: 'KeyR' },
-  { id: 'sound', name: 'Sonido sí o no', key: 'KeyM' },
+  { id: 'sound', name: 'Sonido sí o no', key: 'KeyN' },
   { id: 'help', name: 'Plegar los primeros pasos', key: 'KeyH' },
   { id: 'debug', name: 'Datos de depuración', key: 'KeyF' },
   { id: 'chat', name: 'Chat con amigos', key: 'Enter' },
   { id: 'gesture', name: 'Gestos', key: 'KeyG' },
+  { id: 'map', name: 'Mapa de la isla', key: 'KeyM' },
 ];
 
 /** Teclas que no se pueden usar: la pausa y elegir casilla. */
@@ -40,6 +41,8 @@ export function canBind(code: string): boolean {
 export function normalizeKeys(raw: unknown): KeyMap {
   const out = defaultKeys();
   if (!raw || typeof raw !== 'object') return out;
+  // Antes de la v4.4 el sonido iba con la M; ahora la M es el mapa y el sonido pasa a la N.
+  if (!('map' in raw) && (raw as Record<string, unknown>).sound === 'KeyM') raw = { ...raw, sound: 'KeyN' };
   const used = new Set<string>();
   for (const a of ACTIONS) {
     const k = (raw as Record<string, unknown>)[a.id];

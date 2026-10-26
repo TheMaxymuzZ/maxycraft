@@ -183,6 +183,8 @@ for (const k of TREE_KINDS) {
 
 // Billete para volar a una isla misteriosa (v1.9).
 add({ id: 'billete', name: 'Billete de avioneta', tile: Tile.Ticket, maxStack: 10, sell: 150, buy: 1500, always: true });
+// Mapa de la isla (v4.4): llevándolo en los bolsillos se ve el minimapa y el mapa grande con la tecla M.
+add({ id: 'mapa', name: 'Mapa de la isla', tile: Tile.Map, maxStack: 1, sell: 250, buy: 2500, always: true });
 // Con un plano se marca un solar y se construye la casa de un vecino nuevo (v2.10).
 add({ id: 'plano_casa', name: 'Plano de casa', tile: Tile.Blueprint, maxStack: 5, sell: 100, buy: 1000, always: true });
 

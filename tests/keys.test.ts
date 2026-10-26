@@ -30,6 +30,15 @@ describe('teclas', () => {
     expect(new Set(Object.values(k)).size).toBe(ACTIONS.length);
   });
 
+  it('las teclas guardadas antes del mapa (v4.4) se conservan, y la M pasa a ser el mapa', () => {
+    const old = { ...defaultKeys(), forward: 'KeyZ', sound: 'KeyM' } as Record<string, string>;
+    delete old.map;
+    const k = normalizeKeys(old);
+    expect(k.forward).toBe('KeyZ');
+    expect(k.map).toBe('KeyM');
+    expect(k.sound).toBe('KeyN');
+  });
+
   it('enseña nombres cortos y en español', () => {
     expect(keyLabel('KeyW')).toBe('W');
     expect(keyLabel('Space')).toBe('Espacio');
