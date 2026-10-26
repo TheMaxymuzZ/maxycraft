@@ -6,7 +6,7 @@ import { CALENDAR, SEASON_DAYS } from '../clock';
 import { CREATURES, type Creature, HABITAT_TEXT, hoursText, monthsText } from '../creatures';
 import { FURNITURE, paintFurnitureIcons } from '../furniture';
 import { itemIcon } from '../icons';
-import { DIY_RECIPES, ITEMS, RECIPES, type Recipe, STARTER_DIY, breakInfo, itemDef, toolNameFor } from '../items';
+import { DIY_RECIPES, ITEMS, ITEM_KINDS, RARITIES, RECIPES, type Recipe, STARTER_DIY, breakInfo, itemDef, toolNameFor } from '../items';
 import { ACHIEVEMENTS, PRIZES, TASKS } from '../missions';
 import { Portraits } from '../portraits';
 import { formatBerries } from '../shop';
@@ -146,12 +146,12 @@ fill('tabla-logros', ACHIEVEMENTS.map((a) => `<td><b>${esc(a.name)}</b></td><td>
 // --- Todos los objetos ---
 const objectRows = [...ITEMS]
   .sort((a, b) => a.name.localeCompare(b.name, 'es'))
-  .map((d) => ({ text: normalize(d.name), html: `<td>${item(d.id)}</td><td class="num">${formatBerries(d.sell)}</td><td class="num">${d.buy !== undefined ? formatBerries(d.buy) : '—'}</td>` }));
+  .map((d) => ({ text: normalize(`${d.name} ${ITEM_KINDS[d.kind]} ${RARITIES[d.rarity]}`), html: `<td>${item(d.id)}</td><td>${ITEM_KINDS[d.kind]}</td><td><span class="rareza ${d.rarity}">${RARITIES[d.rarity]}</span></td><td class="num">${formatBerries(d.sell)}</td><td class="num">${d.buy !== undefined ? formatBerries(d.buy) : '—'}</td>` }));
 const objectsBody = document.getElementById('tabla-objetos')!;
 function showObjects(filter: string) {
   const f = normalize(filter.trim());
   const rows = objectRows.filter((r) => !f || r.text.includes(f));
-  objectsBody.innerHTML = rows.length ? rows.map((r) => `<tr>${r.html}</tr>`).join('') : '<tr><td colspan="3" class="muted">No hay ningún objeto con ese nombre.</td></tr>';
+  objectsBody.innerHTML = rows.length ? rows.map((r) => `<tr>${r.html}</tr>`).join('') : '<tr><td colspan="5" class="muted">No hay ningún objeto con ese nombre.</td></tr>';
 }
 showObjects('');
 document.querySelector<HTMLInputElement>('#buscar-objeto')!.addEventListener('input', (e) => showObjects((e.target as HTMLInputElement).value));

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { type SaveData, activeSlot, backupName, checkSave, deleteGame, exportSave, importSave, loadGame, saveGame, setActiveSlot, slotKey } from '../src/save';
 
 const sample: SaveData = {
-  version: 1,
+  version: 2,
   seed: 1234,
   edits: { '0,0': { 5: 3 } },
   player: { x: 1, y: 20, z: 3, yaw: 0.5, pitch: 0 },

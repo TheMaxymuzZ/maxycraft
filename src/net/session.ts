@@ -224,7 +224,7 @@ export class NetSession {
         // Quien ya está dentro puede seguir llamando un momento: no hace falta mandarle la isla otra vez.
         if (msg.peer.id !== from || this.peers.has(from)) return;
         if (msg.v !== PROTOCOL) {
-          this.transport.send({ t: 'rechazo', reason: 'El anfitrión tiene otra versión del juego' }, from);
+          this.transport.send({ t: 'rechazo', reason: 'Tu amigo tiene otra versión de Maxycraft. Recargad los dos la página para jugar con la misma' }, from);
           return;
         }
         if (this.peers.size + 1 >= MAX_PLAYERS) {

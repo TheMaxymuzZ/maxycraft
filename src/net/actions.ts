@@ -1,4 +1,4 @@
-import type { Block } from '../blocks';
+import { type Block, isKnownBlock } from '../blocks';
 
 /**
  * Un cambio del mundo. Todo lo que pone, quita o restaura bloques pasa por aquí,
@@ -43,7 +43,8 @@ export const MAX_SIGN = 40;
 
 const MAX_COORD = 4096;
 const MAX_Y = 256;
-const MAX_BLOCK = 1024;
+/** Desde la v4.5 los bloques van en 16 bits. */
+const MAX_BLOCK = 0xffff;
 
 const isInt = (v: unknown, max: number): v is number => Number.isInteger(v) && Math.abs(v as number) <= max;
 
@@ -52,7 +53,7 @@ export function isWorldAction(v: unknown): v is WorldAction {
   if (!v || typeof v !== 'object') return false;
   const a = v as Record<string, unknown>;
   if (!isInt(a.x, MAX_COORD) || !isInt(a.z, MAX_COORD) || !isInt(a.y, MAX_Y)) return false;
-  if (a.t === 'bloque') return isInt(a.b, MAX_BLOCK) && (a.b as number) >= 0;
+  if (a.t === 'bloque') return isInt(a.b, MAX_BLOCK) && (a.b as number) >= 0 && isKnownBlock(a.b as number);
   if (a.t === 'mueble') {
     return typeof a.id === 'string' && a.id.length > 0 && a.id.length <= 40 && isInt(a.rot, 3) && (a.rot as number) >= 0
       && (a.text === undefined || (typeof a.text === 'string' && a.text.length <= MAX_SIGN));

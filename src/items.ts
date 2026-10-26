@@ -2,6 +2,7 @@ import { BLOCKS, Block, CREATURE_TILE_START, STAIRS, Tile, blockIconTile } from 
 import { CREATURES } from './creatures';
 import { FURNITURE, FURNITURE_TILE } from './furniture';
 import { TREE_KINDS } from './orchard';
+import { FOOD } from './vitals';
 
 export type ToolKind = 'axe' | 'shovel' | 'pickaxe' | 'rod' | 'net' | 'can' | 'bucket';
 
@@ -16,9 +17,37 @@ export const TOOL_USE: Record<ToolKind, string> = {
   bucket: 'Coge agua quieta y échala donde quieras',
 };
 
+/** Qué es un objeto (v4.5): sale como etiqueta en su ficha. */
+export type ItemKind = 'bloque' | 'recurso' | 'consumible' | 'mueble' | 'herramienta' | 'arma' | 'ropa' | 'criatura' | 'tesoro' | 'especial';
+export const ITEM_KINDS: Record<ItemKind, string> = {
+  bloque: 'Bloque',
+  recurso: 'Recurso',
+  consumible: 'Consumible',
+  mueble: 'Mueble',
+  herramienta: 'Herramienta',
+  arma: 'Arma',
+  ropa: 'Ropa',
+  criatura: 'Criatura',
+  tesoro: 'Tesoro',
+  especial: 'Especial',
+};
+
+/** Lo difícil que es de conseguir (v4.5). */
+export type Rarity = 'comun' | 'raro' | 'epico' | 'legendario';
+export const RARITIES: Record<Rarity, string> = { comun: 'Común', raro: 'Raro', epico: 'Épico', legendario: 'Legendario' };
+export const RARITY_ORDER: Rarity[] = ['comun', 'raro', 'epico', 'legendario'];
+
 export interface ItemDef {
   id: string;
   name: string;
+  /** Qué es (v4.5). Si no se dice, se deduce: herramienta, mueble, bloque, criatura, comida o recurso. */
+  kind: ItemKind;
+  /** Lo raro que es (v4.5). Si no se dice, se deduce de lo que paga la tienda. */
+  rarity: Rarity;
+  /** Una frase de curiosidad para su ficha. */
+  lore?: string;
+  /** Daño por golpe (armas). */
+  damage?: number;
   /** Casilla del atlas para el icono. */
   tile: number;
   maxStack: number;
@@ -52,7 +81,38 @@ const defs: ItemDef[] = [];
 const byId = new Map<string, ItemDef>();
 const byBlock = new Map<Block, ItemDef>();
 
-function add(def: ItemDef) {
+type NewItem = Omit<ItemDef, 'kind' | 'rarity'> & Partial<Pick<ItemDef, 'kind' | 'rarity'>>;
+
+const CREATURE_IDS = new Set(CREATURES.map((c) => c.id));
+/** Objetos que no son ni bloque ni herramienta ni comida: billetes, mapas, planos, animales... */
+const SPECIAL = new Set(['billete', 'mapa', 'plano_casa', 'botella', 'gallina', 'vaca']);
+/** Lo que se encuentra por la playa o dentro de la tierra y se colecciona. */
+const TREASURE = new Set(['concha', 'caracola', 'estrella', 'amatista', 'pepita_oro']);
+/** Bloques que solo salen en las islas misteriosas. */
+const RARE_BLOCKS = new Set<Block>([Block.Magma, Block.CrystalCluster, Block.SmallMushroom, Block.Amethyst]);
+
+function kindOf(d: NewItem): ItemKind {
+  if (d.tool) return 'herramienta';
+  if (d.furniture) return 'mueble';
+  if (SPECIAL.has(d.id)) return 'especial';
+  if (TREASURE.has(d.id)) return 'tesoro';
+  if (CREATURE_IDS.has(d.id)) return 'criatura';
+  if (d.id in FOOD) return 'consumible';
+  if (d.block !== undefined) return 'bloque';
+  return 'recurso';
+}
+
+/** Rareza por precio: lo que la tienda paga caro es lo difícil de conseguir. Lo que se vende siempre es común. */
+function rarityOf(d: NewItem): Rarity {
+  if (d.always) return 'comun';
+  if (d.sell >= 3000) return 'legendario';
+  if (d.sell >= 1000) return 'epico';
+  if (d.sell >= 300) return 'raro';
+  return 'comun';
+}
+
+function add(item: NewItem) {
+  const def: ItemDef = { ...item, kind: item.kind ?? kindOf(item), rarity: item.rarity ?? rarityOf(item) };
   defs.push(def);
   byId.set(def.id, def);
   if (def.block !== undefined) byBlock.set(def.block, def);
@@ -117,7 +177,7 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.Crate, 'caja', 30],
 ];
 for (const [block, id, sell, buy] of PLACEABLE) {
-  add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block, sell, buy });
+  add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block, sell, buy, rarity: RARE_BLOCKS.has(block) ? 'raro' : undefined });
 }
 
 // Frutas: en Animal Crossing se apilan de 10 en 10.
@@ -143,17 +203,17 @@ add({ id: 'pala', name: 'Pala', tile: Tile.Shovel, maxStack: 1, tool: 'shovel', 
 add({ id: 'pico', name: 'Pico', tile: Tile.Pickaxe, maxStack: 1, tool: 'pickaxe', durability: 40, sell: 50, buy: 500 });
 add({ id: 'cana', name: 'Caña de pescar', tile: Tile.Rod, maxStack: 1, tool: 'rod', durability: 30, sell: 50, buy: 400 });
 add({ id: 'red', name: 'Red', tile: Tile.Net, maxStack: 1, tool: 'net', durability: 30, sell: 50, buy: 400 });
-add({ id: 'hacha_hierro', name: 'Hacha de hierro', tile: Tile.IronAxe, maxStack: 1, tool: 'axe', durability: 120, power: 8, sell: 200 });
-add({ id: 'pico_hierro', name: 'Pico de hierro', tile: Tile.IronPickaxe, maxStack: 1, tool: 'pickaxe', durability: 120, power: 8, sell: 200 });
-add({ id: 'pala_hierro', name: 'Pala de hierro', tile: Tile.IronShovel, maxStack: 1, tool: 'shovel', durability: 120, power: 8, sell: 200 });
+add({ id: 'hacha_hierro', rarity: 'raro', name: 'Hacha de hierro', tile: Tile.IronAxe, maxStack: 1, tool: 'axe', durability: 120, power: 8, sell: 200 });
+add({ id: 'pico_hierro', rarity: 'raro', name: 'Pico de hierro', tile: Tile.IronPickaxe, maxStack: 1, tool: 'pickaxe', durability: 120, power: 8, sell: 200 });
+add({ id: 'pala_hierro', rarity: 'raro', name: 'Pala de hierro', tile: Tile.IronShovel, maxStack: 1, tool: 'shovel', durability: 120, power: 8, sell: 200 });
 add({ id: 'antorcha', name: 'Antorcha', tile: blockIconTile(Block.Torch), maxStack: 99, block: Block.Torch, sell: 20, buy: 60 });
 add({ id: 'carbon', name: 'Carbón', tile: Tile.Coal, maxStack: 30, sell: 50 });
 // Cubos (v3.8): el vacío coge un bloque de agua quieta y el lleno lo echa en otro sitio. No se gastan.
 add({ id: 'cubo', name: 'Cubo', tile: Tile.Bucket, maxStack: 1, tool: 'bucket', sell: 150, buy: 600 });
-add({ id: 'cubo_agua', name: 'Cubo de agua', tile: Tile.WaterBucket, maxStack: 1, tool: 'bucket', sell: 150 });
+add({ id: 'cubo_agua', kind: 'herramienta', name: 'Cubo de agua', tile: Tile.WaterBucket, maxStack: 1, tool: 'bucket', sell: 150 });
 add({ id: 'pepita_hierro', name: 'Pepita de hierro', tile: Tile.IronNugget, maxStack: 30, sell: 375 });
 add({ id: 'pepita_oro', name: 'Pepita de oro', tile: Tile.GoldNugget, maxStack: 30, sell: 1500 });
-add({ id: 'amatista', name: 'Amatista', tile: Tile.Gem, maxStack: 30, sell: 800 });
+add({ id: 'amatista', rarity: 'epico', name: 'Amatista', tile: Tile.Gem, maxStack: 30, sell: 800 });
 add({ id: 'muro_piedra', name: 'Muro de piedra', tile: blockIconTile(Block.MuseumWall), maxStack: 99, block: Block.MuseumWall, sell: 30, buy: 100 });
 
 // Huerto y granja (v1.8).

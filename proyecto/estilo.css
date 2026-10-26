@@ -188,3 +188,10 @@ footer { text-align: center; padding: 0 16px 40px; font-size: 14px; }
   .controls { grid-template-columns: 1fr; gap: 0; }
   .controls dt { text-align: left; margin-top: 8px; }
 }
+
+/* Rareza de los objetos (v4.5): el mismo color que tendrán en el juego. */
+.rareza { display: inline-block; padding: 0 8px; border: 2px solid currentColor; border-radius: 6px; font-size: 14px; white-space: nowrap; }
+.rareza.comun { color: #6f7a69; }
+.rareza.raro { color: #2f78b3; }
+.rareza.epico { color: #7a4fc4; }
+.rareza.legendario { color: #b07a10; }
