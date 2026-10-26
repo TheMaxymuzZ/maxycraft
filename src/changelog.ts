@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.12',
+    title: 'Casas de vecinos decorables',
+    items: [
+      'Si le regalas un mueble a un vecino, lo pone en su casa al momento. Entra a verlo.',
+      'Cada vecino tiene su estilo de decoración: rústico, moderno, playero, elegante o mono. Si el mueble es de su estilo le hace mucha ilusión y sube más la amistad.',
+      'Niveles de amistad con nombre: conocido, colega, amigo, gran amigo y mejor amigo. Al subir de nivel te avisa de lo que trae.',
+      'Siendo amigos te deja decorar su casa: girar y cambiar de sitio sus muebles desde la charla, o girarlos con la R dentro de su casa.',
+      'Con más amistad amplía su casita a casa con jardín, y luego a casa grande con el tejado del color que elijas. Los mejores amigos te cuentan qué negocio sueñan con abrir.',
+      'El álbum de vecinos enseña vuestro nivel de amistad y su estilo, y la wiki tiene la tabla de niveles y los gustos de cada vecino.',
+    ],
+  },
+  {
     version: '4.11',
     title: 'Vecinos con rutina',
     items: [

@@ -1,3 +1,5 @@
+import { BUSINESS, DECORATE_LEVEL, FRIEND_LEVELS, HOUSE_LEVELS, type DecorPiece, STYLE_NAMES, addDecor, decorLine, decorTaste, furnitureName, friendLevel, houseLevel, likesFurniture, moveDecor } from './decor';
+import { furnitureDef } from './furniture';
 import type { Inventory } from './inventory';
 import { itemDef } from './items';
 import type { Holiday } from './seasons';
@@ -316,6 +318,18 @@ export interface HomeActions {
   pay(amount: number): void;
 }
 
+/** Las casas de los vecinos (v4.12): muebles regalados, decorar y tejado. */
+export interface DecorActions {
+  /** Si tiene casa propia que se pueda decorar. */
+  available(v: Villager): boolean;
+  /** Cuántos huecos para muebles tiene ahora su casa. */
+  slots(v: Villager): number;
+  /** Algo ha cambiado en su casa: hay que volver a colocar los muebles. */
+  changed(v: Villager): void;
+  /** Pinta el tejado de su casa grande (índice de ROOFS). */
+  roof(v: Villager, roof: number): void;
+}
+
 type Option = [string, () => void];
 
 const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
@@ -354,6 +368,8 @@ export interface DialogContext {
   /** Lo que ya sabes de este vecino (KNOW) y apuntar algo nuevo. */
   known?: (v: Villager) => number;
   learn?: (v: Villager, step: number) => void;
+  /** Casas de vecinos decorables (v4.12). */
+  decor?: DecorActions;
 }
 
 export interface TravelActions {
@@ -401,7 +417,7 @@ export class Dialog {
     const first = v.memory.talkedDay !== this.ctx.today;
     if (first) {
       v.memory.talkedDay = this.ctx.today;
-      v.memory.friendship += 1;
+      this.raise(v, 1);
     }
     const party = first && this.ctx.isBirthday(v);
     // La primera vez solo se presenta: cómo se llama. Lo demás ya lo irá contando.
@@ -415,6 +431,7 @@ export class Dialog {
     else if (v.visitor && first) this.say(pick(VISITOR_GREETINGS));
     else if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
     else if (v.isCurator) this.say(pick(MUSEUM_GREETINGS));
+    else if (first && this.houseNews(v)) return;
     else if (first && v.memory.friendship >= 3 && Math.random() < 0.4 && this.teach()) return;
     else this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
   }
@@ -479,6 +496,7 @@ export class Dialog {
     } else {
       add('Charlar', () => this.chat());
       add('Háblame de ti', () => this.aboutMe());
+      if (this.canDecorate(v)) add('Decorar tu casa', () => this.decorMenu());
     }
     const slot = this.ctx.selectedSlot();
     const stack = this.ctx.inventory.slots[slot];
@@ -628,20 +646,26 @@ export class Dialog {
       this.say(ALREADY);
       return;
     }
-    const liked = CATEGORY[stack.id] === v.profile.likes;
+    const furniture = !!furnitureDef(stack.id) && !!this.ctx.decor?.available(v);
+    const liked = furniture ? likesFurniture(v.profile, stack.id) : CATEGORY[stack.id] === v.profile.likes;
     this.ctx.inventory.consume(slot);
     v.memory.giftDay = this.ctx.today;
     this.ctx.gifted?.();
     if (this.ctx.isBirthday(v)) {
       // En su cumpleaños cualquier regalo hace mucha ilusión, y siempre devuelve uno.
-      v.memory.friendship += 5;
+      this.raise(v, 5);
+      this.placeGift(v, stack.id);
       const back = pick(RETURN_ITEMS);
       this.ctx.inventory.add(back, back === 'tablones' ? 4 : 1);
       this.ctx.toast(`${v.name} te ha regalado: ${itemDef(back).name.toLowerCase()}`);
       this.say(BIRTHDAY_GIFT);
       return;
     }
-    v.memory.friendship += liked ? 3 : 1;
+    this.raise(v, liked ? 3 : 1);
+    if (furniture) {
+      this.say(this.placeGift(v, stack.id, liked));
+      return;
+    }
     if (v.memory.friendship >= 4 && Math.random() < 0.5) {
       const back = pick(RETURN_ITEMS);
       const count = back === 'tablones' ? 4 : 1;
@@ -652,6 +676,93 @@ export class Dialog {
       }
     }
     this.say(pick(liked ? LIKED : POLITE));
+  }
+
+  /** Sube la amistad y avisa si cambia de nivel (y si con eso amplía su casa). */
+  private raise(v: Villager, points: number) {
+    const before = friendLevel(v.memory.friendship);
+    const house = houseLevel(v.memory.friendship);
+    v.memory.friendship += points;
+    const after = friendLevel(v.memory.friendship);
+    if (after > before && !v.profile.role && !v.visitor) {
+      this.ctx.toast(`${v.name} y tú: ¡${FRIEND_LEVELS[after].name.toLowerCase()}! ${FRIEND_LEVELS[after].unlock}`);
+    }
+    if (houseLevel(v.memory.friendship) > house && this.ctx.decor?.available(v)) this.ctx.decor.changed(v);
+  }
+
+  private canDecorate(v: Villager): boolean {
+    return !!this.ctx.decor?.available(v) && friendLevel(v.memory.friendship) >= DECORATE_LEVEL;
+  }
+
+  /** Pone el mueble regalado en su casa y devuelve lo que dice. */
+  private placeGift(v: Villager, id: string, liked = likesFurniture(v.profile, id)): string {
+    const d = this.ctx.decor;
+    const line = decorLine(v.profile.personality, id, decorTaste(v.profile), liked);
+    if (!d?.available(v)) return line;
+    const pieces = (v.memory.decor ??= []);
+    const { placed, removed } = addDecor(pieces, id, d.slots(v), (p) => likesFurniture(v.profile, p));
+    if (!placed) return line;
+    d.changed(v);
+    const gone = removed ? ` Para hacerle sitio he guardado ${furnitureName(removed.id, true)}.` : '';
+    return line + gone;
+  }
+
+  /** Novedades de su casa al saludar: el tejado de la casa grande o el negocio que quiere abrir. */
+  private houseNews(v: Villager): boolean {
+    if (!this.ctx.decor?.available(v)) return false;
+    const level = houseLevel(v.memory.friendship);
+    if ((v.memory.houseLevel ?? 0) < level) {
+      v.memory.houseLevel = level;
+      const big = level >= 2;
+      if (big) {
+        this.say(`¡Mira qué ${HOUSE_LEVELS[level].name} tengo! Todo gracias a nuestra amistad. ¿De qué color pinto el tejado, {c}?`,
+          ROOF_NAMES.map((n, i): Option => [n, () => {
+            v.memory.roof = i;
+            this.ctx.decor!.roof(v, i);
+            this.say(`¡${n}! Queda precioso. Ven a verla cuando quieras, {c}.`);
+          }]));
+      } else this.say(`¡He ampliado mi casita! Ahora es una ${HOUSE_LEVELS[level].name} con jardín y caben más muebles. ¡Ven a verla, {c}!`);
+      return true;
+    }
+    if (friendLevel(v.memory.friendship) >= FRIEND_LEVELS.length - 1 && !v.memory.business) {
+      v.memory.business = true;
+      this.say(`Te voy a contar un secreto, porque eres mi mejor amigo: sueño con abrir ${BUSINESS[v.profile.personality]} en la isla. Cuando haya un local libre, ¡me ayudarás, {c}?`);
+      this.ctx.toast(`${v.name} quiere abrir ${BUSINESS[v.profile.personality]}`);
+      return true;
+    }
+    return false;
+  }
+
+  /** Decorar su casa con su permiso: girar los muebles o cambiarlos de sitio. */
+  private decorMenu() {
+    const v = this.villager!;
+    const pieces = v.memory.decor ?? [];
+    if (!pieces.length) {
+      this.say(`Aún no tengo muebles que mover. Me gustan las cosas de estilo ${STYLE_NAMES[decorTaste(v.profile)]}, por si me quieres regalar alguno, {c}.`, [['Volver', this.back]]);
+      return;
+    }
+    this.say('¡Claro! ¿Qué mueble quieres cambiar, {c}?', [
+      ...pieces.map((p): Option => [furnitureDef(p.id)?.name ?? p.id, () => this.decorPiece(p)]),
+      ['Volver', this.back],
+    ]);
+  }
+
+  private decorPiece(p: DecorPiece) {
+    const v = this.villager!;
+    const d = this.ctx.decor!;
+    this.say(`¿Qué hago con ${furnitureName(p.id, true)}, {c}?`, [
+      ['Girarlo', () => {
+        p.rot = (p.rot + 1) % 4;
+        d.changed(v);
+        this.decorPiece(p);
+      }],
+      ['Cambiarlo de sitio', () => {
+        moveDecor(v.memory.decor ?? [], p, d.slots(v));
+        d.changed(v);
+        this.decorPiece(p);
+      }],
+      ['Listo', () => this.say('¡Ha quedado genial! Tienes buen ojo, {c}.')],
+    ]);
   }
 
   /** Termina la conversación. Con `quiet` se cierra sin despedida ni avisar (para pasar a la tienda). */

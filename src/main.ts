@@ -32,7 +32,9 @@ import { NetSession, type SessionEvents } from './net/session';
 import { TabTransport } from './net/transport';
 import { newInviteCode, normalizeCode } from './net/code';
 import { openRoom } from './net/rtc';
+import { DECORATE_LEVEL, FRIEND_LEVELS, friendLevel } from './decor';
 import { FriendsUI, GESTURE_LOOK } from './friends';
+import { VillagerHomes, hasDecorableHome } from './game/villagerHomes';
 import { RemotePlayers } from './remotePlayers';
 import { Menu } from './menu';
 import { Animals, MAX_ANIMALS, type AnimalKind } from './animals';
@@ -397,17 +399,13 @@ if (visitorName) {
   const visitor = createVisitor(world, visitorName, vx, world.heightAt(vx, vz) + 1, vz, save?.villagers?.[visitorName] ?? { friendship: 0 });
   if (visitor) villagers.push(visitor);
 }
-// Camas en las casas de los vecinos (v4.11): de noche se les ve dormir en ellas si entras.
-const homeDecor = new Furniture([], lampHook);
-scene.add(homeDecor.group);
 for (const v of villagers) {
   scene.add(v.group, v.extras);
   if (v.isBirthday(startDate)) v.addPartyHat();
-  if (v.home.kind === 'house' && !v.profile.role && !v.visitor) {
-    const [bx, by, bz] = v.bedCell;
-    if (bx !== v.insideCell[0] || bz !== v.insideCell[2]) homeDecor.place('cama', bx, by, bz, 2);
-  }
 }
+// Camas (v4.11), muebles regalados y jardines (v4.12) de las casas de los vecinos.
+const villagerHomes = new VillagerHomes(world, villagers, lampHook);
+scene.add(villagerHomes.furniture.group);
 
 const inventory = new Inventory();
 if (pockets?.inventory) inventory.load(pockets.inventory);
@@ -417,6 +415,7 @@ inventory.loadOffhand(pockets?.offhand);
 const collection = new Collection(pockets?.caught ?? [], pockets?.donated ?? [], atlas, pockets?.met, pockets?.learned);
 const portraits = new Portraits(renderer);
 collection.portrait = (name, spec) => portraits.get(name, spec);
+collection.friendship = (name) => villagers.find((v) => v.name === name)?.memory.friendship;
 
 // Tareas del día, puntos y logros.
 const missions = new Missions(seed, save?.missions, today);
@@ -938,6 +937,18 @@ const dialog = new Dialog({
     return ok;
   },
   gifted: () => record('regalar'),
+  decor: {
+    available: (v) => !trip && hasDecorableHome(v),
+    slots: (v) => villagerHomes.slots(v).length,
+    changed: () => {
+      villagerHomes.refresh();
+      persist();
+    },
+    roof: (v, i) => {
+      if (!joined) villagerHomes.recolorRoof(v, i, (x, y, z, b) => sync.setBlock(x, y, z, b));
+      persist();
+    },
+  },
   openCollection: () => {
     panel = 'collection';
     collection.open();
@@ -1180,6 +1191,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === keys.rotate && isPlaying()) {
     const f = furnitureInSight();
     if (f) rotateFurniture(f.furniture);
+    else rotateVillagerFurniture();
     return;
   }
   if (e.code === keys.sound) {
@@ -1946,6 +1958,25 @@ function furnitureInSight() {
   const hit = currentHit();
   const blockDist = hit ? camera.position.distanceTo(new THREE.Vector3(hit.block[0] + 0.5, hit.block[1] + 0.5, hit.block[2] + 0.5)) : Infinity;
   return furniture.pick(aimRay(), Math.min(blockDist, REACH));
+}
+
+/** Gira un mueble de la casa de un vecino, si sois bastante amigos para que te deje decorar (v4.12). */
+function rotateVillagerFurniture() {
+  const hit = currentHit();
+  const blockDist = hit ? camera.position.distanceTo(new THREE.Vector3(hit.block[0] + 0.5, hit.block[1] + 0.5, hit.block[2] + 0.5)) : Infinity;
+  const aimed = villagerHomes.pick(aimRay(), Math.min(blockDist, REACH));
+  if (!aimed) return;
+  if (!aimed.piece) {
+    hud.toast(`Eso es de ${aimed.v.name}: mejor no tocarlo`);
+    return;
+  }
+  if (friendLevel(aimed.v.memory.friendship) < DECORATE_LEVEL) {
+    hud.toast(`${aimed.v.name} aún no te deja decorar su casa: haceos ${FRIEND_LEVELS[DECORATE_LEVEL].name.toLowerCase()}s`);
+    return;
+  }
+  aimed.piece.rot = (aimed.piece.rot + 1) % 4;
+  villagerHomes.refresh();
+  persist();
 }
 
 /** Gira un mueble un cuarto de vuelta (para todos los jugadores). */
@@ -2814,6 +2845,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { mesher, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { mesher, villagerHomes, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }
