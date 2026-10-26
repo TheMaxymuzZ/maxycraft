@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.8',
+    title: 'Vecinos con agenda',
+    items: [
+      'Cada vecino tiene su día: desayuna en casa, pasea, hace un recado a la tienda, al museo o a la plaza (según el día de la semana), cena en casa y se acuesta. Cada uno a sus horas.',
+      'Los vecinos encuentran el camino: rodean árboles, casas y vallas, cruzan puertas, suben escaleras y dan saltitos, y vadean los ríos cuando no hay otro paso.',
+      'Jugando con amigos, todos ven a los vecinos en el mismo sitio y haciendo lo mismo.',
+      'Por dentro: los edificios ya se pueden describir por plantas, con habitaciones y huecos para muebles, y colocarse en un sitio libre de la isla sin romper nada tuyo. El museo y las tiendas nuevas se harán así.',
+    ],
+  },
+  {
     version: '4.7',
     title: 'Mundo en streaming',
     items: [

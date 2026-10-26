@@ -435,6 +435,14 @@ export class World {
     return this.plots?.find((p) => Math.abs(p.x - x) <= r && Math.abs(p.z - z) <= r);
   }
 
+  /** Si el jugador (o un edificio colocado después) ha cambiado ese bloque. */
+  isEdited(x: number, y: number, z: number): boolean {
+    if (y < 0 || y >= HEIGHT) return false;
+    const cx = Math.floor(x / CHUNK);
+    const cz = Math.floor(z / CHUNK);
+    return this.edits.get(key(cx, cz))?.has(index(x - cx * CHUNK, y, z - cz * CHUNK)) ?? false;
+  }
+
   exportEdits(): Edits {
     const out: Edits = {};
     for (const [k, m] of this.edits) out[k] = Object.fromEntries(m);

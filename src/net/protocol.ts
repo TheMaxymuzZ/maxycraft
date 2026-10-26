@@ -1,12 +1,12 @@
 import type { ClockSave } from '../clock';
 import { type PlayerHome, isPlayerHome } from '../homes';
 import type { Lot } from '../lots';
-import type { Guest } from '../villagers';
+import type { Guest, VillagerState } from '../villagers';
 import type { Edits, WorldOptions } from '../world';
 import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
 /** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. 4: bloques en 16 bits (v4.5). */
-export const PROTOCOL = 4;
+export const PROTOCOL = 5;
 /** Jugadores a la vez en una isla, contando al anfitrión. */
 export const MAX_PLAYERS = 6;
 /** Gestos que se pueden hacer a los demás. */
@@ -76,7 +76,9 @@ export type Message =
   /** El reloj del anfitrión, cada poco; `slept` si acaba de saltar porque todos estaban durmiendo. */
   | { t: 'hora'; clock: ClockSave; slept: boolean }
   /** Desde la v4.3: el anfitrión ha dado casa a un amigo (o le recuerda la que ya tenía). */
-  | { t: 'casa'; home: PlayerHome };
+  | { t: 'casa'; home: PlayerHome }
+  /** El anfitrión cuenta dónde están sus vecinos (v4.8). */
+  | { t: 'vecinos'; s: VillagerState[] };
 
 export const MAX_CHAT = 140;
 
@@ -137,7 +139,16 @@ export function parseMessage(raw: unknown): Message | null {
       return isPlayerHome(raw.home) ? (raw as Message) : null;
     case 'hora':
       return isObj(raw.clock) && isNum(raw.clock.day) && isNum(raw.clock.minute) && typeof raw.slept === 'boolean' ? (raw as Message) : null;
+    case 'vecinos':
+      return Array.isArray(raw.s) && raw.s.length <= MAX_VILLAGERS && raw.s.every(isVillagerState) ? (raw as Message) : null;
     default:
       return null;
   }
+}
+
+/** Como mucho tantos vecinos en un mensaje (una isla tiene unos diez). */
+export const MAX_VILLAGERS = 40;
+
+function isVillagerState(v: unknown): v is VillagerState {
+  return isObj(v) && typeof v.n === 'string' && v.n.length <= 24 && isNum(v.x) && isNum(v.y) && isNum(v.z) && isNum(v.f) && typeof v.v === 'boolean' && typeof v.w === 'boolean';
 }
