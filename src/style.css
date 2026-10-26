@@ -266,6 +266,19 @@ kbd {
 .shop-list button:focus-visible, #shop-close:focus-visible { outline: 3px solid var(--dirt); outline-offset: 2px; }
 #shop-close { background: #8b5a35; }
 @media (max-width: 760px) { .shop-panel { grid-template-columns: 1fr; } }
+/* Comercios (v4.9): una columna, con pestañas Comprar / Vender y filtros por tipo. */
+#shop .shop-panel { grid-template-columns: 1fr; width: min(640px, 100%); }
+.shop-tabs { display: flex; gap: 6px; border-bottom: 3px solid #e3d6b6; }
+.shop-tabs button {
+  font: 700 16px var(--display); padding: 8px 16px; border: 0; cursor: pointer; background: #efe4c8; color: #8b5a35; margin-bottom: -3px;
+  border-bottom: 3px solid transparent;
+}
+.shop-tabs button[aria-selected="true"] { background: var(--paper); border-bottom-color: #8b5a35; }
+.shop-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.shop-filters:empty { display: none; }
+.shop-filters button { font: 700 12px var(--display); padding: 4px 10px; border: 2px solid #c9b48a; background: transparent; color: #6b4a2b; cursor: pointer; }
+.shop-filters button[aria-pressed="true"] { background: #8b5a35; border-color: #8b5a35; color: #fff; }
+.shop-tabs button:focus-visible, .shop-filters button:focus-visible { outline: 3px solid var(--dirt); outline-offset: 2px; }
 
 #collection {
   position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;

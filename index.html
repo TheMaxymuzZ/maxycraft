@@ -131,14 +131,19 @@
     <div id="shop" hidden>
       <div class="shop-panel">
         <header>
-          <h2>Tienda de Avellana</h2>
+          <h2 id="shop-title">Tienda de Avellana</h2>
           <p>Tienes <b id="shop-wallet">0</b> bayas</p>
         </header>
+        <nav class="shop-tabs" role="tablist" aria-label="Comprar o vender">
+          <button type="button" role="tab" data-shop-tab="comprar" aria-selected="true">Comprar</button>
+          <button type="button" role="tab" data-shop-tab="vender" aria-selected="false">Vender</button>
+        </nav>
+        <div class="shop-filters" id="shop-filters" aria-label="Filtrar por tipo"></div>
         <section>
           <h3>A la venta hoy</h3>
           <ul id="shop-buy" class="shop-list"></ul>
         </section>
-        <section>
+        <section hidden>
           <h3>Vender</h3>
           <ul id="shop-sell" class="shop-list"></ul>
         </section>

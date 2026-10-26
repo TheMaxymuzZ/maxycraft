@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.9',
+    title: 'Motor de comercio',
+    items: [
+      'La tienda tiene ahora pestañas Comprar y Vender y botones para ver solo herramientas, muebles, bloques…',
+      'Los muebles del día se acaban (quedan dos de cada) y vuelven por la mañana.',
+      'Si vendes mucho de lo mismo, se paga un poco menos durante unos días (como mucho la mitad). Las herramientas no bajan.',
+      'Si la tienda está cerrada, la puerta te dice a qué hora vuelve a abrir.',
+      'Por dentro: todos los comercios que vienen (museo, granja, ropa, pesca…) salen del mismo molde, con su horario, su especialidad y una tabla de precios común. Avellana vende exactamente lo mismo que antes.',
+    ],
+  },
+  {
     version: '4.8',
     title: 'Vecinos con agenda',
     items: [

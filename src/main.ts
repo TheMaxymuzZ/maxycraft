@@ -49,6 +49,7 @@ import { raycast } from './raycast';
 import { SAVE_VERSION, type SaveData, activeSlot, flushSaves, loadGame, openSaves, saveGame, saveGameNow, setActiveSlot } from './save';
 import { onStoreError } from './store';
 import { Shop, formatBerries } from './shop';
+import { Economy } from './economy';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
@@ -421,6 +422,8 @@ function record(event: MissionEvent, n = 1) {
 }
 
 let wallet = pockets?.wallet ?? 500;
+/** Lo que has comprado y vendido (v4.9): existencias del día, precios que bajan si vendes mucho y cuentas. */
+const economy = new Economy(today, pockets?.economy);
 /** Vida y hambre (v4.1). Son tuyas: también cuando juegas en la isla de un amigo. */
 const vitals = new Vitals(pockets?.vitals);
 const walletEl = document.querySelector<HTMLSpanElement>('#wallet-amount')!;
@@ -464,6 +467,7 @@ function persist(urgent = false) {
     inventory: inventory.serialize(),
     offhand: inventory.offhand,
     wallet,
+    economy: economy.toJSON(),
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
@@ -477,6 +481,7 @@ function persist(urgent = false) {
     offhand: inventory.offhand,
     villagers: { ...homeSave.villagers, ...memories },
     wallet,
+    economy: economy.toJSON(),
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
@@ -503,6 +508,7 @@ function persist(urgent = false) {
     branches: { day: today, trees: [...branchTrees] },
     villagers: memories,
     wallet,
+    economy: economy.toJSON(),
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
@@ -913,8 +919,7 @@ const dialog = new Dialog({
     lockInput();
   },
   openShop: () => {
-    panel = 'shop';
-    shop.open();
+    if (shop.open()) panel = 'shop';
   },
   donatable: () => collection.donatable(inventory),
   donate: (id) => {
@@ -1018,6 +1023,13 @@ const shop = new Shop({
   get holiday() {
     return holiday?.id ?? null;
   },
+  get season() {
+    return season;
+  },
+  get hour() {
+    return currentHour;
+  },
+  economy,
   getWallet: () => wallet,
   setWallet,
   toast: (t) => hud.toast(t),
@@ -1555,6 +1567,12 @@ function useItem() {
     // Lo que hay en los cofres está en el ordenador del anfitrión.
     if (joined) hud.toast('Los cofres son de quien vive en esta isla');
     else openStorage(bx, by, bz, target);
+    return;
+  }
+
+  // La puerta de la tienda está cerrada fuera de su horario (v4.9).
+  if (isDoor(target) && world.plotAt(bx, bz)?.kind === 'shop' && shop.closed()) {
+    hud.toast(shop.closed()!);
     return;
   }
 
