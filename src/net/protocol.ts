@@ -5,8 +5,8 @@ import type { Guest } from '../villagers';
 import type { Edits, WorldOptions } from '../world';
 import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
-/** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. */
-export const PROTOCOL = 3;
+/** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. 4: bloques en 16 bits (v4.5). */
+export const PROTOCOL = 4;
 /** Jugadores a la vez en una isla, contando al anfitrión. */
 export const MAX_PLAYERS = 6;
 /** Gestos que se pueden hacer a los demás. */

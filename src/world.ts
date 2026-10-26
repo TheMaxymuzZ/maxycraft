@@ -23,8 +23,14 @@ export type Biome = 'playa' | 'bosque' | 'pradera' | 'bambu' | 'montaña';
 export const BIOME_NAMES: Record<Biome, string> = { playa: 'Playa', bosque: 'Bosque', pradera: 'Pradera', bambu: 'Bambú', montaña: 'Montaña' };
 const INLAND_BIOMES: Biome[] = ['bosque', 'pradera', 'montaña', 'bambu'];
 
+/**
+ * Los bloques de cada chunk van en 16 bits desde la v4.5: caben 65.536 tipos de bloque.
+ * Con 8 bits el tope era 255 y ya se usaban más de 120.
+ */
+export type BlockData = Uint16Array;
+
 class Chunk {
-  readonly data = new Uint8Array(CHUNK * CHUNK * HEIGHT);
+  readonly data: BlockData = new Uint16Array(CHUNK * CHUNK * HEIGHT);
   mesh: THREE.Mesh | null = null;
   dirty = true;
   /** Altura del bloque opaco más alto de cada columna, para saber qué está bajo tierra. */
@@ -1384,7 +1390,7 @@ export class World {
   private regionBlocks(ox: number, oz: number): (x: number, y: number, z: number) => number {
     const cx = ox / CHUNK;
     const cz = oz / CHUNK;
-    const near: Uint8Array[] = [];
+    const near: BlockData[] = [];
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) near.push(this.getChunk(cx + dx, cz + dz).data);
     return (x, y, z) => {
       if (y < 0 || y >= HEIGHT) return Block.Air;
@@ -1500,7 +1506,7 @@ export class World {
     const blockLight = this.blockLightRegion(ox, oz);
     const tintAt = (b: number, wx: number, y: number, wz: number) => LIGHT_COLORS[LIGHT_RADIUS[b as Block] ? (LIGHT_COLOR[b as Block] ?? 0) : blockLight.color(wx, y, wz)];
     // Los bloques del chunk y de sus 8 vecinos, a mano: preguntar al mundo por cada bloque era lo más lento (v3.0).
-    const near: Uint8Array[] = [];
+    const near: BlockData[] = [];
     const skyTop = new Int16Array((CHUNK + 2) * (CHUNK + 2));
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) near.push(this.getChunk(c.cx + dx, c.cz + dz).data);
     for (let z = -1; z <= CHUNK; z++) for (let x = -1; x <= CHUNK; x++) skyTop[(z + 1) * (CHUNK + 2) + x + 1] = this.skyHeight(ox + x, oz + z);

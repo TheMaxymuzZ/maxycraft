@@ -46,7 +46,7 @@ import { countPlaced, rateIsland } from './rating';
 import { LEAF_BRANCH_CHANCE, SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
-import { type SaveData, activeSlot, loadGame, saveGame, setActiveSlot } from './save';
+import { SAVE_VERSION, type SaveData, activeSlot, loadGame, saveGame, setActiveSlot } from './save';
 import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
 import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings, uiScaleFor } from './settings';
@@ -67,9 +67,12 @@ import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
 import { MAX_HOMES, type PlayerHome, buildHome, isPlayerHome, pickHomeSpot } from './homes';
-import { IslandMap, type MapMarker, drawFullMap, drawMinimap } from './map';
-import { Beds, WAKE_CHOICES, hourText, wakeClock } from './sleep';
+import type { MapMarker } from './map';
+import { Beds, hourText, wakeClock } from './sleep';
 import { MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals';
+import { FaintScreen } from './game/faintScreen';
+import { MapScreen } from './game/mapScreen';
+import { SleepScreen } from './game/sleepScreen';
 import { VitalsHud } from './vitalsHud';
 import { BIOME_NAMES, type Biome, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
 
@@ -463,7 +466,8 @@ function persist() {
     clock: clock.serialize(),
     savedAt: 0,
   } : {
-    version: 1,
+    version: SAVE_VERSION,
+    game: __APP_VERSION__,
     seed,
     terrain,
     edits: world.exportEdits(),
@@ -1183,7 +1187,7 @@ function closeAnyPanel() {
   if (panel === 'gestures') friends.closeGestures();
   if (panel === 'faint') wakeUpAtHome();
   if (panel === 'sleep' || panel === 'sleeping') leaveBed();
-  if (panel === 'map') mapPanel.hidden = true;
+  if (panel === 'map') mapScreen.hide();
   panel = null;
 }
 let arrived = false;
@@ -1618,13 +1622,12 @@ function isInteractive(b: number): boolean {
 // --- Vida, hambre y desmayos (v4.1) ---
 
 const vitalsHud = new VitalsHud(document.querySelector<HTMLDivElement>('#hotbar')!);
-const faintEl = document.querySelector<HTMLDivElement>('#faint')!;
-const HURT_TEXT: Record<HurtCause, string> = {
-  caida: 'Te has caído desde muy alto',
-  agua: 'Te has quedado sin aire bajo el agua',
-  magma: 'Te has quemado con la roca de magma',
-  hambre: 'Tenías mucha hambre',
-};
+const faintScreen = new FaintScreen(() => {
+  if (panel !== 'faint') return;
+  panel = null;
+  wakeUpAtHome();
+  lockInput();
+});
 vitals.onHurt = () => {
   vitalsHud.hurt();
   sound.hurt();
@@ -1682,17 +1685,8 @@ function faint(cause: HurtCause) {
   }
   inventory.changed();
   if (loss.berries) setWallet(wallet - loss.berries);
-  const list = faintEl.querySelector('ul')!;
-  list.innerHTML = '';
-  const line = (text: string) => list.appendChild(Object.assign(document.createElement('li'), { textContent: text }));
-  if (loss.berries) line(`${formatBerries(loss.berries)} bayas`);
-  for (const l of loss.items) line(`${l.count} × ${itemDef(l.id).name.toLowerCase()}`);
-  if (!loss.berries && !loss.items.length) line('¡Nada! Tenías los bolsillos vacíos');
-  faintEl.querySelector('#faint-cause')!.textContent = `${HURT_TEXT[cause]}.`;
-  faintEl.querySelector<HTMLButtonElement>('#faint-wake')!.textContent = trip ? 'Despertar' : 'Despertar en casa';
-  faintEl.hidden = false;
   unlockInput();
-  faintEl.querySelector<HTMLButtonElement>('#faint-wake')!.focus();
+  faintScreen.show(cause, loss, !!trip);
   persist();
 }
 
@@ -1707,31 +1701,17 @@ function homeSpot(): [number, number] {
 }
 
 function wakeUpAtHome() {
-  if (faintEl.hidden) return;
-  faintEl.hidden = true;
+  if (!faintScreen.open) return;
+  faintScreen.hide();
   vitals.revive();
   player.spawnAt(...homeSpot());
   player.velocity.set(0, 0, 0);
   hud.toast(trip ? 'Te has despertado. ¡Ten más cuidado!' : 'Te has despertado en casa. ¡Ten más cuidado!');
 }
 
-document.querySelector('#faint-wake')!.addEventListener('click', () => {
-  if (panel !== 'faint') return;
-  panel = null;
-  wakeUpAtHome();
-  lockInput();
-});
-
 // --- Mapa de la isla (v4.4) ---
 
-const islandMap = new IslandMap(world, atlas);
-const minimap = document.querySelector<HTMLCanvasElement>('#minimap')!;
-const minimapCtx = minimap.getContext('2d')!;
-const mapPanel = document.querySelector<HTMLDivElement>('#map-panel')!;
-const mapCanvas = mapPanel.querySelector<HTMLCanvasElement>('#map-canvas')!;
-let minimapTimer = 0;
-minimap.addEventListener('click', () => openMap());
-mapPanel.querySelector('#map-close')!.addEventListener('click', () => closeMap());
+const mapScreen = new MapScreen(world, atlas, { hasMap, markers: mapMarkers, onOpen: () => openMap(), onClose: () => closeMap() });
 
 /** El mapa funciona si lo llevas en los bolsillos o en la otra mano. */
 function hasMap(): boolean {
@@ -1764,41 +1744,24 @@ function openMap() {
   }
   breaker.active = false;
   panel = 'map';
-  mapPanel.querySelector('#map-title')!.textContent = trip ? `Mapa de la ${MYSTERY_NAMES[trip.kind]}` : joined ? `Mapa de la isla de ${net?.hostPeer?.name ?? 'tu amigo'}` : 'Mapa de tu isla';
-  drawFullMap(mapCanvas.getContext('2d')!, islandMap, player.position.x, player.position.z, player.yaw, mapMarkers());
-  mapPanel.hidden = false;
+  const title = trip ? `Mapa de la ${MYSTERY_NAMES[trip.kind]}` : joined ? `Mapa de la isla de ${net?.hostPeer?.name ?? 'tu amigo'}` : 'Mapa de tu isla';
+  mapScreen.show(title, player.position.x, player.position.z, player.yaw);
   unlockInput();
 }
 
 function closeMap() {
   if (panel !== 'map') return;
-  mapPanel.hidden = true;
+  mapScreen.hide();
   panel = null;
   lockInput();
 }
 
-/** Cada fotograma: el mapa se va pintando y el minimapa sigue al jugador. */
 function updateMap(dt: number) {
-  const show = hasMap() && menu.hidden;
-  minimap.hidden = !show;
-  if (!show) return;
-  islandMap.update(dt, player.position.x, player.position.z);
-  minimapTimer -= dt;
-  if (minimapTimer > 0) return;
-  minimapTimer = 0.15;
-  drawMinimap(minimapCtx, islandMap, player.position.x, player.position.z, player.yaw, mapMarkers());
-  if (panel === 'map') drawFullMap(mapCanvas.getContext('2d')!, islandMap, player.position.x, player.position.z, player.yaw, mapMarkers());
+  mapScreen.update(dt, menu.hidden, player.position.x, player.position.z, player.yaw);
 }
 
 // --- Dormir (v4.2) ---
 
-const sleepEl = document.querySelector<HTMLDivElement>('#sleep')!;
-const sleepingEl = document.querySelector<HTMLDivElement>('#sleeping')!;
-const sleepingText = sleepingEl.querySelector<HTMLParagraphElement>('#sleeping-text')!;
-const sleepingButton = sleepingEl.querySelector<HTMLButtonElement>('#sleeping-up')!;
-const nightFade = document.querySelector<HTMLDivElement>('#night-fade')!;
-const sleepHour = sleepEl.querySelector<HTMLInputElement>('#sleep-hour')!;
-const sleepHourText = sleepEl.querySelector<HTMLElement>('#sleep-hour-text')!;
 /** Quién está en la cama en la partida (con amigos) y a qué hora se quiere despertar. */
 const beds = new Beds();
 /** Estás en la cama esperando a que se duerman los demás, o ya despierto esperando a levantarte. */
@@ -1806,18 +1769,7 @@ let inBed = false;
 let awake = false;
 const selfId = () => net?.self.id ?? 'yo';
 
-for (const c of WAKE_CHOICES) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.innerHTML = `<b>${c.hour}:00</b><small>${c.name}</small>`;
-  b.addEventListener('click', () => goToBed(c.hour * 60));
-  sleepEl.querySelector('#sleep-choices')!.appendChild(b);
-}
-const showSleepHour = () => (sleepHourText.textContent = hourText(Number(sleepHour.value) * 60));
-sleepHour.addEventListener('input', showSleepHour);
-sleepEl.querySelector('#sleep-custom-go')!.addEventListener('click', () => goToBed(Number(sleepHour.value) * 60));
-sleepEl.querySelector('#sleep-cancel')!.addEventListener('click', () => getUp());
-sleepingButton.addEventListener('click', () => getUp());
+const sleepScreen = new SleepScreen({ onChoose: (wake) => goToBed(wake), onGetUp: () => getUp() });
 
 /** Clic derecho en una cama: eliges a qué hora quieres despertarte. */
 function useBed() {
@@ -1829,27 +1781,20 @@ function useBed() {
   }
   breaker.active = false;
   panel = 'sleep';
-  sleepHour.value = String(Math.round(((currentHour + 8) % 24) * 2) / 2);
-  showSleepHour();
   const waiting = net ? beds.count : 0;
-  sleepEl.querySelector('#sleep-text')!.textContent = net
+  sleepScreen.ask(net
     ? `¿A qué hora quieres despertarte? El reloj solo avanza cuando estáis todos en la cama${waiting ? ` (ya hay ${waiting})` : ''}. Os despertáis a la hora más temprana que haya elegido alguien.`
-    : '¿A qué hora quieres despertarte?';
-  sleepEl.hidden = false;
+    : '¿A qué hora quieres despertarte?', currentHour);
   unlockInput();
 }
 
 function goToBed(wake: number) {
-  sleepEl.hidden = true;
   panel = 'sleeping';
   inBed = true;
   awake = false;
-  sleepingEl.hidden = false;
-  sleepingEl.classList.remove('morning');
-  sleepingButton.textContent = 'Levantarse';
+  sleepScreen.showSleeping(`Durmiendo hasta las ${hourText(wake)}…`);
   beds.set(selfId(), wake);
   if (!net) {
-    sleepingText.textContent = `Durmiendo hasta las ${hourText(wake)}…`;
     sleepUntil(wake);
     return;
   }
@@ -1868,8 +1813,7 @@ function getUp() {
 }
 
 function leaveBed() {
-  sleepEl.hidden = true;
-  sleepingEl.hidden = true;
+  sleepScreen.hide();
   if (inBed && !awake) {
     beds.set(selfId(), null);
     net?.bed(null);
@@ -1881,7 +1825,7 @@ function leaveBed() {
 function updateBedText() {
   if (!net || !inBed || awake) return;
   const total = net.peers.size + 1;
-  sleepingText.textContent = `Esperando a que se acuesten los demás: ${beds.count} de ${total} en la cama…`;
+  sleepScreen.setText(`Esperando a que se acuesten los demás: ${beds.count} de ${total} en la cama…`);
 }
 
 /** El anfitrión mira si ya están todos en la cama. */
@@ -1896,7 +1840,7 @@ function checkBeds() {
 /** Se funde a negro, el reloj salta a la hora de despertar y amanece (solo, o el anfitrión para todos). */
 function sleepUntil(wake: number) {
   beds.clear();
-  nightFade.classList.add('on');
+  sleepScreen.fadeOut(true);
   window.setTimeout(() => {
     const before = clock.day;
     const next = wakeClock(clock.serialize(), wake);
@@ -1911,13 +1855,11 @@ function sleepUntil(wake: number) {
 /** Te despiertas descansado: con la vida llena, algo más de hambre, y te levantas cuando quieras. */
 function wakeUp() {
   beds.clear();
-  nightFade.classList.remove('on');
+  sleepScreen.fadeOut(false);
   if (!inBed) return;
   awake = true;
   vitals.rest();
-  sleepingEl.classList.add('morning');
-  sleepingText.textContent = `¡Buenos días! Son las ${hourText(clock.minute)}`;
-  sleepingButton.textContent = 'Levantarse';
+  sleepScreen.showMorning(`¡Buenos días! Son las ${hourText(clock.minute)}`);
   sound.fanfare();
   persist();
 }
@@ -2545,7 +2487,7 @@ function newDay() {
     ctx.clearRect(0, 0, atlas.width, atlas.height);
     ctx.drawImage(fresh, 0, 0);
     atlasTexture.needsUpdate = true;
-    islandMap.repaint();
+    mapScreen.map.repaint();
     hud.toast(`¡Ha llegado ${season === 'otoño' ? 'el otoño' : season === 'invierno' ? 'el invierno' : season === 'verano' ? 'el verano' : 'la primavera'}!`);
   }
   const nextHoliday = holidayOf(date);
@@ -2780,6 +2722,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { islandMap, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

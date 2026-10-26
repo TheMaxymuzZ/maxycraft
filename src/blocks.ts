@@ -78,7 +78,13 @@ export enum Block {
 }
 
 export const TILE = 16;
-export const ATLAS_TILES = 16; // 16x16 casillas de 16x16 píxeles
+/**
+ * El atlas tiene 32x32 casillas de 16x16 píxeles desde la v4.5 (antes 16x16, y ya estaba lleno).
+ * Las casillas de antes conservan su número; las nuevas van a partir de EXTRA_TILE_START.
+ */
+export const ATLAS_TILES = 32;
+/** Primera casilla libre para bloques y objetos nuevos (las de antes de 256 no se mueven). */
+export const EXTRA_TILE_START = 256;
 /** Las casillas de peces e insectos empiezan aquí, una por criatura. */
 export const CREATURE_TILE_START = 128;
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -410,6 +416,32 @@ export function isFullBlock(b: number): boolean {
 /** Se puede apuntar y romper. */
 export function isTargetable(b: number): boolean {
   return b !== Block.Air && !isWater(b);
+}
+
+// --- Registro de bloques (v4.5) ---
+// Cada bloque tiene un número (lo que se guarda en el mundo) y un nombre fijo (el del código, como "Basalt").
+// Para añadir uno nuevo: una entrada en el enum Block y otra en BLOCKS; si necesita dibujo propio, una casilla
+// a partir de EXTRA_TILE_START.
+
+/** Si existe un bloque con ese número (lo que llega de la red o de una copia puede no existir). */
+export function isKnownBlock(b: number): b is Block {
+  return b === Block.Air || (Number.isInteger(b) && BLOCKS[b] !== undefined);
+}
+
+/** Nombre fijo de un bloque, que no cambia aunque se reordenen los números. */
+export function blockKey(b: Block): string {
+  return Block[b];
+}
+
+/** El bloque con ese nombre fijo, o undefined. */
+export function blockByKey(key: string): Block | undefined {
+  const b = (Block as unknown as Record<string, number>)[key];
+  return typeof b === 'number' && isKnownBlock(b) ? b : undefined;
+}
+
+/** Todos los bloques registrados (sin el aire), por número. */
+export function allBlocks(): Block[] {
+  return Object.keys(BLOCKS).map(Number).filter((b) => b !== Block.Air && isKnownBlock(b));
 }
 
 export function isOpaque(b: number): boolean {

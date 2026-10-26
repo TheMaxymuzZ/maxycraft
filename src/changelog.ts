@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.5',
+    title: 'Motor sin techo',
+    items: [
+      'Por dentro, el juego se prepara para crecer mucho: caben miles de tipos de bloque nuevos (antes el tope era 255 y ya se usaban más de 120) y hay sitio para dibujar cientos de bloques y objetos más.',
+      'Cada objeto sabe ya qué es (bloque, recurso, consumible, mueble, herramienta, criatura, tesoro…) y lo raro que es: común, raro, épico o legendario. En la wiki de la página del proyecto se ve en la tabla de objetos.',
+      'Las partidas guardadas llevan número de formato y se ponen al día solas al abrirlas. Tus islas siguen exactamente igual.',
+      'Si un amigo tiene otra versión del juego, ahora os lo dice claro y os pide recargar la página.',
+    ],
+  },
+  {
     version: '4.4',
     title: 'El mapa de la isla',
     items: [

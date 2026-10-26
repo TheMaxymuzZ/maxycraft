@@ -19,8 +19,16 @@ const ACTIVE_KEY = 'maxycraft.isla.activa';
 /** Cuántas islas se pueden tener guardadas a la vez. */
 export const SLOTS = 3;
 
+/**
+ * Versión del formato de la partida guardada. Al subirla hay que añadir su paso en MIGRATIONS
+ * y una prueba que cargue una partida de antes (tests/v45.test.ts).
+ */
+export const SAVE_VERSION = 2;
+
 export interface SaveData {
-  version: 1;
+  version: typeof SAVE_VERSION;
+  /** Desde la v4.5: versión del juego que guardó la partida (solo informativo). */
+  game?: string;
   seed: number;
   /** Desde la v2.6: versión del terreno (sin ella, el de siempre). */
   terrain?: number;
@@ -131,13 +139,38 @@ export function deleteGame(slot = activeSlot()) {
   }
 }
 
-/** Devuelve la partida si tiene buena pinta, o null. */
+type RawSave = Record<string, unknown>;
+
+/**
+ * Pasos para poner al día una partida vieja: MIGRATIONS[n] la pasa del formato n al n + 1.
+ * Cada paso cambia la partida en el sitio. Nunca se borra un paso: hay partidas de todas las épocas.
+ */
+const MIGRATIONS: Record<number, (d: RawSave) => void> = {
+  // v4.5: los bloques del mundo pasan a 16 bits. Los números de bloque no cambian, así que no hay que convertir
+  // nada; solo se apunta que la partida ya es del formato nuevo.
+  1: () => {},
+};
+
+/** Pone al día una partida de cualquier formato anterior. Devuelve false si es de un formato que no se conoce. */
+export function migrateSave(d: RawSave): boolean {
+  let v = d.version;
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > SAVE_VERSION) return false;
+  while (v < SAVE_VERSION) {
+    MIGRATIONS[v](d);
+    v++;
+  }
+  d.version = SAVE_VERSION;
+  return true;
+}
+
+/** Devuelve la partida (puesta al día) si tiene buena pinta, o null. */
 export function checkSave(data: unknown): SaveData | null {
-  if (!data || typeof data !== 'object') return null;
-  const d = data as Partial<SaveData>;
-  if (d.version !== 1 || typeof d.seed !== 'number' || !Number.isFinite(d.seed)) return null;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const d = data as RawSave;
+  if (typeof d.seed !== 'number' || !Number.isFinite(d.seed)) return null;
   if (!d.edits || typeof d.edits !== 'object') return null;
-  return d as SaveData;
+  if (!migrateSave(d)) return null;
+  return d as unknown as SaveData;
 }
 
 // --- Copias de seguridad en un archivo ---
