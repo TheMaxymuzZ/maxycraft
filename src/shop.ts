@@ -1,6 +1,7 @@
 import type { Inventory } from './inventory';
 import { ITEM_KINDS, type ItemKind, itemDef } from './items';
 import { itemIcon } from './icons';
+import { itemCard } from './itemCard';
 import { AVELLANA, type Economy, FILTER_KINDS, type ShopDef, buyPrice, closedText, sellPrice, shopBuys, stockFor, weekdayOf } from './economy';
 import type { Season } from './seasons';
 
@@ -105,6 +106,7 @@ export class Shop {
 
   close() {
     this.el.hidden = true;
+    itemCard().hide();
   }
 
   /** Cambia de pestaña. */
@@ -117,6 +119,7 @@ export class Shop {
   private row(id: string, detail: string): HTMLLIElement {
     const li = document.createElement('li');
     li.innerHTML = `<img alt="" src="${this.icon(id)}"><div><b>${itemDef(id).name}</b><small>${detail}</small></div><span class="actions"></span>`;
+    itemCard().attach(li, () => id);
     return li;
   }
 
@@ -150,6 +153,7 @@ export class Shop {
   }
 
   render() {
+    itemCard().hide();
     const wallet = this.ctx.getWallet();
     this.walletEl.textContent = formatBerries(wallet);
     for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-shop-tab]')) b.setAttribute('aria-selected', String(b.dataset.shopTab === this.tab));

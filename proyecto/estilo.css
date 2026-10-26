@@ -195,3 +195,5 @@ footer { text-align: center; padding: 0 16px 40px; font-size: 14px; }
 .rareza.raro { color: #2f78b3; }
 .rareza.epico { color: #7a4fc4; }
 .rareza.legendario { color: #b07a10; }
+.rareza.mini { padding: 0 5px; font-size: 11px; border-width: 1.5px; vertical-align: middle; }
+.item .tipo { font-size: 13px; opacity: .8; }

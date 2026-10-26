@@ -16,6 +16,50 @@ export interface MapMarker {
   label?: string;
   /** Color del puntito (los amigos van con el color de su ropa). */
   color?: string;
+  /** Tipo de lugar, para enseñarlo u ocultarlo en la leyenda del mapa grande (v4.10). */
+  kind?: MarkerKind;
+}
+
+export type MarkerKind = 'vecinos' | 'edificios' | 'casas' | 'cuevas' | 'amigos';
+export const MARKER_KINDS: Record<MarkerKind, string> = {
+  vecinos: '🏠 Vecinos', edificios: '🛒 Tienda, museo y avioneta', casas: '⛺ Casas', cuevas: '⛏️ Cuevas', amigos: '🧑 Amigos',
+};
+
+/** Lo que se ve en el mapa grande (v4.10): centro en bloques y zoom (1 = la isla entera). */
+export interface MapView {
+  cx: number;
+  cz: number;
+  zoom: number;
+}
+
+/** Píxeles de pantalla por bloque como mucho al acercar: se ven los bloques sueltos. */
+export const MAX_BLOCK_PX = 16;
+
+/** Zoom máximo para un mapa dibujado en un lienzo de `size` píxeles. */
+export function maxZoom(map: { size: number }, size: number): number {
+  return Math.max(1, MAX_BLOCK_PX / (size / map.size));
+}
+
+/** Otra isla que se dibuja en el mismo mapa, en su sitio del mar (se usará al navegar en la v4.22). */
+export interface MapLayer {
+  map: IslandMap;
+  /** Dónde está su centro en las coordenadas del mapa. */
+  x: number;
+  z: number;
+}
+
+/** Deja el centro dentro de lo que se puede ver y el zoom entre 1 y el máximo. */
+export function clampView(view: MapView, map: { size: number; half: number }, size: number): MapView {
+  const zoom = Math.min(maxZoom(map, size), Math.max(1, view.zoom));
+  const visible = map.half / zoom;
+  const lim = Math.max(0, map.half - visible);
+  return { zoom, cx: Math.max(-lim, Math.min(lim, view.cx)), cz: Math.max(-lim, Math.min(lim, view.cz)) };
+}
+
+/** De un punto del lienzo (en píxeles del lienzo) a bloques del mundo. */
+export function screenToWorld(view: MapView, map: { size: number }, size: number, sx: number, sy: number): [number, number] {
+  const scale = (size / map.size) * view.zoom;
+  return [view.cx + (sx - size / 2) / scale, view.cz + (sy - size / 2) / scale];
 }
 
 /** Cuánto mar se ve alrededor de la isla, en proporción a su tamaño. */
@@ -221,14 +265,46 @@ export function drawMinimap(ctx: CanvasRenderingContext2D, map: IslandMap, px: n
   ctx.fillText('N', s / 2, 10);
 }
 
-/** El mapa grande: toda la isla, con nombres. */
-export function drawFullMap(ctx: CanvasRenderingContext2D, map: IslandMap, px: number, pz: number, yaw: number, markers: MapMarker[]) {
+/**
+ * El mapa grande: la isla con nombres. Con `view` se ve más cerca (v4.10); `hidden` oculta tipos de lugar
+ * y `layers` dibuja otras islas en su sitio.
+ */
+export function drawFullMap(
+  ctx: CanvasRenderingContext2D, map: IslandMap, px: number, pz: number, yaw: number, markers: MapMarker[],
+  view: MapView = { cx: 0, cz: 0, zoom: 1 }, hidden: ReadonlySet<MarkerKind> = new Set(), layers: MapLayer[] = [],
+) {
   const s = ctx.canvas.width;
-  const scale = s / map.size;
+  const scale = (s / map.size) * view.zoom;
+  const at = (x: number, z: number): [number, number] => [s / 2 + (x - view.cx) * scale, s / 2 + (z - view.cz) * scale];
+  ctx.fillStyle = `rgb(${DEEP.join(',')})`;
+  ctx.fillRect(0, 0, s, s);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(map.canvas, 0, 0, s, s);
-  const at = (x: number, z: number): [number, number] => [(x + map.half) * scale, (z + map.half) * scale];
-  for (const m of markers) drawMarker(ctx, m, ...at(m.x, m.z), 22, true);
+  for (const l of [{ map, x: 0, z: 0 }, ...layers]) {
+    const [x0, y0] = at(l.x - l.map.half, l.z - l.map.half);
+    ctx.drawImage(l.map.canvas, x0, y0, l.map.size * scale, l.map.size * scale);
+  }
+  // Muy de cerca, una rejilla suave marca cada bloque.
+  if (scale >= 10) {
+    ctx.strokeStyle = 'rgba(0,0,0,.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const [wx0, wz0] = [Math.floor(view.cx - s / 2 / scale), Math.floor(view.cz - s / 2 / scale)];
+    for (let i = 0; i <= s / scale + 1; i++) {
+      const [gx] = at(wx0 + i, 0);
+      const [, gz] = at(0, wz0 + i);
+      ctx.moveTo(Math.round(gx) + 0.5, 0);
+      ctx.lineTo(Math.round(gx) + 0.5, s);
+      ctx.moveTo(0, Math.round(gz) + 0.5);
+      ctx.lineTo(s, Math.round(gz) + 0.5);
+    }
+    ctx.stroke();
+  }
+  for (const m of markers) {
+    if (m.kind && hidden.has(m.kind)) continue;
+    const [mx, my] = at(m.x, m.z);
+    if (mx < -40 || my < -40 || mx > s + 40 || my > s + 40) continue;
+    drawMarker(ctx, m, mx, my, 22, true);
+  }
   const [ax, az] = at(px, pz);
   drawArrow(ctx, ax, az, yaw, 12, '#ffd23f');
   ctx.font = '700 16px Nunito, system-ui, sans-serif';

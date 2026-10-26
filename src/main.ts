@@ -50,6 +50,7 @@ import { SAVE_VERSION, type SaveData, activeSlot, flushSaves, loadGame, openSave
 import { onStoreError } from './store';
 import { Shop, formatBerries } from './shop';
 import { Economy } from './economy';
+import { itemCard } from './itemCard';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
@@ -653,6 +654,8 @@ if (hasUnseenNews(!!save)) menu.show('news');
 markNewsSeen();
 applySettings(settings);
 
+// Fichas de objetos (v4.10): la fruta de otras islas es rara aquí.
+itemCard().islandFruit = fruitItemFor(world.fruit) ?? undefined;
 const hud = new Hud(inventory, atlas);
 hud.select(0);
 const held = new HeldItem(itemModels);
@@ -1773,17 +1776,17 @@ function hasMap(): boolean {
 function mapMarkers(): MapMarker[] {
   const out: MapMarker[] = [];
   for (const p of world.plots) {
-    if (p.kind === 'shop') out.push({ x: p.x, z: p.z, icon: '🛒', label: 'Tienda' });
-    if (p.kind === 'museum') out.push({ x: p.x, z: p.z, icon: '🏛️', label: 'Museo' });
-    if (p.kind === 'player') out.push({ x: p.x, z: p.z, icon: '🏡', label: joined ? `Casa de ${net?.hostPeer?.name ?? 'tu amigo'}` : 'Tu casa' });
+    if (p.kind === 'shop') out.push({ x: p.x, z: p.z, icon: '🛒', label: 'Tienda', kind: 'edificios' });
+    if (p.kind === 'museum') out.push({ x: p.x, z: p.z, icon: '🏛️', label: 'Museo', kind: 'edificios' });
+    if (p.kind === 'player') out.push({ x: p.x, z: p.z, icon: '🏡', label: joined ? `Casa de ${net?.hostPeer?.name ?? 'tu amigo'}` : 'Tu casa', kind: 'casas' });
   }
-  for (const v of villagers) if (!v.profile.role && !v.visitor) out.push({ x: v.home.x, z: v.home.z, icon: '🏠', label: v.name });
+  for (const v of villagers) if (!v.profile.role && !v.visitor) out.push({ x: v.home.x, z: v.home.z, icon: '🏠', label: v.name, kind: 'vecinos' });
   const me = myUid();
-  for (const h of friendHomes) out.push({ x: h.x, z: h.z, icon: '⛺', label: h.uid === me ? 'Tu casa' : `Casa de ${h.name}` });
-  if (airport) out.push({ x: airport.x, z: airport.z, icon: '✈️', label: 'Avioneta' });
-  for (const e of world.caveEntrances) out.push({ x: e.x, z: e.z, icon: '⛏️', label: 'Cueva' });
+  for (const h of friendHomes) out.push({ x: h.x, z: h.z, icon: '⛺', label: h.uid === me ? 'Tu casa' : `Casa de ${h.name}`, kind: 'casas' });
+  if (airport) out.push({ x: airport.x, z: airport.z, icon: '✈️', label: 'Avioneta', kind: 'edificios' });
+  for (const e of world.caveEntrances) out.push({ x: e.x, z: e.z, icon: '⛏️', label: 'Cueva', kind: 'cuevas' });
   for (const r of remotes.players.values()) {
-    out.push({ x: r.position.x, z: r.position.z, icon: '', label: r.info.name, color: `#${r.info.color.toString(16).padStart(6, '0')}` });
+    out.push({ x: r.position.x, z: r.position.z, icon: '', label: r.info.name, color: `#${r.info.color.toString(16).padStart(6, '0')}`, kind: 'amigos' });
   }
   return out;
 }

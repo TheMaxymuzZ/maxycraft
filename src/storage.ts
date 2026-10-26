@@ -1,3 +1,4 @@
+import { itemCard, rarityFor } from './itemCard';
 import { Block } from './blocks';
 import { HOTBAR_SIZE, type Inventory } from './inventory';
 import { type ItemStack, itemDef } from './items';
@@ -106,6 +107,7 @@ export class StoragePanel {
 
   close() {
     this.el.hidden = true;
+    itemCard().hide();
   }
 
   /** Del cofre a los bolsillos. */
@@ -153,15 +155,18 @@ export class StoragePanel {
       if (s) {
         const def = itemDef(s.id);
         b.innerHTML = `<img alt="" src="${this.icon(s.id)}">${s.count > 1 ? `<span class="count">${s.count}</span>` : ''}`;
-        b.title = def.name;
+        const rarity = rarityFor(s.id, itemCard().islandFruit);
+        if (rarity !== 'comun') b.classList.add(`rar-${rarity}`);
         b.setAttribute('aria-label', `${def.name}${s.count > 1 ? `, ${s.count}` : ''}`);
       } else b.setAttribute('aria-label', 'Casilla vacía');
       b.addEventListener('click', () => onClick(i));
+      itemCard().attach(b, () => s?.id ?? null);
       el.appendChild(b);
     });
   }
 
   render() {
+    itemCard().hide();
     this.grid(this.boxEl, this.slots, (i) => this.take(i));
     this.grid(this.pocketsEl, this.inv.slots, (i) => this.put(i), HOTBAR_SIZE);
   }

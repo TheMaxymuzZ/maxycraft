@@ -1,5 +1,6 @@
 // Wiki del juego: el texto está en wiki.html y las tablas salen de los mismos datos que usa el juego,
 // así recetas, precios, peces o vecinos nuevos aparecen solos en la wiki al añadirlos.
+import { KIND_ICONS } from '../itemCard';
 import * as THREE from 'three';
 import { BLOCKS, createAtlasCanvas } from '../blocks';
 import { CALENDAR, SEASON_DAYS } from '../clock';
@@ -21,9 +22,12 @@ const lower = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
 const berries = (n: number) => `${formatBerries(n)} bayas`;
 
 /** Un objeto con su icono del juego. */
-function item(id: string, count = 1): string {
-  const name = itemDef(id).name;
-  return `<span class="item"><img alt="" src="${itemIcon(atlas, id)}">${esc(count > 1 ? `${count} × ${lower(name)}` : name)}</span>`;
+function item(id: string, count = 1, tags = true): string {
+  const d = itemDef(id);
+  const name = d.name;
+  // Etiquetas de tipo y rareza en todas las tablas (v4.10); las comunes no llevan la de rareza, para no cargar.
+  const extra = tags ? ` <small class="tipo" title="${ITEM_KINDS[d.kind]}">${KIND_ICONS[d.kind] ?? ''}</small>${d.rarity !== 'comun' ? ` <span class="rareza ${d.rarity} mini">${RARITIES[d.rarity]}</span>` : ''}` : '';
+  return `<span class="item"><img alt="" src="${itemIcon(atlas, id)}">${esc(count > 1 ? `${count} × ${lower(name)}` : name)}${extra}</span>`;
 }
 
 function fill(id: string, rows: string[]) {
@@ -146,7 +150,7 @@ fill('tabla-logros', ACHIEVEMENTS.map((a) => `<td><b>${esc(a.name)}</b></td><td>
 // --- Todos los objetos ---
 const objectRows = [...ITEMS]
   .sort((a, b) => a.name.localeCompare(b.name, 'es'))
-  .map((d) => ({ text: normalize(`${d.name} ${ITEM_KINDS[d.kind]} ${RARITIES[d.rarity]}`), html: `<td>${item(d.id)}</td><td>${ITEM_KINDS[d.kind]}</td><td><span class="rareza ${d.rarity}">${RARITIES[d.rarity]}</span></td><td class="num">${formatBerries(d.sell)}</td><td class="num">${d.buy !== undefined ? formatBerries(d.buy) : '—'}</td>` }));
+  .map((d) => ({ text: normalize(`${d.name} ${ITEM_KINDS[d.kind]} ${RARITIES[d.rarity]}`), html: `<td>${item(d.id, 1, false)}</td><td>${KIND_ICONS[d.kind] ?? ''} ${ITEM_KINDS[d.kind]}</td><td><span class="rareza ${d.rarity}">${RARITIES[d.rarity]}</span></td><td class="num">${formatBerries(d.sell)}</td><td class="num">${d.buy !== undefined ? formatBerries(d.buy) : '—'}</td>` }));
 const objectsBody = document.getElementById('tabla-objetos')!;
 function showObjects(filter: string) {
   const f = normalize(filter.trim());
