@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.6',
+    title: 'Guardado de archipiélago',
+    items: [
+      'Las islas se guardan ahora en la base de datos del navegador, con muchísimo más sitio: caben tus islas y todas las que visites en el futuro. La primera vez que abres el juego tus partidas se pasan solas, sin perder nada.',
+      'Si cierras la pestaña de golpe, el juego guarda una copia rápida y la recupera al volver.',
+      'En Mis islas y copias: botón para guardar una copia de todo (tus tres islas en un solo archivo) y para cargarla, y un medidor de cuánto espacio ocupan tus partidas.',
+      'Al cambiar de isla, entrar en la de un amigo o volver de viaje, el juego espera a que todo esté guardado antes de recargar.',
+    ],
+  },
+  {
     version: '4.5',
     title: 'Motor sin techo',
     items: [

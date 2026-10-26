@@ -46,7 +46,8 @@ import { countPlaced, rateIsland } from './rating';
 import { LEAF_BRANCH_CHANCE, SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
-import { SAVE_VERSION, type SaveData, activeSlot, loadGame, saveGame, setActiveSlot } from './save';
+import { SAVE_VERSION, type SaveData, activeSlot, flushSaves, loadGame, openSaves, saveGame, saveGameNow, setActiveSlot } from './save';
+import { onStoreError } from './store';
 import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
 import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings, uiScaleFor } from './settings';
@@ -166,6 +167,17 @@ async function joinIsland(): Promise<{ session: NetSession; snapshot: Snapshot }
 const joined = netTest === 'invitado' || inviteCode ? await joinIsland() : null;
 
 // --- Partida guardada ---
+
+// Desde la v4.6 las partidas van en IndexedDB; la primera vez se pasan allí las de antes (v4.6).
+await openSaves();
+
+/** Recarga el juego (o va a otra dirección) cuando lo guardado ya ha llegado al disco. */
+function reloadTo(url?: string) {
+  void flushSaves().finally(() => {
+    if (url) location.href = url;
+    else location.reload();
+  });
+}
 
 const save = joined ? null : loadGame();
 /** De visita en otra isla, los bolsillos, las bayas y la enciclopedia son los de tu isla. */
@@ -426,7 +438,8 @@ function showSaveIndicator(text: string, error = false) {
   void saveIndicator.offsetWidth; // para que la animación vuelva a empezar
   saveIndicator.classList.add('show');
 }
-function persist() {
+/** Guarda la partida. `urgent`: la pestaña se cierra y no da tiempo a esperar (v4.6). */
+function persist(urgent = false) {
   if (!saving || netTest === 'invitado') return;
   const p = player.position;
   const memories = Object.fromEntries(villagers.map((v) => [v.name, v.memory]));
@@ -504,7 +517,7 @@ function persist() {
   const text = JSON.stringify(data);
   if (text === lastSaved) return;
   data.savedAt = Date.now();
-  if (!saveGame(data)) {
+  if (!(urgent ? saveGameNow(data) : saveGame(data))) {
     // Solo se avisa una vez: el navegador no deja guardar (modo privado o sin espacio).
     if (!saveFailed) showSaveIndicator('No se puede guardar en este navegador', true);
     saveFailed = true;
@@ -514,11 +527,15 @@ function persist() {
   savedRevision = world.revision;
   showSaveIndicator('Guardado');
 }
-setInterval(persist, 10_000);
+setInterval(() => persist(), 10_000);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') persist();
+  if (document.visibilityState === 'hidden') persist(true);
 });
-window.addEventListener('pagehide', persist);
+onStoreError(() => {
+  if (!saveFailed) showSaveIndicator('No se puede guardar: el navegador no deja más espacio', true);
+  saveFailed = true;
+});
+window.addEventListener('pagehide', () => persist(true));
 
 const clouds = new Clouds();
 scene.add(clouds.group);
@@ -818,7 +835,7 @@ function takeOff(text: string, next: () => void) {
   document.querySelector<HTMLDivElement>('#travel-fade')!.hidden = false;
   window.setTimeout(() => {
     next();
-    location.reload();
+    reloadTo();
   }, 2700);
 }
 
@@ -1162,7 +1179,7 @@ const islands = new Islands({
     saveTrip(null);
     saving = false;
     setActiveSlot(slot);
-    location.reload();
+    reloadTo();
   },
   toast: (t) => hud.toast(t),
 });
@@ -2184,7 +2201,7 @@ Object.assign(netEvents, {
     saving = false;
     if (deliberate || !netCode) {
       hud.toast('Tu amigo ha cerrado su isla. Vuelves a la tuya…');
-      window.setTimeout(() => location.reload(), 3000);
+      window.setTimeout(() => reloadTo(), 3000);
       return;
     }
     // Se ha cortado la conexión: se intenta volver a entrar con el mismo código.
@@ -2251,7 +2268,7 @@ function giveHome(p: PeerInfo) {
 function rejoin(code: string) {
   const url = new URL(location.href);
   url.searchParams.set('isla', code);
-  location.href = url.toString();
+  reloadTo(url.toString());
 }
 
 /** Lo que el anfitrión manda a quien entra: su isla tal como está ahora. */
@@ -2319,7 +2336,7 @@ function leaveFriends() {
     persist();
     saving = false;
     net.close();
-    location.reload();
+    reloadTo();
     return;
   }
   net.close();
@@ -2382,7 +2399,7 @@ const friends = new FriendsUI({
     saving = false;
     const url = new URL(location.href);
     url.searchParams.set('isla', code);
-    location.href = url.toString();
+    reloadTo(url.toString());
   },
   leave: leaveFriends,
   say: (text) => {

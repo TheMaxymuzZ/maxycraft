@@ -1,5 +1,6 @@
 import { BLOCKS } from './blocks';
-import { SLOTS, type SaveData, backupName, deleteGame, exportSave, importSave, loadGame, saveGame } from './save';
+import { SLOTS, type SaveData, backupName, deleteGame, exportAll, exportSlot, fullBackupName, importAll, importSaveFile, loadGame, saveGame, saveVisited } from './save';
+import { formatBytes, storageUsage, usingDatabase } from './store';
 import { formatBerries } from './shop';
 import { islandFruit } from './world';
 
@@ -22,6 +23,11 @@ export class Islands {
   private list = document.querySelector<HTMLUListElement>('#islands-list')!;
   private fileInput = document.createElement('input');
   private importSlot = 0;
+  /** El archivo elegido es una copia de todo (v4.6). */
+  private importAllNext = false;
+  private confirmingAll = false;
+  private usage = document.querySelector<HTMLParagraphElement>('#storage-usage');
+  private restoreAll = document.querySelector<HTMLButtonElement>('#restore-all');
   /** Botón de borrar que ya se ha pulsado una vez y espera la confirmación. */
   private confirming: number | null = null;
 
@@ -31,6 +37,20 @@ export class Islands {
     this.fileInput.hidden = true;
     this.fileInput.addEventListener('change', () => void this.readFile());
     document.body.appendChild(this.fileInput);
+    document.querySelector('#backup-all')?.addEventListener('click', () => this.downloadAll());
+    this.restoreAll?.addEventListener('click', () => {
+      // Sustituye todas las islas: se pide confirmar pulsando dos veces.
+      if (!this.confirmingAll) {
+        this.confirmingAll = true;
+        this.restoreAll!.textContent = '¿Seguro? Se cambiarán todas tus islas. Pulsa otra vez';
+        return;
+      }
+      this.confirmingAll = false;
+      this.restoreAll!.textContent = 'Cargar copia de todo';
+      this.importAllNext = true;
+      this.fileInput.value = '';
+      this.fileInput.click();
+    });
   }
 
   render() {
@@ -39,6 +59,30 @@ export class Islands {
       const data = slot === this.ctx.active ? (this.ctx.flush(), loadGame(slot)) : loadGame(slot);
       this.list.appendChild(this.card(slot, data));
     }
+    void this.showUsage();
+  }
+
+  /** Cuánto ocupan las partidas en el navegador (v4.6). */
+  private async showUsage() {
+    if (!this.usage) return;
+    const u = await storageUsage();
+    if (!usingDatabase()) {
+      this.usage.textContent = 'Este navegador guarda en el almacén pequeño (unos 5 MB). Guarda copias a menudo.';
+      return;
+    }
+    if (!u) {
+      this.usage.textContent = '';
+      return;
+    }
+    const share = u.used / u.quota;
+    this.usage.textContent = `Espacio usado: ${formatBytes(u.used)} de ${formatBytes(u.quota)}` + (share > 0.8 ? '. ¡Queda poco sitio! Guarda una copia y borra islas que no uses.' : '');
+    this.usage.classList.toggle('warn', share > 0.8);
+  }
+
+  private downloadAll() {
+    this.ctx.flush();
+    this.saveFile(exportAll(), fullBackupName());
+    this.ctx.toast('Copia de todas tus islas guardada en tus descargas');
   }
 
   private card(slot: number, data: SaveData | null): HTMLLIElement {
@@ -97,20 +141,27 @@ export class Islands {
     return b;
   }
 
-  private download(slot: number, data: SaveData) {
-    const url = URL.createObjectURL(new Blob([exportSave(data)], { type: 'application/json' }));
+  private download(slot: number, _data: SaveData) {
+    const text = exportSlot(slot);
+    if (!text) return;
+    this.saveFile(text, backupName(slot));
+    this.ctx.toast('Copia guardada en tus descargas');
+  }
+
+  private saveFile(text: string, name: string) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = backupName(slot);
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    this.ctx.toast('Copia guardada en tus descargas');
   }
 
   private pickFile(slot: number) {
     this.importSlot = slot;
+    this.importAllNext = false;
     this.fileInput.value = '';
     this.fileInput.click();
   }
@@ -118,10 +169,25 @@ export class Islands {
   private async readFile() {
     const file = this.fileInput.files?.[0];
     if (!file) return;
+    const text = await file.text();
+    if (this.importAllNext) {
+      this.importAllNext = false;
+      try {
+        // Se dejan de guardar las islas de ahora antes de sustituirlas todas.
+        this.ctx.stopSaving();
+        const n = importAll(text);
+        this.ctx.toast(`Copia cargada: ${n} ${n === 1 ? 'isla' : 'islas'}`);
+        this.ctx.switchTo(this.ctx.active);
+      } catch (e) {
+        this.ctx.toast((e as Error).message);
+      }
+      return;
+    }
     const slot = this.importSlot;
     let data: SaveData;
+    let visits;
     try {
-      data = importSave(await file.text());
+      ({ isla: data, visitas: visits } = importSaveFile(text));
     } catch (e) {
       this.ctx.toast((e as Error).message);
       return;
@@ -129,11 +195,15 @@ export class Islands {
     if (slot === this.ctx.active) {
       // La isla en curso se sustituye entera: se carga de nuevo.
       this.ctx.stopSaving();
+      deleteGame(slot);
       saveGame(data, slot);
+      for (const v of visits) saveVisited(v, slot);
       this.ctx.switchTo(slot);
       return;
     }
+    deleteGame(slot);
     saveGame(data, slot);
+    for (const v of visits) saveVisited(v, slot);
     this.ctx.toast(`Copia cargada en la isla ${slot + 1}`);
     this.render();
   }
@@ -159,5 +229,7 @@ export class Islands {
   /** Al salir de la pantalla se olvida cualquier "¿Seguro?" pendiente. */
   reset() {
     this.confirming = null;
+    this.confirmingAll = false;
+    if (this.restoreAll) this.restoreAll.textContent = 'Cargar copia de todo';
   }
 }

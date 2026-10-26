@@ -464,6 +464,8 @@ fieldset.option { border: 0; padding: 0; margin: 0; display: grid; grid-template
 .island-badge { font: 800 11px var(--body); text-transform: uppercase; letter-spacing: .05em; padding: 2px 6px; background: var(--grass); color: #fff; }
 .island-summary { margin: 0; font-size: 14px; color: #5d6b57; }
 .island-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.islands-all { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+#storage-usage.warn { color: #b3261e; }
 .panel button.island-btn {
   font: 700 13px var(--body); padding: 6px 10px; background: #f4efdf; color: var(--ink);
   border: 2px solid #c9c1a6; box-shadow: none;
