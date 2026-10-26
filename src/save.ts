@@ -1,3 +1,4 @@
+import type { EconomySave } from './economy';
 import type { ClockSave } from './clock';
 import type { PlantedTree } from './orchard';
 import type { StorageSave } from './storage';
@@ -49,6 +50,8 @@ export interface SaveData {
   villagers?: Record<string, VillagerMemory>;
   /** Desde la v0.5: bayas ahorradas. */
   wallet?: number;
+  /** Existencias del día, precios y cuentas (v4.9). */
+  economy?: EconomySave;
   /** Desde la v0.6: peces e insectos vistos y donados al museo. */
   caught?: string[];
   donated?: string[];
