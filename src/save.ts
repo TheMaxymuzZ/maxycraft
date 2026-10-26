@@ -12,6 +12,7 @@ import type { Guest, VillagerMemory } from './villagers';
 import type { Edits } from './world';
 import type { VitalsSave } from './vitals';
 import type { PlayerHome } from './homes';
+import * as store from './store';
 
 /** La primera isla usa la clave de siempre, para que las partidas de antes sigan ahí. */
 const KEY = 'maxycraft.isla.v1';
@@ -113,6 +114,8 @@ export function setActiveSlot(slot: number) {
 }
 
 export function loadGame(slot = activeSlot()): SaveData | null {
+  // Desde la v4.6, en IndexedDB (si el navegador la tiene); si no, en localStorage como siempre.
+  if (store.usingDatabase()) return checkSave(store.get(slotKey(slot)));
   try {
     const raw = localStorage.getItem(slotKey(slot));
     if (!raw) return null;
@@ -123,6 +126,11 @@ export function loadGame(slot = activeSlot()): SaveData | null {
 }
 
 export function saveGame(data: SaveData, slot = activeSlot()): boolean {
+  if (store.usingDatabase()) {
+    if (store.storeFailed()) return false;
+    store.put(slotKey(slot), data);
+    return true;
+  }
   try {
     localStorage.setItem(slotKey(slot), JSON.stringify(data));
     return true;
@@ -131,12 +139,84 @@ export function saveGame(data: SaveData, slot = activeSlot()): boolean {
   }
 }
 
+/** Al cerrar la pestaña: además de lo normal, una copia rápida por si IndexedDB no llega a terminar. */
+export function saveGameNow(data: SaveData, slot = activeSlot()): boolean {
+  const ok = saveGame(data, slot);
+  if (store.usingDatabase()) store.rescue(slotKey(slot), data);
+  return ok;
+}
+
 export function deleteGame(slot = activeSlot()) {
+  if (store.usingDatabase()) {
+    store.remove(slotKey(slot));
+    for (const k of store.keys(visitedPrefix(slot))) store.remove(k);
+    return;
+  }
   try {
     localStorage.removeItem(slotKey(slot));
   } catch {
     // nada que borrar
   }
+}
+
+/** Abre el almacén grande (IndexedDB) y pasa allí las partidas de antes. Sin él se sigue con localStorage. */
+export function openSaves(): Promise<boolean> {
+  const keys = Array.from({ length: SLOTS }, (_, i) => slotKey(i));
+  return store.openStore(keys).then(async (ok) => {
+    if (ok) void store.askPersistence();
+    return ok;
+  });
+}
+
+/** Espera a que lo guardado llegue al disco (antes de recargar la página). */
+export async function flushSaves(): Promise<boolean> {
+  try {
+    await store.flushStore();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// --- Islas del archipiélago (v4.6) ---
+// Cada isla que visitas se guarda aparte, colgando de su partida, y solo se carga cuando vas.
+
+export interface VisitedIsland {
+  /** Nombre fijo de la isla dentro de la partida (por ejemplo "islote-1" o "recursos-48213"). */
+  id: string;
+  name: string;
+  /** Qué tipo de isla es: islote, misteriosa, recursos, aldea... */
+  kind: string;
+  seed: number;
+  /** Lo que el jugador ha cambiado en ella. */
+  edits: Edits;
+  /** Última visita (milisegundos). */
+  visitedAt: number;
+  /** Lo demás que necesite cada tipo de isla. */
+  extra?: Record<string, unknown>;
+}
+
+const visitedPrefix = (slot: number) => `${slotKey(slot)}/isla/`;
+
+export function saveVisited(island: VisitedIsland, slot = activeSlot()): boolean {
+  if (!store.usingDatabase()) return false;
+  store.put(visitedPrefix(slot) + island.id, island);
+  return true;
+}
+
+export function loadVisited(id: string, slot = activeSlot()): VisitedIsland | null {
+  return store.usingDatabase() ? store.get<VisitedIsland>(visitedPrefix(slot) + id) : null;
+}
+
+/** Ids de las islas visitadas de una partida. */
+export function listVisited(slot = activeSlot()): string[] {
+  if (!store.usingDatabase()) return [];
+  const prefix = visitedPrefix(slot);
+  return store.keys(prefix).map((k) => k.slice(prefix.length));
+}
+
+export function deleteVisited(id: string, slot = activeSlot()) {
+  if (store.usingDatabase()) store.remove(visitedPrefix(slot) + id);
 }
 
 type RawSave = Record<string, unknown>;
@@ -180,10 +260,77 @@ interface BackupFile {
   formato: 1;
   exportada: string;
   isla: SaveData;
+  /** Desde la v4.6: las islas visitadas de esa partida. */
+  visitas?: VisitedIsland[];
+}
+
+/** Copia de todo el archipiélago (v4.6): todas las partidas con sus islas visitadas. */
+interface FullBackupFile {
+  juego: 'maxycraft';
+  formato: 2;
+  exportada: string;
+  partidas: ({ isla: SaveData; visitas: VisitedIsland[] } | null)[];
+}
+
+export function exportAll(now = new Date()): string {
+  const partidas = Array.from({ length: SLOTS }, (_, slot) => {
+    const isla = loadGame(slot);
+    return isla ? { isla, visitas: listVisited(slot).flatMap((id) => loadVisited(id, slot) ?? []) } : null;
+  });
+  const file: FullBackupFile = { juego: 'maxycraft', formato: 2, exportada: now.toISOString(), partidas };
+  return JSON.stringify(file);
+}
+
+/** Nombre del archivo de la copia de todo: maxycraft-todo-2026-10-26.json */
+export function fullBackupName(now = new Date()): string {
+  const d = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return `maxycraft-todo-${d}.json`;
+}
+
+/** Lee una copia de todo y sustituye todas las partidas. Lanza un error con un mensaje para el jugador. */
+export function importAll(text: string): number {
+  let parsed: Partial<FullBackupFile>;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('Ese archivo no es una copia de Maxycraft.');
+  }
+  if (!parsed || parsed.juego !== 'maxycraft' || parsed.formato !== 2 || !Array.isArray(parsed.partidas)) {
+    throw new Error('Esa no es una copia de todo. Para una sola isla usa "Cargar copia" en su hueco.');
+  }
+  const checked = parsed.partidas.slice(0, SLOTS).map((p) => {
+    if (!p) return null;
+    const isla = checkSave(p.isla);
+    if (!isla) throw new Error('La copia está incompleta o es de una versión que no se puede leer.');
+    return { isla, visitas: Array.isArray(p.visitas) ? p.visitas.filter(isVisited) : [] };
+  });
+  let count = 0;
+  for (let slot = 0; slot < SLOTS; slot++) {
+    deleteGame(slot);
+    const p = checked[slot];
+    if (!p) continue;
+    saveGame(p.isla, slot);
+    for (const v of p.visitas) saveVisited(v, slot);
+    count++;
+  }
+  return count;
+}
+
+function isVisited(v: unknown): v is VisitedIsland {
+  const o = v as Partial<VisitedIsland>;
+  return !!o && typeof o.id === 'string' && typeof o.seed === 'number' && !!o.edits && typeof o.edits === 'object';
 }
 
 export function exportSave(data: SaveData, now = new Date()): string {
   const file: BackupFile = { juego: 'maxycraft', formato: 1, exportada: now.toISOString(), isla: data };
+  return JSON.stringify(file);
+}
+
+/** Copia de una partida con sus islas visitadas. */
+export function exportSlot(slot: number, now = new Date()): string | null {
+  const data = loadGame(slot);
+  if (!data) return null;
+  const file: BackupFile = { juego: 'maxycraft', formato: 1, exportada: now.toISOString(), isla: data, visitas: listVisited(slot).flatMap((id) => loadVisited(id, slot) ?? []) };
   return JSON.stringify(file);
 }
 
@@ -195,6 +342,11 @@ export function backupName(slot: number, now = new Date()): string {
 
 /** Lee una copia de seguridad. Si algo va mal, lanza un error con un mensaje para el jugador. */
 export function importSave(text: string): SaveData {
+  return importSaveFile(text).isla;
+}
+
+/** Como importSave, pero también con las islas visitadas que traiga la copia (v4.6). */
+export function importSaveFile(text: string): { isla: SaveData; visitas: VisitedIsland[] } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -202,9 +354,11 @@ export function importSave(text: string): SaveData {
     throw new Error('Ese archivo no es una copia de Maxycraft.');
   }
   const file = parsed as Partial<BackupFile>;
+  if ((parsed as Partial<FullBackupFile>)?.formato === 2) throw new Error('Esa es una copia de todas tus islas: cárgala con "Cargar copia de todo".');
   // También se aceptan partidas sueltas, sin el sobre de la copia.
   const isla = file && typeof file === 'object' && file.juego === 'maxycraft' ? file.isla : parsed;
   const save = checkSave(isla);
   if (!save) throw new Error('La copia está incompleta o es de una versión que no se puede leer.');
-  return save;
+  const visitas = file && Array.isArray(file.visitas) ? file.visitas.filter(isVisited) : [];
+  return { isla: save, visitas };
 }
