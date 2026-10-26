@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.10',
+    title: 'Fichas, rarezas y mapa explorable',
+    items: [
+      'Cada objeto tiene ficha: pasa el ratón (o mantén el dedo) en los bolsillos, los cofres, la tienda o la mesa de trabajo. Dice qué es, lo que hace, lo que vale, dónde se consigue y una curiosidad.',
+      'Rarezas con color: común, raro, épico y legendario. El borde de la casilla lleva el color de su rareza y los legendarios brillan.',
+      'La fruta de otras islas es rara; el cristal brillante y la amatista, épicos.',
+      'Botones para resaltar un tipo o una rareza en los bolsillos, y filtro por rareza en la enciclopedia.',
+      'El mapa grande se acerca con la rueda o pellizcando hasta ver los bloques, se arrastra, tiene botón para centrarte y una leyenda para ocultar tipos de lugar.',
+    ],
+  },
+  {
     version: '4.9',
     title: 'Motor de comercio',
     items: [

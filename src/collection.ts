@@ -1,6 +1,8 @@
+import { type ItemFilter, itemCard, matchesFilter, renderFilters } from './itemCard';
 import { CREATURE_TILE_START } from './blocks';
 import { CREATURES, HABITAT_TEXT, hoursText, monthsText } from './creatures';
 import type { Inventory } from './inventory';
+import { itemDef } from './items';
 import type { ModelSpec } from './villagerModel';
 import { ALL_PROFILES, PERSONALITY_NAMES, type Profile, SPECIES_NAMES } from './villagers';
 import { KNOW, seasonOfBirthday } from './dialog';
@@ -71,7 +73,11 @@ export class Collection {
 
   close() {
     this.el.hidden = true;
+    itemCard().hide();
   }
+
+  private filtersEl = document.querySelector<HTMLDivElement>('#collection-filters');
+  private filter: ItemFilter = null;
 
   private render() {
     const fish = CREATURES.filter((c) => c.kind === 'pez');
@@ -81,12 +87,23 @@ export class Collection {
       `Peces ${count(fish)} de ${fish.length} · Insectos ${count(bugs)} de ${bugs.length} · ` +
       `En el museo ${this.donated.size} de ${CREATURES.length} · Vecinos ${this.met.size} de ${ALL_PROFILES.length}`;
 
+    // Filtro por rareza (v4.10): solo de lo que ya conoces, para no desvelar nada.
+    const knownIds = CREATURES.filter((c) => this.caught.has(c.id)).map((c) => c.id);
+    if (this.filtersEl) {
+      renderFilters(this.filtersEl, knownIds, this.filter, (f) => {
+        this.filter = f;
+        this.render();
+      }, undefined, false);
+    }
     const fill = (el: HTMLElement, list: typeof CREATURES) => {
       el.innerHTML = '';
       for (const c of list) {
         const known = this.caught.has(c.id);
+        if (this.filter && !(known && matchesFilter(c.id, this.filter))) continue;
         const card = document.createElement('div');
-        card.className = `card${known ? '' : ' unknown'}`;
+        const rarity = itemDef(c.id).rarity;
+        card.className = `card${known ? ` rar-${rarity}` : ' unknown'}`;
+        if (known) itemCard().attach(card, () => c.id);
         const where = known ? `${HABITAT_TEXT[c.habitat]}, ${hoursText(c)}, ${monthsText(c)}` : 'Aún no lo has visto';
         const badge = this.donated.has(c.id) ? '<span class="badge">En el museo</span>' : '';
         card.innerHTML = `<img alt="" src="${this.icons[CREATURES.indexOf(c)]}"><b>${known ? c.name : '???'}</b><small>${where}</small>${badge}`;

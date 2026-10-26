@@ -3,6 +3,7 @@ import { type ItemStack, RECIPES, type Recipe, TOOL_USE, itemDef } from './items
 import { RecipeBrowser } from './recipeBrowser';
 import { itemIcon } from './icons';
 import { Notices } from './notices';
+import { type ItemFilter, itemCard, matchesFilter, rarityFor, renderFilters } from './itemCard';
 
 /** Barra rápida, pantalla de bolsillos, avisos y progreso al romper. */
 export class Hud {
@@ -24,6 +25,9 @@ export class Hud {
   private recipesEl = document.querySelector<HTMLUListElement>('#recipes')!;
   private cursorEl = document.querySelector<HTMLDivElement>('#cursor-stack')!;
   private recipes: RecipeBrowser;
+  private filtersEl = document.querySelector<HTMLDivElement>('#inv-filters');
+  /** Resalta en los bolsillos un tipo o una rareza (v4.10). */
+  private filter: ItemFilter = null;
 
   constructor(private inv: Inventory, private atlas: HTMLCanvasElement) {
     this.recipes = new RecipeBrowser(this.recipesEl, {
@@ -42,6 +46,7 @@ export class Hud {
       el.className = 'slot';
       // En pantallas táctiles se elige casilla tocándola.
       el.addEventListener('click', () => this.select(i));
+      itemCard().attach(el, () => this.inv.slots[i]?.id ?? null);
       this.hotbarEl.appendChild(el);
       this.hotbarSlots.push(el);
     }
@@ -54,6 +59,7 @@ export class Hud {
         this.clickSlot(i, e.button === 2);
       });
       el.addEventListener('contextmenu', (e) => e.preventDefault());
+      itemCard().attach(el, () => this.inv.slots[i]?.id ?? null);
       this.gridEl.appendChild(el);
       this.invSlots.push(el);
     }
@@ -74,12 +80,16 @@ export class Hud {
   }
 
   private paintSlot(el: HTMLElement, s: ItemStack | null, label?: string) {
+    // El borde de la casilla, del color de la rareza (v4.10).
+    el.classList.remove('rar-raro', 'rar-epico', 'rar-legendario');
     if (!s) {
       el.innerHTML = label ? `<span class="key">${label}</span>` : '';
-      el.title = '';
+      el.removeAttribute('aria-label');
       return;
     }
     const def = itemDef(s.id);
+    const rarity = rarityFor(s.id, itemCard().islandFruit);
+    if (rarity !== 'comun') el.classList.add(`rar-${rarity}`);
     let html = `<img alt="" src="${this.icon(s.id)}">`;
     if (label) html += `<span class="key">${label}</span>`;
     if (s.count > 1) html += `<span class="count">${s.count}</span>`;
@@ -88,7 +98,7 @@ export class Hud {
       html += `<span class="wear"><i style="width:${Math.round(left * 100)}%" class="${left < 0.25 ? 'low' : ''}"></i></span>`;
     }
     el.innerHTML = html;
-    el.title = def.tool ? `${def.name}: ${TOOL_USE[def.tool].toLowerCase()}` : def.name;
+    el.setAttribute('aria-label', def.tool ? `${def.name}: ${TOOL_USE[def.tool].toLowerCase()}` : def.name);
   }
 
   render() {
@@ -99,7 +109,19 @@ export class Hud {
     this.paintSlot(this.offhandEl, this.inv.offhand);
     this.offhandEl.title = this.inv.offhand ? `Otra mano: ${itemDef(this.inv.offhand.id).name}` : 'Otra mano (vacía)';
     if (!this.inventoryEl.hidden) {
-      this.invSlots.forEach((el, i) => this.paintSlot(el, this.inv.slots[i]));
+      this.invSlots.forEach((el, i) => {
+        const s = this.inv.slots[i];
+        this.paintSlot(el, s);
+        el.classList.toggle('dim', !!this.filter && !(s && matchesFilter(s.id, this.filter, itemCard().islandFruit)));
+      });
+      if (this.filtersEl) {
+        const ids = [...new Set(this.inv.slots.filter((s) => s).map((s) => s!.id))];
+        if (this.filter && !ids.some((id) => matchesFilter(id, this.filter, itemCard().islandFruit))) this.filter = null;
+        renderFilters(this.filtersEl, ids, this.filter, (f) => {
+          this.filter = f;
+          this.render();
+        }, itemCard().islandFruit);
+      }
       this.paintSlot(this.cursorEl, this.cursor);
       this.renderRecipes();
     }
@@ -162,6 +184,7 @@ export class Hud {
       if (this.cursor) return; // no se cierra hasta soltarlo
     }
     this.inventoryEl.hidden = true;
+    itemCard().hide();
   }
 
   /** Clic izquierdo coge o suelta el montón; clic derecho coge la mitad o suelta uno. */
@@ -216,6 +239,7 @@ export class Hud {
       if (this.inv.craft(r)) this.toast(`Has fabricado: ${itemDef(r.result).name.toLowerCase()}`);
     });
     li.appendChild(btn);
+    itemCard().attach(li, () => r.result);
     return li;
   }
 }

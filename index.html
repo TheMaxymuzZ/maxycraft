@@ -58,7 +58,8 @@
       <div class="inv-panel">
         <section class="inv-pockets">
           <h2>Bolsillos <button type="button" id="inv-sort" class="inv-sort">Ordenar</button></h2>
-          <p class="inv-help">Clic para coger y soltar. Clic derecho coge la mitad. La fila de arriba es tu barra rápida.</p>
+          <p class="inv-help">Clic para coger y soltar. Clic derecho coge la mitad. La fila de arriba es tu barra rápida. Pasa el ratón (o mantén pulsado) para ver la ficha.</p>
+          <div id="inv-filters" class="shop-filters" aria-label="Resaltar por tipo o rareza"></div>
           <div id="inv-grid"></div>
         </section>
         <section class="inv-craft">
@@ -78,8 +79,16 @@
     <div id="map-panel" hidden role="dialog" aria-labelledby="map-title">
       <div class="panel map-panel">
         <header><h2 id="map-title">Mapa de la isla</h2><button type="button" class="secondary" id="map-close">Cerrar</button></header>
-        <canvas id="map-canvas" width="720" height="720"></canvas>
-        <p class="map-hint">🏠 vecinos · 🛒 tienda · 🏛️ museo · ⛺ casas de amigos · ✈️ avioneta · ⛏️ cuevas · la flecha amarilla eres tú</p>
+        <div class="map-view">
+          <canvas id="map-canvas" width="720" height="720" aria-label="Mapa: rueda o pellizco para acercar, arrastra para moverte"></canvas>
+          <div class="map-zoom">
+            <button type="button" id="map-in" aria-label="Acercar">+</button>
+            <button type="button" id="map-out" aria-label="Alejar">−</button>
+            <button type="button" id="map-me" aria-label="Centrar en mí">◎</button>
+          </div>
+        </div>
+        <div class="map-legend" id="map-legend" role="group" aria-label="Qué se ve en el mapa"></div>
+        <p class="map-hint">Rueda o pellizco para acercar, arrastra para moverte. La flecha amarilla eres tú.</p>
       </div>
     </div>
     <div id="sleep" hidden role="dialog" aria-labelledby="sleep-title">
@@ -119,6 +128,7 @@
           <h2>Enciclopedia</h2>
           <p id="collection-summary"></p>
         </header>
+        <div id="collection-filters" class="shop-filters" aria-label="Filtrar por rareza"></div>
         <h3>Peces</h3>
         <div id="collection-fish" class="cards"></div>
         <h3>Insectos</h3>

@@ -1,3 +1,4 @@
+import { itemCard } from './itemCard';
 import type { Inventory } from './inventory';
 import { DIY_RECIPES, type Recipe, STARTER_DIY, itemDef } from './items';
 import { RecipeBrowser } from './recipeBrowser';
@@ -47,6 +48,7 @@ export class Workbench {
 
   close() {
     this.el.hidden = true;
+    itemCard().hide();
   }
 
   private render() {
@@ -74,6 +76,7 @@ export class Workbench {
       if (inv.craft(r)) this.ctx.toast(`Has fabricado: ${itemDef(r.result).name.toLowerCase()}`);
     });
     li.querySelector('.actions')!.appendChild(b);
+    itemCard().attach(li, () => r.result);
     return li;
   }
 }

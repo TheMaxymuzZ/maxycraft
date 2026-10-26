@@ -89,7 +89,9 @@ const SPECIAL = new Set(['billete', 'mapa', 'plano_casa', 'botella', 'gallina', 
 /** Lo que se encuentra por la playa o dentro de la tierra y se colecciona. */
 const TREASURE = new Set(['concha', 'caracola', 'estrella', 'amatista', 'pepita_oro']);
 /** Bloques que solo salen en las islas misteriosas. */
-const RARE_BLOCKS = new Set<Block>([Block.Magma, Block.CrystalCluster, Block.SmallMushroom, Block.Amethyst]);
+const RARE_BLOCKS = new Set<Block>([Block.Magma, Block.SmallMushroom]);
+/** Minerales de las islas misteriosas (v4.10): épicos. */
+const EPIC_BLOCKS = new Set<Block>([Block.CrystalCluster, Block.Amethyst]);
 
 function kindOf(d: NewItem): ItemKind {
   if (d.tool) return 'herramienta';
@@ -177,7 +179,7 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.Crate, 'caja', 30],
 ];
 for (const [block, id, sell, buy] of PLACEABLE) {
-  add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block, sell, buy, rarity: RARE_BLOCKS.has(block) ? 'raro' : undefined });
+  add({ id, name: BLOCKS[block].name, tile: blockIconTile(block), maxStack: 99, block, sell, buy, rarity: EPIC_BLOCKS.has(block) ? 'epico' : RARE_BLOCKS.has(block) ? 'raro' : undefined });
 }
 
 // Frutas: en Animal Crossing se apilan de 10 en 10.
