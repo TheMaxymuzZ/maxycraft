@@ -38,6 +38,10 @@ export class WeatherFx {
     return this.kind === 'lluvia';
   }
 
+  get snowing() {
+    return this.kind === 'nieve';
+  }
+
   set(kind: Weather) {
     if (kind === this.kind) return;
     this.kind = kind;

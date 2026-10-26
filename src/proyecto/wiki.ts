@@ -11,7 +11,7 @@ import { DIY_RECIPES, ITEMS, ITEM_KINDS, RARITIES, RECIPES, type Recipe, STARTER
 import { ACHIEVEMENTS, PRIZES, TASKS } from '../missions';
 import { Portraits } from '../portraits';
 import { formatBerries } from '../shop';
-import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
+import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
 import './comun';
 
 const atlas = createAtlasCanvas();
@@ -250,3 +250,10 @@ document.querySelector<HTMLInputElement>('#search')!.addEventListener('input', (
 
 // Si se llega con un enlace a una sección (#vecinos), se va a ella cuando las tablas ya están dibujadas.
 if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+
+// Un día en la isla (v4.11): a qué hora se levanta y se acuesta cada personalidad.
+const hh = (h: number) => `${h}:00`;
+fill('tabla-horarios', (Object.keys(SLEEP) as (keyof typeof SLEEP)[]).map((p) => {
+  const [bed, wake] = SLEEP[p];
+  return `<td><b>${PERSONALITY_NAMES[p]}</b></td><td class="num">${hh(wake)}</td><td class="num">${hh(bed === 0 ? 23 : bed - 1)}</td><td class="num">${hh(bed)}</td>`;
+}));

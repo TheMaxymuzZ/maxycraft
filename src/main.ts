@@ -62,7 +62,7 @@ import { Orchard, canPlantOn, isSapling, treeKindOfFruit, treeKindOfSapling } fr
 import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel';
 import { LotGhosts, type Lot, describeMissing, inLot, lotFrom, lotPlot, lotProblem, lotProgress } from './lots';
-import { type Guest, PILOT, type Villager, createVillagers, createVisitor, pickVisitor } from './villagers';
+import { type Guest, PILOT, type Villager, createVillagers, createVisitor, knockReply, pickVisitor, villagerWeather } from './villagers';
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { Water } from './water';
@@ -397,9 +397,16 @@ if (visitorName) {
   const visitor = createVisitor(world, visitorName, vx, world.heightAt(vx, vz) + 1, vz, save?.villagers?.[visitorName] ?? { friendship: 0 });
   if (visitor) villagers.push(visitor);
 }
+// Camas en las casas de los vecinos (v4.11): de noche se les ve dormir en ellas si entras.
+const homeDecor = new Furniture([], lampHook);
+scene.add(homeDecor.group);
 for (const v of villagers) {
-  scene.add(v.group);
+  scene.add(v.group, v.extras);
   if (v.isBirthday(startDate)) v.addPartyHat();
+  if (v.home.kind === 'house' && !v.profile.role && !v.visitor) {
+    const [bx, by, bz] = v.bedCell;
+    if (bx !== v.insideCell[0] || bz !== v.insideCell[2]) homeDecor.place('cama', bx, by, bz, 2);
+  }
 }
 
 const inventory = new Inventory();
@@ -1066,6 +1073,11 @@ const touch = touchMode
 if (touch) document.body.appendChild(touch.el);
 
 function talkTo(v: Villager) {
+  // Dormido en su cama: contesta medio dormido y sigue durmiendo (v4.11).
+  if (v.sleeping) {
+    hud.toast(knockReply(v));
+    return;
+  }
   if (!v.profile.role && v.memory.talkedDay !== dayKey(gameDate())) record('charlar');
   tutorial.complete('hablar');
   panel = 'dialog';
@@ -1571,6 +1583,17 @@ function useItem() {
     if (joined) hud.toast('Los cofres son de quien vive en esta isla');
     else openStorage(bx, by, bz, target);
     return;
+  }
+
+  // Llamar a la puerta de un vecino que duerme: contesta medio dormido y no abre (v4.11).
+  if (isDoor(target)) {
+    const lower = isDoorTop(target) ? by - 1 : by;
+    const owner = villagers.find((v) => v.home.door[0] === bx && v.home.door[1] === lower && v.home.door[2] - 1 === bz);
+    if (owner?.sleeping || (owner?.inside && owner.activity === 'dormir')) {
+      hud.toast(knockReply(owner));
+      sound.place();
+      return;
+    }
   }
 
   // La puerta de la tienda está cerrada fuera de su horario (v4.9).
@@ -2640,6 +2663,8 @@ function frame(now: number) {
   const nowWeather = params.get('tiempo') as keyof typeof WEATHER_TEXT | null;
   weather.set(nowWeather && nowWeather in WEATHER_TEXT ? nowWeather : weatherAt(date, seed));
   weather.update(dt, camera.position);
+  villagerWeather.rain = weather.raining;
+  villagerWeather.snow = weather.snowing;
   hemi.intensity *= 1 - weather.gloom * 0.3;
   // Encapotado (v3.9): sin sol directo casi no hay sombras, y el cielo se vuelve gris del todo.
   sunLight.intensity *= 1 - weather.gloom * 0.85;

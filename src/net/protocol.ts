@@ -150,5 +150,5 @@ export function parseMessage(raw: unknown): Message | null {
 export const MAX_VILLAGERS = 40;
 
 function isVillagerState(v: unknown): v is VillagerState {
-  return isObj(v) && typeof v.n === 'string' && v.n.length <= 24 && isNum(v.x) && isNum(v.y) && isNum(v.z) && isNum(v.f) && typeof v.v === 'boolean' && typeof v.w === 'boolean';
+  return isObj(v) && typeof v.n === 'string' && v.n.length <= 24 && isNum(v.x) && isNum(v.y) && isNum(v.z) && isNum(v.f) && typeof v.v === 'boolean' && typeof v.w === 'boolean' && (v.b === undefined || typeof v.b === 'boolean');
 }

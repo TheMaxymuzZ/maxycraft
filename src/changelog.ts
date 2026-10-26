@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.11',
+    title: 'Vecinos con rutina',
+    items: [
+      'Los vecinos ya no desaparecen: al anochecer vuelven a casa andando, abren la puerta, entran y se enciende la luz. Al dormirse se apaga y sale un Zzz en la puerta.',
+      'Si entras en su casa de noche les ves dormir en su cama. Por la mañana se levantan, se estiran y salen por la puerta.',
+      'Si llamas a su puerta o les hablas mientras duermen, contestan medio dormidos, cada uno según su personalidad.',
+      'Se paran a charlar entre ellos, sacan el paraguas cuando llueve (los dormilones prefieren quedarse en casa) y se ponen bufanda con la nieve.',
+      'Desde fuera no se ve quién hay dentro de las casas. Jugando con amigos, todos veis al mismo vecino en la misma cama.',
+    ],
+  },
+  {
     version: '4.10',
     title: 'Fichas, rarezas y mapa explorable',
     items: [
