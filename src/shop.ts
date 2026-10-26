@@ -17,6 +17,8 @@ export interface ShopContext {
   /** Fiesta de hoy: la tienda vende sus cosas de temporada. */
   holiday: string | null;
   season?: Season | null;
+  /** Ya hay urbanista: los planos de casa los vende él (v4.13). */
+  planner?: boolean;
   /** Hora del juego, para el horario (v4.9). */
   hour?: number;
   /** Registro de lo que se compra y se vende (v4.9). */
@@ -61,7 +63,7 @@ export class Shop {
   restock() {
     const ctx = this.ctx;
     ctx.economy?.newDay(ctx.today);
-    const items = stockFor(this.def, { today: ctx.today, season: ctx.season ?? null, holiday: ctx.holiday });
+    const items = stockFor(this.def, { today: ctx.today, season: ctx.season ?? null, holiday: ctx.holiday, planner: ctx.planner });
     this.stock = items.map((i) => i.id);
     this.units = new Map(items.filter((i) => i.units !== undefined).map((i) => [i.id, i.units!]));
   }

@@ -77,7 +77,7 @@ describe('valoración de la isla', () => {
   });
 
   it('cuidando de todo se llega a cinco estrellas', () => {
-    const full = { flowers: 40, fences: 40, lights: 10, furniture: 30, house: 3, guests: 3, donated: 40, farm: 20 };
+    const full = { flowers: 40, fences: 40, lights: 10, furniture: 30, house: 3, guests: 3, donated: 40, farm: 20, works: 6 };
     const r = rateIsland(full);
     expect(r.stars).toBe(5);
     expect(r.score).toBe(MAX_SCORE);

@@ -61,6 +61,8 @@ export interface StockContext {
   today: string;
   season: Season | null;
   holiday: string | null;
+  /** Ya hay urbanista en la isla y vende él los planos de casa (v4.13). */
+  planner?: boolean;
 }
 
 /** La tienda de Avellana, de todo un poco. Vende exactamente lo mismo que antes de la 4.9. */
@@ -72,7 +74,7 @@ export const AVELLANA: ShopDef = {
   stock: [
     { pick: (d, c) => !!d.holiday && d.holiday === c.holiday },
     { pick: (d) => !!d.tool },
-    { pick: (d) => !!d.always },
+    { pick: (d, c) => !!d.always && !(c.planner && d.id === 'plano_casa') },
     { pick: (d) => !!d.furniture && !d.holiday, daily: 3, units: 2 },
     { pick: (d) => !d.tool && !d.furniture && !d.always, daily: 5 },
   ],

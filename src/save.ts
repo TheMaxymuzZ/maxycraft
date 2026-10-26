@@ -1,3 +1,4 @@
+import type { TownSave } from './townhall';
 import type { EconomySave } from './economy';
 import type { ClockSave } from './clock';
 import type { PlantedTree } from './orchard';
@@ -65,6 +66,8 @@ export interface SaveData {
   vitals?: VitalsSave;
   /** Desde la v0.8: la casa del jugador (nivel, deuda y tejado) y sus muebles. */
   home?: { level: number; debt: number; roof: number };
+  /** Desde la v4.13: el ayuntamiento, sus obras y el nombre de la isla. */
+  town?: TownSave;
   furniture?: PlacedFurniture[];
   /** Desde la v0.9: recetas aprendidas para la mesa de trabajo y la botella del día. */
   recipes?: string[];

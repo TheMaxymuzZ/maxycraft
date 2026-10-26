@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.13',
+    title: 'Ayuntamiento, alcalde y urbanista',
+    items: [
+      'Cada isla tiene ayuntamiento cerca de la plaza, también las de antes. Empieza siendo una caseta de obras y se mejora en 4 niveles: oficina, ayuntamiento y ayuntamiento con plaza y reloj.',
+      'Don Gregorio, el alcalde (un búho que nunca duerme), te da la valoración de la isla, lleva el tablón de avisos con cumpleaños y fiestas y encarga obras públicas: fuente, farolas, bancos y puentes.',
+      'Alrededor de la isla hay de 2 a 4 islotes. Encarga un puente al alcalde o hazlo tú con los bloques nuevos: tablones de puente, barandilla y pilares.',
+      'Con la oficina llega Ladrillo, el urbanista, que vende los planos de casa para vecinos nuevos.',
+      'Desde el nivel Ayuntamiento eliges el nombre de la isla y el color de su bandera.',
+      'En algunas islas de antes la tienda o el museo no tenían camino desde la plaza: ahora se hacen solas rampas y pasarelas para llegar andando.',
+    ],
+  },
+  {
     version: '4.12',
     title: 'Casas de vecinos decorables',
     items: [

@@ -37,7 +37,7 @@ export class Horizon {
 
   private sample() {
     const cells: NonNullable<Horizon['cells']> = [];
-    const R = this.world.islandRadius + 24;
+    const R = this.world.outerRadius + 24;
     for (let z = -R; z < R; z += CELL) {
       for (let x = -R; x < R; x += CELL) {
         // El punto más alto de la celda, para que las montañas y los árboles se vean.

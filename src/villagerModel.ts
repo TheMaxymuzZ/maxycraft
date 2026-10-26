@@ -2,7 +2,9 @@ import * as THREE from 'three';
 
 export type Species =
   | 'gato' | 'conejo' | 'oso' | 'pato' | 'perro' | 'rana' | 'ardilla' | 'tortuga'
-  | 'oveja' | 'cerdo' | 'pingüino' | 'koala' | 'zorro' | 'elefante';
+  | 'oveja' | 'cerdo' | 'pingüino' | 'koala' | 'zorro' | 'elefante'
+  // El alcalde y el urbanista (v4.13).
+  | 'búho' | 'castor';
 
 export interface SpeciesLook {
   /** Color del pelo (o plumas, o piel). */
@@ -30,6 +32,8 @@ export const LOOKS: Record<Species, SpeciesLook> = {
   koala: { fur: 0x9aa0a8, belly: 0xf2f2f2 },
   zorro: { fur: 0xe8823a, belly: 0xfff6ea },
   elefante: { fur: 0x9fb4c8, belly: 0xe8d8e0 },
+  'búho': { fur: 0x8a6a4a, belly: 0xf0e2c4, feet: 0xe0a040 },
+  castor: { fur: 0x7a5034, belly: 0xd8b890, feet: 0x4a3020 },
 };
 
 /** Lo que hace falta para dibujar a un vecino. */
@@ -297,6 +301,29 @@ export function buildVillagerModel(spec: ModelSpec): VillagerModel {
         box(0.02, 0.3, 0.24, belly, sx * 0.47, y + 0.02, 0);
       }
       tail(0.05, 0.22, 0.05, fur, 0.42, -0.18, 0.4);
+      break;
+    case 'búho':
+      // Ojos grandes con un aro claro alrededor, pico pequeño y dos penachos de plumas.
+      for (const sx of [-1, 1]) {
+        box(0.26, 0.26, 0.02, belly, sx * 0.17, y + 0.04, front + 0.02);
+        eye(sx * 0.17, y + 0.04, front + 0.05);
+        box(0.1, 0.16, 0.1, fur, sx * 0.26, y + 0.4, 0.02);
+      }
+      box(0.1, 0.12, 0.08, 0xe0a040, 0, y - 0.12, front + 0.05);
+      tail(0.3, 0.16, 0.1, shade(fur, 0.8), 0.36, -0.2, -0.3);
+      break;
+    case 'castor':
+      eye(-0.15, y + 0.05);
+      eye(0.15, y + 0.05);
+      cheeks();
+      box(0.26, 0.14, 0.08, belly, 0, y - 0.12, front + 0.05);
+      box(0.08, 0.05, 0.03, DARK, 0, y - 0.06, front + 0.09);
+      box(0.1, 0.08, 0.02, WHITE, 0, y - 0.21, front + 0.08); // dientes de roer
+      ear(0.12, 0.1, 0.08, -0.3, y + 0.32, fur, belly);
+      ear(0.12, 0.1, 0.08, 0.3, y + 0.32, fur, belly);
+      // Cola plana y ancha, con dibujo de escamas.
+      box(0.34, 0.06, 0.46, 0x4a3020, 0, 0.12, -0.38);
+      box(0.24, 0.065, 0.02, 0x5c3c28, 0, 0.12, -0.3);
       break;
   }
   return { group, legs, arms, eyes };

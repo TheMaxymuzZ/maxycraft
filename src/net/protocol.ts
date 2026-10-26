@@ -3,6 +3,7 @@ import { type PlayerHome, isPlayerHome } from '../homes';
 import type { Lot } from '../lots';
 import type { Guest, VillagerState } from '../villagers';
 import type { Edits, WorldOptions } from '../world';
+import { type TownSave, isTownSave } from '../townhall';
 import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
 /** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. 4: bloques en 16 bits (v4.5). */
@@ -54,6 +55,8 @@ export interface Snapshot {
   spawn?: [number, number];
   /** Desde la v4.3: las casas de los amigos en esta isla. */
   homes?: PlayerHome[];
+  /** Desde la v4.13: el ayuntamiento, para que los invitados vean al alcalde y al urbanista. */
+  town?: TownSave;
 }
 
 export type Message =
@@ -98,6 +101,8 @@ function isSnapshot(v: unknown): v is Snapshot {
   const list = (x: unknown) => x === undefined || Array.isArray(x);
   const spot = (x: unknown) => x === undefined || (Array.isArray(x) && x.length === 2 && x.every(Number.isInteger));
   const homes = v && (v as Record<string, unknown>).homes;
+  const town = v && (v as Record<string, unknown>).town;
+  if (town !== undefined && !isTownSave(town)) return false;
   return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots) && spot(v.spawn) && (homes === undefined || (Array.isArray(homes) && homes.every(isPlayerHome)));
 }
 

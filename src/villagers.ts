@@ -18,6 +18,7 @@ export const PERSONALITY_NAMES: Record<Personality, string> = {
 export const SPECIES_NAMES: Record<Species, string> = {
   gato: 'Gato', conejo: 'Conejo', oso: 'Oso', pato: 'Pato', perro: 'Perro', rana: 'Rana', ardilla: 'Ardilla', tortuga: 'Tortuga',
   oveja: 'Oveja', cerdo: 'Cerdo', 'pingüino': 'Pingüino', koala: 'Koala', zorro: 'Zorro', elefante: 'Elefante',
+  'búho': 'Búho', castor: 'Castor',
 };
 
 export interface Profile {
@@ -33,7 +34,7 @@ export interface Profile {
   sleep?: [number, number];
   /** No pasea: se queda en la puerta (la dependienta y la conservadora). */
   stationary?: boolean;
-  role?: 'shop' | 'museum' | 'pilot';
+  role?: 'shop' | 'museum' | 'pilot' | 'mayor' | 'planner';
   /** Cumpleaños: [mes, día]. */
   birthday: [number, number];
   /** Lo que más le gusta hacer. */
@@ -59,6 +60,18 @@ const SHOPKEEPER: Profile = {
 export const PILOT: Profile = {
   name: 'Plumas', species: 'pato', personality: 'alegre', catchphrase: 'vrum', shirt: 0x2f6fb0,
   likes: 'conchas', sleep: [0, 0], stationary: true, role: 'pilot', birthday: [7, 17], hobby: 'mirar las nubes',
+};
+
+/** El alcalde (v4.13): un búho que no duerme nunca y está siempre a la puerta del ayuntamiento. */
+export const MAYOR: Profile = {
+  name: 'Don Gregorio', species: 'búho', personality: 'dulce', catchphrase: 'uhú', shirt: 0x3a4a7a,
+  likes: 'madera', sleep: [0, 0], stationary: true, role: 'mayor', birthday: [11, 2], hobby: 'leer actas de plenos',
+};
+
+/** El urbanista (v4.13): un castor que llega cuando el ayuntamiento es una oficina. */
+export const PLANNER: Profile = {
+  name: 'Ladrillo', species: 'castor', personality: 'deportista', catchphrase: 'toc', shirt: 0xd08a2a,
+  likes: 'madera', sleep: [22, 8], stationary: true, role: 'planner', birthday: [4, 22], hobby: 'dibujar planos',
 };
 
 /** Vecinos que solo se encuentran de vacaciones en las islas misteriosas. */
@@ -220,6 +233,14 @@ export class Villager {
 
   get isPilot() {
     return this.profile.role === 'pilot';
+  }
+
+  get isMayor() {
+    return this.profile.role === 'mayor';
+  }
+
+  get isPlanner() {
+    return this.profile.role === 'planner';
   }
 
   /** Está de vacaciones en una isla misteriosa y se le puede invitar. */
@@ -746,7 +767,7 @@ export const RESIDENT_NAMES = [...PROFILES, ...VISITORS].map((p) => p.name);
 export const VISITOR_NAMES: ReadonlySet<string> = new Set(VISITORS.map((p) => p.name));
 
 /** Todos los personajes, con la dependienta, la conservadora y el piloto, para el álbum de vecinos. */
-export const ALL_PROFILES: Profile[] = [SHOPKEEPER, CURATOR, PILOT, ...PROFILES, ...VISITORS];
+export const ALL_PROFILES: Profile[] = [SHOPKEEPER, CURATOR, PILOT, MAYOR, PLANNER, ...PROFILES, ...VISITORS];
 
 export function profileNamed(name: string): Profile | undefined {
   return [...PROFILES, ...VISITORS].find((p) => p.name === name);

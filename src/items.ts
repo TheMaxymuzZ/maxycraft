@@ -164,6 +164,11 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.StonePath, 'camino_losas', 6],
   [Block.Street, 'calle', 6],
   [Block.Tiles, 'baldosas', 8],
+  // Obras públicas (v4.13).
+  [Block.BridgeDeck, 'tablones_puente', 10],
+  [Block.BridgeRail, 'barandilla', 15],
+  [Block.BridgePillar, 'pilar', 20],
+  [Block.ClockFace, 'reloj', 200],
   // Islas misteriosas (v2.9): lo que solo se encuentra allí.
   [Block.Basalt, 'basalto', 15],
   [Block.Magma, 'roca_magma', 120],
@@ -380,6 +385,10 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Workbench]: { time: 1.6, tool: 'axe' },
   [Block.Fence]: { time: 0.8, tool: 'axe' },
   [Block.WhiteFence]: { time: 0.8, tool: 'axe' },
+  [Block.BridgeDeck]: { time: 1.6, tool: 'axe' },
+  [Block.BridgeRail]: { time: 0.8, tool: 'axe' },
+  [Block.BridgePillar]: { time: 1.5, tool: 'pickaxe', needsTool: true },
+  [Block.ClockFace]: { time: 1.5, tool: 'pickaxe', needsTool: true },
   [Block.Gate]: { time: 0.8, tool: 'axe' },
   [Block.Brick]: { time: 1.5, tool: 'pickaxe', needsTool: true },
   [Block.Chest]: { time: 1.2, tool: 'axe' },
@@ -520,10 +529,15 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'macetero', count: 1, needs: [['ladrillo', 2], ['tierra', 1], ['tulipan', 1]] },
   { result: 'fuente_plaza', count: 1, needs: [['piedra_pulida', 8], ['pepita_hierro', 2]] },
   { result: 'buzon', count: 1, needs: [['pepita_hierro', 2], ['rama', 1]] },
+  // Puentes (v4.13), para hacerlos a mano hasta los islotes.
+  { result: 'tablones_puente', count: 6, needs: [['tablones', 4], ['rama', 1]] },
+  { result: 'barandilla', count: 4, needs: [['tablones', 2], ['rama', 2]] },
+  { result: 'pilar', count: 4, needs: [['adoquin', 4]] },
+  { result: 'reloj', count: 1, needs: [['pepita_oro', 2], ['cristal', 1], ['ladrillo', 2]] },
 ];
 
 /** Recetas de construcción que se saben sin aprenderlas. */
-const BUILDING_DIY = ['camino_tierra', 'camino_losas', 'calle', 'baldosas', 'farola', 'papelera', 'cartel', 'macetero', 'fuente_plaza', 'buzon', 'caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo'];
+const BUILDING_DIY = ['camino_tierra', 'camino_losas', 'calle', 'baldosas', 'farola', 'papelera', 'cartel', 'macetero', 'fuente_plaza', 'buzon', 'caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo', 'tablones_puente', 'barandilla', 'pilar', 'reloj'];
 
 /** Las que ya se saben al empezar. */
 export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'puerta', 'puerta_valla', ...BUILDING_DIY];

@@ -126,9 +126,16 @@ const AO_CURVE = [0.45, 0.65, 0.82, 1];
 /** Luz del cielo mínima bajo un tejado cerca de la superficie, para que las casas no queden negras. */
 const INDOOR_SKY = 0.55;
 
+/** Islote pequeño en el mar, cerca de la isla (v4.13). */
+export interface Islet {
+  x: number;
+  z: number;
+  r: number;
+}
+
 /** Parcela con la casa de un vecino o la tienda. La puerta mira hacia +z. */
 export interface Plot {
-  kind: 'house' | 'shop' | 'museum' | 'player';
+  kind: 'house' | 'shop' | 'museum' | 'player' | 'townhall';
   x: number;
   z: number;
   /** Altura del suelo (bloque de arriba del terreno). */
@@ -525,6 +532,75 @@ export class World {
     return by + waterHeight(this.getBlock(bx, by, bz));
   }
 
+  // --- Islotes (v4.13) ---
+
+  private isletList: Islet[] | null = null;
+
+  /**
+   * De 2 a 4 islotes pequeños en el mar, alrededor de la isla (también en las partidas de antes: solo cambia
+   * mar abierto). Se llega a ellos con un puente, que encarga el alcalde o se hace a mano.
+   */
+  get islets(): Islet[] {
+    if (this.mystery) return [];
+    this.isletList ??= this.findIslets();
+    return this.isletList;
+  }
+
+  private findIslets(): Islet[] {
+    const rnd = (i: number) => columnRandom(i, 4013, this.seed + 71);
+    const count = 2 + Math.floor(rnd(0) * 3);
+    const turn = rnd(1) * Math.PI * 2;
+    const out: Islet[] = [];
+    for (let k = 0; k < count; k++) {
+      const r = 5 + Math.floor(rnd(10 + k) * 4);
+      // Si en ese lado la costa sale mucho, se prueba un poco más a un lado.
+      for (const shift of [0, 0.35, -0.35, 0.7, -0.7]) {
+        const a = turn + (k * Math.PI * 2) / count + (rnd(20 + k) - 0.5) * 0.5 + shift;
+        let found: Islet | null = null;
+        for (let d = this.radius * 0.95; d + r < this.radius * 1.4 && !found; d += 2) {
+          const x = Math.round(Math.cos(a) * d);
+          const z = Math.round(Math.sin(a) * d);
+          let clear = this.landMaskRaw(x, z) < 0;
+          for (let i = 0; i < 16 && clear; i++) {
+            const t = (i / 16) * Math.PI * 2;
+            clear = this.landMaskRaw(x + Math.cos(t) * (r + 6), z + Math.sin(t) * (r + 6)) < 0;
+          }
+          if (clear && out.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + r + 10)) found = { x, z, r };
+        }
+        if (found) {
+          out.push(found);
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Altura del suelo de un islote en (x, z), o null si ahí no hay islote. */
+  private isletHeight(x: number, z: number): number | null {
+    for (const i of this.islets) {
+      const dx = x - i.x;
+      const dz = z - i.z;
+      if (Math.abs(dx) > i.r * 1.5 || Math.abs(dz) > i.r * 1.5) continue;
+      const wobble = fbm(x / 6, z / 6, this.seed + 72, 2) - 0.5;
+      const d = Math.hypot(dx, dz) / (i.r * (1 + wobble * 0.4));
+      if (d < 0.55) return SEA_LEVEL + 2;
+      if (d < 1) return SEA_LEVEL + 1;
+      if (d < 1.3) return SEA_LEVEL - 1;
+    }
+    return null;
+  }
+
+  /** El islote que hay en (x, z), contando su playa. */
+  isletAt(x: number, z: number): Islet | undefined {
+    return this.islets.find((i) => Math.hypot(x - i.x, z - i.z) < i.r * 1.25);
+  }
+
+  /** Lo lejos que llega lo que hay que dibujar en el horizonte y en el mapa: la isla y sus islotes. */
+  get outerRadius(): number {
+    return this.mystery ? this.radius : Math.ceil(this.radius * 1.4);
+  }
+
   /** Medio lado de la isla en bloques, para saber cuánto ocupa el mapa (v4.4). */
   get islandRadius(): number {
     return this.radius;
@@ -642,6 +718,8 @@ export class World {
   private naturalHeight(x: number, z: number): number {
     const mask = this.landMask(x, z);
     if (mask < 0.14) {
+      const islet = this.isletHeight(x, z);
+      if (islet !== null) return islet;
       // El fondo del mar baja poco a poco desde la orilla (v4.0): un bloque más hondo cada dos o tres bloques.
       const out = (0.14 - this.landMaskRaw(x, z)) * this.radius * 0.45;
       if (out < 1.5) return SEA_LEVEL; // orilla, justo a ras del agua

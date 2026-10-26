@@ -284,7 +284,7 @@
           <p>A cada vecino le gusta una cosa: <b>la fruta</b>, <b>las conchas</b> (concha, caracola, estrella de mar), <b>las flores</b> (tulipán, pensamiento, cosmos) o <b>las cosas de madera</b> (tronco, tablones, ramas).</p>
           <div class="tip"><b>¡Cumpleaños!</b> El día de su cumpleaños, cualquier regalo les hace muchísima ilusión y siempre te devuelven otro. Hazte muy amiga o amigo suyo para que te digan cuándo es: lo que te cuentan se apunta en el álbum de vecinos.</div>
           <h3>Horario</h3>
-          <p>Cada personalidad se acuesta a su hora: los dormilones de 20:00 a 10:00, los dulces de 21:00 a 7:00, los alegres y deportistas a las 22:00, los presumidos a las 23:00 y los gruñones a medianoche. Avellana duerme de 22:00 a 8:00. Matilde (el museo) y Plumas (la avioneta) están siempre.</p>
+          <p>Cada personalidad se acuesta a su hora: los dormilones de 20:00 a 10:00, los dulces de 21:00 a 7:00, los alegres y deportistas a las 22:00, los presumidos a las 23:00 y los gruñones a medianoche. Avellana duerme de 22:00 a 8:00. Matilde (el museo), Plumas (la avioneta) y Don Gregorio (el ayuntamiento) están siempre; Ladrillo, el urbanista, duerme de 22:00 a 8:00.</p>
           <h3>Personajes de la isla</h3>
           <p>Estos son todos. Los que viven en tu isla salen al azar al empezar; los demás se encuentran <b>de vacaciones en las islas misteriosas</b> y puedes invitarlos a vivir contigo. En la enciclopedia (<kbd>C</kbd> › Vecinos) tienes el álbum de los que conoces.</p>
           <div class="villagers" id="vecinos-lista"><p class="loading">Cargando…</p></div>
@@ -486,7 +486,7 @@
           <h2>Casas para vecinos nuevos</h2>
           <p>Los vecinos nuevos no llegan solos: <b>tú les construyes la casa</b>, bloque a bloque.</p>
           <ol class="steps">
-            <li>Compra un <b>plano de casa</b> en la tienda (1.000 bayas).</li>
+            <li>Compra un <b>plano de casa</b> (1.000 bayas) en la tienda de Avellana o, desde que el ayuntamiento es una oficina, a <b>Ladrillo, el urbanista</b>.</li>
             <li>Ve a un sitio <b>llano</b> de tu isla, lejos de otras casas. Con el plano en la mano, haz clic derecho en el suelo. La <b>puerta mirará hacia ti</b>.</li>
             <li>Aparecen <b>bloques fantasma</b> de colores que te enseñan qué va en cada sitio: el suelo, las paredes, la puerta y el tejado. Arriba ves cuántos bloques faltan.</li>
             <li>Pon bloques donde están los fantasmas. Si algo sobra dentro, sale marcado en rojo: quítalo.</li>
@@ -642,7 +642,34 @@
         </section>
 
         <!-- ============================================================ -->
-        <section class="card" id="casas-vecinos" data-emoji="🛋️">
+        <section class="card" id="ayuntamiento" data-emoji="🏛️">
+          <h2>Ayuntamiento y obras públicas</h2>
+          <p>Desde la 4.13 cada isla tiene ayuntamiento, cerca de la plaza (también en las partidas de antes). En la puerta está <b>Don Gregorio, el alcalde</b>, un búho que nunca duerme. Háblale para:</p>
+          <ul class="plain">
+            <li><b>Valoración de la isla:</b> las estrellas de tu isla y un consejo para mejorarla. Las obras públicas también suben la nota.</li>
+            <li><b>Tablón de avisos:</b> cumpleaños de hoy, fiestas que se acercan, el nombre de la isla y las obras que se pueden encargar.</li>
+            <li><b>Obras públicas:</b> pagas en bayas y se hacen al momento.</li>
+            <li><b>El ayuntamiento:</b> mejorarlo al siguiente nivel con bayas y materiales que lleves en los bolsillos.</li>
+            <li><b>Nombre y bandera</b> (desde el nivel Ayuntamiento): elige el nombre de la isla y el color de la bandera que ondea junto a la puerta.</li>
+          </ul>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Nivel</th><th>Bayas</th><th>Materiales</th><th>Qué trae</th></tr></thead>
+            <tbody id="tabla-ayuntamiento"><tr><td colspan="4" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+          <h3>Obras públicas</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Obra</th><th>Precio</th><th>Desde el nivel</th><th>Qué es</th></tr></thead>
+            <tbody id="tabla-obras"><tr><td colspan="4" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+          <h3>Islotes y puentes</h3>
+          <p>Alrededor de la isla hay <b>de 2 a 4 islotes</b> con playa y palmeras (salen en el mapa). El alcalde te ofrece un <b>puente a cada uno</b>: cuesta 8.000 bayas más 1.000 por cada 5 bloques de largo. También puedes hacerlo a mano con <b>tablones de puente</b>, <b>barandilla</b> y <b>pilares</b>, que se fabrican desde el principio.</p>
+          <h3>Ladrillo, el urbanista</h3>
+          <p>Llega cuando el ayuntamiento es una <b>oficina</b>. Vende los <b>planos de casa</b> para vecinos nuevos (Avellana deja de venderlos) y está preparando las parcelas, las ampliaciones y las mudanzas.</p>
+          <div class="tip"><b>Rampas solas:</b> en algunas islas de antes la tienda o el museo quedaban en otro piso o al otro lado del río, sin camino. Al abrir la partida con la 4.13 se hacen escalones y pasarelas para que los vecinos (y tú) lleguéis andando desde la plaza.</div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section class="card" id="casas-amistad" data-emoji="🛋️">
           <h2>Casas de los vecinos y amistad</h2>
           <p>Desde la 4.12, cuando le regalas un <b>mueble</b> a un vecino, lo pone en su casa en ese momento. Entra a verlo. Cada vecino tiene un <b>estilo de decoración</b>: si el mueble es de su estilo, le hace mucha ilusión y sube más la amistad (un regalo al día por vecino, como siempre).</p>
           <ul class="plain">
