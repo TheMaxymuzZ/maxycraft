@@ -2,16 +2,20 @@ import * as THREE from 'three';
 import { Block, CREATURE_TILE_START, isCross, isSolid, tileCanvas } from './blocks';
 import { CREATURES, type Creature, type Habitat, pickCreature } from './creatures';
 import type { World } from './world';
+import { Population, type PopulationRule } from './population';
 
 interface Bug {
   creature: Creature;
+  /** Zona del control de población donde apareció. */
+  zone: string;
   sprite: THREE.Sprite;
   base: THREE.Vector3;
   phase: number;
   life: number;
 }
 
-const MAX_BUGS = 7;
+/** Insectos a la vez: pocos por zona, para que estén repartidos, y unos cuantos en total (v4.7). */
+export const BUG_RULE: PopulationRule = { perZone: 3, total: 8, respawn: 120 };
 const FLYERS = new Set(['mariposa', 'libelula', 'luciernaga']);
 
 /** Insectos que aparecen cerca del jugador según la hora y el sitio. */
@@ -21,7 +25,7 @@ export class Bugs {
   private materials = new Map<string, THREE.SpriteMaterial>();
   private spawnTimer = 0;
 
-  constructor(private world: World, private atlas: HTMLCanvasElement) {}
+  constructor(private world: World, private atlas: HTMLCanvasElement, private population = new Population({ bichos: BUG_RULE })) {}
 
   private material(c: Creature): THREE.SpriteMaterial {
     let m = this.materials.get(c.id);
@@ -40,8 +44,9 @@ export class Bugs {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = 1.2;
-      if (this.bugs.length < MAX_BUGS) this.trySpawn(hour, player);
+      this.trySpawn(hour, player);
     }
+    this.population.update(dt);
 
     for (let i = this.bugs.length - 1; i >= 0; i--) {
       const b = this.bugs[i];
@@ -74,6 +79,7 @@ export class Bugs {
     const d = 6 + Math.random() * 18;
     const x = Math.floor(player.x + Math.cos(a) * d);
     const z = Math.floor(player.z + Math.sin(a) * d);
+    if (!this.population.canSpawn('bichos', x, z)) return;
     if (this.world.waterKind(x, z)) return;
     const h = this.world.heightAt(x, z);
     const above = this.world.getBlock(x, h + 1, z);
@@ -100,7 +106,7 @@ export class Bugs {
     sprite.scale.setScalar(FLYERS.has(c.sprite) ? 0.45 : 0.35);
     sprite.position.copy(pos);
     this.group.add(sprite);
-    this.bugs.push({ creature: c, sprite, base: pos.clone(), phase: Math.random() * 10, life: 90 + Math.random() * 90 });
+    this.bugs.push({ creature: c, zone: this.population.add('bichos', x, z), sprite, base: pos.clone(), phase: Math.random() * 10, life: 90 + Math.random() * 90 });
   }
 
   private nearWater(x: number, z: number): boolean {
@@ -124,7 +130,7 @@ export class Bugs {
     });
     if (best < 0) return null;
     const c = this.bugs[best].creature;
-    this.remove(best);
+    this.remove(best, true);
     return c;
   }
 
@@ -133,7 +139,8 @@ export class Bugs {
     return this.bugs.map((b) => ({ id: b.creature.id, pos: b.sprite.position.clone() }));
   }
 
-  private remove(i: number) {
+  private remove(i: number, caught = false) {
+    this.population.remove('bichos', this.bugs[i].zone, caught);
     this.group.remove(this.bugs[i].sprite);
     this.bugs.splice(i, 1);
   }

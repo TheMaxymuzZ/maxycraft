@@ -52,7 +52,7 @@ export class IslandMap {
   }
 
   /** Color medio de la cara de arriba de un bloque, sacado de su dibujo. */
-  private colorOf(b: number): RGB {
+  colorOf(b: number): RGB {
     let c = this.colors.get(b);
     if (c) return c;
     if (isWater(b)) c = WATER;

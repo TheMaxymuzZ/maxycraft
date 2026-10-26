@@ -9,6 +9,8 @@ export default defineConfig({
   base: './',
   // El número de versión sale de package.json y se ve en el menú del juego.
   define: { __APP_VERSION__: JSON.stringify(version) },
+  // El hilo que dibuja las mallas (v4.7) se compila como módulo, igual que el juego.
+  worker: { format: 'es' },
   build: {
     // El juego espera a conectar con la isla del anfitrión antes de arrancar (await al principio de main.ts).
     target: 'es2022',

@@ -26,7 +26,12 @@ export interface Settings {
   dayLength: number;
   /** Tamaño de los botones, la barra y las ventanas, en % (70 a 150; desde la v3.7). */
   uiScale: number;
+  /** Distancia de visión en chunks (3 a 12; desde la v4.7). Al cambiar la calidad se pone la de esa calidad. */
+  viewDistance: number;
 }
+
+export const VIEW_MIN = 3;
+export const VIEW_MAX = 12;
 
 export const QUALITIES: { id: Quality; name: string; hint: string }[] = [
   { id: 'baja', name: 'Baja', hint: 'Se ve menos lejos y sin sombras. Para móviles y ordenadores sencillos.' },
@@ -34,7 +39,7 @@ export const QUALITIES: { id: Quality; name: string; hint: string }[] = [
   { id: 'alta', name: 'Alta', hint: 'Se ve muy lejos, con sombras más finas. Necesita un buen ordenador.' },
 ];
 
-/** Cuántos trozos de mundo (chunks) se ven alrededor en cada calidad. */
+/** Cuántos trozos de mundo (chunks) se ven alrededor en cada calidad (lo que sale al elegirla; luego se puede cambiar). */
 export const RENDER_RADIUS: Record<Quality, number> = { baja: 4, media: 6, alta: 8 };
 /** Píxeles por punto de pantalla como máximo: menos es más rápido y algo más borroso. */
 export const PIXEL_RATIO: Record<Quality, number> = { baja: 1, media: 1.5, alta: 2 };
@@ -59,7 +64,8 @@ export function uiScaleFor(percent: number, width: number, height: number, touch
 }
 
 export function defaultSettings(touch: boolean): Settings {
-  return { music: 70, sfx: 80, sensitivity: 1, quality: touch ? 'baja' : 'media', fov: 75, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24, uiScale: 100 };
+  const quality: Quality = touch ? 'baja' : 'media';
+  return { music: 70, sfx: 80, sensitivity: 1, quality, fov: 75, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24, uiScale: 100, viewDistance: RENDER_RADIUS[quality] };
 }
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) =>
@@ -69,16 +75,18 @@ const clamp = (n: unknown, lo: number, hi: number, fallback: number) =>
 export function normalizeSettings(raw: unknown, touch: boolean): Settings {
   const d = defaultSettings(touch);
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof Settings, unknown>>;
+  const quality = QUALITIES.some((q) => q.id === r.quality) ? (r.quality as Quality) : d.quality;
   return {
     music: Math.round(clamp(r.music, 0, 100, d.music)),
     sfx: Math.round(clamp(r.sfx, 0, 100, d.sfx)),
     sensitivity: clamp(r.sensitivity, 0.3, 3, d.sensitivity),
-    quality: QUALITIES.some((q) => q.id === r.quality) ? (r.quality as Quality) : d.quality,
+    quality,
     fov: Math.round(clamp(r.fov, 60, 100, d.fov)),
     keys: normalizeKeys(r.keys),
     bigText: r.bigText === true,
     colorblind: r.colorblind === true,
     uiScale: Math.round(clamp(r.uiScale, UI_SCALE_MIN, UI_SCALE_MAX, d.uiScale) / 5) * 5,
+    viewDistance: Math.round(clamp(r.viewDistance, VIEW_MIN, VIEW_MAX, RENDER_RADIUS[quality])),
     dayLength: DAY_LENGTHS.some((l) => l.minutes === r.dayLength) ? (r.dayLength as number) : d.dayLength,
   };
 }

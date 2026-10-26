@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.7',
+    title: 'Mundo en streaming',
+    items: [
+      'El dibujo del mundo se hace ahora en un hilo aparte: al caminar, navegar o volar por la isla el juego ya no da tirones al cargar zonas nuevas.',
+      'Lo que queda lejos se descarga de la memoria (tus cambios no se pierden nunca) y la isla se ve entera a lo lejos en siluetas, con el mar hasta el horizonte.',
+      'Nueva opción Distancia de visión, de 3 a 12 chunks. Al cambiar la calidad gráfica se pone sola la recomendada.',
+      'Los bichos tienen límite por zona y tardan un rato en volver donde ya cazaste, para que no se amontonen ni gasten de más.',
+      'Panel de rendimiento escondido: abre el juego con ?rendimiento para ver FPS, chunks y memoria.',
+    ],
+  },
+  {
     version: '4.6',
     title: 'Guardado de archipiélago',
     items: [

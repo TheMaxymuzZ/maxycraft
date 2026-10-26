@@ -1,7 +1,7 @@
 import { CHANGELOG } from './changelog';
 import { DAY_LENGTHS } from './clock';
 import { ACTIONS, type Action, bindKey, canBind, defaultKeys, keyLabel } from './keys';
-import { QUALITIES, type Settings, defaultSettings, saveSettings } from './settings';
+import { QUALITIES, RENDER_RADIUS, type Settings, defaultSettings, saveSettings } from './settings';
 
 export type View = 'main' | 'options' | 'islands' | 'controls' | 'keys' | 'news' | 'friends';
 
@@ -10,7 +10,7 @@ export class Menu {
   readonly el = document.querySelector<HTMLDivElement>('#overlay')!;
   private views = [...this.el.querySelectorAll<HTMLElement>('.menu-view')];
   private qualityHint = document.querySelector<HTMLParagraphElement>('#opt-quality-hint')!;
-  private sliders: { key: 'music' | 'sfx' | 'sensitivity' | 'fov' | 'uiScale'; input: HTMLInputElement; out: HTMLOutputElement; format: (n: number) => string }[];
+  private sliders: { key: 'music' | 'sfx' | 'sensitivity' | 'fov' | 'uiScale' | 'viewDistance'; input: HTMLInputElement; out: HTMLOutputElement; format: (n: number) => string }[];
   private qualityInputs: HTMLInputElement[] = [];
   private dayInputs: HTMLInputElement[] = [];
   private bigText = document.querySelector<HTMLInputElement>('#opt-bigtext')!;
@@ -30,7 +30,7 @@ export class Menu {
     private onChange: (s: Settings) => void,
   ) {
     const percent = (n: number) => `${n}%`;
-    const slider = (key: 'music' | 'sfx' | 'sensitivity' | 'fov' | 'uiScale', format: (n: number) => string) => ({
+    const slider = (key: 'music' | 'sfx' | 'sensitivity' | 'fov' | 'uiScale' | 'viewDistance', format: (n: number) => string) => ({
       key,
       input: document.querySelector<HTMLInputElement>(`#opt-${key}`)!,
       out: document.querySelector<HTMLOutputElement>(`#opt-${key}-value`)!,
@@ -42,6 +42,7 @@ export class Menu {
       slider('sensitivity', (n) => `${n.toFixed(1).replace('.', ',')}×`),
       slider('fov', (n) => `${n}°`),
       slider('uiScale', percent),
+      slider('viewDistance', (n) => `${n * 16} bloques`),
     ];
     for (const s of this.sliders) {
       s.input.addEventListener('input', () => {
@@ -60,6 +61,8 @@ export class Menu {
       input.id = `opt-quality-${q.id}`;
       input.addEventListener('change', () => {
         this.settings.quality = q.id;
+        // Cada calidad trae su distancia de visión; luego se puede ajustar a mano.
+        this.settings.viewDistance = RENDER_RADIUS[q.id];
         this.changed();
       });
       label.append(input, q.name);
