@@ -50,7 +50,7 @@ import { SAVE_VERSION, type SaveData, activeSlot, flushSaves, loadGame, openSave
 import { onStoreError } from './store';
 import { Shop, formatBerries } from './shop';
 import { WEATHER_TEXT, holidayOf, seasonOf, weatherAt } from './seasons';
-import { PIXEL_RATIO, RENDER_RADIUS, type Settings, loadSettings, uiScaleFor } from './settings';
+import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
 import { SunShadows } from './shadows';
 import { TouchControls } from './touch';
@@ -74,6 +74,9 @@ import { MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals'
 import { FaintScreen } from './game/faintScreen';
 import { MapScreen } from './game/mapScreen';
 import { SleepScreen } from './game/sleepScreen';
+import { startMesher } from './game/mesher';
+import { Horizon } from './horizon';
+import { PerfPanel } from './game/perfPanel';
 import { VitalsHud } from './vitalsHud';
 import { BIOME_NAMES, type Biome, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
 
@@ -83,10 +86,13 @@ const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams
 document.documentElement.classList.toggle('tactil', touchMode);
 // Opciones del jugador; en el móvil, por defecto, se ve algo menos lejos para que vaya fluido.
 const settings = loadSettings(touchMode);
-let renderRadius = RENDER_RADIUS[settings.quality];
+let renderRadius = settings.viewDistance;
+/** Siluetas lejanas de la isla y mar hasta el horizonte (v4.7); en calidad baja no, para ir más ligero. */
+const horizonOn = () => settings.quality !== 'baja';
 const REACH = 6;
-const fogNear = () => renderRadius * 16 * 0.55;
-const fogFar = () => renderRadius * 16 * 0.95;
+// Con siluetas lejanas la niebla empieza más lejos: se ve la isla entera y el mar hasta el horizonte.
+const fogNear = () => renderRadius * 16 * (horizonOn() ? 0.8 : 0.55);
+const fogFar = () => (horizonOn() ? Math.min(380, renderRadius * 16 * 2.4) : renderRadius * 16 * 0.95);
 /** Días de juego que tarda en volver a salir la fruta de un árbol, como en Animal Crossing. */
 const FRUIT_REGROW_DAYS = 3;
 const SHELLS_PER_DAY = 7;
@@ -211,6 +217,8 @@ const world = joined
   : trip
   ? new World(trip.seed, material, {}, { mystery: { kind: trip.kind, fruit: trip.fruit } })
   : new World(seed, material, save?.edits ?? {}, { terrain, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) });
+// Las mallas se dibujan en otro hilo para que no haya tirones (v4.7). Para probar sin él: ?sinhilo
+const mesher = startMesher(world, !params.has('sinhilo'));
 /** Todos los cambios de bloques pasan por aquí, para poder compartirlos con otros jugadores. */
 const sync = new WorldSync(world);
 /**
@@ -611,7 +619,7 @@ function applySettings(s: Settings) {
   document.documentElement.classList.toggle('daltonico', s.colorblind);
   camera.fov = s.fov;
   camera.updateProjectionMatrix();
-  renderRadius = RENDER_RADIUS[s.quality];
+  renderRadius = s.viewDistance;
   shadows.setQuality(s.quality);
   clock.dayLength = s.dayLength;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO[s.quality]));
@@ -1730,6 +1738,11 @@ function wakeUpAtHome() {
 
 const mapScreen = new MapScreen(world, atlas, { hasMap, markers: mapMarkers, onOpen: () => openMap(), onClose: () => closeMap() });
 
+// Siluetas lejanas (v4.7): la isla con poco detalle más allá de lo cargado, y el mar hasta el horizonte.
+const horizon = new Horizon(world, (b) => mapScreen.map.colorOf(b), new THREE.MeshLambertMaterial({ color: 0x3a8fc4 }));
+const perf = params.has('rendimiento') ? new PerfPanel(renderer, world) : null;
+scene.add(horizon.group);
+
 /** El mapa funciona si lo llevas en los bolsillos o en la otra mano. */
 function hasMap(): boolean {
   return inventory.countOf('mapa') > 0 || inventory.offhand?.id === 'mapa';
@@ -2505,6 +2518,7 @@ function newDay() {
     ctx.drawImage(fresh, 0, 0);
     atlasTexture.needsUpdate = true;
     mapScreen.map.repaint();
+    horizon.recolor();
     hud.toast(`¡Ha llegado ${season === 'otoño' ? 'el otoño' : season === 'invierno' ? 'el invierno' : season === 'verano' ? 'el verano' : 'la primavera'}!`);
   }
   const nextHoliday = holidayOf(date);
@@ -2557,6 +2571,8 @@ function frame(now: number) {
   last = now;
 
   world.update(player.position.x, player.position.z, renderRadius);
+  horizon.update(player.position.x, player.position.z, renderRadius, horizonOn() && !world.inWater(camera.position.x, camera.position.y, camera.position.z));
+  perf?.update(dt);
 
   // Esperar a que el suelo bajo el jugador exista antes de aplicar la gravedad.
   updateSplash(now);
@@ -2739,6 +2755,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { mesher, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

@@ -33,11 +33,62 @@ class Chunk {
   readonly data: BlockData = new Uint16Array(CHUNK * CHUNK * HEIGHT);
   mesh: THREE.Mesh | null = null;
   dirty = true;
+  /** Sube cada vez que el chunk cambia: una malla pedida a otro hilo solo vale si no ha cambiado desde entonces (v4.7). */
+  stamp = 0;
+  /** Último momento (milisegundos) en que el jugador estuvo cerca, para soltar de memoria los que quedan lejos. */
+  seen = 0;
+  /** Lo hay que redibujar. */
+  touch() {
+    this.dirty = true;
+    this.stamp++;
+  }
   /** Altura del bloque opaco más alto de cada columna, para saber qué está bajo tierra. */
   sky: Int16Array | null = null;
   /** Luz de cada bloque al dibujar el chunk: cielo en los 4 bits altos, antorchas en los bajos (v3.1). */
   light: Uint8Array | null = null;
   constructor(readonly cx: number, readonly cz: number) {}
+}
+
+/** Malla de un chunk calculada como listas de números (v4.7), lista para pasar entre hilos. */
+export interface MeshData {
+  cx: number;
+  cz: number;
+  positions: Float32Array;
+  normals: Float32Array;
+  uvs: Float32Array;
+  colors: Float32Array;
+  lights: Float32Array;
+  tints: Float32Array;
+  sway: Float32Array;
+  indices: Uint32Array;
+  water: Float32Array;
+  flow: Float32Array;
+  /** Luz de cada bloque del chunk (para lightAt). */
+  light: Uint8Array;
+}
+
+/** Mensajes al hilo que dibuja las mallas: lo necesario para que su copia del mundo sea igual a esta. */
+export type MesherMessage =
+  | { t: 'init'; seed: number; edits: Edits; options: WorldOptions; lamps: [number, number, number, number][] }
+  | { t: 'set'; x: number; y: number; z: number; b: number }
+  | { t: 'clear'; x: number; y: number; z: number }
+  | { t: 'lamp'; x: number; y: number; z: number; level: number }
+  | { t: 'guest'; x: number; z: number }
+  /** Dibuja ese chunk; con `blocks`, manda también sus bloques (si aquí aún no se han generado). */
+  | { t: 'mesh'; cx: number; cz: number; stamp: number; blocks: boolean }
+  | { t: 'drop'; cx: number; cz: number };
+
+/** Respuesta del hilo de dibujo. */
+export type MesherResult = MeshData & { stamp: number; blocks?: BlockData };
+
+/** Por dónde se habla con el hilo de dibujo. */
+export interface MesherLink {
+  post(msg: MesherMessage): void;
+}
+
+/** Los buffers de una malla, para pasarlos a otro hilo sin copiarlos. */
+export function meshBuffers(m: MeshData): ArrayBuffer[] {
+  return [m.positions, m.normals, m.uvs, m.colors, m.lights, m.tints, m.sway, m.indices, m.water, m.flow, m.light].map((a) => a.buffer as ArrayBuffer);
 }
 
 /** Luz de antorchas en un bloque, de 0 a 1, y `color`: de qué color es (índice de LIGHT_COLORS). */
@@ -107,6 +158,11 @@ export const PLOT_RADIUS = 5;
 
 /** Milisegundos por fotograma para dibujar chunks nuevos mientras se juega (siempre al menos uno). */
 const MESH_MS = 6;
+/** Mallas pedidas a la vez al hilo de dibujo (v4.7). */
+const MAX_IN_FLIGHT = 4;
+/** Chunks más allá de la distancia de visión más este margen, y sin visitar desde hace un rato, se sueltan de memoria. */
+const UNLOAD_MARGIN = 4;
+const UNLOAD_AFTER_MS = 20_000;
 
 /** Cambios del jugador sobre el mundo generado, por chunk: índice local → bloque. */
 export type Edits = Record<string, Record<number, number>>;
@@ -189,10 +245,19 @@ export class World {
   /** Manantiales de los acantilados de las islas de antes (se buscan una vez, al hacer falta). */
   private springs: WaterfallSpot[] | null = null;
 
+  /** Casas de invitados añadidas (en el constructor o después), para copiar el mundo en otro hilo. */
+  private guestSpots: [number, number][] = [];
+  private readonly options: WorldOptions;
+  /** El hilo que dibuja las mallas (v4.7), si lo hay. */
+  private mesher: MesherLink | null = null;
+  /** Chunks pedidos al hilo de dibujo y el `stamp` con que se pidieron. */
+  private inFlight = new Map<string, number>();
+
   /** Material del agua; se pone desde fuera para que coincida con el resto de la escena. */
   waterMaterial: THREE.Material = new THREE.MeshLambertMaterial({ color: 0x3fa9d6, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
 
   constructor(readonly seed: number, private material: THREE.Material, edits: Edits = {}, options: WorldOptions = {}) {
+    this.options = options;
     this.mystery = options.mystery;
     this.terrain = this.mystery ? 1 : options.terrain ?? 1;
     // Las islas misteriosas miden entre 40 y 54 bloques de radio; la del volcán, algo más.
@@ -295,6 +360,8 @@ export class World {
 
   /** Añade la casa de un vecino invitado. Hay que hacerlo antes de que se genere esa zona. */
   addGuestPlot(x: number, z: number) {
+    this.guestSpots.push([x, z]);
+    this.mesher?.post({ t: 'guest', x, z });
     const y = this.naturalHeight(x, z);
     this.plots.push({ kind: 'house', x, z, y, roof: ROOFS[this.plots.filter((p) => p.guest).length % ROOFS.length], door: [x, y + 1, z + 3], guest: true });
   }
@@ -800,7 +867,7 @@ export class World {
       }
     }
 
-    chunk.dirty = true;
+    chunk.touch();
   }
 
   /**
@@ -1107,8 +1174,9 @@ export class World {
     const i = index(lx, y, lz);
     const before = c.data[i];
     c.data[i] = b;
-    c.dirty = true;
+    c.touch();
     c.sky = null;
+    this.mesher?.post({ t: 'set', x, y, z, b });
 
     // Una luz nueva (o quitada), o un bloque que tapa o destapa una luz cercana, cambia la luz de alrededor.
     if (LIGHT_RADIUS[b] || LIGHT_RADIUS[before as Block]) {
@@ -1155,6 +1223,7 @@ export class World {
     const m = this.edits.get(key(cx, cz));
     if (!m) return;
     m.delete(index(x - cx * CHUNK, y, z - cz * CHUNK));
+    this.mesher?.post({ t: 'clear', x, y, z });
     // Si el chunk ya existe, se vuelve a generar para recuperar el bloque original.
     const k = key(cx, cz);
     const c = this.chunks.get(k);
@@ -1226,15 +1295,81 @@ export class World {
 
   private markDirty(cx: number, cz: number) {
     const c = this.chunks.get(key(cx, cz));
-    if (c) c.dirty = true;
+    if (c) c.touch();
   }
 
   // --- Carga alrededor del jugador ---
+
+  /**
+   * Usa otro hilo para dibujar las mallas (v4.7). El hilo tiene su propia copia del mundo, que se mantiene igual
+   * mandándole cada cambio; aquí solo se ponen en la escena las mallas que devuelve.
+   */
+  attachMesher(link: MesherLink) {
+    this.mesher = link;
+    this.inFlight.clear();
+    link.post({ t: 'init', seed: this.seed, edits: this.exportEdits(), options: { ...this.options, guests: [...this.guestSpots] }, lamps: [...this.lamps.values()] });
+  }
+
+  /** Deja de usar el hilo de dibujo (si falla): se vuelve a dibujar aquí. */
+  detachMesher() {
+    this.mesher = null;
+    this.inFlight.clear();
+  }
+
+  get usesMesher(): boolean {
+    return this.mesher !== null;
+  }
+
+  /** Llega una malla del hilo de dibujo. Si el chunk ha cambiado desde que se pidió, se descarta y se pide otra. */
+  receiveMesh(r: MesherResult) {
+    const k = key(r.cx, r.cz);
+    if (this.inFlight.get(k) === r.stamp) this.inFlight.delete(k);
+    let c = this.chunks.get(k);
+    if (!c) {
+      // Aquí aún no se había generado: se usan los bloques que ha generado el otro hilo (son los mismos).
+      if (!r.blocks) return;
+      c = new Chunk(r.cx, r.cz);
+      c.data.set(r.blocks);
+      this.chunks.set(k, c);
+      c.stamp = r.stamp;
+      this.findSpills(r.cx * CHUNK, r.cz * CHUNK);
+      this.findGeneratedLights(c);
+    }
+    if (c.stamp !== r.stamp) return;
+    this.applyMesh(c, r);
+  }
+
+  /** Olvida un chunk (sus cambios siguen guardados aparte y se vuelven a aplicar al generarlo otra vez). */
+  dropChunk(cx: number, cz: number) {
+    const k = key(cx, cz);
+    const c = this.chunks.get(k);
+    if (!c) return;
+    this.disposeMesh(c);
+    this.chunks.delete(k);
+    this.inFlight.delete(k);
+  }
+
+  /** Copia de los bloques de un chunk (generándolo si hace falta), para mandarla a otro hilo. */
+  chunkBlocks(cx: number, cz: number): BlockData {
+    return this.getChunk(cx, cz).data.slice();
+  }
+
+  /** Chunks con bloques en memoria (para el panel de rendimiento). */
+  get loadedChunks(): number {
+    return this.chunks.size;
+  }
+
+  get meshedChunks(): number {
+    let n = 0;
+    for (const c of this.chunks.values()) if (c.mesh) n++;
+    return n;
+  }
 
   /** Genera y dibuja chunks cerca de (x, z). Reconstruye como mucho `budget` mallas ya visibles por llamada. */
   update(x: number, z: number, radius: number, budget = 2) {
     const pcx = Math.floor(x / CHUNK);
     const pcz = Math.floor(z / CHUNK);
+    const now = performance.now();
 
     const wanted: [number, number, number][] = [];
     for (let dz = -radius; dz <= radius; dz++) {
@@ -1246,30 +1381,59 @@ export class World {
     }
     wanted.sort((a, b) => a[2] - b[2]);
 
-    // Cada chunk tarda unos milisegundos en dibujarse: mientras se juega se hacen pocos por fotograma
-    // para que no haya tirones al caminar por islas grandes; al cargar (sin suelo aún) se hacen más.
-    const loading = !this.isReady(x, z);
-    const until = performance.now() + (loading ? 60 : MESH_MS);
-    let built = 0;
-    for (const [cx, cz] of wanted) {
-      const c = this.getChunk(cx, cz);
-      if (!c.dirty) continue;
-      if (built >= budget && c.mesh) continue; // los ya visibles pueden esperar un fotograma
-      this.buildMesh(c);
-      built++;
-      if (built >= budget * 4 || performance.now() > until) break;
+    if (this.mesher) {
+      // Con hilo de dibujo: se piden las mallas más cercanas primero, unas pocas a la vez.
+      for (const [cx, cz] of wanted) {
+        const k = key(cx, cz);
+        const c = this.chunks.get(k);
+        if (c) c.seen = now;
+        if (c && !c.dirty) continue;
+        if (this.inFlight.has(k)) continue;
+        if (this.inFlight.size >= MAX_IN_FLIGHT) break;
+        const stamp = c?.stamp ?? -1;
+        this.inFlight.set(k, stamp);
+        this.mesher.post({ t: 'mesh', cx, cz, stamp, blocks: !c });
+      }
+      // Si el chunk cambió mientras se dibujaba, la malla que llegue no vale: se puede pedir otra.
+      for (const [k, stamp] of this.inFlight) {
+        const c = this.chunks.get(k);
+        if (c && c.stamp !== stamp && stamp !== -1) this.inFlight.delete(k);
+      }
+    } else {
+      // Cada chunk tarda unos milisegundos en dibujarse: mientras se juega se hacen pocos por fotograma
+      // para que no haya tirones al caminar por islas grandes; al cargar (sin suelo aún) se hacen más.
+      const loading = !this.isReady(x, z);
+      const until = now + (loading ? 60 : MESH_MS);
+      let built = 0;
+      for (const [cx, cz] of wanted) {
+        const c = this.getChunk(cx, cz);
+        c.seen = now;
+        if (!c.dirty) continue;
+        if (built >= budget && c.mesh) continue; // los ya visibles pueden esperar un fotograma
+        this.buildMesh(c);
+        built++;
+        if (built >= budget * 4 || performance.now() > until) break;
+      }
     }
 
     // Quitar de la escena los chunks lejanos (los cambios se guardan aparte).
     const far = (radius + 2) * (radius + 2);
+    // Y soltar de la memoria los que llevan un rato muy lejos: al volver se generan otra vez con los cambios (v4.7).
+    const gone = (radius + UNLOAD_MARGIN) * (radius + UNLOAD_MARGIN);
+    const drop: [number, number][] = [];
     for (const c of this.chunks.values()) {
-      if (!c.mesh) continue;
       const dx = c.cx - pcx;
       const dz = c.cz - pcz;
-      if (dx * dx + dz * dz > far) {
+      const d = dx * dx + dz * dz;
+      if (c.mesh && d > far) {
         this.disposeMesh(c);
-        c.dirty = true;
+        c.touch();
       }
+      if (d > gone && now - c.seen > UNLOAD_AFTER_MS) drop.push([c.cx, c.cz]);
+    }
+    for (const [cx, cz] of drop) {
+      this.dropChunk(cx, cz);
+      this.mesher?.post({ t: 'drop', cx, cz });
     }
   }
 
@@ -1344,6 +1508,7 @@ export class World {
     const k = `${x},${y},${z}`;
     if (level > 0) this.lamps.set(k, [x, y, z, Math.min(MAX_LIGHT, level)]);
     else if (!this.lamps.delete(k)) return;
+    this.mesher?.post({ t: 'lamp', x, y, z, level });
     const cx = Math.floor(x / CHUNK);
     const cz = Math.floor(z / CHUNK);
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.markDirty(cx + dx, cz + dz);
@@ -1488,7 +1653,17 @@ export class World {
 
   // --- Malla ---
 
+  /** Dibuja un chunk aquí mismo (sin hilo aparte). */
   private buildMesh(c: Chunk) {
+    this.applyMesh(c, this.meshData(c.cx, c.cz));
+  }
+
+  /**
+   * Calcula la malla de un chunk como listas de números, sin crear nada de three.js (v4.7): así se puede hacer
+   * en otro hilo (meshWorker.ts) y mandar el resultado de vuelta.
+   */
+  meshData(cx: number, cz: number): MeshData {
+    const c = this.getChunk(cx, cz);
     const positions: number[] = [];
     const normals: number[] = [];
     const uvs: number[] = [];
@@ -1794,8 +1969,8 @@ export class World {
       }
     }
 
-    // Guardar la luz de cada bloque del chunk para lightAt().
-    const cache = c.light ?? new Uint8Array(CHUNK * CHUNK * HEIGHT);
+    // La luz de cada bloque del chunk, para lightAt().
+    const cache = new Uint8Array(CHUNK * CHUNK * HEIGHT);
     for (let y = 0; y < HEIGHT; y++) {
       for (let z = 0; z < CHUNK; z++) {
         for (let x = 0; x < CHUNK; x++) {
@@ -1804,29 +1979,46 @@ export class World {
         }
       }
     }
-    c.light = cache;
-
-    this.disposeMesh(c);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geo.setAttribute('light', new THREE.Float32BufferAttribute(lights, 2));
-    geo.setAttribute('lightColor', new THREE.Float32BufferAttribute(tints, 3));
     const sway = new Float32Array(positions.length / 3);
     for (const i of swaying) sway[i] = 1;
-    geo.setAttribute('sway', new THREE.BufferAttribute(sway, 1));
-    geo.setIndex(indices);
+    return {
+      cx, cz,
+      positions: new Float32Array(positions),
+      normals: new Float32Array(normals),
+      uvs: new Float32Array(uvs),
+      colors: new Float32Array(colors),
+      lights: new Float32Array(lights),
+      tints: new Float32Array(tints),
+      sway,
+      indices: new Uint32Array(indices),
+      water: new Float32Array(water),
+      flow: new Float32Array(waterFlowAttr),
+      light: cache,
+    };
+  }
+
+  /** Pone en la escena la malla calculada de un chunk. */
+  private applyMesh(c: Chunk, m: MeshData) {
+    c.light = m.light;
+    this.disposeMesh(c);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
+    geo.setAttribute('color', new THREE.BufferAttribute(m.colors, 3));
+    geo.setAttribute('light', new THREE.BufferAttribute(m.lights, 2));
+    geo.setAttribute('lightColor', new THREE.BufferAttribute(m.tints, 3));
+    geo.setAttribute('sway', new THREE.BufferAttribute(m.sway, 1));
+    geo.setIndex(new THREE.BufferAttribute(m.indices, 1));
     geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, this.material);
-    mesh.position.set(ox, 0, oz);
+    mesh.position.set(c.cx * CHUNK, 0, c.cz * CHUNK);
     mesh.castShadow = mesh.receiveShadow = true;
 
-    if (water.length) {
+    if (m.water.length) {
       const wg = new THREE.BufferGeometry();
-      wg.setAttribute('position', new THREE.Float32BufferAttribute(water, 3));
-      wg.setAttribute('flow', new THREE.Float32BufferAttribute(waterFlowAttr, 4));
+      wg.setAttribute('position', new THREE.BufferAttribute(m.water, 3));
+      wg.setAttribute('flow', new THREE.BufferAttribute(m.flow, 4));
       wg.computeVertexNormals();
       const wm = new THREE.Mesh(wg, this.waterMaterial);
       wm.renderOrder = 1;
