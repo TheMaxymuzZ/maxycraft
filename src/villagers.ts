@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { DecorPiece } from './decor';
 import { Block, isDoor } from './blocks';
 import { columnRandom } from './noise';
 import { type Cell, pathsFor, standable } from './pathfind';
@@ -127,6 +128,14 @@ export interface VillagerMemory {
   giftDay?: string;
   /** Último día en que te contó algo nuevo de sí mismo (v4.0: uno al día como mucho). */
   aboutDay?: string;
+  /** Muebles que le has regalado, en los huecos de su casa (v4.12). */
+  decor?: DecorPiece[];
+  /** Nivel de casa que ya te ha enseñado (0 casita, 1 casa, 2 casa grande). */
+  houseLevel?: number;
+  /** Tejado elegido para su casa grande (índice de ROOFS). */
+  roof?: number;
+  /** Ya te ha contado qué negocio quiere abrir. */
+  business?: boolean;
 }
 
 const WALK_SPEED = 1.4;

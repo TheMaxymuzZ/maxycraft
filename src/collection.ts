@@ -6,15 +6,18 @@ import { itemDef } from './items';
 import type { ModelSpec } from './villagerModel';
 import { ALL_PROFILES, PERSONALITY_NAMES, type Profile, SPECIES_NAMES } from './villagers';
 import { KNOW, seasonOfBirthday } from './dialog';
+import { FRIEND_LEVELS, STYLE_NAMES, decorTaste, friendLevel } from './decor';
 import { tileIcon } from './icons';
 
 /** Lo que pone la ficha del álbum según lo que te ha contado el vecino. */
-export function albumInfo(p: Profile, known: number): string {
+export function albumInfo(p: Profile, known: number, friendship?: number): string {
   const birthday = known >= KNOW.birthday ? `${p.birthday[1]} ${MONTHS[p.birthday[0] - 1]}`
     : known >= KNOW.birthdaySeason ? `en ${seasonOfBirthday(p.birthday[0])}` : '???';
   const hobby = known >= KNOW.hobby ? p.hobby : '???';
   const likes = known >= KNOW.likes ? LIKES_SHORT[p.likes] : known >= KNOW.likesHint ? 'tienes una pista…' : '???';
-  return `${SPECIES_NAMES[p.species]} · ${PERSONALITY_NAMES[p.personality]}<br>Cumple: ${birthday} · Afición: ${hobby}<br>Regalos: ${likes}`;
+  // Desde la v4.12: nivel de amistad y estilo de decoración (que se sabe a la vez que sus regalos favoritos).
+  const friends = friendship === undefined || p.role ? '' : `<br>Amistad: ${FRIEND_LEVELS[friendLevel(friendship)].name} · Estilo: ${known >= KNOW.likes ? STYLE_NAMES[decorTaste(p)] : '???'}`;
+  return `${SPECIES_NAMES[p.species]} · ${PERSONALITY_NAMES[p.personality]}<br>Cumple: ${birthday} · Afición: ${hobby}<br>Regalos: ${likes}${friends}`;
 }
 
 const LIKES_SHORT: Record<Profile['likes'], string> = { fruta: 'fruta', conchas: 'conchas', flores: 'flores', madera: 'madera' };
@@ -36,6 +39,8 @@ export class Collection {
   readonly learned: Record<string, number>;
   /** Dibuja el retrato de un vecino (lo pone main.ts, que tiene el renderer). */
   portrait: ((name: string, spec: ModelSpec) => string) | null = null;
+  /** Puntos de amistad con un vecino de la isla (v4.12), si vive aquí. */
+  friendship: ((name: string) => number | undefined) | null = null;
   private icons: string[];
 
   constructor(caught: string[], donated: string[], atlas: HTMLCanvasElement, met: string[] = [], learned?: Record<string, number>) {
@@ -123,7 +128,7 @@ export class Collection {
       const card = document.createElement('div');
       card.className = `card villager-card${known ? '' : ' unknown'}`;
       const img = this.portrait ? `<img alt="" src="${this.portrait(p.name, p)}">` : '';
-      const info = known ? albumInfo(p, p.role ? KNOW.birthday : this.learned[p.name] ?? KNOW.met) : 'Aún no os conocéis';
+      const info = known ? albumInfo(p, p.role ? KNOW.birthday : this.learned[p.name] ?? KNOW.met, this.friendship?.(p.name)) : 'Aún no os conocéis';
       card.innerHTML = `${img}<b>${known ? p.name : '???'}</b><small>${info}</small>`;
       this.villagersEl.appendChild(card);
     }
