@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Block } from './blocks';
+import { Block, isDoor } from './blocks';
 import { columnRandom } from './noise';
 import { type Cell, pathsFor, standable } from './pathfind';
 import { type Activity, type AgendaItem, type Errand, activityAt, agendaFor } from './schedule';
@@ -95,8 +95,24 @@ const PROFILES: Profile[] = [
   { name: 'Toto', species: 'pato', personality: 'dormilón', catchphrase: 'cuac', shirt: 0xe0704a, likes: 'conchas', birthday: [1, 30], hobby: 'dormir la siesta' },
 ];
 
+/** Lo que contestan si llamas a su puerta de noche (v4.11). La coletilla se añade al final. */
+export const KNOCK_REPLIES: Record<Personality, string[]> = {
+  alegre: ['Mmm… ¿quién es? ¡Mañana jugamos, prometido!', 'Zzz… ¡ah, hola! Estaba soñando con una fiesta'],
+  'gruñón': ['¿Sabes qué hora es? Vuelve mañana', 'Grmf… estoy durmiendo, ¿no lo ves?'],
+  'dormilón': ['Zzz… zzz… cinco minutitos más…', 'Mmmh… ¿ya es de día? No, ¿verdad?'],
+  presumido: ['¡No me puedes ver sin peinar! Mañana, por favor', 'Necesito mis horas de sueño para estar radiante'],
+  deportista: ['¡Hay que descansar para entrenar mañana!', 'Zzz… cien abdominales… zzz'],
+  dulce: ['Ay, hola… ¿todo bien? Ve a dormir tú también', 'Mmm… buenas noches, que descanses'],
+};
+
+/** Respuesta de un vecino dormido al llamar a su puerta. */
+export function knockReply(v: Villager, random = Math.random): string {
+  const list = KNOCK_REPLIES[v.profile.personality];
+  return `${v.name}: «${list[Math.floor(random() * list.length)]}, ${v.profile.catchphrase}»`;
+}
+
 /** Horas en las que cada personalidad está en casa durmiendo. */
-const SLEEP: Record<Personality, [number, number]> = {
+export const SLEEP: Record<Personality, [number, number]> = {
   alegre: [22, 7],
   'gruñón': [0, 8],
   'dormilón': [20, 10],
@@ -128,11 +144,16 @@ export interface VillagerState {
   z: number;
   /** Hacia dónde mira, en radianes. */
   f: number;
-  /** Se ve (no está dentro de casa). */
+  /** Está fuera de casa. */
   v: boolean;
   /** Va andando. */
   w: boolean;
+  /** Está tumbado en la cama (v4.11). */
+  b?: boolean;
 }
+
+/** El tiempo que hace, para el paraguas, la bufanda y para que los dormilones se refugien (v4.11). */
+export const villagerWeather = { rain: false, snow: false };
 
 export class Villager {
   readonly group = new THREE.Group();
@@ -218,6 +239,34 @@ export class Villager {
     this.legs = model.legs;
     this.arms = model.arms;
     this.eyes = model.eyes;
+    // Paraguas para la lluvia y bufanda para la nieve (v4.11), escondidos hasta que hagan falta.
+    const mat = (c: number) => new THREE.MeshLambertMaterial({ color: c });
+    const umbrella = new THREE.Group();
+    const stick = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.0, 0.05), mat(0x5a3a22));
+    stick.position.set(0.32, 1.5, 0.1);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(0.75, 0.32, 8), mat(this.profile.shirt));
+    top.position.set(0.32, 2.05, 0.1);
+    umbrella.add(stick, top);
+    umbrella.visible = false;
+    this.umbrella = umbrella;
+    const scarf = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 0.42), mat(0xd04a3a));
+    scarf.position.set(0, 0.98, 0);
+    scarf.visible = false;
+    this.scarf = scarf;
+    this.group.add(umbrella, scarf);
+    this.zzz = textSprite('Zzz', '#ffffff', 0.9);
+    this.bubble = textSprite('💬', '#ffffff', 0.7);
+    for (const o of [this.zzz, this.bubble]) if (o) this.extras.add(o);
+  }
+
+  private lampOn = false;
+
+  /** La luz de dentro de casa: encendida mientras está despierto en casa, apagada al dormirse. */
+  private setLight(on: boolean) {
+    if (on === this.lampOn || this.home.kind !== 'house') return;
+    this.lampOn = on;
+    const [x, y, z] = this.home.door;
+    this.world.setLamp(x, y + 1, z - 3, on ? 11 : 0);
   }
 
   /** Caja para saber si el jugador está apuntando al vecino. */
@@ -273,57 +322,207 @@ export class Villager {
   /** Estado para mandar a los invitados (v4.8). */
   state(): VillagerState {
     const r = (n: number) => Math.round(n * 100) / 100;
-    return { n: this.name, x: r(this.position.x), y: r(this.position.y), z: r(this.position.z), f: r(this.facing), v: this.group.visible, w: !!this.path };
+    return { n: this.name, x: r(this.position.x), y: r(this.position.y), z: r(this.position.z), f: r(this.facing), v: !this.asleep, w: !!this.path, b: this.inBed || undefined };
   }
 
   /** Está lejos del jugador (ver FAR). */
   private far = false;
 
+  // --- Rutina en casa (v4.11) ---
+  /** Está dentro de su casa. */
+  get inside(): boolean {
+    return this.asleep;
+  }
+  /** Está durmiendo en la cama. */
+  get sleeping(): boolean {
+    return this.asleep && this.activity === 'dormir' && this.inBed;
+  }
+  /** Ha llegado a la cama (se tumba). */
+  private inBed = false;
+  /** Segundos que le quedan estirándose al salir de la cama. */
+  private stretch = 0;
+  /** Puerta que ha abierto al pasar y que tiene que cerrar. */
+  private openedDoor: Cell | null = null;
+  /** Otros vecinos de la isla, para pararse a charlar. */
+  neighbors: Villager[] = [];
+  /** Con quién está charlando y cuánto le queda. */
+  private chat: { with: Villager; time: number } | null = null;
+  /** Lo que sale encima: "Zzz" en la puerta, bocadillo al charlar, paraguas… (lo añade main a la escena). */
+  readonly extras = new THREE.Group();
+  private zzz: THREE.Object3D | null = null;
+  private bubble: THREE.Object3D | null = null;
+  private umbrella: THREE.Object3D | null = null;
+  private scarf: THREE.Object3D | null = null;
+
+  /** Casilla nada más pasar la puerta, por dentro. */
+  get insideCell(): Cell {
+    const [x, y, z] = this.home.door;
+    return [x, y, z - 2];
+  }
+
+  /** Donde está la cama: en la esquina del fondo a la izquierda (si cabe; si no, en medio). */
+  get bedCell(): Cell {
+    const [x, y, z] = this.home.door;
+    const bed: Cell = [x - 1, y, z - 4];
+    return standable(this.world, ...bed) ? bed : this.insideCell;
+  }
+
+  /** Si el jugador está dentro de esta casa. */
+  private playerInside(player: THREE.Vector3): boolean {
+    const [x, y, z] = this.home.door;
+    return Math.abs(player.x - (x + 0.5)) < 2 && player.z < z - 0.5 && player.z > z - 5 && player.y >= y - 0.5 && player.y < y + 3;
+  }
+
   update(dt: number, hour: number, player: THREE.Vector3, weekday = 0) {
-    if (this.remote) return this.follow(dt, this.remote);
+    if (this.remote) return this.follow(dt, this.remote, hour, weekday, player);
     const far = Math.hypot(player.x - this.position.x, player.z - this.position.z) > FAR;
     if (far !== this.far) {
       this.far = far;
       this.dropPath(); // el camino se vuelve a pedir (o se deja de buscar) según dónde esté
     }
+    this.closeDoorBehind();
 
     if (this.talking) {
+      this.inBed = false;
       this.faceTowards(player.x, player.z, dt * 8);
       this.animate(dt, false);
-      this.group.position.copy(this.position);
+      this.pose(player);
       return;
     }
 
     if (this.profile.stationary) return this.stand(dt, hour);
 
     const item = this.visitor ? { from: 0, activity: 'pasear' as Activity } : activityAt(this.agendaFor(weekday), hour);
-    this.activity = item.activity;
-    const door: Cell = [...this.home.door];
-    const atHome = item.activity === 'dormir' || item.activity === 'casa';
+    // Con lluvia, los dormilones se vuelven a casa en vez de pasear.
+    const shelter = villagerWeather.rain && item.activity === 'pasear' && this.profile.personality === 'dormilón';
+    this.activity = shelter ? 'casa' : item.activity;
+    const atHome = this.activity === 'dormir' || this.activity === 'casa';
 
-    if (this.asleep) {
-      if (atHome) return;
-      // Sale de casa.
+    if (this.asleep && !atHome) {
+      // Sale de casa: si estaba en la cama, se levanta y se estira antes de salir.
       this.asleep = false;
-      this.group.visible = true;
-      this.position.set(door[0] + 0.5, door[1], door[2] + 0.5);
+      if (this.inBed) this.stretch = 1.6;
+      this.inBed = false;
       this.dropPath();
       this.goal = null;
+      this.lingering = false;
+    }
+
+    if (this.stretch > 0) {
+      this.stretch -= dt;
+      this.animate(dt, false);
+      this.stretchPose(Math.max(0, this.stretch));
+      this.pose(player);
+      return;
     }
 
     // Qué quiere hacer ahora: si ha cambiado de actividad, cambia de destino.
-    if (atHome && this.goal?.kind !== 'casa') this.goTo(door, 'casa');
-    else if (item.activity === 'recado' && this.goal?.kind !== 'recado' && !this.lingering) {
+    if (atHome) {
+      const target = this.activity === 'dormir' ? this.bedCell : this.insideCell;
+      const there = this.asleep && !this.goal && !this.path && Math.hypot(this.position.x - target[0] - 0.5, this.position.z - target[2] - 0.5) < 0.2;
+      if (!there && (this.goal?.kind !== 'casa' || this.goal.cell.join() !== target.join())) {
+        this.chat = null;
+        this.goTo(target, 'casa');
+      }
+    } else if (item.activity === 'recado' && this.goal?.kind !== 'recado' && !this.lingering) {
       const place = item.errand && this.places[item.errand];
       if (place) this.goTo(place, 'recado');
     }
 
-    if (!this.goal && !this.path) {
+    if (this.chat) this.chatting(dt);
+    else if (!this.goal && !this.path) {
       this.wait -= dt;
-      if (this.wait <= 0) this.wander(item.activity === 'recado');
+      if (!this.asleep && this.wait <= 0) {
+        if (!this.startChat()) this.wander(item.activity === 'recado');
+      }
       this.animate(dt, false);
     } else this.walk(dt);
+    this.inBed = this.asleep && this.activity === 'dormir' && !this.goal && !this.path && this.position.distanceTo(new THREE.Vector3(this.bedCell[0] + 0.5, this.bedCell[1], this.bedCell[2] + 0.5)) < 0.2;
+    this.pose(player);
+  }
+
+  /** Coloca el modelo: de pie, tumbado en la cama, y qué se ve encima (Zzz, paraguas…). */
+  private pose(player: THREE.Vector3) {
     this.group.position.copy(this.position);
+    if (this.inBed) {
+      // Tumbado boca arriba, con la cabeza hacia el fondo de la casa.
+      this.group.rotation.set(-Math.PI / 2, 0, 0);
+      this.group.position.set(this.position.x, this.position.y + 0.55, this.position.z + 0.75);
+    } else if (this.group.rotation.x !== 0) this.group.rotation.set(0, this.facing, 0);
+    // Desde fuera no se ve lo de dentro de las casas.
+    this.group.visible = this.asleep ? this.playerInside(player) : true;
+    this.setLight(this.asleep && this.activity === 'casa');
+    const outside = !this.asleep;
+    if (this.umbrella) this.umbrella.visible = outside && villagerWeather.rain;
+    if (this.scarf) this.scarf.visible = villagerWeather.snow;
+    if (this.zzz) {
+      this.zzz.visible = this.sleeping;
+      const [x, y, z] = this.home.door;
+      this.zzz.position.set(x + 0.5, y + 2.6, z - 0.4);
+    }
+    if (this.bubble) {
+      this.bubble.visible = !!this.chat;
+      this.bubble.position.set(this.position.x, this.position.y + 2.1, this.position.z);
+    }
+  }
+
+  /** Estirarse al salir de la cama: brazos arriba y vuelta a su sitio. */
+  private stretchPose(left: number) {
+    const up = Math.sin(Math.min(1, left / 1.6) * Math.PI) * 2.6;
+    this.arms[0].rotation.x = -up;
+    this.arms[1].rotation.x = -up;
+  }
+
+  /** Abre la puerta por la que va a pasar (y la cierra después, en closeDoorBehind). */
+  private openDoorAhead(cell: Cell) {
+    if (this.far || this.openedDoor) return;
+    const [x, y, z] = cell;
+    if (this.world.getBlock(x, y, z) !== Block.Door) return;
+    this.world.setBlock(x, y, z, Block.DoorOpen);
+    if (this.world.getBlock(x, y + 1, z) === Block.DoorTop) this.world.setBlock(x, y + 1, z, Block.DoorTopOpen);
+    this.openedDoor = cell;
+  }
+
+  private closeDoorBehind() {
+    const d = this.openedDoor;
+    if (!d) return;
+    if (Math.abs(this.position.x - d[0] - 0.5) < 1.1 && Math.abs(this.position.z - d[2] - 0.5) < 1.1) return;
+    const [x, y, z] = d;
+    // Solo si sigue como la dejó (si el jugador la ha cerrado o cambiado, no se toca).
+    if (this.world.getBlock(x, y, z) === Block.DoorOpen) {
+      this.world.setBlock(x, y, z, Block.Door);
+      this.world.clearEdit(x, y, z);
+      if (this.world.getBlock(x, y + 1, z) === Block.DoorTopOpen) {
+        this.world.setBlock(x, y + 1, z, Block.DoorTop);
+        this.world.clearEdit(x, y + 1, z);
+      }
+    }
+    this.openedDoor = null;
+  }
+
+  /** Si hay otro vecino paseando cerca, se paran a charlar un rato. */
+  private startChat(): boolean {
+    if (this.asleep || this.visitor || Math.random() > 0.35) return false;
+    for (const o of this.neighbors) {
+      if (o === this || o.chat || o.asleep || o.talking || o.profile.stationary || o.goal || o.path) continue;
+      if (o.position.distanceTo(this.position) > 4) continue;
+      const time = 5 + Math.random() * 5;
+      this.chat = { with: o, time };
+      o.chat = { with: this, time };
+      return true;
+    }
+    return false;
+  }
+
+  private chatting(dt: number) {
+    const c = this.chat!;
+    c.time -= dt;
+    this.faceTowards(c.with.position.x, c.with.position.z, dt * 6);
+    this.animate(dt, false);
+    if (c.time <= 0 || c.with.chat?.with !== this) {
+      this.chat = null;
+      this.wait = 3 + Math.random() * 4;
+    }
   }
 
   /** Ya ha llegado al sitio del recado y da vueltas por allí. */
@@ -415,6 +614,7 @@ export class Villager {
       return;
     }
     const cell = this.path[this.step];
+    if (isDoor(this.world.getBlock(...cell))) this.openDoorAhead(cell);
     const tx = cell[0] + 0.5;
     const tz = cell[2] + 0.5;
     const ddx = tx - this.position.x;
@@ -452,11 +652,12 @@ export class Villager {
     this.wait = 2 + Math.random() * 5;
     if (!goal) return;
     if (goal.kind === 'casa') {
-      // En la puerta (o, si no puede llegar por una valla, igualmente): entra en casa.
+      // Ya está dentro. Si no había camino (una valla delante de la puerta, por ejemplo), entra igualmente.
       this.asleep = true;
-      this.group.visible = false;
-      const [dx, dy, dz] = this.home.door;
-      this.position.set(dx + 0.5, dy, dz + 0.5);
+      if (!reached) {
+        const [x, y, z] = goal.cell;
+        this.position.set(x + 0.5, y, z + 0.5);
+      }
     } else if (goal.kind === 'recado') {
       this.lingering = true;
       this.lastErrand = reached ? goal.cell : null;
@@ -464,14 +665,14 @@ export class Villager {
     if (!reached && goal.kind !== 'casa') this.wait = 1;
   }
 
-  /** En casa de un amigo: va hacia donde dice el anfitrión. */
-  private follow(dt: number, s: VillagerState) {
-    this.group.visible = s.v;
+  /** En casa de un amigo: va hacia donde dice el anfitrión (y lo de dentro de casa se calcula igual que allí). */
+  private follow(dt: number, s: VillagerState, hour: number, weekday: number, player: THREE.Vector3) {
     this.asleep = !s.v;
+    if (!this.profile.stationary && !this.visitor) this.activity = activityAt(this.agendaFor(weekday), hour).activity;
     const ddx = s.x - this.position.x;
     const ddz = s.z - this.position.z;
     const far = Math.hypot(ddx, ddz) > 4 || Math.abs(s.y - this.position.y) > 3;
-    if (far || !s.v) this.position.set(s.x, s.y, s.z);
+    if (far) this.position.set(s.x, s.y, s.z);
     else {
       const k = Math.min(1, dt * 8);
       this.position.set(this.position.x + ddx * k, this.position.y + (s.y - this.position.y) * k, this.position.z + ddz * k);
@@ -481,7 +682,8 @@ export class Villager {
     this.facing += diff * Math.min(1, dt * 8);
     this.group.rotation.y = this.facing;
     this.animate(dt, s.w);
-    this.group.position.copy(this.position);
+    this.inBed = !!s.b;
+    this.pose(player);
   }
 
   private faceTowards(x: number, z: number, t: number) {
@@ -505,6 +707,27 @@ export class Villager {
     if (this.blink < -0.12) this.blink = 2 + Math.random() * 4;
     for (const e of this.eyes) e.scale.y = this.blink < 0 ? 0.15 : 1;
   }
+}
+
+/** Un letrero que siempre mira a la cámara (Zzz, bocadillo). Sin canvas (en las pruebas) no hay letrero. */
+function textSprite(text: string, color: string, size: number): THREE.Sprite | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.font = '700 44px Nunito, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(40, 30, 60, .85)';
+  ctx.strokeText(text, 64, 34);
+  ctx.fillStyle = color;
+  ctx.fillText(text, 64, 34);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthWrite: false }));
+  sprite.scale.set(size, size / 2, 1);
+  sprite.visible = false;
+  return sprite;
 }
 
 /** Todos los vecinos que pueden vivir en una isla (los de siempre y los de las islas misteriosas). */
@@ -582,7 +805,10 @@ export function createVillagers(world: World, memories: Record<string, VillagerM
   });
   const all = [...keeper, ...curator, ...locals, ...newcomers];
   const places = errandPlaces(world);
-  for (const v of all) v.setPlaces(places);
+  for (const v of all) {
+    v.setPlaces(places);
+    v.neighbors = all;
+  }
   return all;
 }
 
