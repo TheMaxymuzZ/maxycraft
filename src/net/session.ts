@@ -5,6 +5,7 @@ import type { Transport } from './transport';
 import type { ClockSave } from '../clock';
 import type { PlayerHome } from '../homes';
 import type { VillagerState } from '../villagers';
+import type { Outfit } from '../clothes';
 
 /** Veces por segundo que cada jugador cuenta dónde está. */
 export const POSE_RATE = 10;
@@ -19,6 +20,8 @@ export interface SessionEvents {
   pose?(id: string, pose: Pose): void;
   chat?(peer: PeerInfo, text: string): void;
   gesture?(peer: PeerInfo, g: Gesture): void;
+  /** Alguien se ha cambiado de ropa (v4.18). */
+  dress?(peer: PeerInfo, outfit: Outfit): void;
   /** Otro jugador te ha regalado algo. */
   gift?(peer: PeerInfo, item: GiftItem): void;
   /** Se acabó la partida en la isla del anfitrión: la ha cerrado él (`deliberate`) o se ha cortado la conexión. */
@@ -160,6 +163,12 @@ export class NetSession {
 
   gesture(g: Gesture) {
     this.broadcast({ t: 'gesto', id: this.self.id, g });
+  }
+
+  /** Te has cambiado de ropa: se lo cuenta a todos (y los que entren después lo ven en tu ficha). */
+  dress(outfit: Outfit) {
+    this.self.outfit = outfit;
+    this.broadcast({ t: 'ropa', id: this.self.id, o: outfit });
   }
 
   /** Regala algo a otro jugador. El invitado se lo da al anfitrión, que lo lleva a quien sea. */
@@ -318,6 +327,14 @@ export class NetSession {
         this.events.gesture?.(this.peers.get(from)!, msg.g);
         this.relay(msg, from);
         return;
+      case 'ropa': {
+        const p = this.peers.get(from);
+        if (msg.id !== from || !p) return;
+        p.outfit = msg.o;
+        this.events.dress?.(p, msg.o);
+        this.relay(msg, from);
+        return;
+      }
       case 'regalo':
         if (msg.from !== from || !this.peers.has(from)) return;
         if (msg.to === this.self.id) this.events.gift?.(this.peers.get(from)!, msg.item);
@@ -358,6 +375,13 @@ export class NetSession {
       case 'gesto': {
         const p = msg.id === this.self.id ? null : this.peers.get(msg.id);
         if (p) this.events.gesture?.(p, msg.g);
+        return;
+      }
+      case 'ropa': {
+        const p = msg.id === this.self.id ? null : this.peers.get(msg.id);
+        if (!p) return;
+        p.outfit = msg.o;
+        this.events.dress?.(p, msg.o);
         return;
       }
       case 'regalo': {

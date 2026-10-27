@@ -55,6 +55,8 @@ import { Economy } from './economy';
 import { itemCard } from './itemCard';
 import { MuseumHall } from './game/museum';
 import { Commerce } from './game/commerce';
+import { Wardrobe, isWardrobeSave } from './wardrobe';
+import { CLOTHES, clothOf } from './clothes';
 import { MERCHANTS, repairCost } from './commerce';
 import { ShopFront } from './game/shopFront';
 import { PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, findTerminalSite, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
@@ -592,6 +594,7 @@ function persist(urgent = false) {
     parcels: parcels.list,
     mail: mailDay,
     terminal: terminalSite ?? undefined,
+    wardrobe: wardrobe.serialize(),
     missions: missions.serialize(),
     clock: clock.serialize(),
     savedAt: 0,
@@ -785,7 +788,7 @@ function unlockInput() {
 }
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | 'sleep' | 'sleeping' | 'map' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | 'sleep' | 'sleeping' | 'map' | 'wardrobe' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -898,7 +901,7 @@ document.querySelector('#workbench-close')!.addEventListener('click', closeWorkb
 const VOICES: Record<string, number> = {
   gato: 760, oso: 260, conejo: 900, rana: 380, perro: 560, pato: 820, ardilla: 1050, tortuga: 220,
   oveja: 680, cerdo: 420, 'pingüino': 940, koala: 330, zorro: 720, elefante: 180, 'búho': 300, castor: 480,
-  cabra: 640, caballo: 340, topo: 520,
+  cabra: 640, caballo: 340, topo: 520, alpaca: 860, mapache: 600, jirafa: 400,
 };
 
 /** Despega la avioneta, funde la pantalla y recarga en la otra isla. */
@@ -981,7 +984,7 @@ const commerce = new Commerce({
 /** Abre los comercios que ya tocan (cuando sube el ayuntamiento, con un amigo nuevo o al empezar el día). */
 function checkCommerce() {
   const best = Math.max(0, ...villagers.filter((v) => !v.profile.role && !v.visitor).map((v) => friendLevel(v.memory.friendship)));
-  const opened = commerce.check({ townLevel: town.level, bestFriend: best });
+  const opened = commerce.check({ townLevel: town.level, bestFriend: best, shopLevel: shop.level, works: town.state?.works.length ?? 0 });
   for (const name of opened) hud.toast(`¡Ha abierto ${name}! Búscalo en el mapa`);
   if (opened.length) persist();
 }
@@ -1306,6 +1309,7 @@ const dialog = new Dialog({
   openShop: (v) => {
     if (shopOf(v).open()) panel = 'shop';
   },
+  fitting: () => openWardrobe('Probador de Seda', merchantShops.get('ropa')?.stock ?? []),
   repair: {
     quote: () => repairQuote(),
     fix: () => {
@@ -1360,6 +1364,32 @@ function islandRating(): Rating {
     farm: saved ? Object.keys(saved.farm ?? {}).length + (saved.animals?.length ?? 0) : farm.crops.size + animals.list.length,
     works: town.worksDone,
   });
+}
+
+/** El armario y el espejo (v4.18): cambiarse de ropa y guardar conjuntos. */
+const wardrobe = new Wardrobe({
+  inventory,
+  atlas,
+  color: () => loadIdentity().color,
+  changed: (outfit) => {
+    net?.dress(outfit);
+    persist();
+  },
+  toast: (t) => hud.toast(t),
+  onClose: () => closeWardrobe(),
+}, [save?.wardrobe].find(isWardrobeSave) ?? null);
+
+function openWardrobe(title?: string, tries?: string[]) {
+  panel = 'wardrobe';
+  breaker.active = false;
+  wardrobe.show(title, tries);
+  unlockInput();
+}
+
+function closeWardrobe() {
+  wardrobe.hide();
+  panel = null;
+  lockInput();
 }
 
 const missionsPanel = new MissionsPanel({
@@ -1530,6 +1560,10 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === keys.missions) closeMissions();
     return;
   }
+  if (panel === 'wardrobe') {
+    if (e.code === 'Escape') closeWardrobe();
+    return;
+  }
   if (e.code === keys.missions && isPlaying()) {
     openMissions();
     return;
@@ -1656,6 +1690,7 @@ function closeAnyPanel() {
   if (panel === 'collection') collection.close();
   if (panel === 'workbench') workbench.close();
   if (panel === 'missions') missionsPanel.close();
+  if (panel === 'wardrobe') wardrobe.hide();
   if (panel === 'storage') storagePanel.close();
   if (panel === 'sign') signEl.hidden = true;
   if (panel === 'chat') friends.closeChat();
@@ -1733,7 +1768,18 @@ window.addEventListener('mouseup', (e) => {
 const FOSSIL_GROUND: ReadonlySet<number> = new Set([Block.Dirt, Block.Grass, Block.Sand, Block.Stone]);
 
 /** Al cavar tierra, arena o piedra a veces sale un fósil: más en las islas misteriosas. */
+/** Ropa legendaria (v4.18): solo sale cavando en las islas misteriosas, muy de vez en cuando. */
+const LEGENDARY_CLOTHES = CLOTHES.filter((c) => c.garment.legendary);
+function digLegendary(x: number, y: number, z: number, b: number) {
+  if (!world.mystery || !FOSSIL_GROUND.has(b) || Math.random() >= 0.006) return;
+  const c = LEGENDARY_CLOTHES[Math.floor(Math.random() * LEGENDARY_CLOTHES.length)];
+  drops.spawn(c.id, x + 0.5, y + 0.5, z + 0.5, { burst: true });
+  hud.toast(`¡Increíble! Has encontrado algo legendario: ${c.name.toLowerCase()}`);
+  sound.fanfare();
+}
+
 function digFossil(x: number, y: number, z: number, b: number) {
+  digLegendary(x, y, z, b);
   if (!FOSSIL_GROUND.has(b) || Math.random() >= (world.mystery ? 0.05 : 0.015)) return;
   const c = pickCreature(['tierra'], 12);
   if (!c) return;
@@ -2016,6 +2062,10 @@ function useItem() {
     useBed();
     return;
   }
+  if (aimed?.furniture.id === 'armario' || aimed?.furniture.id === 'espejo') {
+    openWardrobe(aimed.furniture.id === 'espejo' ? 'Espejo' : 'Armario');
+    return;
+  }
   if (aimed?.furniture.id === 'cartel') {
     openSign(aimed.furniture);
     return;
@@ -2029,6 +2079,15 @@ function useItem() {
 
   if (def?.id === 'botella') {
     readBottle();
+    return;
+  }
+
+  // La ropa se pone con clic derecho (v4.18).
+  if (def?.kind === 'ropa' && clothOf(def.id)) {
+    if (wardrobe.wear(def.id)) {
+      hud.toast(`Te has puesto: ${def.name.toLowerCase()}. Mírate en un espejo o en el armario`);
+      sound.place();
+    }
     return;
   }
 
@@ -2784,6 +2843,7 @@ Object.assign(netEvents, {
     if (g === 'saludo') hud.toast(`${p.name} te saluda`);
   },
   gift: (p, item) => receiveGift(p.name, item.id, item.count),
+  dress: (p, outfit) => remotes.dress(p.id, outfit),
   closed: (deliberate) => {
     persist();
     saving = false;
@@ -2909,6 +2969,7 @@ function startSession(session: NetSession, code: string | null) {
   netCode = code;
   for (const p of session.peers.values()) remotes.add(p);
   session.attach(sync);
+  if (Object.keys(wardrobe.outfit).length) session.dress(wardrobe.outfit);
   window.addEventListener('pagehide', () => session.close());
   friendsChanged();
 }
@@ -3384,6 +3445,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

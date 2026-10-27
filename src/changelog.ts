@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.18',
+    title: 'Moda, muebles y cosméticos',
+    items: [
+      '¡Ya te puedes vestir! 45 prendas en seis huecos (cabeza, cara, cuerpo, espalda, piernas y pies), de varios colores. Clic derecho con una prenda en la mano para ponértela.',
+      'Armario y espejo de pie: te ves dando vueltas, te cambias y guardas hasta tres conjuntos.',
+      'Tus amigos te ven con tu ropa en las partidas juntos.',
+      'Tres comercios nuevos: la boutique de Seda (alpaca) con probador, la nave de muebles de Serrín (mapache) con catálogo que cambia cada día y el taller de Baldosa (jirafa) con farolas, bancos, jardineras, pérgolas y señales.',
+      '17 muebles nuevos de todos los estilos: cama con dosel, piano, chimenea, tumbona, sombrilla, puf, mecedora…',
+      'Prendas legendarias que solo salen cavando en las islas misteriosas.',
+    ],
+  },
+  {
     version: '4.17',
     title: 'Oficios del campo y la mina',
     items: [

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import type { NameTags } from './labels';
+import type { Outfit } from './clothes';
 import type { PeerInfo, Pose } from './net/protocol';
+import { PlayerModel } from './playerModel';
 
-const SKIN = 0xf2c9a0;
-const TROUSERS = 0x3b4a6b;
 /** Lo que tarda un jugador de otro ordenador en llegar a la posición recibida: suaviza los saltos de la red. */
 const SMOOTH = 0.12;
 
@@ -12,9 +12,9 @@ export class RemotePlayer {
   readonly group = new THREE.Group();
   readonly position = new THREE.Vector3();
   private target = new THREE.Vector3();
-  private head = new THREE.Group();
-  private legs: THREE.Mesh[] = [];
-  private arms: THREE.Mesh[] = [];
+  private head: THREE.Group;
+  private legs: THREE.Mesh[];
+  private arms: THREE.Mesh[];
   private yaw = 0;
   private targetYaw = 0;
   private pitch = 0;
@@ -24,31 +24,20 @@ export class RemotePlayer {
   private bubble: THREE.Sprite | null = null;
   private bubbleTime = 0;
 
+  private model: PlayerModel;
+
   constructor(readonly info: PeerInfo) {
-    const box = (w: number, h: number, d: number, color: number) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
-    const body = box(0.5, 0.7, 0.28, info.color);
-    body.position.y = 1.1;
-    const face = box(0.5, 0.5, 0.5, SKIN);
-    const hair = box(0.52, 0.16, 0.52, 0x4a3020);
-    hair.position.y = 0.2;
-    const eyeL = box(0.08, 0.08, 0.02, 0x23301f);
-    const eyeR = eyeL.clone();
-    eyeL.position.set(-0.11, 0.02, 0.26);
-    eyeR.position.set(0.11, 0.02, 0.26);
-    this.head.add(face, hair, eyeL, eyeR);
-    this.head.position.y = 1.7;
-    for (const side of [-1, 1]) {
-      const leg = box(0.23, 0.75, 0.26, TROUSERS);
-      leg.geometry.translate(0, -0.375, 0);
-      leg.position.set(side * 0.13, 0.75, 0);
-      const arm = box(0.2, 0.7, 0.22, info.color);
-      arm.geometry.translate(0, -0.3, 0);
-      arm.position.set(side * 0.36, 1.42, 0);
-      this.legs.push(leg);
-      this.arms.push(arm);
-      this.group.add(leg, arm);
-    }
-    this.group.add(body, this.head);
+    this.model = new PlayerModel(info.color, info.outfit);
+    this.head = this.model.head;
+    this.legs = this.model.legs;
+    this.arms = this.model.arms;
+    this.group.add(this.model.group);
+  }
+
+  /** Se ha cambiado de ropa (v4.18). */
+  dress(outfit: Outfit) {
+    this.info.outfit = outfit;
+    this.model.dress(outfit);
   }
 
   get name() {
@@ -170,6 +159,10 @@ export class RemotePlayers {
 
   setPose(id: string, pose: Pose) {
     this.players.get(id)?.setPose(pose);
+  }
+
+  dress(id: string, outfit: Outfit) {
+    this.players.get(id)?.dress(outfit);
   }
 
   gesture(id: string, emoji: string) {

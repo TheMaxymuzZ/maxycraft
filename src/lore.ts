@@ -1,5 +1,6 @@
 // Curiosidades de los objetos (v4.10): una frase simpática para la ficha de cada objeto del juego.
 // Las pruebas comprueban que no falta ninguno: al añadir un objeto nuevo, hay que escribir aquí su curiosidad.
+import { CLOTHES } from './clothes';
 
 export const LORE: Record<string, string> = {
   // Bloques de la naturaleza
@@ -189,4 +190,44 @@ export const LORE: Record<string, string> = {
   macetero: 'Para plantar flores donde no hay tierra.',
   fuente_plaza: 'La fuente grande de las plazas, donde se queda para charlar.',
   buzon: 'Aquí llegan las cartas y los regalos de tus amigos.',
+  armario: 'Dentro cabe toda tu ropa. Clic derecho para cambiarte.',
+  espejo: 'Te dice qué tal te queda el conjunto de hoy. Clic derecho para cambiarte.',
+  tumbona: 'Para tomar el sol sin arena en la espalda.',
+  sombrilla: 'A rayas, como las de las playas de toda la vida.',
+  sillon_moderno: 'Cómodo, bajito y de un color que no pasa de moda.',
+  mesa_cristal: 'Hay que limpiarla mucho: se ve cada huella.',
+  cama_dosel: 'Una cama de cuento, con cortinas para soñar a gusto.',
+  piano: 'Nadie sabe tocarlo en la isla, pero queda precioso.',
+  peluche_oso: 'Blandito y siempre de buen humor.',
+  puf: 'Te hundes un poquito al sentarte. Ahí está la gracia.',
+  mecedora: 'Para leer al lado de la ventana mientras llueve.',
+  chimenea: 'Las noches de invierno se pasan mejor al calor del fuego.',
+  maniqui: 'Nunca se queja de la ropa que le pones.',
+  perchero: 'Toda la ropa colgada y a la vista, por colores.',
+  farola_hierro: 'De hierro forjado, como las de las ciudades antiguas.',
+  banco_parque: 'Para descansar en el paseo y dar de comer a las palomas.',
+  jardinera: 'Flores en mitad de la calle. Alegra cualquier esquina.',
+  pergola: 'Con el tiempo, las plantas trepan y dan una sombra fresquita.',
+  senal_calle: 'Con el nombre de la calle, para que nadie se pierda.',
 };
+
+// Ropa (v4.18): una frase por modelo de prenda, para todos sus colores.
+const GARMENT_LORE: Record<string, string> = {
+  gorra: 'Para que el sol no te dé en los ojos mientras pescas.',
+  sombrero: 'De ala ancha, como los de los exploradores de verdad.',
+  gorro: 'Tejido con lana de oveja. Calentito para las mañanas de invierno.',
+  camiseta: 'De algodón, fresquita y combina con todo.',
+  sudadera: 'Con capucha y bolsillo delante para guardar caramelos.',
+  vestido: 'Da vueltas como una peonza si giras rápido.',
+  pantalon: 'Resistente y con bolsillos. Perfecto para trepar y cavar.',
+  pantalon_corto: 'Lo que pide el cuerpo en verano, en la playa.',
+  zapatillas: 'Para correr por la isla sin hacerse daño en los pies.',
+  botas: 'Ni el barro ni la lluvia pueden con ellas.',
+  mochila: 'Caben muchas cosas… aunque luego todo acaba en los bolsillos.',
+  capa: 'Hace muy bien de superhéroe cuando sopla el viento.',
+  gafas: 'Para ver de cerca y de lejos. Y para parecer muy listo.',
+  gafas_sol: 'Con ellas el sol de mediodía parece un atardecer.',
+  corona: 'Dicen que perteneció a la reina de una isla que ya nadie encuentra en el mapa.',
+  capa_estelar: 'Tejida con hilo de estrellas fugaces. Brilla un poco de noche… ¿o no?',
+};
+for (const c of CLOTHES) LORE[c.id] ??= GARMENT_LORE[c.garment.base];

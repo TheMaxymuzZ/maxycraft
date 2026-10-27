@@ -1,3 +1,4 @@
+import { CLOTHES } from './clothes';
 import { BLOCKS, Block, CREATURE_TILE_START, STAIRS, Tile, XTile, blockIconTile } from './blocks';
 import { CREATURES } from './creatures';
 import { FURNITURE, FURNITURE_TILE } from './furniture';
@@ -89,7 +90,7 @@ type NewItem = Omit<ItemDef, 'kind' | 'rarity'> & Partial<Pick<ItemDef, 'kind' |
 
 const CREATURE_IDS = new Set(CREATURES.map((c) => c.id));
 /** Objetos que no son ni bloque ni herramienta ni comida: billetes, mapas, planos, animales... */
-const SPECIAL = new Set(['billete', 'mapa', 'plano_casa', 'permiso_mudanza', 'botella', 'gallina', 'vaca']);
+const SPECIAL = new Set(['billete', 'mapa', 'plano_casa', 'permiso_mudanza', 'botella', 'gallina', 'vaca', 'oveja']);
 /** Lo que se encuentra por la playa o dentro de la tierra y se colecciona. */
 const TREASURE = new Set(['concha', 'caracola', 'estrella', 'amatista', 'pepita_oro']);
 /** Bloques que solo salen en las islas misteriosas. */
@@ -278,6 +279,12 @@ CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_ST
 
 // Muebles para decorar la casa.
 for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: f.stack ?? 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday, seller: f.seller });
+
+// Ropa (v4.18): la vende Seda; las legendarias solo salen en las islas misteriosas.
+for (const c of CLOTHES) {
+  const legendary = !!c.garment.legendary;
+  add({ id: c.id, name: c.name, tile: c.tile, maxStack: 1, sell: c.garment.sell, kind: 'ropa', buy: legendary ? undefined : c.garment.sell * 4, seller: legendary ? 'misterio' : 'ropa', ...(legendary ? { rarity: 'legendario' as const } : {}) });
+}
 
 /** Todos los objetos del juego, en el orden en que se definen (para la wiki de la página del proyecto). */
 export const ITEMS: readonly ItemDef[] = defs;

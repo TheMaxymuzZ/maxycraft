@@ -1,4 +1,5 @@
 import type { ClockSave } from '../clock';
+import { type Outfit, isOutfit } from '../clothes';
 import { type PlayerHome, isPlayerHome } from '../homes';
 import type { Lot } from '../lots';
 import type { Guest, VillagerState } from '../villagers';
@@ -8,8 +9,8 @@ import { type TerminalSite, isTerminalSite } from '../terminal';
 import { type TownSave, isTownSave } from '../townhall';
 import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
-/** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. 4: bloques en 16 bits (v4.5). 6: parcelas (v4.14). */
-export const PROTOCOL = 6;
+/** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. 4: bloques en 16 bits (v4.5). 6: parcelas (v4.14). 7: ropa (v4.18). */
+export const PROTOCOL = 7;
 /** Jugadores a la vez en una isla, contando al anfitrión. */
 export const MAX_PLAYERS = 6;
 /** Gestos que se pueden hacer a los demás. */
@@ -29,6 +30,8 @@ export interface PeerInfo {
   color: number;
   /** Desde la v4.3: quién es siempre (el id guardado), aunque cada conexión tenga un id distinto. */
   uid?: string;
+  /** Desde la v4.18: la ropa que lleva puesta. */
+  outfit?: Outfit;
 }
 
 /** Dónde tiene los pies un jugador y hacia dónde mira. */
@@ -97,7 +100,9 @@ export type Message =
   /** Un amigo pide algo de su parcela; `who` es el amigo al que da o quita permiso para construir. */
   | { t: 'pide'; n: number; op: ParcelOp; who?: string }
   /** El anfitrión contesta a la petición `n`: si se ha hecho y, si no, por qué. */
-  | { t: 'respuesta'; n: number; ok: boolean; text?: string };
+  | { t: 'respuesta'; n: number; ok: boolean; text?: string }
+  /** Desde la v4.18: alguien se ha cambiado de ropa. */
+  | { t: 'ropa'; id: string; o: Outfit };
 
 export const MAX_CHAT = 140;
 
@@ -106,7 +111,8 @@ const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
 export function isPeerInfo(v: unknown): v is PeerInfo {
-  return isObj(v) && isId(v.id) && typeof v.name === 'string' && v.name.length <= 24 && Number.isInteger(v.color) && (v.uid === undefined || isId(v.uid));
+  return isObj(v) && isId(v.id) && typeof v.name === 'string' && v.name.length <= 24 && Number.isInteger(v.color) && (v.uid === undefined || isId(v.uid))
+    && (v.outfit === undefined || isOutfit(v.outfit));
 }
 
 function isPose(v: unknown): v is Pose {
@@ -172,6 +178,8 @@ export function parseMessage(raw: unknown): Message | null {
       return Number.isInteger(raw.n) && PARCEL_OPS.includes(raw.op as ParcelOp) && (raw.who === undefined || isId(raw.who)) ? (raw as Message) : null;
     case 'respuesta':
       return Number.isInteger(raw.n) && typeof raw.ok === 'boolean' && (raw.text === undefined || (typeof raw.text === 'string' && raw.text.length <= 160)) ? (raw as Message) : null;
+    case 'ropa':
+      return isId(raw.id) && isOutfit(raw.o) ? (raw as Message) : null;
     default:
       return null;
   }

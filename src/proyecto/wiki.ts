@@ -17,6 +17,7 @@ import { WINGS } from '../museum';
 import { SHOP_LEVELS } from '../shopBuilding';
 import { MERCHANTS } from '../commerce';
 import { catalogOf } from '../economy';
+import { CLOTHES, GARMENTS, SLOT_NAMES } from '../clothes';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
 import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
 import './comun';
@@ -171,6 +172,16 @@ function shopHours(hours: ([number, number] | null)[]): string {
 }
 fill('tabla-comercios', MERCHANTS.map((m) => `<td>${m.icon} <b>${esc(m.shop.name)}</b></td><td>${esc(m.profile.name)} (${esc(SPECIES_NAMES[m.profile.species] ?? m.profile.species)})</td><td>${shopHours(m.shop.hours)}</td><td>${esc(m.unlockText)}</td>`));
 fill('tabla-catalogos', MERCHANTS.map((m) => `<td><b>${esc(m.shop.name)}</b></td><td>${catalogOf(m.shop).map((id) => item(id)).join(' ')}</td>`));
+
+// --- Moda y muebles (v4.18) ---
+const SELLER_NAMES: Record<string, string> = Object.fromEntries(MERCHANTS.map((m) => [m.shop.id, m.profile.name]));
+fill('tabla-ropa', GARMENTS.map((g) => {
+  const all = CLOTHES.filter((c) => c.garment === g);
+  const price = g.legendary ? 'Islas misteriosas' : formatBerries(itemDef(all[0].id).buy ?? 0);
+  const name = `<span class="item"><img alt="" src="${itemIcon(atlas, all[0].id)}">${esc(g.name)}${g.legendary ? ' <span class="rareza legendario mini">Legendaria</span>' : ''}</span>`;
+  return `<td>${name}</td><td>${SLOT_NAMES[g.slot]}</td><td><div class="needs">${all.map((c) => `<img alt="${esc(c.name)}" title="${esc(c.name)}" src="${itemIcon(atlas, c.id)}">`).join('')}</div></td><td class="num">${price}</td>`;
+}));
+fill('tabla-muebles-nuevos', FURNITURE.filter((f) => (f.seller === 'muebles' || f.seller === 'urbano') && f.buy).map((f) => `<td>${item(f.id, 1, false)}</td><td>${(FURNITURE_STYLE[f.id] ?? []).map((st) => STYLE_NAMES[st]).join(', ')}</td><td>${SELLER_NAMES[f.seller!]}</td><td class="num">${formatBerries(f.buy!)}</td>`));
 
 // --- Tareas, premios y logros ---
 fill('tabla-tareas', TASKS.map((t) => `<td>${esc(t.text)}</td><td class="num">${formatBerries(t.points)}</td>`));
