@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { Block, isBarrier, isSolid } from './blocks';
 import { SEA_LEVEL, type World } from './world';
 
-export type AnimalKind = 'gallina' | 'vaca';
+export type AnimalKind = 'gallina' | 'vaca' | 'oveja';
+export const ANIMAL_KINDS: AnimalKind[] = ['gallina', 'vaca', 'oveja'];
 
 export interface AnimalSave {
   kind: AnimalKind;
@@ -12,10 +13,12 @@ export interface AnimalSave {
   z: number;
   /** Último día (AAAA-MM-DD) en que dio su huevo o su leche. */
   given?: string;
+  /** Último día en que comió pienso (v4.17): ese día da otra vez lo suyo. */
+  fed?: string;
 }
 
 /** Lo que da cada animal una vez al día. */
-export const PRODUCT: Record<AnimalKind, string> = { gallina: 'huevo', vaca: 'leche' };
+export const PRODUCT: Record<AnimalKind, string> = { gallina: 'huevo', vaca: 'leche', oveja: 'lana' };
 export const MAX_ANIMALS = 8;
 const ROAM = 5;
 
@@ -53,6 +56,16 @@ function build(kind: AnimalKind): { group: THREE.Group; legs: THREE.Object3D[]; 
     head.add(part(0x1e1e1e, 0.25, 0.05, 0.05, 0, 0.04, -0.08));
     leg(0xf0a020, 0.06, 0.22, -0.09, 0.04);
     leg(0xf0a020, 0.06, 0.22, 0.09, 0.04);
+  } else if (kind === 'oveja') {
+    // Lana blanca a bloques, cara y patas oscuras (v4.17).
+    group.add(part(0xf6f2ea, 0.74, 0.56, 0.96, 0, 0.76, 0.04));
+    group.add(part(0xffffff, 0.6, 0.16, 0.7, 0, 1.1, 0.02), part(0xece6da, 0.8, 0.3, 0.3, 0, 0.74, 0.4));
+    head.position.set(0, 0.98, -0.52);
+    head.add(part(0x3a3238, 0.34, 0.36, 0.3, 0, 0, 0));
+    head.add(part(0xf6f2ea, 0.4, 0.16, 0.34, 0, 0.2, 0.02));
+    head.add(part(0x1e1e1e, 0.36, 0.05, 0.05, 0, 0.04, -0.15));
+    head.add(part(0x3a3238, 0.14, 0.06, 0.1, -0.24, 0.06, 0.04), part(0x3a3238, 0.14, 0.06, 0.1, 0.24, 0.06, 0.04));
+    for (const [x, z] of [[-0.2, -0.3], [0.2, -0.3], [-0.2, 0.36], [0.2, 0.36]]) leg(0x3a3238, 0.14, 0.48, x, z);
   } else {
     group.add(part(0xf6f6f2, 0.78, 0.62, 1.2, 0, 0.92, 0.05));
     // Manchas negras.
@@ -93,12 +106,12 @@ export class Animal {
   }
 
   get height(): number {
-    return this.data.kind === 'vaca' ? 1.45 : 0.8;
+    return this.data.kind === 'vaca' ? 1.45 : this.data.kind === 'oveja' ? 1.2 : 0.8;
   }
 
   bounds(out: THREE.Box3): THREE.Box3 {
     const p = this.position;
-    const r = this.data.kind === 'vaca' ? 0.6 : 0.3;
+    const r = this.data.kind === 'vaca' ? 0.6 : this.data.kind === 'oveja' ? 0.45 : 0.3;
     return out.set(new THREE.Vector3(p.x - r, p.y, p.z - r), new THREE.Vector3(p.x + r, p.y + this.height, p.z + r));
   }
 
@@ -109,7 +122,7 @@ export class Animal {
 
   update(dt: number) {
     if (this.hop > 0) this.hop = Math.max(0, this.hop - dt * 2.5);
-    const speed = this.data.kind === 'vaca' ? 0.9 : 1.3;
+    const speed = this.data.kind === 'vaca' ? 0.9 : this.data.kind === 'oveja' ? 1 : 1.3;
     let walking = false;
     if (!this.target) {
       this.wait -= dt;
@@ -190,7 +203,7 @@ export class Animals {
 
   constructor(private world: World, saved: AnimalSave[] = []) {
     for (const a of saved) {
-      if ((a.kind === 'gallina' || a.kind === 'vaca') && [a.x, a.y, a.z].every(Number.isFinite)) this.add({ ...a });
+      if (ANIMAL_KINDS.includes(a.kind) && [a.x, a.y, a.z].every(Number.isFinite)) this.add({ ...a });
     }
   }
 
@@ -235,6 +248,15 @@ export class Animals {
     if (a.data.given === today) return null;
     a.data.given = today;
     return PRODUCT[a.data.kind];
+  }
+
+  /** Le da pienso (v4.17): si ya había dado lo suyo hoy, lo vuelve a dar. Una vez al día. Devuelve si lo ha comido. */
+  feed(a: Animal, today: string): boolean {
+    if (a.data.fed === today) return false;
+    a.data.fed = today;
+    if (a.data.given === today) delete a.data.given;
+    a.happy();
+    return true;
   }
 
   serialize(): AnimalSave[] {

@@ -12,11 +12,13 @@ import indexHtml from '../index.html?raw';
 /** Cómo elegía la tienda lo del día antes de la 4.9, para comprobar que el molde vende exactamente lo mismo. */
 function oldStock(today: string, holiday: string | null): string[] {
   const daily = (ids: string[]) => ids.sort((a, b) => hash01(today + a) - hash01(today + b));
-  const tools = CATALOG.filter((id) => itemDef(id).tool);
-  const seasonal = CATALOG.filter((id) => itemDef(id).holiday && itemDef(id).holiday === holiday);
-  const furniture = daily(CATALOG.filter((id) => itemDef(id).furniture && !itemDef(id).holiday));
-  const always = CATALOG.filter((id) => itemDef(id).always);
-  const rest = daily(CATALOG.filter((id) => !itemDef(id).tool && !itemDef(id).furniture && !itemDef(id).always));
+  // Lo de los comercios nuevos (v4.17) no lo vende Avellana.
+  const SOLD = CATALOG.filter((id) => !itemDef(id).seller);
+  const tools = SOLD.filter((id) => itemDef(id).tool);
+  const seasonal = SOLD.filter((id) => itemDef(id).holiday && itemDef(id).holiday === holiday);
+  const furniture = daily(SOLD.filter((id) => itemDef(id).furniture && !itemDef(id).holiday));
+  const always = SOLD.filter((id) => itemDef(id).always);
+  const rest = daily(SOLD.filter((id) => !itemDef(id).tool && !itemDef(id).furniture && !itemDef(id).always));
   return [...seasonal, ...tools, ...always, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
 }
 

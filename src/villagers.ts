@@ -19,7 +19,7 @@ export const PERSONALITY_NAMES: Record<Personality, string> = {
 export const SPECIES_NAMES: Record<Species, string> = {
   gato: 'Gato', conejo: 'Conejo', oso: 'Oso', pato: 'Pato', perro: 'Perro', rana: 'Rana', ardilla: 'Ardilla', tortuga: 'Tortuga',
   oveja: 'Oveja', cerdo: 'Cerdo', 'pingüino': 'Pingüino', koala: 'Koala', zorro: 'Zorro', elefante: 'Elefante',
-  'búho': 'Búho', castor: 'Castor',
+  'búho': 'Búho', castor: 'Castor', cabra: 'Cabra', caballo: 'Caballo', topo: 'Topo',
 };
 
 export interface Profile {
@@ -36,6 +36,8 @@ export interface Profile {
   /** No pasea: se queda en la puerta (la dependienta y la conservadora). */
   stationary?: boolean;
   role?: 'shop' | 'museum' | 'pilot' | 'mayor' | 'planner';
+  /** El comercio que atiende, si no es la tienda de Avellana (v4.17). */
+  shop?: string;
   /** Cumpleaños: [mes, día]. */
   birthday: [number, number];
   /** Lo que más le gusta hacer. */

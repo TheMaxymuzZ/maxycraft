@@ -28,6 +28,8 @@ export interface TownSave {
   /** Ya se hizo la rampa a la puerta del museo grande (v4.15) y de la tienda nueva (v4.16). */
   museum?: boolean;
   shop?: boolean;
+  /** Comercios del campo y la mina ya construidos (v4.17): id de la tienda → esquina del solar y suelo. */
+  shops?: Record<string, Cell>;
 }
 
 /** Si lo que llega (de la red o de una copia) tiene forma de ayuntamiento. */
@@ -38,7 +40,9 @@ export function isTownSave(v: unknown): v is TownSave {
   return int(t.level) && (t.level as number) >= 1 && (t.level as number) <= HALL_LEVELS_COUNT && int(t.x) && int(t.y) && int(t.z)
     && Array.isArray(t.works) && t.works.every((w) => typeof w === 'string' && w.length < 40)
     && (t.name === undefined || (typeof t.name === 'string' && t.name.length <= 40))
-    && (t.flag === undefined || (int(t.flag) && (t.flag as number) >= 0 && (t.flag as number) < 4));
+    && (t.flag === undefined || (int(t.flag) && (t.flag as number) >= 0 && (t.flag as number) < 4))
+    && (t.shops === undefined || (typeof t.shops === 'object' && t.shops !== null && Object.entries(t.shops).length <= 8
+      && Object.entries(t.shops).every(([k, c]) => k.length < 20 && Array.isArray(c) && c.length === 3 && c.every((n) => int(n) && Math.abs(n) < 10_000))));
 }
 
 const HALL_LEVELS_COUNT = 4;

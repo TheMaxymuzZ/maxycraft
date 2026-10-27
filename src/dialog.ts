@@ -1,3 +1,4 @@
+import { merchantOf } from './commerce';
 import { BUSINESS, DECORATE_LEVEL, FRIEND_LEVELS, HOUSE_LEVELS, type DecorPiece, STYLE_NAMES, addDecor, decorLine, decorTaste, furnitureName, friendLevel, houseLevel, likesFurniture, moveDecor } from './decor';
 import { furnitureDef } from './furniture';
 import { MOVE_PRICE, PARCEL_PRICES, PARCEL_SIZES, PERKS, type Role, TENT_PERMIT } from './parcels';
@@ -377,8 +378,10 @@ export interface DialogContext {
   toast: (text: string) => void;
   /** Se llama al terminar la conversación. */
   onClose: () => void;
-  /** Abre la tienda (al hablar con la dependienta). */
-  openShop: () => void;
+  /** Abre la tienda de quien atiende (la dependienta o los comercios de la v4.17). */
+  openShop: (v: Villager) => void;
+  /** Grava arregla las herramientas gastadas de los bolsillos (v4.17). */
+  repair?: { quote(): { tools: number; cost: number }; fix(): 'ok' | 'money' | 'none' };
   /** Lo que se puede donar al museo y cómo donarlo. */
   donatable: () => string[];
   donate: (id: string) => boolean;
@@ -466,13 +469,30 @@ export class Dialog {
     else if (first && this.ctx.holiday && !v.isCurator) this.say(this.ctx.holiday.greeting);
     else if (v.isPilot) this.pilot();
     else if (v.visitor && first) this.say(pick(VISITOR_GREETINGS));
-    else if (v.isShopkeeper) this.say(pick(SHOP_GREETINGS));
+    else if (v.isShopkeeper) this.say(pick(merchantOf(v.profile.shop ?? '')?.greetings ?? SHOP_GREETINGS));
     else if (v.isCurator) this.say(pick(MUSEUM_GREETINGS));
     else if (v.isMayor) this.say(pick(MAYOR_GREETINGS));
     else if (v.isPlanner) this.say(pick(PLANNER_GREETINGS));
     else if (first && this.houseNews(v)) return;
     else if (first && v.memory.friendship >= 3 && Math.random() < 0.4 && this.teach()) return;
     else this.say(pick(first ? GREETINGS[v.profile.personality] : CHATS[v.profile.personality]));
+  }
+
+  /** Grava dice cuánto cuesta dejar como nuevas las herramientas gastadas y las arregla si se paga. */
+  private repair() {
+    const r = this.ctx.repair!;
+    const { tools, cost } = r.quote();
+    if (!tools) {
+      this.say('Tus herramientas están como nuevas. Vuelve cuando las hayas gastado un poco, {c}.');
+      return;
+    }
+    this.say(`Tienes ${tools === 1 ? 'una herramienta gastada' : `${tools} herramientas gastadas`}. Te las dejo como nuevas por ${cost} bayas, {c}.`, [
+      ['Arreglar', () => {
+        const res = r.fix();
+        this.say(res === 'ok' ? '¡Listo! Como recién salidas de la mina, {c}.' : res === 'money' ? 'Mmm… no te llega. Vuelve con más bayas, {c}.' : 'No hay nada que arreglar, {c}.');
+      }],
+      ['Ahora no', () => this.say('Cuando quieras. Aquí estaré… si no me duermo, {c}.')],
+    ]);
   }
 
   private say(line: string, options: Option[] | null = null) {
@@ -523,8 +543,9 @@ export class Dialog {
     if (v.isShopkeeper) {
       add('Comprar y vender', () => {
         this.finish(true);
-        this.ctx.openShop();
+        this.ctx.openShop(v);
       });
+      if (v.profile.shop === 'mina' && this.ctx.repair) add('Arreglar herramientas', () => this.repair());
     } else if (v.isCurator) {
       add('Donar', () => this.donateAll());
       add('Ver la colección', () => {

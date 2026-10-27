@@ -101,6 +101,15 @@ export const XTile = {
   DarkWood: EXTRA_TILE_START + 5,
   Awning: EXTRA_TILE_START + 6,
   AwningTop: EXTRA_TILE_START + 7,
+  // Oficios del campo y la mina (v4.17).
+  Wool: EXTRA_TILE_START + 8,
+  Fertilizer: EXTRA_TILE_START + 9,
+  Feed: EXTRA_TILE_START + 10,
+  CopperCan: EXTRA_TILE_START + 11,
+  CrystalAxe: EXTRA_TILE_START + 12,
+  CrystalPickaxe: EXTRA_TILE_START + 13,
+  CrystalShovel: EXTRA_TILE_START + 14,
+  SheepIcon: EXTRA_TILE_START + 15,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -763,6 +772,7 @@ const SHOVEL = [
 const WOOD_HANDLE: Record<string, RGB> = { s: [164, 116, 66], S: [116, 80, 46], g: [86, 58, 38] };
 const STONE_HEAD: Record<string, RGB> = { h: [150, 150, 144], H: [200, 200, 192], d: [102, 102, 98] };
 const IRON_HEAD: Record<string, RGB> = { h: [208, 214, 224], H: [252, 252, 255], d: [140, 148, 166] };
+const CRYSTAL_HEAD: Record<string, RGB> = { h: [150, 120, 230], H: [226, 210, 255], d: [96, 70, 170] };
 const ROD = [
   '................',
   '............sSl.',
@@ -1362,6 +1372,32 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     return red ? pick(r, [[214, 64, 58], [204, 58, 52], [222, 72, 64]]) : pick(r, [[246, 242, 232], [238, 234, 224], [250, 248, 240]]);
   });
   paintTile(ctx, XTile.AwningTop, (x, _y, r) => (Math.floor(x / 4) % 2 === 0 ? pick(r, [[214, 64, 58], [204, 58, 52]]) : pick(r, [[246, 242, 232], [238, 234, 224]])));
+  // Oficios del campo y la mina (v4.17): lana, sacos de abono y pienso, regadera de cobre, herramientas de cristal y la oveja.
+  paintSprite(ctx, XTile.Wool, [
+    '................', '................', '.....ww..ww.....', '...wwwwwwwwww...', '..wwhwwwwwhwww..', '..wwwwwwwwwwww..',
+    '.wwwwwwhwwwwwww.', '.wwhwwwwwwwwhww.', '.wwwwwwwwwwwwww.', '..wwwwwhwwwwww..', '..wwwwwwwwwwsw..', '...wwsswwwssw...',
+    '.....ss..ss.....', '................', '................', '................',
+  ], { w: [244, 240, 232], h: [255, 255, 255], s: [212, 206, 194] });
+  const sack = (tile: number, body: RGB, mark: RGB, grain: RGB) => paintSprite(ctx, tile, [
+    '................', '......tttt......', '.......tt.......', '.....bbbbbb.....', '....bbbbbbbb....', '...bbbbbbbbbb...',
+    '...bbbmmmmbbb...', '..bbbmmggmmbbb..', '..bbbmggggmbbb..', '..bbbmmggmmbbb..', '..bbbbmmmmbbbb..', '..bbbbbbbbbbbb..',
+    '...bbbbbbbbbb...', '....dddddddd....', '................', '................',
+  ], { t: [150, 120, 70], b: body, d: [Math.round(body[0] * 0.7), Math.round(body[1] * 0.7), Math.round(body[2] * 0.7)], m: mark, g: grain });
+  sack(XTile.Fertilizer, [176, 140, 96], [96, 150, 60], [140, 200, 90]);
+  sack(XTile.Feed, [210, 190, 140], [200, 80, 60], [236, 196, 80]);
+  toolSprite(ctx, XTile.CopperCan, [
+    '................', '................', '.....hhhh.......', '....h....h......', '....h....h......', '...ccccccc...s..',
+    '..cccccccccss...', '..ccccccccss....', '..ccccccccc.....', '..ccccccccc.....', '..ccccccccc.....', '..ddddddddd.....',
+    '................', '................', '................', '................',
+  ], { c: [214, 130, 70], d: [160, 90, 50], h: [180, 104, 56], s: [244, 180, 120] });
+  toolSprite(ctx, XTile.CrystalAxe, AXE, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
+  toolSprite(ctx, XTile.CrystalPickaxe, PICKAXE, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
+  toolSprite(ctx, XTile.CrystalShovel, SHOVEL, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
+  paintSprite(ctx, XTile.SheepIcon, [
+    '................', '................', '....wwwwwwww....', '...wwwwwwwwww...', '..kkwwwwwwwwww..', '.kkkkwwwwwwwww..',
+    '.kekkwwwwwwwww..', '.kkkkwwwwwwwww..', '..kk.wwwwwwwww..', '.....wwwwwwww...', '......k..k......', '......k..k......',
+    '.....kk.kk......', '................', '................', '................',
+  ], { w: [244, 240, 232], k: [58, 50, 56], e: [250, 250, 250] });
   paintTile(ctx, XTile.ClockFace, (x, y) => {
     const d = Math.hypot(x - 7.5, y - 7.5);
     if (d > 7.6) return [150, 78, 60];

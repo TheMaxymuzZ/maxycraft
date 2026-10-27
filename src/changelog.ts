@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.17',
+    title: 'Oficios del campo y la mina',
+    items: [
+      'Tres comercios nuevos, cada uno en su edificio cerca del ayuntamiento: el invernadero de Espiga (cabra), el granero de Heno (caballo) y la caseta de la mina de Grava (topo). Abren cuando la isla crece y salen en el mapa.',
+      'Espiga vende semillas, brotes, abono y la regadera de cobre, que riega nueve plantas de una vez. El abono hace crecer una planta un día de golpe.',
+      'Heno vende gallinas, vacas, ovejas, pienso y vallas. Las ovejas dan lana cada día y con pienso los animales vuelven a dar lo suyo.',
+      'Grava vende herramientas de cristal (las que más duran) y arregla las herramientas gastadas.',
+      'Cada comercio tiene su horario, paga mejor lo suyo y tiene una oferta del día.',
+    ],
+  },
+  {
     version: '4.16',
     title: 'La tienda nueva y la terminal',
     items: [

@@ -37,7 +37,7 @@ import { FriendsUI, GESTURE_LOOK, type Player as FriendRow } from './friends';
 import { VillagerHomes, hasDecorableHome } from './game/villagerHomes';
 import { RemotePlayers } from './remotePlayers';
 import { Menu } from './menu';
-import { Animals, MAX_ANIMALS, type AnimalKind } from './animals';
+import { ANIMAL_KINDS, Animals, MAX_ANIMALS, type AnimalKind } from './animals';
 import { Farm, cropForSeed, cropOfBlock, isFarmland } from './farm';
 import { Inventory, starterKit } from './inventory';
 import { type Action, keyLabel } from './keys';
@@ -50,10 +50,12 @@ import { Player } from './player';
 import { raycast } from './raycast';
 import { SAVE_VERSION, type SaveData, activeSlot, flushSaves, loadGame, openSaves, saveGame, saveGameNow, setActiveSlot } from './save';
 import { onStoreError } from './store';
-import { Shop, formatBerries } from './shop';
+import { Shop, type ShopContext, formatBerries } from './shop';
 import { Economy } from './economy';
 import { itemCard } from './itemCard';
 import { MuseumHall } from './game/museum';
+import { Commerce } from './game/commerce';
+import { MERCHANTS, repairCost } from './commerce';
 import { ShopFront } from './game/shopFront';
 import { PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, findTerminalSite, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
 import { WEATHER_TEXT, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
@@ -896,6 +898,7 @@ document.querySelector('#workbench-close')!.addEventListener('click', closeWorkb
 const VOICES: Record<string, number> = {
   gato: 760, oso: 260, conejo: 900, rana: 380, perro: 560, pato: 820, ardilla: 1050, tortuga: 220,
   oveja: 680, cerdo: 420, 'pingüino': 940, koala: 330, zorro: 720, elefante: 180, 'búho': 300, castor: 480,
+  cabra: 640, caballo: 340, topo: 520,
 };
 
 /** Despega la avioneta, funde la pantalla y recarga en la otra isla. */
@@ -940,7 +943,10 @@ const town = new Town({
   rating: () => islandRating(),
   notices: () => townNotices(),
   host: !joined && !trip,
-  changed: () => shop.restock(),
+  changed: () => {
+    shop.restock();
+    checkCommerce();
+  },
   toast: (t) => hud.toast(t),
   persist: () => persist(),
   avoid: (x, z) => lots.some((l) => Math.hypot(l.x - x, l.z - z) < 9),
@@ -957,6 +963,28 @@ const museumHall = new MuseumHall({
   put: (x, y, z, b) => sync.setBlock(x, y, z, b),
   toast: (t) => hud.toast(t),
 });
+
+/** Los comercios del campo y la mina (v4.17): Espiga, Heno y Grava, cada uno en su edificio. */
+const commerce = new Commerce({
+  world,
+  villagers,
+  scene,
+  lampHook,
+  put: (x, y, z, b) => sync.setBlock(x, y, z, b),
+  town,
+  memories: save?.villagers ?? {},
+  host: !joined && !trip,
+  avoid: (x, z) => lots.some((l) => Math.hypot(l.x - x, l.z - z) < 9) || parcels.list.some((o) => inBounds(parcelBounds(o), x, z, 4))
+    || parcelObstacles().some((o) => o.what !== 'la plaza' && Math.hypot(o.x - x, o.z - z) < o.r + 1),
+});
+
+/** Abre los comercios que ya tocan (cuando sube el ayuntamiento, con un amigo nuevo o al empezar el día). */
+function checkCommerce() {
+  const best = Math.max(0, ...villagers.filter((v) => !v.profile.role && !v.visitor).map((v) => friendLevel(v.memory.friendship)));
+  const opened = commerce.check({ townLevel: town.level, bestFriend: best });
+  for (const name of opened) hud.toast(`¡Ha abierto ${name}! Búscalo en el mapa`);
+  if (opened.length) persist();
+}
 
 // Parcelas (v4.14): la tuya, "Tu hogar", y las de los amigos residentes. Solo construye dentro su dueño.
 const parcels = new Parcels({
@@ -997,6 +1025,7 @@ function parcelObstacles(): Obstacle[] {
   }));
   const s = town.state;
   if (s) out.push({ x: s.x + 5, z: s.z + 5, r: 6, what: 'el ayuntamiento' });
+  out.push(...commerce.obstacles());
   if (terminalSite) {
     const [tx, tz] = terminalPoint(terminalSite, 4.5, 7);
     out.push({ x: Math.round(tx), z: Math.round(tz), r: 8, what: 'la terminal de la avioneta' });
@@ -1274,8 +1303,22 @@ const dialog = new Dialog({
     panel = null;
     lockInput();
   },
-  openShop: () => {
-    if (shop.open()) panel = 'shop';
+  openShop: (v) => {
+    if (shopOf(v).open()) panel = 'shop';
+  },
+  repair: {
+    quote: () => repairQuote(),
+    fix: () => {
+      const { tools, cost } = repairQuote();
+      if (!tools) return 'none';
+      if (wallet < cost) return 'money';
+      setWallet(wallet - cost);
+      for (const s of inventory.slots) if (s?.wear) s.wear = 0;
+      inventory.changed();
+      sound.coin();
+      persist();
+      return 'ok';
+    },
   },
   donatable: () => collection.donatable(inventory),
   donate: (id) => {
@@ -1366,7 +1409,9 @@ function closeCollection() {
 }
 document.querySelector('#collection-close')!.addEventListener('click', closeCollection);
 
-const shop = new Shop({
+/** Lo que necesita cada tienda de la partida (cada una el suyo: lleva getters). */
+function shopContext(): ShopContext {
+  return {
   inventory,
   atlas,
   get today() {
@@ -1389,8 +1434,20 @@ const shop = new Shop({
   getWallet: () => wallet,
   setWallet,
   toast: (t) => hud.toast(t),
-  levelUp: () => refreshShopFront(),
-});
+  };
+}
+const shop = new Shop(Object.assign(shopContext(), { levelUp: () => refreshShopFront() }));
+/** Las tiendas de Espiga, Heno y Grava (v4.17). */
+const merchantShops = new Map(MERCHANTS.map((m) => [m.shop.id, new Shop(shopContext(), m.shop)]));
+/** La tienda de quien atiende. */
+function shopOf(v: Villager): Shop {
+  return merchantShops.get(v.profile.shop ?? '') ?? shop;
+}
+/** Herramientas gastadas en los bolsillos y lo que cuesta arreglarlas. */
+function repairQuote(): { tools: number; cost: number } {
+  const worn = inventory.slots.filter((s) => s?.wear && itemDef(s.id).durability);
+  return { tools: worn.length, cost: worn.reduce((n, s) => n + repairCost(itemDef(s!.id).durability!, s!.wear!), 0) };
+}
 
 /** El mostrador, las estanterías, el escaparate y la casa de Avellana (v4.16). */
 const shopFront = new ShopFront({
@@ -1405,9 +1462,10 @@ function refreshShopFront() {
   shopFront.refresh(shop.level, season, holiday?.id ?? null, shop.stock);
 }
 refreshShopFront();
+checkCommerce();
 
 function closeShop() {
-  shop.close();
+  (Shop.active ?? shop).close();
   panel = null;
   lockInput();
 }
@@ -1594,7 +1652,7 @@ playButton.addEventListener('click', () => lockInput());
 function closeAnyPanel() {
   if (panel === 'inventory') hud.inventoryEl.hidden = true;
   if (panel === 'dialog') dialog.finish();
-  if (panel === 'shop') shop.close();
+  if (panel === 'shop') (Shop.active ?? shop).close();
   if (panel === 'collection') collection.close();
   if (panel === 'workbench') workbench.close();
   if (panel === 'missions') missionsPanel.close();
@@ -1796,18 +1854,37 @@ function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z
       hud.toast('Riega las plantas del huerto');
       return true;
     }
-    if (!farm.has(cx, cy, cz)) {
+    // La regadera de cobre (v4.17) riega también las ocho de alrededor.
+    const reach = def.reach ?? 0;
+    const cells: [number, number, number][] = [];
+    for (let dx = -reach; dx <= reach; dx++) for (let dz = -reach; dz <= reach; dz++) if (farm.has(cx + dx, cy, cz + dz)) cells.push([cx + dx, cy, cz + dz]);
+    if (!cells.length) {
       hud.toast('Aquí no hay nada plantado');
       return true;
     }
     sound.splash();
-    if (!farm.water(cx, cy, cz, day)) {
-      hud.toast('Ya está regada hoy. ¡Mañana habrá crecido!');
+    let watered = 0;
+    for (const [wx, wy, wz] of cells) if (farm.water(wx, wy, wz, day)) watered++;
+    if (!watered) {
+      hud.toast(cells.length > 1 ? 'Ya están regadas hoy. ¡Mañana habrán crecido!' : 'Ya está regada hoy. ¡Mañana habrá crecido!');
       return true;
     }
     farm.sync(sync, day);
     record('regar');
     if (inventory.wearTool(hud.selected)) hud.toast('¡Tu regadera se ha roto!');
+    return true;
+  }
+  if (def?.id === 'abono') {
+    const [cx, cy, cz] = crop ? [x, y, z] : [x, y + 1, z];
+    const res = farm.fertilize(cx, cy, cz, day);
+    if (res !== 'ok') {
+      hud.toast(res === 'none' ? 'El abono se echa a las plantas del huerto' : res === 'ripe' ? 'Ya está madura: ¡cosechala!' : 'Ya tiene todo el abono que puede llevar');
+      return true;
+    }
+    farm.sync(sync, day);
+    inventory.consume(hud.selected);
+    sound.place();
+    hud.toast('¡La planta ha crecido de golpe!');
     return true;
   }
   if (def?.tool === 'shovel' && (target === Block.Grass || target === Block.Dirt)) {
@@ -1858,7 +1935,7 @@ function placeAnimal(kind: AnimalKind, hit: { block: [number, number, number]; p
   a.happy();
   inventory.consume(hud.selected);
   sound.fanfare();
-  hud.toast(kind === 'gallina' ? 'La gallina pondrá un huevo cada día' : 'La vaca te dará leche cada día');
+  hud.toast(kind === 'gallina' ? 'La gallina pondrá un huevo cada día' : kind === 'oveja' ? 'La oveja te dará lana cada día' : 'La vaca te dará leche cada día');
   persist();
 }
 
@@ -1913,8 +1990,19 @@ function useItem() {
   }
   const animal = animals.pick(aimRay(), Math.min(blockDist, REACH));
   if (animal) {
+    // Con pienso (v4.17) come y vuelve a dar lo suyo ese día.
+    if (inventory.slots[hud.selected]?.id === 'pienso') {
+      if (!animals.feed(animal, dayKey(gameDate()))) hud.toast('Ya ha comido hoy. ¡Mañana más!');
+      else {
+        inventory.consume(hud.selected);
+        sound.place();
+        hud.toast('¡Ñam! Ya puedes recoger otra vez lo suyo');
+        persist();
+      }
+      return;
+    }
     const product = animals.collect(animal, dayKey(gameDate()));
-    if (!product) hud.toast(animal.data.kind === 'gallina' ? 'Ya ha puesto su huevo hoy. ¡Vuelve mañana!' : 'Ya te ha dado su leche hoy. ¡Vuelve mañana!');
+    if (!product) hud.toast(animal.data.kind === 'gallina' ? 'Ya ha puesto su huevo hoy. ¡Vuelve mañana!' : animal.data.kind === 'oveja' ? 'Ya te ha dado su lana hoy. ¡Vuelve mañana!' : 'Ya te ha dado su leche hoy. ¡Vuelve mañana!');
     else {
       drops.spawn(product, animal.position.x, animal.position.y + 0.6, animal.position.z, { burst: true });
       record('granja');
@@ -1989,9 +2077,10 @@ function useItem() {
     }
   }
 
-  // La puerta de la tienda está cerrada fuera de su horario (v4.9).
-  if (isDoor(target) && world.plotAt(bx, bz)?.kind === 'shop' && shop.closed()) {
-    hud.toast(shop.closed()!);
+  // La puerta de la tienda está cerrada fuera de su horario (v4.9), y la de los comercios también (v4.17).
+  const doorShop = world.plotAt(bx, bz)?.kind === 'shop' ? shop : merchantShops.get(commerce.siteAt(bx, bz)?.merchant.shop.id ?? '');
+  if (isDoor(target) && doorShop?.closed()) {
+    hud.toast(doorShop.closed()!);
     return;
   }
 
@@ -2019,8 +2108,8 @@ function useItem() {
 
   if (useFarm(def, bx, by, bz, target)) return;
 
-  if (def?.id === 'gallina' || def?.id === 'vaca') {
-    placeAnimal(def.id, hit);
+  if (def && ANIMAL_KINDS.includes(def.id as AnimalKind)) {
+    placeAnimal(def.id as AnimalKind, hit);
     return;
   }
 
@@ -2207,7 +2296,7 @@ function mapMarkers(): MapMarker[] {
   for (const v of villagers) if (!v.profile.role && !v.visitor) out.push({ x: v.home.x, z: v.home.z, icon: '🏠', label: v.name, kind: 'vecinos' });
   const me = myUid();
   for (const h of friendHomes) out.push({ x: h.x, z: h.z, icon: '⛺', label: h.uid === me ? 'Tu casa' : `Casa de ${h.name}`, kind: 'casas' });
-  out.push(...town.markers());
+  out.push(...town.markers(), ...commerce.markers());
   if (airport) out.push({ x: airport.x, z: airport.z, icon: '✈️', label: 'Avioneta', kind: 'edificios' });
   for (const e of world.caveEntrances) out.push({ x: e.x, z: e.z, icon: '⛏️', label: 'Cueva', kind: 'cuevas' });
   for (const r of remotes.players.values()) {
@@ -3032,6 +3121,8 @@ function newDay() {
   bottleTaken = false;
   spawnBeachFinds();
   shop.restock();
+  for (const s of merchantShops.values()) s.restock();
+  checkCommerce();
   if (!joined) regrowFruit();
   const nextSeason = seasonOf(date);
   if (nextSeason !== season) {
@@ -3293,6 +3384,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { mesher, villagerHomes, town, parcels, museumHall, shopFront, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

@@ -4,7 +4,9 @@ export type Species =
   | 'gato' | 'conejo' | 'oso' | 'pato' | 'perro' | 'rana' | 'ardilla' | 'tortuga'
   | 'oveja' | 'cerdo' | 'pingüino' | 'koala' | 'zorro' | 'elefante'
   // El alcalde y el urbanista (v4.13).
-  | 'búho' | 'castor';
+  | 'búho' | 'castor'
+  // Los comercios del campo y la mina (v4.17).
+  | 'cabra' | 'caballo' | 'topo';
 
 export interface SpeciesLook {
   /** Color del pelo (o plumas, o piel). */
@@ -34,6 +36,9 @@ export const LOOKS: Record<Species, SpeciesLook> = {
   elefante: { fur: 0x9fb4c8, belly: 0xe8d8e0 },
   'búho': { fur: 0x8a6a4a, belly: 0xf0e2c4, feet: 0xe0a040 },
   castor: { fur: 0x7a5034, belly: 0xd8b890, feet: 0x4a3020 },
+  cabra: { fur: 0xe8e0d0, belly: 0xfaf6ee, feet: 0x5a4a3a },
+  caballo: { fur: 0xa86a3a, belly: 0xe8c8a0, feet: 0x3a2a1a },
+  topo: { fur: 0x4a4048, belly: 0xc8b8c0, feet: 0xf0b0b8 },
 };
 
 /** Lo que hace falta para dibujar a un vecino. */
@@ -324,6 +329,46 @@ export function buildVillagerModel(spec: ModelSpec): VillagerModel {
       // Cola plana y ancha, con dibujo de escamas.
       box(0.34, 0.06, 0.46, 0x4a3020, 0, 0.12, -0.38);
       box(0.24, 0.065, 0.02, 0x5c3c28, 0, 0.12, -0.3);
+      break;
+    case 'cabra':
+      // Cuernos curvos hacia atrás, perilla y orejas de lado.
+      eye(-0.15, y + 0.06);
+      eye(0.15, y + 0.06);
+      cheeks();
+      box(0.24, 0.14, 0.08, belly, 0, y - 0.12, front + 0.05);
+      box(0.06, 0.04, 0.02, DARK, 0, y - 0.07, front + 0.09);
+      box(0.1, 0.16, 0.06, WHITE, 0, y - 0.3, front + 0.02); // perilla
+      for (const sx of [-1, 1]) {
+        box(0.08, 0.2, 0.08, 0x9a8a70, sx * 0.16, y + 0.42, -0.02);
+        box(0.08, 0.08, 0.16, 0x9a8a70, sx * 0.16, y + 0.5, -0.12);
+        const e = box(0.22, 0.08, 0.1, fur, sx * 0.44, y + 0.14, 0);
+        e.rotation.z = sx * -0.4;
+      }
+      tail(0.1, 0.12, 0.06, fur, 0.44, -0.22, 0.6);
+      break;
+    case 'caballo':
+      // Hocico largo, crin oscura que baja por la nuca y orejas tiesas.
+      eye(-0.17, y + 0.08);
+      eye(0.17, y + 0.08);
+      box(0.34, 0.26, 0.18, belly, 0, y - 0.14, front + 0.1);
+      box(0.04, 0.05, 0.02, DARK, -0.08, y - 0.12, front + 0.2);
+      box(0.04, 0.05, 0.02, DARK, 0.08, y - 0.12, front + 0.2);
+      ear(0.1, 0.2, 0.08, -0.2, y + 0.44, fur, belly);
+      ear(0.1, 0.2, 0.08, 0.2, y + 0.44, fur, belly);
+      box(0.14, 0.2, 0.5, 0x3a2a1a, 0, y + 0.38, -0.08); // crin
+      box(0.14, 0.4, 0.12, 0x3a2a1a, 0, y + 0.1, -0.36);
+      tail(0.14, 0.5, 0.14, 0x3a2a1a, 0.5, -0.3, 0.3);
+      break;
+    case 'topo':
+      // Ojitos pequeños casi cerrados, nariz rosa grande y manos de cavar.
+      eye(-0.15, y + 0.04);
+      eye(0.15, y + 0.04);
+      for (const e of eyes) e.scale.set(1, 0.3, 1);
+      cheeks();
+      box(0.18, 0.14, 0.12, 0xf0b0b8, 0, y - 0.1, front + 0.08);
+      box(0.4, 0.06, 0.4, 0xd8a020, 0, y + 0.4, 0); // casco de minero
+      box(0.12, 0.1, 0.04, 0xfff2a0, 0, y + 0.36, front + 0.04);
+      tail(0.06, 0.06, 0.12, fur, 0.4, -0.22);
       break;
   }
   return { group, legs, arms, eyes };
