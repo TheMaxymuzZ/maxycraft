@@ -5,6 +5,8 @@ import type { Plot } from './world';
 export interface BreakContext {
   getBlock(x: number, y: number, z: number): number;
   plotAt(x: number, z: number): Plot | undefined;
+  /** Por qué no se puede romper ahí (la parcela de otro, v4.14), o null si se puede. */
+  blocked?(x: number, z: number): string | null;
   /** Lo que se lleva en la mano. */
   held(): ItemStack | null;
   toast(text: string): void;
@@ -44,6 +46,12 @@ export class Breaker {
     const plot = this.ctx.plotAt(x, z);
     if ((HOUSE_BLOCKS.includes(b) || isDoor(b)) && plot && plot.kind !== 'player') {
       this.warn(key, 'Es la casa de un vecino. Mejor no tocarla');
+      return;
+    }
+    const blocked = this.ctx.blocked?.(x, z);
+    if (blocked) {
+      this.warn(key, blocked);
+      this.ctx.progress(null);
       return;
     }
     const stack = this.ctx.held();

@@ -74,6 +74,18 @@ export class Storage {
     return slots.filter((s): s is ItemStack => !!s);
   }
 
+  /** Lleva los cofres a otro sitio (al mudar una parcela, v4.14): `to` da la casilla nueva o null si no se mueve. */
+  relocate(to: (x: number, y: number, z: number) => [number, number, number] | null) {
+    const moved: [string, Slots][] = [];
+    for (const [k, slots] of this.boxes) {
+      const dest = to(...(k.split(',').map(Number) as [number, number, number]));
+      if (!dest) continue;
+      this.boxes.delete(k);
+      moved.push([key(...dest), slots]);
+    }
+    for (const [k, slots] of moved) this.boxes.set(k, slots);
+  }
+
   serialize(): StorageSave {
     const out: StorageSave = {};
     for (const [k, slots] of this.boxes) if (slots.some(Boolean)) out[k] = slots.map((s) => (s ? { ...s } : null));

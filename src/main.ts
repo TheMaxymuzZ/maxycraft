@@ -15,7 +15,7 @@ import { GameClock, dailyRandom, dayKey, timeOverrides } from './clock';
 import { Clouds, cloudCover } from './clouds';
 import { Collection } from './collection';
 import { calendar, creature } from './creatures';
-import { Dialog, HOUSE_COSTS, HOUSE_NAMES, KNOW } from './dialog';
+import { Dialog, KNOW } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
 import { Furniture, type PlacedFurniture, paintFurnitureIcons } from './furniture';
@@ -25,7 +25,7 @@ import { Hud } from './hud';
 import { checkForUpdates, setupInstall } from './install';
 import { Islands } from './islands';
 import { NameTags } from './labels';
-import { WorldSync } from './net/actions';
+import { type WorldAction, WorldSync } from './net/actions';
 import { loadIdentity, renameIdentity, tabIdentity } from './net/identity';
 import type { PeerInfo, Snapshot } from './net/protocol';
 import { NetSession, type SessionEvents } from './net/session';
@@ -33,7 +33,7 @@ import { TabTransport } from './net/transport';
 import { newInviteCode, normalizeCode } from './net/code';
 import { openRoom } from './net/rtc';
 import { DECORATE_LEVEL, FRIEND_LEVELS, friendLevel } from './decor';
-import { FriendsUI, GESTURE_LOOK } from './friends';
+import { FriendsUI, GESTURE_LOOK, type Player as FriendRow } from './friends';
 import { VillagerHomes, hasDecorableHome } from './game/villagerHomes';
 import { RemotePlayers } from './remotePlayers';
 import { Menu } from './menu';
@@ -71,7 +71,7 @@ import { Water } from './water';
 import { Portraits } from './portraits';
 import { Wind } from './wind';
 import { HAND_LIGHT, Lighting } from './lighting';
-import { MAX_HOMES, type PlayerHome, buildHome, isPlayerHome, pickHomeSpot } from './homes';
+import { type PlayerHome, buildHome, isPlayerHome, pickHomeSpot } from './homes';
 import type { MapMarker } from './map';
 import { Beds, hourText, wakeClock } from './sleep';
 import { MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals';
@@ -83,6 +83,8 @@ import { pathsFor } from './pathfind';
 import { Horizon } from './horizon';
 import { PerfPanel } from './game/perfPanel';
 import { Town } from './game/town';
+import { Parcels } from './game/parcels';
+import { HOST, MOVE_PRICE, type Obstacle, PARCEL_PRICES, PARCEL_SIZES, PERKS, ROLE_NAMES, type Role, TENT_PERMIT, inBounds, isParcelList, parcelAt, parcelBounds, parcelHalf, sizeForHouse } from './parcels';
 import { isTownSave } from './townhall';
 import { VitalsHud } from './vitalsHud';
 import { BIOME_NAMES, type Biome, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
@@ -359,6 +361,8 @@ if (joined?.snapshot.spawn) {
 
 // La casa del jugador: nivel (0 es la tienda de campaña), lo que falta por pagar y el tejado.
 const home = { level: 0, debt: 0, roof: 0, ...save?.home };
+/** Último día en que se leyó la carta del buzón de tu parcela (v4.14). */
+let mailDay = save?.mail ?? '';
 if (world.playerPlot && home.level > 0) world.playerPlot.roof = ROOFS[home.roof];
 
 // Las farolas y lámparas alumbran como las antorchas.
@@ -537,6 +541,8 @@ function persist(urgent = false) {
     lots,
     homes: friendHomes,
     town: town.state ?? undefined,
+    parcels: parcels.list,
+    mail: mailDay,
     missions: missions.serialize(),
     clock: clock.serialize(),
     savedAt: 0,
@@ -888,6 +894,244 @@ const town = new Town({
   avoid: (x, z) => lots.some((l) => Math.hypot(l.x - x, l.z - z) < 9),
 }, [trip ? null : joined ? joined.snapshot.town : save?.town].find(isTownSave) ?? null);
 
+// Parcelas (v4.14): la tuya, "Tu hogar", y las de los amigos residentes. Solo construye dentro su dueño.
+const parcels = new Parcels({
+  world,
+  put: (x, y, z, b) => sync.setBlock(x, y, z, b),
+  restore: (cells) => sync.clearEdits(cells),
+  placeFurniture: (id, x, y, z, rot, text) => sync.placeFurniture(id, x, y, z, rot, text),
+  removeFurniture: (x, y, z) => sync.removeFurniture(x, y, z),
+  furniture: () => furniture.serialize(),
+  scene,
+  obstacles: parcelObstacles,
+  lotInside: (b) => lots.some((l) => inBounds(b, l.x, l.z, 3)),
+  moved: (owner, to, dx, dy, dz) => {
+    storage.relocate(to);
+    farm.relocate(to);
+    orchard.relocate(to);
+    const h = friendHomes.find((o) => o.uid === owner);
+    if (h) {
+      h.x += dx;
+      h.y += dy;
+      h.z += dz;
+      net?.sendHome(h);
+    }
+  },
+  changed: () => {
+    net?.sendParcels(parcels.list);
+    persist();
+    friendsChanged();
+  },
+}, [trip ? [] : joined ? joined.snapshot.parcels : save?.parcels].find(isParcelList) ?? []);
+if (!joined && !trip) migrateParcels();
+
+/** Lo que no puede quedar dentro de una parcela: casas de vecinos, tienda, museo, ayuntamiento, plaza y solares. */
+function parcelObstacles(): Obstacle[] {
+  const out: Obstacle[] = world.plots.filter((p) => p.kind !== 'player').map((p) => ({
+    x: p.x, z: p.z, r: p.kind === 'house' ? 4 : 6,
+    what: p.kind === 'shop' ? 'la tienda' : p.kind === 'museum' ? 'el museo' : 'la casa de un vecino',
+  }));
+  const s = town.state;
+  if (s) out.push({ x: s.x + 5, z: s.z + 5, r: 6, what: 'el ayuntamiento' });
+  const [px, pz] = world.findSpawn(0, 0);
+  out.push({ x: px, z: pz, r: 3, what: 'la plaza' });
+  for (const l of lots) out.push({ x: l.x, z: l.z, r: 4, what: 'una casa de vecino hecha con plano' });
+  return out;
+}
+
+/**
+ * Partidas de antes de la v4.14: tu casa pasa a ser tu parcela (con el tamaño según lo grande que era) y lo
+ * que quedara por pagar se cancela; las tiendas de campaña de los amigos pasan a ser sus parcelas pequeñas.
+ */
+function migrateParcels() {
+  if (!parcels.of(HOST)) {
+    const plot = world.playerPlot;
+    const spot = plot ? [plot.x, plot.z] : pickHomeSpot(world, friendHomes)?.filter((_, i) => i !== 1);
+    if (spot) parcels.list.push({ owner: HOST, name: loadIdentity().name, x: spot[0], z: spot[1], size: sizeForHouse(save?.home?.level ?? 0) });
+    if (home.debt > 0) {
+      home.debt = 0;
+      window.setTimeout(() => hud.toast('Tu casa ya es tu parcela, "Tu hogar". ¡Lo que quedaba por pagar está perdonado!'), 4000);
+    }
+  }
+  for (const h of friendHomes) {
+    if (!parcels.of(h.uid) && !parcels.full) parcels.list.push({ owner: h.uid, name: h.name, x: h.x, z: h.z, size: 0 });
+  }
+}
+
+/** Quién eres en esta isla para las parcelas: tu id (HOST si es tu isla) y tu papel. */
+function parcelSelf(): { who: string; role: Role } {
+  if (!joined) return { who: HOST, role: 'anfitrion' };
+  const who = myUid() ?? '';
+  return { who, role: parcels.of(who) ? 'residente' : 'invitado' };
+}
+
+/** Por qué no puedes construir o romper en (x, z), avisando; true si puedes. */
+function mayBuild(x: number, z: number, action: 'poner' | 'quitar'): boolean {
+  if (trip) return true;
+  const { who, role } = parcelSelf();
+  const problem = parcels.rule(who, role, x, z, action);
+  if (problem) hud.toast(problem);
+  return !problem;
+}
+
+/** Lo que pueden hacer con el urbanista (v4.14). */
+function parcelActions() {
+  const mineNow = () => parcels.of(parcelSelf().who);
+  return {
+    role: () => parcelSelf().role,
+    mine: () => {
+      const p = mineNow();
+      return p ? { size: p.size, perks: [...(p.perks ?? [])] } : null;
+    },
+    wallet: () => wallet,
+    manage: () => !joined,
+    grow: async () => {
+      const p = mineNow();
+      if (!p) return 'Aún no tienes parcela';
+      const price = PARCEL_PRICES[p.size + 1];
+      if (price === undefined) return 'Tu parcela ya es la más grande';
+      if (wallet < price) return 'No llevas bayas suficientes';
+      const problem = joined ? await askHost('ampliar') : parcels.grow(HOST);
+      if (!problem) {
+        setWallet(wallet - price);
+        sound.coin();
+        persist();
+      }
+      return problem;
+    },
+    buyMove: () => {
+      if (wallet < MOVE_PRICE) return 'No llevas bayas suficientes. ¡Vuelve cuando tengas!';
+      if (inventory.countOf('permiso_mudanza')) return 'Ya llevas un permiso de mudanza en los bolsillos. ¡Úsalo primero!';
+      if (inventory.add('permiso_mudanza', 1) > 0) return 'No te cabe en los bolsillos. Haz sitio y vuelve';
+      setWallet(wallet - MOVE_PRICE);
+      persist();
+      return null;
+    },
+    perk: (id: string) => {
+      const perk = PERKS.find((k) => k.id === id);
+      if (!perk || !mineNow()) return 'Esa mejora no existe';
+      if (wallet < perk.cost) return 'No llevas bayas suficientes. ¡Vuelve cuando tengas!';
+      setWallet(wallet - perk.cost);
+      parcels.addPerk(HOST, id);
+      sound.coin();
+      return null;
+    },
+    tent: async () => {
+      if (wallet < TENT_PERMIT) return 'No llevas bayas suficientes';
+      const problem = await askHost('tienda');
+      if (!problem) {
+        setWallet(wallet - TENT_PERMIT);
+        sound.fanfare();
+        persist();
+      }
+      return problem;
+    },
+  };
+}
+
+/** Un amigo pide algo de su parcela al anfitrión: null si se ha hecho, o por qué no. */
+async function askHost(op: 'tienda' | 'ampliar' | 'permiso', who?: string): Promise<string | null> {
+  if (!net) return 'Se ha cortado la conexión';
+  const r = await net.request(op, who);
+  return r.ok ? null : r.text ?? 'No se ha podido';
+}
+
+/** El anfitrión atiende lo que piden los amigos sobre sus parcelas (v4.14). */
+function parcelRequest(peer: PeerInfo, op: 'tienda' | 'ampliar' | 'permiso', who?: string): string | null {
+  if (trip) return 'En las islas misteriosas no hay parcelas';
+  const uid = peer.uid;
+  if (!uid) return 'Tu amigo tiene otra versión';
+  if (op === 'tienda') {
+    if (parcels.of(uid)) return 'Ya tienes parcela';
+    if (parcels.full) return 'No queda sitio para más parcelas de amigos';
+    return giveFriendHome(peer) ? null : 'No encuentro un sitio llano y libre para la tienda';
+  }
+  if (op === 'ampliar') {
+    const problem = parcels.grow(uid);
+    if (!problem) hud.toast(`${peer.name} ha ampliado su parcela`);
+    return problem;
+  }
+  if (!who || !parcels.of(uid)) return 'Aún no tienes parcela';
+  parcels.toggleBuilder(uid, who);
+  return null;
+}
+
+/**
+ * El anfitrión comprueba los cambios de los amigos: en una parcela solo construye su dueño (y a quien deje), y los
+ * invitados no ponen bloques. Si no vale, devuelve cómo estaba para mandárselo de vuelta.
+ */
+function guardAction(peer: PeerInfo, a: WorldAction): WorldAction | null {
+  if (trip || a.t === 'restaurar') return null;
+  const who = peer.uid ?? '';
+  const role: Role = parcels.of(who) ? 'residente' : 'invitado';
+  const action = a.t === 'sin_mueble' || (a.t === 'bloque' && a.b === Block.Air) ? 'quitar' : 'poner';
+  // Abrir y cerrar puertas no es construir.
+  if (a.t === 'bloque' && toggled(world.getBlock(a.x, a.y, a.z)) === a.b) return null;
+  if (!parcels.rule(who, role, a.x, a.z, action)) return null;
+  if (a.t === 'bloque') return world.isEdited(a.x, a.y, a.z) ? { t: 'bloque', x: a.x, y: a.y, z: a.z, b: world.getBlock(a.x, a.y, a.z) } : { t: 'restaurar', x: a.x, y: a.y, z: a.z };
+  const f = furniture.at(a.x, a.y, a.z);
+  return f ? { t: 'mueble', x: f.x, y: f.y, z: f.z, id: f.id, rot: f.rot, ...(f.text ? { text: f.text } : {}) } : { t: 'sin_mueble', x: a.x, y: a.y, z: a.z };
+}
+
+/** El permiso de mudanza: la primera vez enseña dónde quedaría la parcela; la segunda, en el mismo sitio, muda. */
+function useMovePermit(x: number, z: number) {
+  if (joined || trip) {
+    hud.toast('La mudanza se hace en tu isla');
+    return;
+  }
+  const pv = parcels.preview;
+  if (pv && Math.abs(pv.x - x) <= 1 && Math.abs(pv.z - z) <= 1) {
+    const problem = parcels.move(HOST, pv.x, pv.z);
+    if (problem) {
+      hud.toast(problem);
+      return;
+    }
+    inventory.remove('permiso_mudanza', 1);
+    sound.fanfare();
+    hud.toast('¡Mudanza hecha! Tu parcela y todo lo que tenía ya están en su sitio nuevo');
+    persist();
+    return;
+  }
+  const problem = parcels.moveProblem(HOST, x, z);
+  parcels.preview = { owner: HOST, x, z };
+  hud.toast(problem ? `Ahí no: ${problem.toLowerCase()}` : 'Así quedaría tu parcela (borde azul). Usa el permiso otra vez en el mismo sitio para mudarte');
+}
+
+/** Si lo que llevas en la mano es para construir: entonces se ve el borde de las parcelas. */
+function holdingBuildStuff(): boolean {
+  const stack = hud.selectedStack;
+  if (!stack) return false;
+  const def = itemDef(stack.id);
+  return def.block !== undefined || !!def.furniture || def.id === 'plano_casa' || def.id === 'permiso_mudanza';
+}
+
+/** El buzón de tu parcela: una carta al día de un vecino, a veces con regalo (v4.14). */
+function readMail() {
+  if (mailDay === today) {
+    hud.toast('Hoy ya has leído tu carta. ¡Mañana llegará otra!');
+    return;
+  }
+  mailDay = today;
+  const friendsHere = villagers.filter((v) => !v.profile.role && !v.visitor);
+  const from = friendsHere[Math.floor(Math.random() * friendsHere.length)];
+  const line = MAIL_LINES[Math.floor(Math.random() * MAIL_LINES.length)];
+  const gift = Math.random() < 0.6 ? MAIL_GIFTS[Math.floor(Math.random() * MAIL_GIFTS.length)] : null;
+  hud.toast(`Carta de ${from?.name ?? 'un vecino'}: "${line}"${gift ? ` Dentro hay ${itemDef(gift).name.toLowerCase()}.` : ''}`);
+  if (gift && inventory.add(gift, 1) > 0) drops.spawn(gift, player.position.x, player.position.y + 1, player.position.z, { burst: true });
+  sound.coin();
+  persist();
+}
+
+/** Lo que dicen las cartas del buzón y lo que a veces mandan dentro. */
+const MAIL_LINES = [
+  '¡Gracias por cuidar tanto la isla! Da gusto vivir aquí.',
+  'Ayer te vi pasar corriendo. ¡Un día tenemos que charlar más rato!',
+  'He soñado que construías un castillo. ¿Será verdad?',
+  'Te mando un detallito. No es mucho, pero lo he elegido pensando en ti.',
+  '¿Sabías que las flores crecen más bonitas si les hablas? Pruébalo.',
+];
+const MAIL_GIFTS = ['tulipan', 'pensamiento', 'cosmos', 'tablones', 'manzana'];
+
 /** Lo que pone en el tablón de avisos del ayuntamiento, además de las obras. */
 function townNotices(): string[] {
   const out: string[] = [];
@@ -989,25 +1233,7 @@ const dialog = new Dialog({
     panel = 'collection';
     collection.open();
   },
-  home: {
-    available: !!world.playerPlot,
-    state: () => ({ level: home.level, debt: home.debt, wallet }),
-    upgrade: (roof) => {
-      if (home.debt > 0 || home.level >= HOUSE_COSTS.length) return;
-      home.debt += HOUSE_COSTS[home.level];
-      home.level++;
-      home.roof = roof;
-      world.buildPlayerHouse(home.level, ROOFS[roof], (x, y, z, b) => sync.setBlock(x, y, z, b));
-      hud.toast(`¡Tienes una ${HOUSE_NAMES[home.level]}!`);
-      persist();
-    },
-    pay: (amount) => {
-      if (amount > wallet || amount > home.debt) return;
-      setWallet(wallet - amount);
-      home.debt -= amount;
-      persist();
-    },
-  },
+  parcel: parcelActions(),
 });
 
 /** Valoración de la isla de casa (de viaje se mira lo guardado). */
@@ -1016,7 +1242,8 @@ function islandRating(): Rating {
   return rateIsland({
     ...countPlaced(saved ? saved.edits : world.exportEdits()),
     furniture: saved ? saved.furniture?.length ?? 0 : furniture.serialize().length,
-    house: saved ? saved.home?.level ?? 0 : home.level,
+    // Desde la v4.14 cuenta lo grande que es tu parcela.
+    house: saved ? saved.parcels?.find((p) => p.owner === HOST)?.size ?? sizeForHouse(saved.home?.level ?? 0) : parcels.of(HOST)?.size ?? 0,
     guests: guests.length,
     donated: collection.donated.size,
     farm: saved ? Object.keys(saved.farm ?? {}).length + (saved.animals?.length ?? 0) : farm.crops.size + animals.list.length,
@@ -1089,7 +1316,7 @@ const shop = new Shop({
   },
   economy,
   get planner() {
-    return town.level >= 2;
+    return !!town.planner;
   },
   getWallet: () => wallet,
   setWallet,
@@ -1335,6 +1562,7 @@ const posKey = (x: number, y: number, z: number) => `${x},${y},${z}`;
 const breaker = new Breaker({
   getBlock: (x, y, z) => world.getBlock(x, y, z),
   plotAt: (x, z) => world.plotAt(x, z),
+  blocked: (x, z) => (trip ? null : parcels.rule(parcelSelf().who, parcelSelf().role, x, z, 'quitar')),
   held: () => hud.selectedStack,
   toast: (t) => hud.toast(t),
   progress: (p) => hud.setProgress(p),
@@ -1493,6 +1721,7 @@ function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z
       hud.toast('Aquí no se puede hacer un huerto');
       return true;
     }
+    if (!mayBuild(x, z, 'poner')) return true;
     if (above === Block.TallGrass) sync.setBlock(x, y + 1, z, Block.Air);
     sync.setBlock(x, y, z, Block.Farmland);
     sound.dig('hierba');
@@ -1505,6 +1734,7 @@ function useFarm(def: ReturnType<typeof itemDef> | null, x: number, y: number, z
       hud.toast('Las semillas van en tierra de cultivo: labra la hierba con la pala (clic derecho)');
       return true;
     }
+    if (!mayBuild(x, z, 'poner')) return true;
     farm.plant(x, y + 1, z, seed.id);
     sync.setBlock(x, y + 1, z, seed.stages[0]);
     farm.sync(sync, day);
@@ -1595,6 +1825,10 @@ function useItem() {
     openSign(aimed.furniture);
     return;
   }
+  if (aimed?.furniture.id === 'buzon' && !joined && !trip && parcelAt(parcels.list, aimed.furniture.x, aimed.furniture.z)?.perks?.includes('buzon')) {
+    readMail();
+    return;
+  }
   const stack = hud.selectedStack;
   const def = stack ? itemDef(stack.id) : null;
 
@@ -1671,6 +1905,10 @@ function useItem() {
     useBlueprint(bx, by, bz);
     return;
   }
+  if (def?.id === 'permiso_mudanza') {
+    useMovePermit(bx, bz);
+    return;
+  }
 
   if (useFarm(def, bx, by, bz, target)) return;
 
@@ -1678,6 +1916,9 @@ function useItem() {
     placeAnimal(def.id, hit);
     return;
   }
+
+  // En la parcela de otro no se construye, y los invitados no construyen (v4.14).
+  if ((def?.furniture || def?.block !== undefined) && !mayBuild(hit.place[0], hit.place[2], 'poner')) return;
 
   if (def?.furniture) {
     placeFurniture(def.id, hit);
@@ -1820,8 +2061,9 @@ function homeSpot(): [number, number] {
   const mine = myFriendHome();
   if (mine) return [mine.x, mine.z + 3];
   if (trip || joined) return [spawnPoint.x, spawnPoint.z];
-  const plot = world.playerPlot;
-  return plot ? [plot.x, plot.z + home.level + 3] : [spawnPoint.x, spawnPoint.z];
+  // Delante de la puerta de tu casa, que se muda con la parcela (v4.14).
+  const p = parcels.of(HOST);
+  return p ? [p.x, p.z + Math.min(home.level + 3, parcelHalf(p.size) + 1)] : [spawnPoint.x, spawnPoint.z];
 }
 
 function wakeUpAtHome() {
@@ -2028,6 +2270,7 @@ function rotateFurniture(f: PlacedFurniture) {
 function pickUpFurniture(): boolean {
   const f = furnitureInSight();
   if (!f) return false;
+  if (!mayBuild(f.furniture.x, f.furniture.z, 'quitar')) return true;
   if (!take(f.furniture.id)) return true;
   sync.removeFurniture(f.furniture.x, f.furniture.y, f.furniture.z);
   return true;
@@ -2181,6 +2424,7 @@ function useBucket(full: boolean) {
   const [x, y, z] = hit.place;
   const here = world.getBlock(x, y, z);
   if ((here !== Block.Air && !isWater(here)) || furniture.at(x, y, z)) return;
+  if (!mayBuild(x, z, 'poner')) return;
   sync.setBlock(x, y, z, Block.Water);
   swap('cubo');
 }
@@ -2281,7 +2525,7 @@ scene.add(remotes.group);
 Object.assign(netEvents, {
   join: (p) => {
     remotes.add(p);
-    giveHome(p);
+    remindHome(p);
     hud.toast(`${p.name} ha llegado a la isla`);
     sound.coin();
     friendsChanged();
@@ -2306,8 +2550,17 @@ Object.assign(netEvents, {
     const i = friendHomes.findIndex((o) => o.uid === h.uid);
     if (i >= 0) friendHomes[i] = h;
     else friendHomes.push(h);
-    if (h.uid === myUid()) hud.toast('Tienes casa en esta isla: la tienda de campaña con tu nombre en el cartel. Ahí duermes y despiertas');
+    if (h.uid === myUid() && i < 0) hud.toast('Tienes casa en esta isla: la tienda de campaña con tu nombre en el cartel. Ahí duermes y despiertas');
   },
+  parcels: (list) => {
+    const before = parcels.of(myUid() ?? '');
+    parcels.replace(list);
+    const now = parcels.of(myUid() ?? '');
+    if (!before && now) hud.toast('¡Ya eres residente! Tienes parcela y tu tienda de campaña');
+    friendsChanged();
+  },
+  request: (peer, op, who) => parcelRequest(peer, op, who),
+  guard: (peer, a) => guardAction(peer, a),
   villagers: (states) => {
     // En casa de un amigo, sus vecinos van donde dice él (v4.8).
     for (const st of states) {
@@ -2371,36 +2624,45 @@ function myFriendHome(): PlayerHome | undefined {
 }
 
 /**
- * El anfitrión da casa a quien llega (v4.3): si ya tenía, se la recuerda; si no, le monta una tienda de campaña
- * con su cama y un cartel con su nombre. En las islas misteriosas no hay casas para nadie.
+ * Quien llega a tu isla (v4.3): si ya tenía casa, se le recuerda (y se cambia el cartel si se ha cambiado el nombre).
+ * Desde la v4.14 los nuevos llegan como invitados, sin casa: la tienda la compran al urbanista.
  */
-function giveHome(p: PeerInfo) {
+function remindHome(p: PeerInfo) {
   if (!net || net.role !== 'anfitrion' || trip || !p.uid) return;
-  let home = friendHomes.find((h) => h.uid === p.uid);
+  const home = friendHomes.find((h) => h.uid === p.uid);
   if (!home) {
-    if (friendHomes.length >= MAX_HOMES) {
-      // Sin sitio para más: la casa más antigua de quien no esté jugando se le da al nuevo.
-      const playing = new Set([...net.peers.values()].map((o) => o.uid));
-      const old = friendHomes.findIndex((h) => !playing.has(h.uid));
-      if (old < 0) return;
-      home = { ...friendHomes[old], uid: p.uid, name: p.name };
-      friendHomes[old] = home;
-      sync.placeFurniture('cartel', home.x + 1, home.y, home.z + 3, 0, `Casa de ${p.name}`);
-    } else {
-      const spot = pickHomeSpot(world, friendHomes);
-      if (!spot) return;
-      home = { uid: p.uid, name: p.name, x: spot[0], y: spot[1], z: spot[2] };
-      friendHomes.push(home);
-      buildHome(world, home, (x, y, z, b) => sync.setBlock(x, y, z, b), (id, x, y, z, rot, text) => sync.placeFurniture(id, x, y, z, rot, text));
-      hud.toast(`${p.name} tiene casa nueva en tu isla: una tienda de campaña con su nombre`);
-    }
-  } else if (home.name !== p.name) {
-    // Se ha cambiado el nombre: el cartel también.
+    net.sendParcels(parcels.list);
+    return;
+  }
+  if (home.name !== p.name) {
     home.name = p.name;
     sync.placeFurniture('cartel', home.x + 1, home.y, home.z + 3, 0, `Casa de ${p.name}`);
+    const parcel = parcels.of(p.uid);
+    if (parcel) parcel.name = p.name.slice(0, 24);
   }
   net.sendHome(home);
+  net.sendParcels(parcels.list);
   persist();
+}
+
+/** El permiso de tienda de un amigo (v4.14): se le monta la tienda con su cama y su cartel, dentro de su parcela nueva. */
+function giveFriendHome(p: PeerInfo): boolean {
+  if (!net || !p.uid) return false;
+  const spot = pickHomeSpot(world, friendHomes, (x, z) => {
+    const problem = parcelObstacles().some((o) => Math.abs(o.x - x) <= o.r + 4 && Math.abs(o.z - z) <= o.r + 4);
+    return problem || parcels.list.some((o) => inBounds(parcelBounds(o), x, z, PARCEL_SIZES[0]));
+  });
+  if (!spot) return false;
+  const home: PlayerHome = { uid: p.uid, name: p.name, x: spot[0], y: spot[1], z: spot[2] };
+  const old = friendHomes.findIndex((h) => h.uid === p.uid);
+  if (old >= 0) friendHomes.splice(old, 1);
+  friendHomes.push(home);
+  buildHome(world, home, (x, y, z, b) => sync.setBlock(x, y, z, b), (id, x, y, z, rot, text) => sync.placeFurniture(id, x, y, z, rot, text));
+  parcels.create(p.uid, p.name, home.x, home.z, 0);
+  hud.toast(`${p.name} ha comprado su permiso de tienda: ya es residente de tu isla`);
+  net.sendHome(home);
+  persist();
+  return true;
 }
 
 /** Vuelve a cargar el juego entrando en la isla del código (tras un corte o un viaje en grupo). */
@@ -2424,6 +2686,7 @@ function islandSnapshot(): Snapshot {
     spawn: [Math.floor(player.position.x), Math.floor(player.position.z)],
     homes: friendHomes,
     town: trip ? undefined : town.state ?? undefined,
+    parcels: trip ? [] : parcels.list,
   };
 }
 
@@ -2528,7 +2791,7 @@ const friends = new FriendsUI({
   state: () => ({
     role: net?.role ?? 'solo',
     code: netCode,
-    players: net ? [net.self, ...net.peers.values()].map(({ id, name, color }) => ({ id, name, color })) : [],
+    players: net ? [net.self, ...net.peers.values()].map(({ id, name, color, uid }) => playerRow({ id, name, color, uid })) : [],
     busy: netBusy,
   }),
   name: () => loadIdentity().name,
@@ -2558,7 +2821,36 @@ const friends = new FriendsUI({
     hud.toast(`${GESTURE_LOOK[g].emoji} ${GESTURE_LOOK[g].name}`);
   },
   toast: (t) => hud.toast(t),
+  togglePermit: (p) => void togglePermit(p),
 });
+
+/** Quién es cada jugador para las parcelas: el anfitrión es HOST y los demás su id de siempre. */
+function parcelIdOf(p: PeerInfo): string {
+  const isHost = net?.role === 'anfitrion' ? p.id === net.self.id : p.id === net?.hostPeer?.id;
+  return isHost ? HOST : p.uid ?? '';
+}
+
+/** Cada jugador en «Jugar con amigos»: anfitrión, residente o invitado, y si le dejas construir en tu parcela. */
+function playerRow(p: PeerInfo): FriendRow {
+  const id = parcelIdOf(p);
+  const status = ROLE_NAMES[id === HOST ? 'anfitrion' : parcels.of(id) ? 'residente' : 'invitado'];
+  const mine = trip ? undefined : parcels.of(parcelSelf().who);
+  const me = p.id === net?.self.id;
+  return { ...p, status, canBuild: mine && !me && id ? !!mine.builders?.includes(id) : undefined };
+}
+
+async function togglePermit(p: FriendRow) {
+  const id = parcelIdOf(p);
+  if (!id) return;
+  if (joined) {
+    const problem = await askHost('permiso', id);
+    if (problem) hud.toast(problem);
+  } else parcels.toggleBuilder(HOST, id);
+  const now = parcels.of(parcelSelf().who)?.builders?.includes(id);
+  hud.toast(now ? `${p.name} ya puede construir en tu parcela` : `${p.name} ya no puede construir en tu parcela`);
+  friendsChanged();
+}
+
 friends.onClose = () => {
   if (panel === 'faint') return;
   if (panel === 'chat' || panel === 'gestures') panel = null;
@@ -2720,6 +3012,7 @@ function frame(now: number) {
     camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
   }
   breaker.update(dt, breaker.active ? currentHit()?.block ?? null : null);
+  parcels.showBorders(!trip && holdingBuildStuff() ? parcelSelf().who : null);
   updateSteps(dt);
 
   // El reloj de la isla solo corre mientras se juega (no en la portada ni en pausa).
@@ -2759,6 +3052,10 @@ function frame(now: number) {
     farmTimer = 1;
     const day = dayKey(date);
     if (weather.raining) farm.waterAll(day);
+    // El huerto que se riega solo (mejora de parcela, v4.14).
+    else if (!joined && parcels.list.some((p) => p.perks?.includes('huerto'))) {
+      farm.waterWhere(day, (x, _y, z) => !!parcelAt(parcels.list, x, z)?.perks?.includes('huerto'));
+    }
     missions.setDay(day);
     // Lo que crece solo lo decide el anfitrión; a los invitados les llegan los bloques.
     if (!joined) {
@@ -2887,6 +3184,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { mesher, villagerHomes, town, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { mesher, villagerHomes, town, parcels, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

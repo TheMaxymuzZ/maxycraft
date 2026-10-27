@@ -99,7 +99,8 @@ describe('v4.13: ayuntamiento', () => {
     const { town, inventory, wallet } = makeTown(world, villagers);
     expect(town.level).toBe(1);
     expect(town.mayor?.name).toBe('Don Gregorio');
-    expect(town.planner).toBeNull();
+    // Desde la v4.14 el urbanista está desde la caseta: lleva las parcelas.
+    expect(town.planner?.name).toBe('Ladrillo');
     const s = town.state!;
     const door = hallDoor(s, 1);
     expect(world.getBlock(door[0], door[1], door[2] - 1)).toBe(Block.Door);

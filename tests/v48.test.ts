@@ -188,7 +188,8 @@ describe('v4.8: un vecino cruza la isla', () => {
   });
 
   it('el mensaje de vecinos se comprueba al llegar y el protocolo sube a 5', () => {
-    expect(PROTOCOL).toBe(5);
+    // La v4.14 lo sube a 6 (parcelas).
+    expect(PROTOCOL).toBeGreaterThanOrEqual(5);
     const ok = { t: 'vecinos', s: [{ n: 'Canela', x: 1, y: 30, z: 2, f: 0.5, v: true, w: false }] };
     expect(parseMessage(ok)).toEqual(ok);
     expect(parseMessage({ t: 'vecinos', s: [{ n: 'Canela', x: 'a' }] })).toBeNull();

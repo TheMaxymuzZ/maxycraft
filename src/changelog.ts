@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.14',
+    title: 'Parcelas, hogar e invitados',
+    items: [
+      'Empiezas con tu parcela, «Tu hogar»: un terreno de 9×9 gratis donde solo construyes tú y quien tú dejes. Al llevar bloques o muebles en la mano ves su borde en el suelo.',
+      'Ladrillo, el urbanista, está desde la caseta de obras y la amplía hasta 31×31, te vende el permiso de mudanza para llevártela entera a otro sitio (con la casa, los muebles, los cofres y el huerto) y mejoras: cartel con tu nombre, buzón con carta diaria y huerto que se riega solo.',
+      'Partidas de antes: tu casa pasa a ser tu parcela con el tamaño que tenía y lo que quedaba por pagar a Avellana se perdona.',
+      'Los amigos llegan como invitados: recogen y ayudan, pero no construyen. Con el permiso de tienda de campaña pasan a residentes con su parcela, que luego pueden ampliar.',
+      'Nadie rompe ni construye en tu parcela sin permiso. En Jugar con amigos ves quién es anfitrión, residente o invitado, y a quién dejas construir.',
+    ],
+  },
+  {
     version: '4.13',
     title: 'Ayuntamiento, alcalde y urbanista',
     items: [

@@ -18,6 +18,8 @@ export interface BlockWorld {
   getBlock(x: number, y: number, z: number): number;
   setBlock(x: number, y: number, z: number, b: Block): void;
   clearEdit(x: number, y: number, z: number): void;
+  /** Muchas a la vez (v4.14); si no está, se hace una a una. */
+  clearEdits?(cells: [number, number, number][]): void;
 }
 
 /** Un mueble colocado, como lo guarda Furniture. */
@@ -106,6 +108,13 @@ export class WorldSync implements BlockWorld {
 
   clearEdit(x: number, y: number, z: number) {
     this.dispatch({ t: 'restaurar', x, y, z });
+  }
+
+  /** Deja como las generó la isla muchas casillas a la vez (al mudar una parcela). */
+  clearEdits(cells: [number, number, number][]) {
+    if (this.world.clearEdits) this.world.clearEdits(cells);
+    else for (const [x, y, z] of cells) this.world.clearEdit(x, y, z);
+    for (const [x, y, z] of cells) for (const l of this.listeners) l({ t: 'restaurar', x, y, z });
   }
 
   /** Pone un mueble, o cambia el que hay en esa casilla (girado o con otro texto). */

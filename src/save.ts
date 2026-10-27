@@ -1,3 +1,4 @@
+import type { Parcel } from './parcels';
 import type { TownSave } from './townhall';
 import type { EconomySave } from './economy';
 import type { ClockSave } from './clock';
@@ -68,6 +69,10 @@ export interface SaveData {
   home?: { level: number; debt: number; roof: number };
   /** Desde la v4.13: el ayuntamiento, sus obras y el nombre de la isla. */
   town?: TownSave;
+  /** Desde la v4.14: las parcelas (la tuya y las de tus amigos). La casa de antes pasa a ser tu parcela. */
+  parcels?: Parcel[];
+  /** Último día en que se leyó la carta del buzón de la parcela. */
+  mail?: string;
   furniture?: PlacedFurniture[];
   /** Desde la v0.9: recetas aprendidas para la mesa de trabajo y la botella del día. */
   recipes?: string[];

@@ -11,12 +11,18 @@ export const GESTURE_LOOK: Record<Gesture, { emoji: string; name: string }> = {
   sueno: { emoji: '💤', name: 'Sueño' },
 };
 
+/** Un jugador en la lista: su papel en la isla (v4.14) y, si tienes parcela, si le dejas construir en ella. */
+export interface Player extends PeerInfo {
+  status?: string;
+  canBuild?: boolean;
+}
+
 export interface FriendsState {
   role: 'solo' | 'anfitrion' | 'invitado';
   /** Código de la isla abierta. */
   code: string | null;
   /** Todos los que están en la isla, contigo. */
-  players: PeerInfo[];
+  players: Player[];
   /** Se está abriendo la isla o buscando la de un amigo. */
   busy: boolean;
   /** Por qué no se puede abrir la isla ahora (de viaje, por ejemplo). */
@@ -35,6 +41,8 @@ export interface FriendsContext {
   say(text: string): void;
   gesture(g: Gesture): void;
   toast(text: string): void;
+  /** Deja (o deja de dejar) construir a un amigo en tu parcela. */
+  togglePermit?(p: Player): void;
 }
 
 /** Ventanas de la partida con amigos: el menú para invitar y entrar, el chat y los gestos. */
@@ -144,6 +152,12 @@ export class FriendsUI {
       for (const p of s.players) {
         const li = el('li', '', p.name);
         li.style.setProperty('--c', `#${p.color.toString(16).padStart(6, '0')}`);
+        if (p.status) li.append(' ', el('span', 'player-status', p.status));
+        if (p.canBuild !== undefined) {
+          const b = button(p.canBuild ? 'Quitar permiso' : 'Dejar construir', () => this.ctx.togglePermit?.(p), 'player-permit');
+          b.title = p.canBuild ? 'Ahora puede construir en tu parcela' : 'Dejar que construya en tu parcela';
+          li.append(' ', b);
+        }
         ul.appendChild(li);
       }
       return ul;

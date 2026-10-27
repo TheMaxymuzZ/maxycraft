@@ -11,6 +11,7 @@ import { DIY_RECIPES, ITEMS, ITEM_KINDS, RARITIES, RECIPES, type Recipe, STARTER
 import { ACHIEVEMENTS, PRIZES, TASKS } from '../missions';
 import { Portraits } from '../portraits';
 import { formatBerries } from '../shop';
+import { PARCEL_PRICES, PARCEL_SIZES, PERKS } from '../parcels';
 import { HALL_LEVELS, PUBLIC_WORKS } from '../townhall';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
 import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
@@ -266,6 +267,10 @@ fill('tabla-obras', [
   `<td><b>Puente a un islote</b></td><td class="num">desde 8.000</td><td class="num">1</td><td>Puente de madera con barandilla y pilares de piedra, hasta la orilla de la isla.</td>`,
   ...PUBLIC_WORKS.map((w) => `<td><b>${w.name}</b></td><td class="num">${w.cost.toLocaleString('es')}</td><td class="num">${w.level}</td><td>${w.text}</td>`),
 ]);
+
+// Parcelas (v4.14): tamaños con su precio y mejoras.
+fill('tabla-parcelas', PARCEL_SIZES.map((n, i) => `<td><b>${n}×${n}</b></td><td class="num">${PARCEL_PRICES[i] ? `${PARCEL_PRICES[i].toLocaleString('es')} bayas` : 'Gratis'}</td>`));
+fill('tabla-mejoras', PERKS.map((k) => `<td><b>${k.name}</b></td><td class="num">${k.cost.toLocaleString('es')}</td><td>${k.text}</td>`));
 
 // Casas de los vecinos (v4.12): niveles de amistad y estilo de decoración de cada vecino.
 fill('tabla-amistad', FRIEND_LEVELS.map((l) => `<td><b>${l.name}</b></td><td class="num">${l.min}</td><td>${l.unlock}</td>`));

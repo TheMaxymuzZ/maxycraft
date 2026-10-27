@@ -86,6 +86,18 @@ export class Orchard {
     return t;
   }
 
+  /** Lleva los árboles plantados a otro sitio (al mudar una parcela, v4.14). */
+  relocate(to: (x: number, y: number, z: number) => [number, number, number] | null) {
+    const moved: PlantedTree[] = [];
+    for (const [k, t] of this.trees) {
+      const dest = to(t.x, t.y, t.z);
+      if (!dest) continue;
+      this.trees.delete(k);
+      moved.push({ ...t, x: dest[0], y: dest[1], z: dest[2] });
+    }
+    for (const t of moved) this.trees.set(key(t.x, t.y, t.z), t);
+  }
+
   /** Bloques del árbol en que se convierte un brote. */
   shape(t: PlantedTree): TreeBlock[] {
     const kind = treeKindOfSapling(t.sapling)!;

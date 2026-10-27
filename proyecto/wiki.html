@@ -218,22 +218,26 @@
 
         <!-- ============================================================ -->
         <section class="card" id="casa" data-emoji="🏠">
-          <h2>Tu casa y los muebles</h2>
-          <p>Empiezas en una <b>tienda de campaña</b>. Para tener una casa de verdad, habla con <b>Avellana</b> en la tienda y elige «Mi casa». Ella te la construye al momento y se la pagas poco a poco, <b>sin intereses</b>.</p>
+          <h2>Tu parcela, tu casa y los muebles</h2>
+          <p>Desde la 4.14 empiezas con <b>tu parcela, «Tu hogar»</b>: un terreno de 9×9 alrededor de tu tienda de campaña, <b>gratis</b>. Dentro construyes lo que quieras: tu casa, el huerto, un jardín… Solo construyes tú y quien tú dejes. Al llevar bloques o muebles en la mano ves su <b>borde amarillo</b> en el suelo (las parcelas de los demás, en blanco).</p>
+          <p>Para hacerla más grande, habla con <b>Ladrillo, el urbanista</b>, en el ayuntamiento › <b>Tu parcela</b>. Crece desde el centro hacia todos los lados y se paga al momento (sin deudas).</p>
           <div class="table-wrap"><table>
-            <thead><tr><th>Casa</th><th>Cuesta</th></tr></thead>
-            <tbody>
-              <tr><td>Casa pequeña</td><td class="num">5.000 bayas</td></tr>
-              <tr><td>Casa mediana</td><td class="num">15.000 bayas</td></tr>
-              <tr><td>Casa grande</td><td class="num">40.000 bayas</td></tr>
-            </tbody>
+            <thead><tr><th>Tamaño</th><th>Precio</th></tr></thead>
+            <tbody id="tabla-parcelas"><tr><td colspan="2" class="loading">Cargando…</td></tr></tbody>
           </table></div>
+          <h3>Mudar tu parcela</h3>
           <ol class="steps">
-            <li>Habla con Avellana › <b>Mi casa</b> › «¡Sí, por favor!».</li>
-            <li>Elige el color del tejado: rojo, azul, verde o amarillo.</li>
-            <li>Ve pagando cuando puedas, de 1.000 en 1.000 o todo de golpe («Pagar todo»).</li>
-            <li>Cuando esté pagada, puedes volver a ampliarla.</li>
+            <li>Ladrillo › Tu parcela › <b>Mudar la parcela</b>: te vende el <b>permiso de mudanza</b> (30.000 bayas).</li>
+            <li>Úsalo (clic derecho) en el suelo donde quieras vivir: verás con un <b>borde azul</b> dónde quedaría.</li>
+            <li>Úsalo otra vez en el mismo sitio y <b>todo se muda</b>: lo construido, los muebles, los cofres con lo que tengan dentro, el huerto y los árboles plantados. El sitio viejo vuelve a quedar como era.</li>
           </ol>
+          <p>No se puede mudar encima de casas de vecinos, la tienda, el museo, el ayuntamiento, la plaza, el mar ni de algo ya construido.</p>
+          <h3>Mejoras de la parcela</h3>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Mejora</th><th>Precio</th><th>Qué hace</th></tr></thead>
+            <tbody id="tabla-mejoras"><tr><td colspan="3" class="loading">Cargando…</td></tr></tbody>
+          </table></div>
+          <div class="tip"><b>Partidas de antes:</b> tu casa pasa a ser tu parcela, con el tamaño según lo grande que era (la casa grande da una parcela de 23×23), y <b>lo que quedaba por pagar a Avellana se perdona</b>. Avellana ya no hace casas: ahora construyes tú la tuya como quieras.</div>
           <h3>Muebles</h3>
           <ul class="plain">
             <li><b>Colocar:</b> elige el mueble en la barra rápida y haz clic derecho en el suelo. Mira hacia ti.</li>
@@ -486,7 +490,7 @@
           <h2>Casas para vecinos nuevos</h2>
           <p>Los vecinos nuevos no llegan solos: <b>tú les construyes la casa</b>, bloque a bloque.</p>
           <ol class="steps">
-            <li>Compra un <b>plano de casa</b> (1.000 bayas) en la tienda de Avellana o, desde que el ayuntamiento es una oficina, a <b>Ladrillo, el urbanista</b>.</li>
+            <li>Compra un <b>plano de casa</b> (1.000 bayas) a <b>Ladrillo, el urbanista</b>, en el ayuntamiento.</li>
             <li>Ve a un sitio <b>llano</b> de tu isla, lejos de otras casas. Con el plano en la mano, haz clic derecho en el suelo. La <b>puerta mirará hacia ti</b>.</li>
             <li>Aparecen <b>bloques fantasma</b> de colores que te enseñan qué va en cada sitio: el suelo, las paredes, la puerta y el tejado. Arriba ves cuántos bloques faltan.</li>
             <li>Pon bloques donde están los fantasmas. Si algo sobra dentro, sale marcado en rojo: quítalo.</li>
@@ -582,8 +586,14 @@
             <li><b>Viajes en grupo:</b> si quien invita vuela en avioneta, os vais todos juntos a la isla misteriosa, y volvéis juntos.</li>
             <li><b>Dormir:</b> la noche solo pasa cuando estáis todos en la cama (mira «Dormir»).</li>
           </ul>
-          <h3>Cada uno con su casa</h3>
-          <p>Desde la versión 4.3, la primera vez que entras en la isla de un amigo te encuentras <b>tu propia casa</b>: una tienda de campaña con una cama y un cartel con tu nombre, en un sitio llano de su isla. Ahí puedes dormir, y ahí despiertas si te desmayas. Quien invita se acuerda de tu casa para la próxima vez que vengas, y puedes decorarla o construir alrededor.</p>
+          <h3>Invitados y residentes</h3>
+          <p>Desde la 4.14, quien entra por primera vez en la isla de un amigo llega como <b>Invitado</b>: puede recoger cosas, pescar, ayudar y charlar, pero <b>no construir</b>. Para tener su sitio habla con <b>Ladrillo, el urbanista</b>, y compra el <b>permiso de tienda de campaña</b> (3.000 bayas): se le monta una tienda con su cama y un cartel con su nombre, y pasa a ser <b>Residente</b> con su parcela de 9×9, que luego puede ampliar. Ahí duerme, y ahí despierta si se desmaya.</p>
+          <ul class="plain">
+            <li>En Menú › Jugar con amigos se ve quién es <b>Anfitrión</b>, <b>Residente</b> o <b>Invitado</b>.</li>
+            <li><b>Nadie rompe ni construye en tu parcela</b> si no le dejas. Para dejarle, pulsa «Dejar construir» junto a su nombre en Jugar con amigos (y «Quitar permiso» para quitárselo).</li>
+            <li>Quienes ya tenían su tienda de campaña antes de la 4.14 son residentes desde el principio.</li>
+            <li>Como mucho hay 5 parcelas de amigos por isla.</li>
+          </ul>
           <h3>Qué es de quién</h3>
           <ul class="plain">
             <li>La isla vive en el ordenador de quien invita, y se guarda allí.</li>
@@ -664,7 +674,7 @@
           <h3>Islotes y puentes</h3>
           <p>Alrededor de la isla hay <b>de 2 a 4 islotes</b> con playa y palmeras (salen en el mapa). El alcalde te ofrece un <b>puente a cada uno</b>: cuesta 8.000 bayas más 1.000 por cada 5 bloques de largo. También puedes hacerlo a mano con <b>tablones de puente</b>, <b>barandilla</b> y <b>pilares</b>, que se fabrican desde el principio.</p>
           <h3>Ladrillo, el urbanista</h3>
-          <p>Llega cuando el ayuntamiento es una <b>oficina</b>. Vende los <b>planos de casa</b> para vecinos nuevos (Avellana deja de venderlos) y está preparando las parcelas, las ampliaciones y las mudanzas.</p>
+          <p>Está desde la caseta de obras (desde la 4.14). Lleva <b>las parcelas</b>: ampliarlas, el permiso de mudanza, las mejoras y el permiso de tienda de campaña para los amigos (mira «Tu parcela»). También vende los <b>planos de casa</b> para vecinos nuevos (Avellana deja de venderlos).</p>
           <div class="tip"><b>Rampas solas:</b> en algunas islas de antes la tienda o el museo quedaban en otro piso o al otro lado del río, sin camino. Al abrir la partida con la 4.13 se hacen escalones y pasarelas para que los vecinos (y tú) lleguéis andando desde la plaza.</div>
         </section>
 
