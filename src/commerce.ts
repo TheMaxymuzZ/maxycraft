@@ -4,7 +4,7 @@
 
 import { Block } from './blocks';
 import type { BuildingTemplate } from './buildings';
-import { ESPIGA, GRAVA, HENO, type ShopDef } from './economy';
+import { BALDOSA, ESPIGA, GRAVA, HENO, SEDA, SERRIN, type ShopDef } from './economy';
 import type { Cell } from './pathfind';
 import type { Fixture } from './shopBuilding';
 import type { Profile } from './villagers';
@@ -14,6 +14,10 @@ export interface UnlockContext {
   townLevel: number;
   /** Mejor nivel de amistad con un vecino (índice de FRIEND_LEVELS). */
   bestFriend: number;
+  /** Nivel de la tienda de Avellana (v4.18). */
+  shopLevel?: number;
+  /** Obras públicas hechas (v4.18). */
+  works?: number;
 }
 
 export interface Merchant {
@@ -90,6 +94,45 @@ const MINE_HUT = building('caseta-mina', 'Caseta de la mina', {
   [...Array.from({ length: 7 }, () => ' SSSSS '), '       '],
 ]);
 
+/** La boutique de Seda (v4.18): paredes blancas, escaparates a los dos lados de la puerta con maniquíes y toldo. */
+const BOUTIQUE = building('boutique', 'Boutique', {
+  P: Block.Planks, H: Block.Wall, L: Block.Log, W: Block.Glass, D: Block.Door, T: Block.DoorTop, A: Block.Awning, R: Block.RoofRed, I: Block.LightBlock,
+}, [
+  FLOOR('P'),
+  ['HHHHHHH', 'H.....H', 'H.....H', 'H.....H', 'H.....H', 'H.....H', 'HWWDWWH', '       '],
+  ['HHWHWHH', 'H.....H', 'W.....W', 'H.....H', 'W.....W', 'H.....H', 'HWWTWWH', '       '],
+  ['HHHHHHH', 'H.....H', 'H.....H', 'H..I..H', 'H.....H', 'H.....H', 'HHHHHHH', 'AAAAAAA'],
+  [...Array.from({ length: 7 }, () => 'RRRRRRR'), '       '],
+  [...Array.from({ length: 7 }, (_, z) => (z === 0 || z === 6 ? '       ' : ' RRRRR ')), '       '],
+]);
+
+/** La nave de muebles de Serrín: madera y cristal con tejado de dientes de sierra. */
+const WAREHOUSE = building('nave-muebles', 'Nave de muebles', {
+  P: Block.Planks, L: Block.Log, S: Block.ShopWall, W: Block.Window, G: Block.Glass, D: Block.Door, T: Block.DoorTop, R: Block.RoofGreen, I: Block.LightBlock,
+}, [
+  FLOOR('P'),
+  WALLS('L', 'S', 'D'),
+  ['LSWSWSL', 'S.....S', 'W.....W', 'S.....S', 'W.....W', 'S.....S', 'LSSTSSL', '       '],
+  ['LSSSSSL', 'S.....S', 'S.....S', 'S..I..S', 'S.....S', 'S.....S', 'LSSSSSL', '       '],
+  [...Array.from({ length: 7 }, () => 'RRRRRRR'), '       '],
+  // Dientes de sierra: una fila de tejado alta y otra de cristal por donde entra la luz.
+  [...Array.from({ length: 7 }, (_, z) => (z % 2 === 0 ? 'RRRRRRR' : 'GGGGGGG')), '       '],
+  [...Array.from({ length: 7 }, (_, z) => (z % 2 === 0 ? 'RRRRRRR' : '       ')), '       '],
+]);
+
+/** El taller de Baldosa: ladrillo y piedra pulida, con las muestras en la acera. */
+const WORKSHOP = building('taller', 'Taller', {
+  P: Block.PolishedStone, B: Block.Brick, L: Block.Log, W: Block.Window, D: Block.Door, T: Block.DoorTop, R: Block.RoofYellow, I: Block.LightBlock, t: Block.Tiles,
+}, [
+  [...Array.from({ length: 7 }, () => 'ttttttt'), 'PPPPPPP'],
+  WALLS('L', 'B', 'D'),
+  ['LBWBWBL', 'B.....B', 'W.....W', 'B.....B', 'W.....W', 'B.....B', 'LBBTBBL', '       '],
+  ['LBBBBBL', 'B.....B', 'B.....B', 'B..I..B', 'B.....B', 'B.....B', 'LBBBBBL', '       '],
+  GABLE('R', 0),
+  GABLE('R', 1),
+  GABLE('R', 2),
+]);
+
 const COUNTER: Fixture[] = [['mostrador', 2, 1, 3, 0], ['caja_registradora', 3, 1, 3, 0], ['mostrador', 4, 1, 3, 0]];
 
 export const MERCHANTS: Merchant[] = [
@@ -146,6 +189,60 @@ export const MERCHANTS: Merchant[] = [
       'Las herramientas de cristal son las mejores. Casi no se rompen, {c}.',
     ],
     icon: '⛏️',
+  },
+  {
+    shop: SEDA,
+    profile: {
+      name: 'Seda', species: 'alpaca', personality: 'presumido', catchphrase: 'chic', shirt: 0xee8fb2,
+      likes: 'flores', sleep: [23, 8], stationary: true, role: 'shop', shop: 'ropa', birthday: [5, 14], hobby: 'combinar colores',
+    },
+    building: BOUTIQUE,
+    fixtures: [...COUNTER, ['maniqui', 1, 1, 5, 0], ['maniqui', 5, 1, 5, 0], ['perchero', 1, 1, 2, 1], ['espejo', 1, 1, 4, 1], ['perchero', 5, 1, 2, 3]],
+    counter: [3, 1, 2],
+    unlocked: (c) => c.townLevel >= 2 && c.bestFriend >= 1,
+    unlockText: 'Con el ayuntamiento en oficina (nivel 2) y un vecino que sea ya conocido (nivel 2 de amistad).',
+    greetings: [
+      '¡{saludo}, cielo! ¿Buscas algo que te favorezca? Tengo justo lo que necesitas, {c}.',
+      'Pruébatelo en el probador sin compromiso. ¡El espejo no miente, {c}!',
+      'Cada día cuelgo prendas nuevas. Si ves algo que te gusta, no lo pienses, {c}.',
+    ],
+    icon: '👗',
+  },
+  {
+    shop: SERRIN,
+    profile: {
+      name: 'Serrín', species: 'mapache', personality: 'alegre', catchphrase: 'ñic', shirt: 0x3f7a4a,
+      likes: 'madera', sleep: [22, 7], stationary: true, role: 'shop', shop: 'muebles', birthday: [2, 9], hobby: 'lijar madera',
+    },
+    building: WAREHOUSE,
+    fixtures: [...COUNTER, ['sofa', 1, 1, 5, 1], ['mesa', 5, 1, 5, 0], ['lampara', 1, 1, 1, 0], ['estanteria', 5, 1, 1, 0]],
+    counter: [3, 1, 2],
+    unlocked: (c) => (c.shopLevel ?? 0) >= 1,
+    unlockText: 'Cuando la tienda de Avellana llega a Tienda grande (20.000 bayas gastadas).',
+    greetings: [
+      '¡{saludo}! Muebles para todos los gustos: rústicos, modernos, playeros, elegantes y monos, {c}.',
+      'Mi catálogo cambia cada día. ¡Hoy tengo cosas que mañana ya no, {c}!',
+      'Si regalas a un vecino un mueble de su estilo, le harás muy feliz, {c}.',
+    ],
+    icon: '🛋️',
+  },
+  {
+    shop: BALDOSA,
+    profile: {
+      name: 'Baldosa', species: 'jirafa', personality: 'deportista', catchphrase: 'zas', shirt: 0xf0a030,
+      likes: 'madera', sleep: [21, 6], stationary: true, role: 'shop', shop: 'urbano', birthday: [10, 4], hobby: 'medir calles',
+    },
+    building: WORKSHOP,
+    fixtures: [...COUNTER, ['farola_hierro', 0, 1, 7, 0], ['banco_parque', 1, 1, 7, 0], ['jardinera', 5, 1, 7, 0], ['senal_calle', 6, 1, 7, 0], ['barril', 1, 1, 1, 0]],
+    counter: [3, 1, 2],
+    unlocked: (c) => c.townLevel >= 3 && (c.works ?? 0) >= 1,
+    unlockText: 'Con el ayuntamiento de nivel 3 y una obra pública ya hecha.',
+    greetings: [
+      '¡{saludo}! Una isla con buenas calles es una isla feliz. ¿Qué te pongo, {c}?',
+      'Farolas, bancos, jardineras… todo de calidad y a buen precio, {c}.',
+      'Los domingos descanso. Hay que estirar el cuello de vez en cuando, {c}.',
+    ],
+    icon: '🏮',
   },
 ];
 

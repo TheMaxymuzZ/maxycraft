@@ -83,7 +83,8 @@ describe('v4.17: los comercios', () => {
     const scene = new THREE.Scene();
     const commerce = new Commerce({ world, villagers, scene, lampHook: () => {}, put: (x, y, z, b) => world.setBlock(x, y, z, b), town, memories: {}, host: true });
     expect(commerce.check({ townLevel: 1, bestFriend: 0 })).toEqual([]);
-    const opened = commerce.check({ townLevel: 3, bestFriend: 2 });
+    const all = { townLevel: 3, bestFriend: 2, shopLevel: 1, works: 1 };
+    const opened = commerce.check(all);
     expect(opened.length).toBe(MERCHANTS.length);
     expect(Object.keys(town.state!.shops!)).toHaveLength(MERCHANTS.length);
     for (const site of commerce.sites) {
@@ -97,7 +98,7 @@ describe('v4.17: los comercios', () => {
     const [a, b] = commerce.sites;
     expect(Math.abs(a.at[0] - b.at[0]) >= 7 || Math.abs(a.at[2] - b.at[2]) >= 8).toBe(true);
     // Abrir otra vez no hace nada.
-    expect(commerce.check({ townLevel: 3, bestFriend: 2 })).toEqual([]);
+    expect(commerce.check(all)).toEqual([]);
     expect(commerce.markers()).toHaveLength(MERCHANTS.length);
     // Se guardan con el ayuntamiento.
     expect(isTownSave(JSON.parse(JSON.stringify(town.state)))).toBe(true);

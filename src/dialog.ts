@@ -380,6 +380,8 @@ export interface DialogContext {
   onClose: () => void;
   /** Abre la tienda de quien atiende (la dependienta o los comercios de la v4.17). */
   openShop: (v: Villager) => void;
+  /** El probador de la boutique de Seda (v4.18). */
+  fitting?: () => void;
   /** Grava arregla las herramientas gastadas de los bolsillos (v4.17). */
   repair?: { quote(): { tools: number; cost: number }; fix(): 'ok' | 'money' | 'none' };
   /** Lo que se puede donar al museo y cómo donarlo. */
@@ -546,6 +548,12 @@ export class Dialog {
         this.ctx.openShop(v);
       });
       if (v.profile.shop === 'mina' && this.ctx.repair) add('Arreglar herramientas', () => this.repair());
+      if (v.profile.shop === 'ropa' && this.ctx.fitting) {
+        add('Probador', () => {
+          this.finish(true);
+          this.ctx.fitting!();
+        });
+      }
     } else if (v.isCurator) {
       add('Donar', () => this.donateAll());
       add('Ver la colección', () => {

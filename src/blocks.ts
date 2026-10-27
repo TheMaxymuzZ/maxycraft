@@ -1,3 +1,4 @@
+import { CLOTHES, darker } from './clothes';
 import * as THREE from 'three';
 import { CREATURES, CREATURE_SPRITES } from './creatures';
 
@@ -1393,6 +1394,11 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   toolSprite(ctx, XTile.CrystalAxe, AXE, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
   toolSprite(ctx, XTile.CrystalPickaxe, PICKAXE, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
   toolSprite(ctx, XTile.CrystalShovel, SHOVEL, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
+  // La ropa (v4.18): un icono por prenda y color.
+  const rgb = (c: number): RGB => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+  for (const cloth of CLOTHES) {
+    toolSprite(ctx, cloth.tile, cloth.garment.icon, { c: rgb(cloth.color.c), d: rgb(darker(cloth.color.c)), a: rgb(cloth.color.a) });
+  }
   paintSprite(ctx, XTile.SheepIcon, [
     '................', '................', '....wwwwwwww....', '...wwwwwwwwww...', '..kkwwwwwwwwww..', '.kkkkwwwwwwwww..',
     '.kekkwwwwwwwww..', '.kkkkwwwwwwwww..', '..kk.wwwwwwwww..', '.....wwwwwwww...', '......k..k......', '......k..k......',

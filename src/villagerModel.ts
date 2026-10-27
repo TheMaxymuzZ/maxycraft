@@ -6,7 +6,9 @@ export type Species =
   // El alcalde y el urbanista (v4.13).
   | 'búho' | 'castor'
   // Los comercios del campo y la mina (v4.17).
-  | 'cabra' | 'caballo' | 'topo';
+  | 'cabra' | 'caballo' | 'topo'
+  // Moda, muebles y mobiliario urbano (v4.18).
+  | 'alpaca' | 'mapache' | 'jirafa';
 
 export interface SpeciesLook {
   /** Color del pelo (o plumas, o piel). */
@@ -39,6 +41,9 @@ export const LOOKS: Record<Species, SpeciesLook> = {
   cabra: { fur: 0xe8e0d0, belly: 0xfaf6ee, feet: 0x5a4a3a },
   caballo: { fur: 0xa86a3a, belly: 0xe8c8a0, feet: 0x3a2a1a },
   topo: { fur: 0x4a4048, belly: 0xc8b8c0, feet: 0xf0b0b8 },
+  alpaca: { fur: 0xf6ecdc, belly: 0xfffaf0, feet: 0x8a7060 },
+  mapache: { fur: 0x8a8a92, belly: 0xe0e0e4, feet: 0x3a3a40 },
+  jirafa: { fur: 0xf0c060, belly: 0xfff0c8, feet: 0x6a4a2a },
 };
 
 /** Lo que hace falta para dibujar a un vecino. */
@@ -369,6 +374,47 @@ export function buildVillagerModel(spec: ModelSpec): VillagerModel {
       box(0.4, 0.06, 0.4, 0xd8a020, 0, y + 0.4, 0); // casco de minero
       box(0.12, 0.1, 0.04, 0xfff2a0, 0, y + 0.36, front + 0.04);
       tail(0.06, 0.06, 0.12, fur, 0.4, -0.22);
+      break;
+    case 'alpaca':
+      // Flequillo de lana esponjosa, hocico claro y orejas largas de punta.
+      eye(-0.15, y + 0.02);
+      eye(0.15, y + 0.02);
+      cheeks();
+      box(0.26, 0.16, 0.08, belly, 0, y - 0.14, front + 0.05);
+      box(0.06, 0.03, 0.02, DARK, 0, y - 0.1, front + 0.1);
+      box(0.6, 0.2, 0.5, WHITE, 0, y + 0.34, 0.06); // flequillo
+      box(0.4, 0.14, 0.4, WHITE, 0, y + 0.46, 0.02);
+      ear(0.1, 0.24, 0.08, -0.26, y + 0.46, fur, PINK);
+      ear(0.1, 0.24, 0.08, 0.26, y + 0.46, fur, PINK);
+      tail(0.14, 0.14, 0.14, WHITE, 0.4, -0.22);
+      break;
+    case 'mapache':
+      // Antifaz oscuro, hocico claro y cola a rayas.
+      box(0.56, 0.16, 0.02, 0x3a3a40, 0, y + 0.04, front + 0.03);
+      eye(-0.15, y + 0.04, front + 0.05);
+      eye(0.15, y + 0.04, front + 0.05);
+      box(0.26, 0.14, 0.08, belly, 0, y - 0.13, front + 0.05);
+      box(0.08, 0.05, 0.03, DARK, 0, y - 0.08, front + 0.1);
+      ear(0.16, 0.16, 0.08, -0.26, y + 0.38, fur, 0x3a3a40);
+      ear(0.16, 0.16, 0.08, 0.26, y + 0.38, fur, 0x3a3a40);
+      for (const [i, c] of [fur, 0x3a3a40, fur, 0x3a3a40].entries()) box(0.14, 0.14, 0.12, c, 0, 0.36 + i * 0.02, -0.24 - i * 0.12);
+      break;
+    case 'jirafa':
+      // Cuernecitos con bola, manchas y orejas de lado.
+      eye(-0.15, y + 0.06);
+      eye(0.15, y + 0.06);
+      cheeks();
+      box(0.28, 0.18, 0.08, belly, 0, y - 0.14, front + 0.05);
+      box(0.04, 0.04, 0.02, DARK, -0.06, y - 0.1, front + 0.1);
+      box(0.04, 0.04, 0.02, DARK, 0.06, y - 0.1, front + 0.1);
+      for (const sx of [-1, 1]) {
+        box(0.06, 0.2, 0.06, fur, sx * 0.12, y + 0.42, 0);
+        box(0.1, 0.1, 0.1, 0x8a5a30, sx * 0.12, y + 0.54, 0);
+        const e = box(0.2, 0.08, 0.1, fur, sx * 0.42, y + 0.2, 0);
+        e.rotation.z = sx * 0.3;
+      }
+      for (const [x, sy, z] of [[-0.2, 0.14, 0.33], [0.22, -0.02, 0.33], [0.36, 0.18, 0.1], [-0.36, 0, -0.1]]) box(0.12, 0.1, 0.02, 0xb07a38, x, y + sy, z);
+      tail(0.06, 0.3, 0.06, fur, 0.48, -0.2, 0.3);
       break;
   }
   return { group, legs, arms, eyes };

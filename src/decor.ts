@@ -46,6 +46,26 @@ export const FURNITURE_STYLE: Record<string, DecorStyle[]> = {
   macetero: ['playero', 'mono'],
   fuente_plaza: ['elegante'],
   buzon: ['moderno', 'mono'],
+  // v4.18
+  armario: ['rustico', 'elegante'],
+  espejo: ['elegante'],
+  tumbona: ['playero'],
+  sombrilla: ['playero'],
+  sillon_moderno: ['moderno'],
+  mesa_cristal: ['moderno'],
+  cama_dosel: ['elegante', 'mono'],
+  piano: ['elegante'],
+  peluche_oso: ['mono'],
+  puf: ['mono', 'moderno'],
+  mecedora: ['rustico'],
+  chimenea: ['rustico', 'elegante'],
+  maniqui: ['elegante', 'moderno'],
+  perchero: ['moderno'],
+  farola_hierro: ['elegante'],
+  banco_parque: ['elegante', 'playero'],
+  jardinera: ['playero', 'mono'],
+  pergola: ['rustico', 'playero'],
+  senal_calle: ['moderno'],
 };
 
 /** Estilo de cada vecino conocido; los demás (los que vienen de islas misteriosas) lo sacan de su personalidad. */

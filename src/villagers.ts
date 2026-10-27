@@ -19,7 +19,7 @@ export const PERSONALITY_NAMES: Record<Personality, string> = {
 export const SPECIES_NAMES: Record<Species, string> = {
   gato: 'Gato', conejo: 'Conejo', oso: 'Oso', pato: 'Pato', perro: 'Perro', rana: 'Rana', ardilla: 'Ardilla', tortuga: 'Tortuga',
   oveja: 'Oveja', cerdo: 'Cerdo', 'pingüino': 'Pingüino', koala: 'Koala', zorro: 'Zorro', elefante: 'Elefante',
-  'búho': 'Búho', castor: 'Castor', cabra: 'Cabra', caballo: 'Caballo', topo: 'Topo',
+  'búho': 'Búho', castor: 'Castor', cabra: 'Cabra', caballo: 'Caballo', topo: 'Topo', alpaca: 'Alpaca', mapache: 'Mapache', jirafa: 'Jirafa',
 };
 
 export interface Profile {

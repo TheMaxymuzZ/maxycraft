@@ -142,6 +142,53 @@ export const GRAVA: ShopDef = {
   offers: true,
 };
 
+// --- Moda, muebles y cosméticos (v4.18) ---
+
+/** La boutique de Seda: cierra los lunes. Cada día cuelga diez prendas distintas (más al crecer). */
+export const SEDA: ShopDef = {
+  id: 'ropa',
+  name: 'Boutique de Seda',
+  owner: 'Seda',
+  hours: Array.from({ length: 7 }, (_, d) => (d === 1 ? null : [10, 20] as [number, number])),
+  stock: [{ pick: (d) => d.seller === 'ropa', daily: 10, perLevel: [0, 3, 6] }],
+  buys: (d) => d.kind === 'ropa' || d.id === 'lana',
+  specialty: { pick: (d) => d.kind === 'ropa' || d.id === 'lana', bonus: 1.2 },
+  margin: 1,
+  offers: true,
+};
+
+/** La nave de muebles de Serrín: lo suyo siempre y un catálogo de muebles que rota cada día. */
+export const SERRIN: ShopDef = {
+  id: 'muebles',
+  name: 'Muebles Serrín',
+  owner: 'Serrín',
+  hours: Array.from({ length: 7 }, () => [9, 19] as [number, number]),
+  stock: [
+    { pick: (d) => d.seller === 'muebles' },
+    { pick: (d) => !!d.furniture && !d.seller && !d.holiday, daily: 4, units: 2, perLevel: [0, 2, 4] },
+  ],
+  buys: (d) => !!d.furniture || d.id === 'tronco' || d.id === 'tablones',
+  specialty: { pick: (d) => !!d.furniture, bonus: 1.15 },
+  margin: 1,
+  offers: true,
+};
+
+/** El taller de Baldosa: cierra los domingos. Farolas, bancos, jardineras y señales para las calles. */
+export const BALDOSA: ShopDef = {
+  id: 'urbano',
+  name: 'Taller de Baldosa',
+  owner: 'Baldosa',
+  hours: Array.from({ length: 7 }, (_, d) => (d === 0 ? null : [8, 17] as [number, number])),
+  stock: [
+    { pick: (d) => d.seller === 'urbano' },
+    { ids: ['farola', 'papelera', 'cartel', 'macetero', 'buzon', 'fuente'], pick: () => true },
+  ],
+  buys: (d) => d.kind === 'bloque' || !!d.furniture,
+  specialty: { pick: (d) => ['piedra', 'ladrillo', 'baldosas', 'piedra_pulida'].includes(d.id), bonus: 1.3 },
+  margin: 1,
+  offers: true,
+};
+
 /** Lo que Grava paga mejor que nadie. */
 export const MINERALS = ['carbon', 'pepita_hierro', 'pepita_oro', 'amatista', 'cristal_brillante', 'basalto', 'roca_magma'];
 

@@ -1,3 +1,4 @@
+import type { WardrobeSave } from './wardrobe';
 import type { Parcel } from './parcels';
 import type { TerminalSite } from './terminal';
 import type { TownSave } from './townhall';
@@ -76,6 +77,8 @@ export interface SaveData {
   mail?: string;
   /** Desde la v4.16: dónde está la terminal de la avioneta (se construye una vez). */
   terminal?: TerminalSite;
+  /** Desde la v4.18: la ropa puesta y los conjuntos guardados. */
+  wardrobe?: WardrobeSave;
   furniture?: PlacedFurniture[];
   /** Desde la v0.9: recetas aprendidas para la mesa de trabajo y la botella del día. */
   recipes?: string[];

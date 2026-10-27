@@ -259,7 +259,7 @@ kbd {
 .shop-list b { display: block; font-size: 15px; }
 .shop-list small { color: #6b7466; font-size: 12px; }
 .shop-list .actions { display: flex; gap: 4px; }
-.shop-list button, #shop-close {
+.shop-list button, #shop-close, .wardrobe-close {
   font: 700 13px var(--display); padding: 6px 10px; border: 0; cursor: pointer; background: var(--grass); color: #fff; white-space: nowrap;
 }
 .shop-list button:disabled { background: #c9c1a6; cursor: default; }
@@ -776,3 +776,24 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
 .map-zoom button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
 .map-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; font-size: 13px; }
 .map-legend label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+/* Armario (v4.18): el espejo a la izquierda y lo que llevas, lo de los bolsillos y los conjuntos a la derecha. */
+#wardrobe {
+  position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+  background: rgba(30, 50, 30, 0.5); z-index: 5;
+}
+#wardrobe[hidden] { display: none; }
+.wardrobe-panel { grid-template-columns: 240px 1fr; width: min(760px, 100%); }
+.wardrobe-mirror {
+  align-self: start; background: linear-gradient(#dfeef6, #f6efe0); border: 6px solid #c8a050; border-radius: 120px 120px 8px 8px;
+  display: grid; place-items: center; overflow: hidden;
+}
+.wardrobe-mirror canvas { width: 100%; height: auto; display: block; }
+.wardrobe-lists { display: grid; gap: 14px; align-content: start; }
+.wardrobe-sets li { grid-template-columns: 1fr auto auto; }
+.wardrobe-close { background: #8b5a35; font-size: 16px; padding: 8px 16px; }
+.ui-escalada .wardrobe-panel { width: min(760px, calc((100vw - 32px) / var(--hud))); }
+@media (max-width: 760px) {
+  .wardrobe-panel { grid-template-columns: 1fr; }
+  .wardrobe-mirror { width: 160px; justify-self: center; }
+}
