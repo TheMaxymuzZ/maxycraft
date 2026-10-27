@@ -23,6 +23,7 @@ export function rarityFor(id: string, islandFruit?: string): Rarity {
 export function sourceOf(id: string): string {
   const def = itemDef(id);
   const c = creature(id);
+  if (c?.kind === 'fosil') return 'Se encuentra cavando tierra, arena o piedra (más en las islas misteriosas). Se dona al museo';
   if (c) return `${c.kind === 'pez' ? 'Se pesca' : 'Se caza con la red'} ${HABITAT_TEXT[c.habitat]}, ${monthsText(c)}, ${hoursText(c)}`;
   const ways: string[] = [];
   if (isTreeFruit(id) || id === 'coco') ways.push('se coge de los árboles');

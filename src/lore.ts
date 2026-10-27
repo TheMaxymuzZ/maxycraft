@@ -144,6 +144,13 @@ export const LORE: Record<string, string> = {
   grillo: 'Canta por la noche frotando sus alas. Cuanto más calor, más rápido.',
   luciernaga: 'Su lucecita sirve para encontrar amigos en la oscuridad.',
   libelula: 'Puede volar hacia atrás y quedarse quieta en el aire.',
+  // Fósiles (v4.15)
+  amonites: 'Un primo lejano del pulpo que vivía dentro de una concha en espiral.',
+  trilobites: 'Nadó por los mares hace muchísimo tiempo, mucho antes que los dinosaurios.',
+  diente_tiburon: 'Los tiburones cambian de dientes toda la vida. Este se le cayó a uno enorme.',
+  craneo_dino: 'La cabeza de un gran dinosaurio. Con las costillas y la cola se arma el esqueleto entero.',
+  costillas_dino: 'Las costillas de un dinosaurio. Solas parecen una jaula; con el cráneo y la cola, un gigante.',
+  cola_dino: 'La cola de un dinosaurio, larga como un banco. Le servía para no perder el equilibrio.',
   // Muebles
   cama: 'Para dormir y que pase la noche en un momento.',
   mesa: 'Para comer, para jugar a las cartas o para apoyar un jarrón.',

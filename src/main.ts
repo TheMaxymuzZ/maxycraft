@@ -14,7 +14,7 @@ import { Bugs } from './bugs';
 import { GameClock, dailyRandom, dayKey, timeOverrides } from './clock';
 import { Clouds, cloudCover } from './clouds';
 import { Collection } from './collection';
-import { calendar, creature } from './creatures';
+import { calendar, creature, pickCreature } from './creatures';
 import { Dialog, KNOW } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
@@ -53,6 +53,7 @@ import { onStoreError } from './store';
 import { Shop, formatBerries } from './shop';
 import { Economy } from './economy';
 import { itemCard } from './itemCard';
+import { MuseumHall } from './game/museum';
 import { WEATHER_TEXT, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
@@ -892,7 +893,19 @@ const town = new Town({
   toast: (t) => hud.toast(t),
   persist: () => persist(),
   avoid: (x, z) => lots.some((l) => Math.hypot(l.x - x, l.z - z) < 9),
+  clearEdits: (cells) => sync.clearEdits(cells),
 }, [trip ? null : joined ? joined.snapshot.town : save?.town].find(isTownSave) ?? null);
+
+/** Las piezas donadas dentro del museo grande (v4.15). */
+const museumHall = new MuseumHall({
+  world,
+  scene,
+  atlas,
+  donated: () => collection.donated,
+  host: !joined && !trip,
+  put: (x, y, z, b) => sync.setBlock(x, y, z, b),
+  toast: (t) => hud.toast(t),
+});
 
 // Parcelas (v4.14): la tuya, "Tu hogar", y las de los amigos residentes. Solo construye dentro su dueño.
 const parcels = new Parcels({
@@ -1569,6 +1582,7 @@ const breaker = new Breaker({
   broken: (x, y, z, b, usedTool) => {
     const stack = hud.selectedStack;
     removeBlock(x, y, z, b, false);
+    digFossil(x, y, z, b);
     tutorial.complete('romper');
     record('romper');
     if (usedTool && stack && inventory.wearTool(hud.selected)) {
@@ -1586,6 +1600,20 @@ canvas.addEventListener('mousedown', (e) => {
 window.addEventListener('mouseup', (e) => {
   if (e.button === 0) breaker.active = false;
 });
+
+/** Bloques donde se puede encontrar un fósil al cavar (v4.15). */
+const FOSSIL_GROUND: ReadonlySet<number> = new Set([Block.Dirt, Block.Grass, Block.Sand, Block.Stone]);
+
+/** Al cavar tierra, arena o piedra a veces sale un fósil: más en las islas misteriosas. */
+function digFossil(x: number, y: number, z: number, b: number) {
+  if (!FOSSIL_GROUND.has(b) || Math.random() >= (world.mystery ? 0.05 : 0.015)) return;
+  const c = pickCreature(['tierra'], 12);
+  if (!c) return;
+  drops.spawn(c.id, x + 0.5, y + 0.5, z + 0.5, { burst: true });
+  const first = collection.register(c.id);
+  hud.toast(first ? `¡Un fósil nuevo: ${c.name.toLowerCase()}! Llévalo al museo.` : `¡Has encontrado un fósil: ${c.name.toLowerCase()}!`);
+  sound.coin();
+}
 
 function removeBlock(x: number, y: number, z: number, b: number, burst: boolean) {
   // Al cortar un tronco cae todo lo que hay encima: el resto del tronco, la copa y la fruta.
@@ -1802,6 +1830,15 @@ function useItem() {
   // La avioneta: se habla con el piloto.
   if (pilot && aimRay().intersectBox(plane.bounds(planeBox), rayHit) && rayHit.distanceTo(camera.position) < Math.min(blockDist, REACH + 3)) {
     talkTo(pilot);
+    return;
+  }
+  // Las piezas del museo: se mira su ficha (también a través del cristal del acuario).
+  const throughGlass = hit && world.getBlock(hit.block[0], hit.block[1], hit.block[2]) === Block.Glass;
+  const exhibit = museumHall.pick(aimRay(), throughGlass ? REACH + 2 : Math.min(blockDist + 0.5, REACH));
+  if (exhibit) {
+    const card = itemCard();
+    card.showFor(exhibit.id, window.innerWidth / 2, window.innerHeight / 2);
+    window.setTimeout(() => card.hide(), 4000);
     return;
   }
   const animal = animals.pick(aimRay(), Math.min(blockDist, REACH));
@@ -3077,6 +3114,7 @@ function frame(now: number) {
   // La hora ya la ponen las luces de la escena, que también lo alumbran.
   drops.update(dt, player.position, take, (p) => brightnessAt(p, 1));
   bugs.update(dt, hour, player.position, daylight);
+  museumHall.update(dt, sky.night);
   furniture.setNight(sky.night);
   sound.setHour(hour);
   rainTimer -= dt;
@@ -3184,6 +3222,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { mesher, villagerHomes, town, parcels, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { mesher, villagerHomes, town, parcels, museumHall, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

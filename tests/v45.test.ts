@@ -26,9 +26,10 @@ function worldHash(world: World, r = 4): number {
 
 // Huellas tomadas con el código de la v4.4 (bloques en 8 bits), antes de pasar a 16 bits.
 // La del terreno 1 cambió a propósito en la v4.13: salen islotes en el mar abierto (la isla no cambia).
+// Las dos cambiaron en la v4.15: el museo es ahora un edificio de cuatro plantas.
 const CASES: [string, number, WorldOptions, number][] = [
-  ['terreno 1', 20261025, {}, 3656779501],
-  ['terreno 2', 777, { terrain: 2 }, 4086615264],
+  ['terreno 1', 20261025, {}, 882977011],
+  ['terreno 2', 777, { terrain: 2 }, 1020616002],
   ['isla del volcán', 4242, { mystery: { kind: 'volcan', fruit: Block.Apple } }, 3091704902],
 ];
 

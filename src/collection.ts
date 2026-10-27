@@ -32,6 +32,7 @@ export class Collection {
   private summaryEl = document.querySelector<HTMLParagraphElement>('#collection-summary')!;
   private fishEl = document.querySelector<HTMLDivElement>('#collection-fish')!;
   private bugsEl = document.querySelector<HTMLDivElement>('#collection-bugs')!;
+  private fossilsEl = document.querySelector<HTMLDivElement>('#collection-fossils');
   private villagersEl = document.querySelector<HTMLDivElement>('#collection-villagers')!;
   /** Vecinos con los que ya se ha hablado, para el álbum. */
   readonly met: Set<string>;
@@ -87,9 +88,10 @@ export class Collection {
   private render() {
     const fish = CREATURES.filter((c) => c.kind === 'pez');
     const bugs = CREATURES.filter((c) => c.kind === 'bicho');
+    const fossils = CREATURES.filter((c) => c.kind === 'fosil');
     const count = (list: typeof CREATURES) => list.filter((c) => this.caught.has(c.id)).length;
     this.summaryEl.textContent =
-      `Peces ${count(fish)} de ${fish.length} · Insectos ${count(bugs)} de ${bugs.length} · ` +
+      `Peces ${count(fish)} de ${fish.length} · Insectos ${count(bugs)} de ${bugs.length} · Fósiles ${count(fossils)} de ${fossils.length} · ` +
       `En el museo ${this.donated.size} de ${CREATURES.length} · Vecinos ${this.met.size} de ${ALL_PROFILES.length}`;
 
     // Filtro por rareza (v4.10): solo de lo que ya conoces, para no desvelar nada.
@@ -109,7 +111,7 @@ export class Collection {
         const rarity = itemDef(c.id).rarity;
         card.className = `card${known ? ` rar-${rarity}` : ' unknown'}`;
         if (known) itemCard().attach(card, () => c.id);
-        const where = known ? `${HABITAT_TEXT[c.habitat]}, ${hoursText(c)}, ${monthsText(c)}` : 'Aún no lo has visto';
+        const where = !known ? 'Aún no lo has visto' : c.kind === 'fosil' ? 'Cavando tierra, arena o piedra' : `${HABITAT_TEXT[c.habitat]}, ${hoursText(c)}, ${monthsText(c)}`;
         const badge = this.donated.has(c.id) ? '<span class="badge">En el museo</span>' : '';
         card.innerHTML = `<img alt="" src="${this.icons[CREATURES.indexOf(c)]}"><b>${known ? c.name : '???'}</b><small>${where}</small>${badge}`;
         el.appendChild(card);
@@ -117,6 +119,7 @@ export class Collection {
     };
     fill(this.fishEl, fish);
     fill(this.bugsEl, bugs);
+    if (this.fossilsEl) fill(this.fossilsEl, fossils);
     this.renderVillagers();
   }
 
