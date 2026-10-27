@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BLOCKS, Block, isDoor, isFullBlock } from './blocks';
+import { BLOCKS, Block, LEAF_BLOCKS, isDoor, isFullBlock } from './blocks';
 import type { Plot } from './world';
 
 /**
@@ -61,7 +61,7 @@ export function lotPlan(lot: Lot): PlanCell[] {
   return cells;
 }
 
-const LEAVES = new Set<number>([Block.Leaves, Block.PalmLeaves, Block.PineLeaves]);
+const LEAVES: ReadonlySet<number> = LEAF_BLOCKS;
 
 /** Si el bloque `b` vale para esa casilla del plano. Paredes y tejado admiten cualquier bloque de construcción, también cristal. */
 export function fits(part: PlanPart, b: number): boolean {

@@ -3,7 +3,7 @@
 // entre varios fotogramas (PathFinder.update con un tope de casillas), así el juego no se para cuando un vecino
 // decide cruzar la isla entera.
 
-import { Block, isDoor, isFence, isOpen, isSolid, isWater } from './blocks';
+import { LEAF_BLOCKS, isDoor, isFence, isOpen, isSolid, isWater } from './blocks';
 import { SEA_LEVEL } from './world';
 
 /** Lo que el buscador necesita saber de la isla (World lo cumple; las pruebas pueden usar algo más simple). */
@@ -18,7 +18,7 @@ export type Cell = [number, number, number];
 /** Casillas que se miran como mucho en una búsqueda: si no hay camino en ese radio, no lo hay. */
 export const MAX_NODES = 20000;
 
-const LEAVES: ReadonlySet<number> = new Set([Block.Leaves, Block.PalmLeaves, Block.PineLeaves]);
+const LEAVES: ReadonlySet<number> = LEAF_BLOCKS;
 
 /** Se puede tener el cuerpo en este bloque: aire, plantas, puertas (se abren) y puertas de valla abiertas. */
 function passable(b: number, wade = false): boolean {
