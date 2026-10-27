@@ -185,6 +185,23 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.MushroomCap, 'sombrero_seta', 25],
   [Block.SmallMushroom, 'seta', 150],
   [Block.Amethyst, 'bloque_amatista', 200],
+  // Climas (v4.19): lo que se encuentra en cada uno.
+  [Block.RedSand, 'arena_roja', 4, 15],
+  [Block.Sandstone, 'arenisca', 12, 40],
+  [Block.CarvedSandstone, 'arenisca_tallada', 30, 100],
+  [Block.TerracottaOrange, 'terracota_naranja', 20, 70],
+  [Block.TerracottaYellow, 'terracota_amarilla', 20, 70],
+  [Block.TerracottaWhite, 'terracota_blanca', 20, 70],
+  [Block.Cactus, 'cactus', 30],
+  [Block.Mud, 'barro', 3],
+  [Block.PowderSnow, 'nieve', 3],
+  [Block.PackedIce, 'hielo_compacto', 40],
+  [Block.BlueIce, 'hielo_azul', 120],
+  [Block.Moss, 'musgo', 15],
+  [Block.LilyPad, 'nenufar', 60],
+  [Block.SnowFlower, 'flor_nieve', 120],
+  [Block.AcaciaLeaves, 'hojas_acacia', 1],
+  [Block.CherryLeaves, 'flores_cerezo', 8],
   // Almacenamiento (v2.4).
   [Block.Chest, 'cofre', 60],
   [Block.Trunk, 'baul', 400],
@@ -260,7 +277,7 @@ add({ id: 'pastel', name: 'Pastel', tile: Tile.Cake, maxStack: 10, sell: 900 });
 add({ id: 'puerta', name: 'Puerta', tile: Tile.DoorIcon, maxStack: 10, block: Block.Door, sell: 60 });
 add({ id: 'puerta_valla', name: 'Puerta de valla', tile: Tile.GateIcon, maxStack: 30, block: Block.Gate, sell: 30 });
 for (const k of TREE_KINDS) {
-  const tile = k.block === Block.PalmSapling ? Tile.PalmSapling : k.block === Block.PineSapling ? Tile.PineSapling : Tile.Sapling;
+  const tile = k.shape ? BLOCKS[k.block].tiles[0] : k.block === Block.PalmSapling ? Tile.PalmSapling : k.block === Block.PineSapling ? Tile.PineSapling : Tile.Sapling;
   add({ id: k.sapling, name: k.name, tile, maxStack: 30, block: k.block, sell: 40 });
 }
 
@@ -312,12 +329,24 @@ export function dropFor(b: Block): string | null {
   switch (b) {
     case Block.Grass:
     case Block.SnowGrass:
+    case Block.DryGrass:
       return 'tierra';
+    case Block.CactusFlower:
+      return 'cactus';
+    case Block.Moss:
+      return 'musgo';
     case Block.TallGrass:
       return null;
     case Block.Leaves:
     case Block.PalmLeaves:
     case Block.PineLeaves:
+    case Block.AcaciaLeaves:
+    case Block.JungleLeaves:
+    case Block.CherryLeaves:
+    case Block.WillowLeaves:
+    case Block.SnowLeaves:
+    case Block.DryShrub:
+    case Block.Vine:
       return null; // las hojas se deshacen (a veces sueltan una rama: LEAF_BRANCH_CHANCE)
     case Block.Apple:
       return 'manzana';
@@ -345,6 +374,11 @@ export function dropFor(b: Block): string | null {
     case Block.Sapling:
     case Block.PalmSapling:
     case Block.PineSapling:
+    case Block.AcaciaSapling:
+    case Block.JungleSapling:
+    case Block.CherrySapling:
+    case Block.WillowSapling:
+    case Block.FirSapling:
       return null; // la puerta sale una sola vez; el brote lo devuelve el huerto de árboles
     case Block.CoalOre:
       return 'carbon';
@@ -439,6 +473,24 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Leaves]: { time: 0.25 },
   [Block.PalmLeaves]: { time: 0.25 },
   [Block.PineLeaves]: { time: 0.25 },
+  [Block.AcaciaLeaves]: { time: 0.25 },
+  [Block.JungleLeaves]: { time: 0.25 },
+  [Block.CherryLeaves]: { time: 0.25 },
+  [Block.WillowLeaves]: { time: 0.25 },
+  [Block.SnowLeaves]: { time: 0.25 },
+  [Block.RedSand]: { time: 0.5, tool: 'shovel' },
+  [Block.Mud]: { time: 0.5, tool: 'shovel' },
+  [Block.PowderSnow]: { time: 0.3, tool: 'shovel' },
+  [Block.DryGrass]: { time: 0.6, tool: 'shovel' },
+  [Block.Moss]: { time: 0.4, tool: 'shovel' },
+  [Block.Sandstone]: { time: 0.9, tool: 'pickaxe', needsTool: true },
+  [Block.CarvedSandstone]: { time: 0.9, tool: 'pickaxe', needsTool: true },
+  [Block.TerracottaOrange]: { time: 1.1, tool: 'pickaxe', needsTool: true },
+  [Block.TerracottaYellow]: { time: 1.1, tool: 'pickaxe', needsTool: true },
+  [Block.TerracottaWhite]: { time: 1.1, tool: 'pickaxe', needsTool: true },
+  [Block.PackedIce]: { time: 0.8, tool: 'pickaxe' },
+  [Block.BlueIce]: { time: 1, tool: 'pickaxe' },
+  [Block.Cactus]: { time: 0.4 },
 };
 
 // Las escaleras se rompen como su material.
@@ -502,6 +554,19 @@ export const RECIPES: Recipe[] = [
   { result: 'brote_cerezo', count: 1, needs: [['cereza', 2], ['tierra', 1]] },
   { result: 'brote_palmera', count: 1, needs: [['coco', 1], ['arena', 1]] },
   { result: 'brote_pino', count: 1, needs: [['rama', 2], ['tierra', 1]] },
+  // Climas (v4.19): brotes de los árboles nuevos y bloques de cada clima.
+  { result: 'brote_acacia', count: 1, needs: [['hojas_acacia', 2], ['tierra', 1]] },
+  { result: 'brote_ceiba', count: 1, needs: [['rama', 3], ['tierra', 1]] },
+  { result: 'brote_cerezo_flor', count: 1, needs: [['flores_cerezo', 2], ['tierra', 1]] },
+  { result: 'brote_sauce', count: 1, needs: [['rama', 2], ['barro', 1]] },
+  { result: 'brote_abeto', count: 1, needs: [['rama', 2], ['nieve', 1]] },
+  { result: 'arenisca', count: 1, needs: [['arena', 4]] },
+  { result: 'arenisca_tallada', count: 1, needs: [['arenisca', 2]] },
+  { result: 'terracota_naranja', count: 2, needs: [['barro', 2], ['arena_roja', 1]] },
+  { result: 'terracota_amarilla', count: 2, needs: [['barro', 2], ['arena', 1]] },
+  { result: 'terracota_blanca', count: 2, needs: [['barro', 2], ['nieve', 1]] },
+  { result: 'hielo_compacto', count: 1, needs: [['hielo', 4]] },
+  { result: 'hielo_azul', count: 1, needs: [['hielo_compacto', 4]] },
 ];
 
 /** Recetas de la mesa de trabajo. Hay que aprenderlas: de los vecinos o de las botellas de la playa. */

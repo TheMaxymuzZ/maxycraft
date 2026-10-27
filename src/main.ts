@@ -6,7 +6,7 @@ import '@fontsource/pixelify-sans/latin-500.css';
 import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isPath, isSolid, isStairs, isTargetable, isWater, isWaterSource, stairsFacing, toggled } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isLeaves, isPath, isSolid, isStairs, isTargetable, isWater, isWaterSource, stairsFacing, toggled } from './blocks';
 import { Fluids } from './fluids';
 import { Breaker } from './breaking';
 import { Birds } from './birds';
@@ -67,7 +67,7 @@ import { SunShadows } from './shadows';
 import { TouchControls } from './touch';
 import { fellTree, findTrunk } from './trees';
 import { CONTAINERS, Storage, StoragePanel, isContainer } from './storage';
-import { Orchard, canPlantOn, isSapling, treeKindOfFruit, treeKindOfSapling } from './orchard';
+import { Orchard, TREE_KINDS, canPlantOn, isSapling, treeKindOfFruit, treeKindOfSapling } from './orchard';
 import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel';
 import { LotGhosts, type Lot, describeMissing, inLot, lotFrom, lotPlot, lotProblem, lotProgress } from './lots';
@@ -94,7 +94,8 @@ import { Parcels } from './game/parcels';
 import { HOST, MOVE_PRICE, type Obstacle, PARCEL_PRICES, PARCEL_SIZES, PERKS, ROLE_NAMES, type Role, TENT_PERMIT, inBounds, isParcelList, parcelAt, parcelBounds, parcelHalf, sizeForHouse } from './parcels';
 import { isTownSave } from './townhall';
 import { VitalsHud } from './vitalsHud';
-import { BIOME_NAMES, type Biome, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World } from './world';
+import { BiomeAir, biomeLook, biomeWeather } from './biomeFx';
+import { BIOME_NAMES, type Biome, CLIMATE_KEY, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World, isClimate } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
 const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
@@ -129,6 +130,8 @@ renderer.toneMapping = THREE.NeutralToneMapping;
 const scene = new THREE.Scene();
 const fog = new THREE.Fog(0xa8dcf5, fogNear(), fogFar());
 scene.fog = fog;
+/** La niebla de cada bioma (v4.19). */
+const biomeAir = new BiomeAir();
 scene.background = fog.color;
 
 const camera = new THREE.PerspectiveCamera(settings.fov, window.innerWidth / window.innerHeight, 0.1, 400);
@@ -207,6 +210,17 @@ const pockets = joined ? loadGame() : save;
 const seed = joined?.snapshot.seed ?? save?.seed ?? Math.floor(Math.random() * 1e9);
 /** Las islas guardadas conservan su terreno; las nuevas son grandes y con biomas (v2.6). */
 const terrain = save ? save.terrain ?? 1 : TERRAIN_VERSION;
+/** Clima de la isla (v4.19): las nuevas lo eligen en «Mis islas» (o con ?clima=calido); las de antes no tienen. */
+const climate = save ? save.climate : (() => {
+  let wanted = params.get('clima');
+  try {
+    wanted ??= sessionStorage.getItem(CLIMATE_KEY);
+    sessionStorage.removeItem(CLIMATE_KEY);
+  } catch {
+    // Sin almacén: sale templada.
+  }
+  return isClimate(wanted) ? wanted : 'templado';
+})();
 // De viaje en una isla misteriosa: se juega en otra isla, pero los bolsillos y las bayas son los de casa.
 const trip = save ? loadTrip(activeSlot()) : null;
 /** Vecinos invitados desde las islas misteriosas, que viven (o vivirán) en la isla de casa. */
@@ -232,7 +246,7 @@ const world = joined
   ? new World(joined.snapshot.seed, material, joined.snapshot.edits, joined.snapshot.options)
   : trip
   ? new World(trip.seed, material, {}, { mystery: { kind: trip.kind, fruit: trip.fruit } })
-  : new World(seed, material, save?.edits ?? {}, { terrain, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) });
+  : new World(seed, material, save?.edits ?? {}, { terrain, climate, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) });
 // Las mallas se dibujan en otro hilo para que no haya tirones (v4.7). Para probar sin él: ?sinhilo
 const mesher = startMesher(world, !params.has('sinhilo'));
 /** Todos los cambios de bloques pasan por aquí, para poder compartirlos con otros jugadores. */
@@ -562,6 +576,7 @@ function persist(urgent = false) {
     game: __APP_VERSION__,
     seed,
     terrain,
+    climate,
     edits: world.exportEdits(),
     player: { x: p.x, y: p.y, z: p.z, yaw: player.yaw, pitch: player.pitch },
     inventory: inventory.serialize(),
@@ -1830,9 +1845,8 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
   else if (isLeaves(b) && Math.random() < LEAF_BRANCH_CHANCE) drops.spawn('rama', x + 0.5, y + 0.5, z + 0.5, { burst });
 }
 
-function isLeaves(b: number): boolean {
-  return b === Block.Leaves || b === Block.PalmLeaves || b === Block.PineLeaves;
-}
+
+const CLIMATE_LEAVES: Record<string, Block> = { acacia: Block.AcaciaLeaves, ceiba: Block.JungleLeaves, flor: Block.CherryLeaves, sauce: Block.WillowLeaves, abeto: Block.SnowLeaves };
 
 /** Tala el árbol desde el tronco (x, y, z): todo lo de encima cae y suelta madera, fruta y un brote. */
 function fell(x: number, y: number, z: number) {
@@ -1842,7 +1856,9 @@ function fell(x: number, y: number, z: number) {
   const fruitKind = felled.fruits.length ? treeKindOfFruit(felled.fruits[0][3]) : undefined;
   const palm = felled.logs.some(([, , , lb]) => lb === Block.PalmLog);
   const pine = felled.leaves.some(([, , , lb]) => lb === Block.PineLeaves);
-  const kind = fruitKind ?? (planted && treeKindOfSapling(planted.sapling)) ?? (pine ? treeKindOfSapling('brote_pino') : treeKindOfFruit(palm ? Block.Coconut : world.fruit));
+  // Los árboles de los climas (v4.19) se reconocen por sus hojas.
+  const leafKind = TREE_KINDS.find((k) => k.shape && felled.leaves.some(([, , , lb]) => lb === CLIMATE_LEAVES[k.shape!]));
+  const kind = fruitKind ?? (planted && treeKindOfSapling(planted.sapling)) ?? leafKind ?? (pine ? treeKindOfSapling('brote_pino') : treeKindOfFruit(palm ? Block.Coconut : world.fruit));
   const all = [...felled.fruits, ...felled.leaves, ...felled.logs.reverse()];
   for (const [bx, by, bz] of all) sync.setBlock(bx, by, bz, Block.Air);
   for (const [bx, by, bz, lb] of felled.logs) drops.spawn(dropFor(lb)!, bx + 0.5, by + 0.5, bz + 0.5, { burst: true });
@@ -2229,7 +2245,7 @@ function useItem() {
     removeBlock(bx, by, bz, target, true);
     return;
   }
-  if (target === Block.Log || target === Block.PalmLog || target === Block.Leaves || target === Block.PalmLeaves || target === Block.PineLeaves) {
+  if (target === Block.Log || target === Block.PalmLog || isLeaves(target)) {
     shakeTree(bx, by, bz);
   }
 }
@@ -2933,7 +2949,7 @@ function islandSnapshot(): Snapshot {
   return {
     seed: world.seed,
     edits: world.exportEdits(),
-    options: trip ? { mystery: { kind: trip.kind, fruit: trip.fruit } } : { terrain, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) },
+    options: trip ? { mystery: { kind: trip.kind, fruit: trip.fruit } } : { terrain, climate, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) },
     clock: clock.serialize(),
     furniture: furniture.serialize(),
     guests: trip ? [] : guests,
@@ -3287,14 +3303,18 @@ function frame(now: number) {
   sky.update(hour, camera);
   // Con lluvia o nieve el día se oscurece y la niebla se vuelve gris.
   const nowWeather = params.get('tiempo') as keyof typeof WEATHER_TEXT | null;
-  weather.set(nowWeather && nowWeather in WEATHER_TEXT ? nowWeather : weatherAt(date, seed));
+  const islandWeather = nowWeather && nowWeather in WEATHER_TEXT ? nowWeather : weatherAt(date, seed);
+  // Cada bioma de las islas con clima tiene su tiempo y su aire (v4.19).
+  weather.set(world.climate ? biomeWeather(biomeHere, islandWeather) : islandWeather);
   weather.update(dt, camera.position);
+  biomeAir.update(dt, world.climate ? biomeLook(biomeHere, weather.current) : biomeLook(null, weather.current));
   villagerWeather.rain = weather.raining;
   villagerWeather.snow = weather.snowing;
   hemi.intensity *= 1 - weather.gloom * 0.3;
   // Encapotado (v3.9): sin sol directo casi no hay sombras, y el cielo se vuelve gris del todo.
   sunLight.intensity *= 1 - weather.gloom * 0.85;
   sky.color.lerp(gloomColor.setRGB(0.52, 0.55, 0.58).multiplyScalar(1 - sky.night * 0.8), weather.gloom * 0.95);
+  biomeAir.tint(sky.color, sky.night);
   sky.syncDome(weather.gloom);
   shadows.update(dt, player.position, sky.lightDir);
   lighting.update(now / 1000);
@@ -3363,8 +3383,8 @@ function frame(now: number) {
     fog.far = 22;
   } else {
     fog.color.copy(sky.color);
-    fog.near = fogNear();
-    fog.far = fogFar();
+    fog.near = fogNear() * biomeAir.far;
+    fog.far = fogFar() * biomeAir.far;
   }
 
   clouds.update(now / 1000, sky.night, weather.gloom, sky.glow * (1 - weather.gloom), sky.glowColor, camera.position, cloudCover(clock.dayNumber(), hour, seed));

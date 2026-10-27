@@ -170,8 +170,8 @@ export interface Cloth {
   tile: number;
 }
 
-/** Los iconos de la ropa van después de los dibujos extra (EXTRA_TILE_START + 32 en blocks.ts). */
-export const CLOTHES_TILE_START = 256 + 32;
+/** Los iconos de la ropa van después de los dibujos extra (EXTRA_TILE_START + 64 en blocks.ts). */
+export const CLOTHES_TILE_START = 256 + 64;
 
 function plural(word: string): string {
   if (word === 'marrón') return 'marrones';

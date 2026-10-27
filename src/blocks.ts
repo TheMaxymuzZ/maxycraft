@@ -80,6 +80,12 @@ export enum Block {
   BridgeDeck = 111, BridgeRail = 112, BridgePillar = 113, ClockFace = 114,
   // Tienda y terminal (v4.16): toldo de rayas.
   Awning = 115,
+  // Climas (v4.19): desierto, sabana, selva, cañón, pantano, cerezos, taiga, tundra y glaciar.
+  RedSand = 116, Sandstone = 117, CarvedSandstone = 118, TerracottaOrange = 119, TerracottaYellow = 120, TerracottaWhite = 121,
+  Cactus = 122, DryGrass = 123, DryShrub = 124, Mud = 125, PowderSnow = 126, PackedIce = 127, BlueIce = 128, Moss = 129,
+  AcaciaLeaves = 130, JungleLeaves = 131, CherryLeaves = 132, WillowLeaves = 133, SnowLeaves = 134,
+  Vine = 135, LilyPad = 136, CactusFlower = 137, SnowFlower = 138,
+  AcaciaSapling = 139, JungleSapling = 140, CherrySapling = 141, WillowSapling = 142, FirSapling = 143,
 }
 
 export const TILE = 16;
@@ -111,6 +117,38 @@ export const XTile = {
   CrystalPickaxe: EXTRA_TILE_START + 13,
   CrystalShovel: EXTRA_TILE_START + 14,
   SheepIcon: EXTRA_TILE_START + 15,
+  // Climas (v4.19).
+  RedSand: EXTRA_TILE_START + 16,
+  Sandstone: EXTRA_TILE_START + 17,
+  SandstoneTop: EXTRA_TILE_START + 18,
+  CarvedSandstone: EXTRA_TILE_START + 19,
+  TerracottaOrange: EXTRA_TILE_START + 20,
+  TerracottaYellow: EXTRA_TILE_START + 21,
+  TerracottaWhite: EXTRA_TILE_START + 22,
+  CactusSide: EXTRA_TILE_START + 23,
+  CactusTop: EXTRA_TILE_START + 24,
+  DryGrassTop: EXTRA_TILE_START + 25,
+  DryGrassSide: EXTRA_TILE_START + 26,
+  DryShrub: EXTRA_TILE_START + 27,
+  Mud: EXTRA_TILE_START + 28,
+  PowderSnow: EXTRA_TILE_START + 29,
+  PackedIce: EXTRA_TILE_START + 30,
+  BlueIce: EXTRA_TILE_START + 31,
+  Moss: EXTRA_TILE_START + 32,
+  AcaciaLeaves: EXTRA_TILE_START + 33,
+  JungleLeaves: EXTRA_TILE_START + 34,
+  CherryLeaves: EXTRA_TILE_START + 35,
+  WillowLeaves: EXTRA_TILE_START + 36,
+  SnowLeaves: EXTRA_TILE_START + 37,
+  Vine: EXTRA_TILE_START + 38,
+  LilyPad: EXTRA_TILE_START + 39,
+  CactusFlower: EXTRA_TILE_START + 40,
+  SnowFlower: EXTRA_TILE_START + 41,
+  AcaciaSapling: EXTRA_TILE_START + 42,
+  JungleSapling: EXTRA_TILE_START + 43,
+  CherrySapling: EXTRA_TILE_START + 44,
+  WillowSapling: EXTRA_TILE_START + 45,
+  FirSapling: EXTRA_TILE_START + 46,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -148,7 +186,7 @@ export enum Tile {
  * cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos.
  * gate: puerta de valla. door: puerta de casa (una tabla fina que se orienta según las paredes de los lados).
  */
-export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door' | 'slab' | 'stairs' | 'liquid';
+export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door' | 'slab' | 'stairs' | 'liquid' | 'pad';
 
 export interface BlockDef {
   name: string;
@@ -280,6 +318,35 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.Water]: { name: 'Agua', tiles: [Tile.WaterBucket, Tile.WaterBucket, Tile.WaterBucket], transparent: true, shape: 'liquid' },
   ...Object.fromEntries(Array.from({ length: 7 }, (_, i) => [Block.WaterFlow1 + i, { name: 'Agua que corre', tiles: [Tile.WaterBucket, Tile.WaterBucket, Tile.WaterBucket], transparent: true, shape: 'liquid' }])),
   [Block.WaterFall]: { name: 'Agua que cae', tiles: [Tile.WaterBucket, Tile.WaterBucket, Tile.WaterBucket], transparent: true, shape: 'liquid' },
+  // Climas (v4.19).
+  [Block.RedSand]: cube('Arena roja', XTile.RedSand),
+  [Block.Sandstone]: cube('Arenisca', XTile.Sandstone, XTile.SandstoneTop),
+  [Block.CarvedSandstone]: cube('Arenisca tallada', XTile.CarvedSandstone, XTile.SandstoneTop),
+  [Block.TerracottaOrange]: cube('Terracota naranja', XTile.TerracottaOrange),
+  [Block.TerracottaYellow]: cube('Terracota amarilla', XTile.TerracottaYellow),
+  [Block.TerracottaWhite]: cube('Terracota blanca', XTile.TerracottaWhite),
+  [Block.Cactus]: cube('Cactus', XTile.CactusSide, XTile.CactusTop, XTile.CactusTop, true),
+  [Block.DryGrass]: cube('Hierba seca', XTile.DryGrassSide, XTile.DryGrassTop, Tile.Dirt),
+  [Block.DryShrub]: cross('Arbusto seco', XTile.DryShrub as unknown as Tile),
+  [Block.Mud]: cube('Barro', XTile.Mud),
+  [Block.PowderSnow]: cube('Nieve en polvo', XTile.PowderSnow),
+  [Block.PackedIce]: cube('Hielo compacto', XTile.PackedIce),
+  [Block.BlueIce]: cube('Hielo azul', XTile.BlueIce),
+  [Block.Moss]: cube('Musgo', XTile.Moss),
+  [Block.AcaciaLeaves]: cube('Hojas de acacia', XTile.AcaciaLeaves, XTile.AcaciaLeaves, XTile.AcaciaLeaves, true),
+  [Block.JungleLeaves]: cube('Hojas de ceiba', XTile.JungleLeaves, XTile.JungleLeaves, XTile.JungleLeaves, true),
+  [Block.CherryLeaves]: cube('Flores de cerezo', XTile.CherryLeaves, XTile.CherryLeaves, XTile.CherryLeaves, true),
+  [Block.WillowLeaves]: cube('Hojas de sauce', XTile.WillowLeaves, XTile.WillowLeaves, XTile.WillowLeaves, true),
+  [Block.SnowLeaves]: cube('Hojas de abeto nevado', XTile.SnowLeaves, XTile.SnowLeaves, XTile.SnowLeaves, true),
+  [Block.Vine]: cross('Liana', XTile.Vine as unknown as Tile),
+  [Block.LilyPad]: { name: 'Nenúfar', tiles: [XTile.LilyPad, XTile.LilyPad, XTile.LilyPad], transparent: true, shape: 'pad' },
+  [Block.CactusFlower]: cross('Cactus con flor', XTile.CactusFlower as unknown as Tile),
+  [Block.SnowFlower]: cross('Flor de nieve', XTile.SnowFlower as unknown as Tile),
+  [Block.AcaciaSapling]: cross('Brote de acacia', XTile.AcaciaSapling as unknown as Tile),
+  [Block.JungleSapling]: cross('Brote de ceiba', XTile.JungleSapling as unknown as Tile),
+  [Block.CherrySapling]: cross('Brote de cerezo en flor', XTile.CherrySapling as unknown as Tile),
+  [Block.WillowSapling]: cross('Brote de sauce', XTile.WillowSapling as unknown as Tile),
+  [Block.FirSapling]: cross('Brote de abeto', XTile.FirSapling as unknown as Tile),
 };
 /** Material de cada juego de escaleras: su primer bloque (mirando a -z), nombre y textura. */
 export const STAIRS: [Block, string, Tile][] = [
@@ -305,6 +372,8 @@ const FULL: Box[] = [[0, 0, 0, 1, 1, 1]];
 // Vallas y puertas de valla cerradas: bloque y medio, para que no se puedan saltar.
 const TALL: Box[] = [[0, 0, 0, 1, 1.5, 1]];
 const HALF: Box[] = [[0, 0, 0, 1, 0.5, 1]];
+// Nenúfares (v4.19): una lámina sobre el agua.
+const PAD: Box[] = [[0, 0, 0, 1, 0.0625, 1]];
 const STAIR_BACK: Box[] = [[0, 0.5, 0, 1, 1, 0.5], [0.5, 0.5, 0, 1, 1, 1], [0, 0.5, 0.5, 1, 1, 1], [0, 0.5, 0, 0.5, 1, 1]];
 
 /** Con qué choca quien anda por el bloque. */
@@ -313,6 +382,7 @@ export function collisionBoxes(b: number): Box[] {
   const def = BLOCKS[b];
   if (isFence(b)) return TALL;
   if (def.shape === 'slab') return HALF;
+  if (def.shape === 'pad') return PAD;
   if (def.shape === 'stairs') return [HALF[0], STAIR_BACK[def.facing ?? 0]];
   return FULL;
 }
@@ -351,6 +421,7 @@ export function isGate(b: number): boolean {
 export const SWAYING: ReadonlySet<number> = new Set([
   Block.TallGrass, Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink, Block.Bamboo,
   Block.Wheat1, Block.Wheat2, Block.Wheat3, Block.Carrot1, Block.Carrot2, Block.Carrot3, Block.Tomato1, Block.Tomato2, Block.Tomato3,
+  Block.DryShrub, Block.Vine, Block.SnowFlower,
 ]);
 
 /** Bloques que dan luz y cuánta (nivel de 1 a 15: la luz baja uno por cada bloque que avanza). */
@@ -479,11 +550,84 @@ export function isOpaque(b: number): boolean {
   return b !== Block.Air && BLOCKS[b].shape === 'cube' && !BLOCKS[b].transparent;
 }
 
+/** Hojas de todos los árboles (las de antes y las de los climas de la v4.19). */
+export const LEAF_BLOCKS: ReadonlySet<number> = new Set([
+  Block.Leaves, Block.PalmLeaves, Block.PineLeaves, Block.AcaciaLeaves, Block.JungleLeaves, Block.CherryLeaves, Block.WillowLeaves, Block.SnowLeaves,
+]);
+
+export function isLeaves(b: number): boolean {
+  return LEAF_BLOCKS.has(b);
+}
+
 export function isCross(b: number): boolean {
   return b !== Block.Air && BLOCKS[b].shape === 'cross';
 }
 
 // --- Texturas pixel art generadas en un canvas (sin archivos externos) ---
+
+/** Texturas de los climas (v4.19): arenas, arenisca, terracota, cactus, hielo, hojas nuevas y plantas. */
+function paintClimateTiles(ctx: CanvasRenderingContext2D) {
+  const RED_SAND: RGB[] = [[204, 112, 60], [192, 100, 52], [214, 124, 70], [184, 96, 50]];
+  const SANDSTONE: RGB[] = [[226, 206, 150], [216, 196, 140], [234, 214, 160]];
+  paintTile(ctx, XTile.RedSand, (_x, _y, r) => pick(r, RED_SAND));
+  paintTile(ctx, XTile.Sandstone, (_x, y, r) => (y % 5 === 4 ? [196, 176, 120] : pick(r, SANDSTONE)));
+  paintTile(ctx, XTile.SandstoneTop, (x, y, r) => (x === 0 || y === 0 ? [206, 186, 130] : pick(r, SANDSTONE)));
+  paintTile(ctx, XTile.CarvedSandstone, (x, y, r) => {
+    if (y < 2 || y > 13) return [204, 184, 128];
+    const motif = (Math.abs(x - 7.5) + Math.abs(y - 7.5)) | 0;
+    return motif === 4 || motif === 1 ? [176, 150, 96] : pick(r, SANDSTONE);
+  });
+  const terra = (tile: number, base: RGB) => paintTile(ctx, tile, (_x, y, r) => {
+    const k = y % 6 === 0 ? 0.88 : 1 + (r() - 0.5) * 0.06;
+    return [Math.round(base[0] * k), Math.round(base[1] * k), Math.round(base[2] * k)];
+  });
+  terra(XTile.TerracottaOrange, [192, 104, 56]);
+  terra(XTile.TerracottaYellow, [210, 160, 70]);
+  terra(XTile.TerracottaWhite, [224, 200, 180]);
+  const CACTUS: RGB[] = [[76, 150, 64], [66, 136, 56], [86, 160, 72]];
+  paintTile(ctx, XTile.CactusSide, (x, y, r) => (x % 4 === 0 ? [50, 112, 44] : (x + y * 3) % 9 === 0 ? [236, 230, 190] : pick(r, CACTUS)));
+  paintTile(ctx, XTile.CactusTop, (x, y, r) => (x === 0 || y === 0 || x === 15 || y === 15 ? [50, 112, 44] : pick(r, CACTUS)));
+  const DRY: RGB[] = [[196, 176, 92], [184, 164, 84], [206, 186, 100], [176, 156, 78]];
+  paintTile(ctx, XTile.DryGrassTop, (_x, _y, r) => pick(r, DRY));
+  paintTile(ctx, XTile.DryGrassSide, (_x, y, r) => (y < 3 + Math.floor(r() * 2) ? pick(r, DRY) : pick(r, DIRT)));
+  paintSprite(ctx, XTile.DryShrub, [
+    '................', '................', '.......d........', '..d....d...d....', '...d...d..d.....', '....d..d.d...d..', '.d...d.dd...d...',
+    '..d...ddd.dd....', '...dd..d.d......', '.....d.dd.......', '......ddd.......', '.......d........', '.......d........', '.......d........', '................', '................',
+  ], { d: [150, 112, 60] });
+  paintTile(ctx, XTile.Mud, (x, y, r) => ((x * 5 + y * 3) % 13 === 0 ? [92, 70, 52] : pick(r, [[112, 86, 64], [104, 80, 60], [120, 92, 68]])));
+  paintTile(ctx, XTile.PowderSnow, (_x, _y, r) => pick(r, [[250, 252, 255], [244, 248, 255], [238, 244, 252]]));
+  paintTile(ctx, XTile.PackedIce, (x, y, r) => ((x + y * 2) % 9 === 0 ? [200, 220, 246] : pick(r, [[150, 186, 232], [160, 194, 236], [142, 178, 226]])));
+  paintTile(ctx, XTile.BlueIce, (x, y, r) => ((x * 2 + y) % 7 === 0 ? [180, 210, 250] : pick(r, [[100, 150, 224], [110, 160, 230], [92, 140, 216]])));
+  paintTile(ctx, XTile.Moss, (_x, _y, r) => pick(r, [[90, 130, 60], [80, 120, 54], [100, 142, 66], [72, 110, 48]]));
+  const leaves = (tile: number, palette: RGB[], holes = 6) => paintTile(ctx, tile, (x, y, r) => ((x * 3 + y * 5) % holes === 0 && r() < 0.5 ? null : pick(r, palette)));
+  leaves(XTile.AcaciaLeaves, [[120, 156, 48], [108, 144, 40], [132, 168, 58]]);
+  leaves(XTile.JungleLeaves, [[44, 140, 52], [36, 124, 44], [56, 154, 62], [30, 110, 40]], 9);
+  leaves(XTile.CherryLeaves, [[246, 178, 206], [238, 160, 194], [252, 204, 224], [230, 146, 184]]);
+  leaves(XTile.WillowLeaves, [[100, 150, 70], [90, 138, 62], [112, 162, 80]], 4);
+  paintTile(ctx, XTile.SnowLeaves, (x, y, r) => ((x + y * 3) % 7 === 0 && r() < 0.5 ? null : y % 3 === 0 ? pick(r, SNOW) : pick(r, PINE_LEAF)));
+  paintSprite(ctx, XTile.Vine, Array.from({ length: 16 }, (_, y) => ['...v......v.....', '...vl.....v.....', '..lv......vl....', '...v.....lv.....'][y % 4]), { v: [52, 120, 50], l: [84, 160, 70] });
+  paintSprite(ctx, XTile.LilyPad, [
+    '................', '....gggggg......', '..gggggggggg....', '.gggggggggggg...', '.ggggggGgggggg..', 'gggggggGggg.....', 'ggggggggGg......', 'gggggggg........',
+    'ggggggggggggg...', 'gggggggpgggggg..', '.gggggpPpggggg..', '.ggggggpgggggg..', '..gggggggggggg..', '....gggggggg....', '................', '................',
+  ], { g: [70, 140, 56], G: [52, 112, 44], p: [244, 170, 200], P: [252, 220, 120] });
+  paintSprite(ctx, XTile.CactusFlower, [
+    '......pPp.......', '.......p........', '.....ccccc......', '.....cccccc.....', '..cc.ccccc.cc...', '..cc.cccccc.cc..', '..cccccccc.cc...', '...cccccccccc...',
+    '.....cccccc.....', '.....cccccc.....', '.....cccccc.....', '.....cccccc.....', '.....cccccc.....', '.....cccccc.....', '.....cccccc.....', '................',
+  ], { c: [76, 150, 64], p: [236, 90, 140], P: [252, 220, 120] });
+  paintSprite(ctx, XTile.SnowFlower, [
+    '................', '................', '......w.w.......', '.......w........', '.....wwBww......', '.......w........', '......w.w.......', '.......s........',
+    '.......s..ww....', '...ww..s.wBw....', '..wBw..s..ww....', '...ww..s.s......', '.....s.ss.......', '......ss........', '.......s........', '................',
+  ], { w: [244, 248, 255], B: [140, 190, 240], s: [70, 120, 90] });
+  const sapling = (tile: number, leaf: RGB, trunk: RGB) => paintSprite(ctx, tile, [
+    '................', '................', '................', '......ll........', '.....llll.......', '....llllll......', '...llllllll.....', '....llttll......',
+    '......tt........', '......tt..ll....', '...ll.tt.lll....', '..lll.tt.ll.....', '...ll.tt........', '......tt........', '.....tttt.......', '................',
+  ], { l: leaf, t: trunk });
+  sapling(XTile.AcaciaSapling, [120, 156, 48], [150, 110, 70]);
+  sapling(XTile.JungleSapling, [44, 140, 52], [120, 90, 56]);
+  sapling(XTile.CherrySapling, [246, 178, 206], [110, 72, 60]);
+  sapling(XTile.WillowSapling, [100, 150, 70], [116, 90, 60]);
+  sapling(XTile.FirSapling, [46, 112, 74], [102, 72, 44]);
+}
 
 function rng(seed: number) {
   let s = seed >>> 0;
@@ -1394,6 +1538,7 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   toolSprite(ctx, XTile.CrystalAxe, AXE, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
   toolSprite(ctx, XTile.CrystalPickaxe, PICKAXE, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
   toolSprite(ctx, XTile.CrystalShovel, SHOVEL, { ...WOOD_HANDLE, ...CRYSTAL_HEAD });
+  paintClimateTiles(ctx);
   // La ropa (v4.18): un icono por prenda y color.
   const rgb = (c: number): RGB => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
   for (const cloth of CLOTHES) {

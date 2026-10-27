@@ -211,6 +211,31 @@ export const LORE: Record<string, string> = {
   senal_calle: 'Con el nombre de la calle, para que nadie se pierda.',
 };
 
+// Climas (v4.19).
+Object.assign(LORE, {
+  arena_roja: 'Roja como el atardecer del desierto. Se queda pegada a las zapatillas.',
+  arenisca: 'Arena que lleva tanto tiempo apretada que se ha vuelto piedra.',
+  arenisca_tallada: 'Con dibujos que alguien grabó hace muchísimo tiempo.',
+  terracota_naranja: 'Barro cocido al sol. Las paredes del cañón tienen capas de este color.',
+  terracota_amarilla: 'Barro cocido con arena. Queda precioso en las casas de pueblo.',
+  terracota_blanca: 'La más clarita. Con ella las casas parecen recién pintadas.',
+  cactus: 'Guarda agua por dentro para los días de sequía. ¡Cuidado con los pinchos!',
+  barro: 'Del pantano. Si lo mezclas y lo cueces, se convierte en terracota.',
+  nieve: 'Blandita y fría. Perfecta para muñecos de nieve.',
+  hielo_compacto: 'Tan apretado que ya no se derrite tan fácilmente.',
+  hielo_azul: 'El hielo más antiguo del glaciar. Brilla de color azul.',
+  musgo: 'Crece donde hay sombra y humedad. Huele a bosque.',
+  nenufar: 'Una hoja que flota. Las ranas lo usan de balsa.',
+  flor_nieve: 'Florece en mitad de la nieve, como si no le importara el frío.',
+  hojas_acacia: 'De la acacia de la sabana. A las jirafas les encantan.',
+  flores_cerezo: 'Pétalos rosas que caen como lluvia en primavera.',
+  brote_acacia: 'Una acacia pequeña. De mayor tendrá la copa plana y ancha.',
+  brote_ceiba: 'Será el árbol más alto de la selva, con lianas colgando.',
+  brote_cerezo_flor: 'Un cerezo que da flores en lugar de cerezas.',
+  brote_sauce: 'Le gusta tener los pies mojados, cerca del agua.',
+  brote_abeto: 'Un abeto que aguanta la nieve en sus ramas.',
+});
+
 // Ropa (v4.18): una frase por modelo de prenda, para todos sus colores.
 const GARMENT_LORE: Record<string, string> = {
   gorra: 'Para que el sol no te dé en los ojos mientras pescas.',

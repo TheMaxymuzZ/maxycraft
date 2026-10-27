@@ -1,4 +1,4 @@
-import { Block } from './blocks';
+import { Block, LEAF_BLOCKS } from './blocks';
 
 interface BlockSource {
   getBlock(x: number, y: number, z: number): number;
@@ -83,8 +83,72 @@ export function pineShape(): TreeBlock[] {
   return out;
 }
 
+// --- Árboles de los climas (v4.19) ---
+
+/** Capa redonda de hojas de radio r a la altura y (sin las esquinas si es grande). */
+function disc(out: TreeBlock[], y: number, r: number, leaf: Block, corners = r < 2) {
+  for (let dz = -r; dz <= r; dz++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (!corners && Math.abs(dx) === r && Math.abs(dz) === r) continue;
+      out.push([dx, y, dz, leaf, false]);
+    }
+  }
+}
+
+/** Acacia de la sabana: tronco torcido y copa plana y ancha. `lean` (0 a 3) elige hacia dónde se inclina. */
+export function acaciaShape(lean = 0): TreeBlock[] {
+  const [sx, sz] = [[1, 0], [0, 1], [-1, 0], [0, -1]][lean % 4];
+  const out: TreeBlock[] = [];
+  disc(out, 5, 3, Block.AcaciaLeaves);
+  disc(out, 6, 1, Block.AcaciaLeaves, true);
+  for (const [dx, dy, dz] of [[0, 0, 0], [0, 1, 0], [0, 2, 0], [sx, 3, sz], [sx, 4, sz]]) out.push([dx, dy, dz, Block.Log, true]);
+  return out.map(([dx, dy, dz, b, r]) => (dy >= 5 ? [dx + sx, dy, dz + sz, b, r] : [dx, dy, dz, b, r]));
+}
+
+/** Ceiba de la selva: muy alta, con dos copas y lianas que cuelgan. */
+export function ceibaShape(): TreeBlock[] {
+  const out: TreeBlock[] = [];
+  const top = 9;
+  disc(out, 4, 2, Block.JungleLeaves);
+  disc(out, top - 1, 3, Block.JungleLeaves);
+  disc(out, top, 2, Block.JungleLeaves);
+  disc(out, top + 1, 1, Block.JungleLeaves, true);
+  for (const [dx, dz, len] of [[3, 0, 3], [-3, 1, 2], [0, -3, 3], [1, 3, 2], [-2, -2, 2]]) {
+    for (let k = 1; k <= len; k++) out.push([dx, top - 1 - k, dz, Block.Vine, false]);
+  }
+  for (let y = 0; y < top; y++) out.push([0, y, 0, Block.Log, true]);
+  return out;
+}
+
+/** Cerezo en flor: copa rosa y redonda, más ancha que alta. */
+export function blossomShape(): TreeBlock[] {
+  const out: TreeBlock[] = [];
+  disc(out, 3, 2, Block.CherryLeaves);
+  disc(out, 4, 3, Block.CherryLeaves);
+  disc(out, 5, 2, Block.CherryLeaves);
+  for (let y = 0; y < 4; y++) out.push([0, y, 0, Block.Log, true]);
+  return out;
+}
+
+/** Sauce del pantano: copa ancha con ramas que caen casi hasta el suelo. */
+export function willowShape(): TreeBlock[] {
+  const out: TreeBlock[] = [];
+  disc(out, 5, 3, Block.WillowLeaves);
+  disc(out, 6, 2, Block.WillowLeaves);
+  for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3], [2, 2], [-2, -2], [2, -2], [-2, 2]]) {
+    for (let y = 2; y < 5; y++) out.push([dx, y, dz, Block.WillowLeaves, false]);
+  }
+  for (let y = 0; y < 5; y++) out.push([0, y, 0, Block.Log, true]);
+  return out;
+}
+
+/** Abeto nevado: como el pino, más alto y con nieve en las ramas. */
+export function firShape(): TreeBlock[] {
+  return pineShape().flatMap(([dx, dy, dz, b, r]): TreeBlock[] => (b === Block.PineLeaves ? [[dx, dy + 1, dz, Block.SnowLeaves, r]] : dy === 5 ? [[dx, dy, dz, b, r], [dx, dy + 1, dz, b, r]] : [[dx, dy, dz, b, r]]));
+}
+
 const LOGS: ReadonlySet<number> = new Set([Block.Log, Block.PalmLog]);
-const CROWN: ReadonlySet<number> = new Set([Block.Leaves, Block.PalmLeaves, Block.PineLeaves, Block.Coconut, Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry]);
+const CROWN: ReadonlySet<number> = new Set([...LEAF_BLOCKS, Block.Vine, Block.Coconut, Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry]);
 const FRUIT_BLOCKS: ReadonlySet<number> = new Set([Block.Coconut, Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry]);
 
 export interface Felled {

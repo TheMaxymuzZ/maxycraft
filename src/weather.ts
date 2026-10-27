@@ -1,18 +1,18 @@
 import * as THREE from 'three';
-import type { Weather } from './seasons';
+import type { FxWeather } from './biomeFx';
 import type { World } from './world';
 
 const COUNT = 1600;
 const AREA = 28;
 const TOP = 18;
 
-/** Lluvia y nieve: partículas que caen alrededor del jugador. */
+/** Lluvia y nieve (y, desde la v4.19, tormentas de arena y ventiscas): partículas que caen alrededor del jugador. */
 export class WeatherFx {
   readonly points: THREE.Points;
   private positions: Float32Array;
   private speeds: Float32Array;
   private material: THREE.PointsMaterial;
-  private kind: Weather = 'sol';
+  private kind: FxWeather = 'sol';
   private time = 0;
   /** Lo nublado que está (0 despejado, 1 tormenta), suavizado para que no cambie de golpe. */
   gloom = 0;
@@ -39,23 +39,27 @@ export class WeatherFx {
   }
 
   get snowing() {
-    return this.kind === 'nieve';
+    return this.kind === 'nieve' || this.kind === 'ventisca';
   }
 
-  set(kind: Weather) {
+  get current(): FxWeather {
+    return this.kind;
+  }
+
+  set(kind: FxWeather) {
     if (kind === this.kind) return;
     this.kind = kind;
     const rain = kind === 'lluvia';
-    this.material.color.setHex(rain ? 0x7fa6cc : 0xffffff);
-    this.material.size = rain ? 0.12 : 0.2;
+    this.material.color.setHex(rain ? 0x7fa6cc : kind === 'arena' ? 0xd8b273 : 0xffffff);
+    this.material.size = rain ? 0.12 : kind === 'arena' ? 0.14 : 0.2;
   }
 
   update(dt: number, center: THREE.Vector3) {
     this.time += dt;
     // Con lluvia o nieve el cielo se cubre del todo (v3.9); con nubes, solo un poco.
-    const target = this.kind === 'lluvia' || this.kind === 'nieve' ? 1 : this.kind === 'nubes' ? 0.35 : 0;
+    const target = this.kind === 'lluvia' || this.kind === 'nieve' || this.kind === 'ventisca' ? 1 : this.kind === 'arena' ? 0.6 : this.kind === 'nubes' ? 0.35 : 0;
     this.gloom += (target - this.gloom) * Math.min(1, dt * 0.5);
-    const falling = this.kind === 'lluvia' || this.kind === 'nieve';
+    const falling = this.kind !== 'sol' && this.kind !== 'nubes';
     this.points.visible = falling;
     if (!falling) return;
 
@@ -65,8 +69,13 @@ export class WeatherFx {
     const base = this.points.position;
     for (let i = 0; i < COUNT; i++) {
       const k = i * 3;
-      p[k + 1] -= (rain ? 16 : 2.2) * this.speeds[i] * dt;
-      if (!rain) p[k] += Math.sin(this.time * 1.3 + i) * 0.3 * dt; // la nieve baila un poco
+      // La arena y la ventisca van casi de lado, empujadas por el viento.
+      const gale = this.kind === 'arena' || this.kind === 'ventisca';
+      p[k + 1] -= (rain ? 16 : gale ? 1.2 : 2.2) * this.speeds[i] * dt;
+      if (gale) {
+        p[k] += 14 * this.speeds[i] * dt;
+        if (p[k] > AREA) p[k] -= AREA * 2;
+      } else if (!rain) p[k] += Math.sin(this.time * 1.3 + i) * 0.3 * dt; // la nieve baila un poco
       const wx = Math.floor(base.x + p[k]);
       const wz = Math.floor(base.z + p[k + 2]);
       // Bajo techo (o al tocar el suelo) la gota vuelve a empezar arriba.

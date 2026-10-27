@@ -1,3 +1,4 @@
+import type { Climate } from './world';
 import type { WardrobeSave } from './wardrobe';
 import type { Parcel } from './parcels';
 import type { TerminalSite } from './terminal';
@@ -38,6 +39,8 @@ export interface SaveData {
   seed: number;
   /** Desde la v2.6: versión del terreno (sin ella, el de siempre). */
   terrain?: number;
+  /** Desde la v4.19: clima de la isla (sin él, los biomas de antes). */
+  climate?: Climate;
   edits: Edits;
   player: { x: number; y: number; z: number; yaw: number; pitch: number } | null;
   /** Desde la v0.3. */

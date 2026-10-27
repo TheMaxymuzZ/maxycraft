@@ -18,6 +18,8 @@ import { SHOP_LEVELS } from '../shopBuilding';
 import { MERCHANTS } from '../commerce';
 import { catalogOf } from '../economy';
 import { CLOTHES, GARMENTS, SLOT_NAMES } from '../clothes';
+import { BIOME_ATLAS } from '../biomeFx';
+import { BIOME_NAMES, CLIMATE_NAMES } from '../world';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
 import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
 import './comun';
@@ -182,6 +184,9 @@ fill('tabla-ropa', GARMENTS.map((g) => {
   return `<td>${name}</td><td>${SLOT_NAMES[g.slot]}</td><td><div class="needs">${all.map((c) => `<img alt="${esc(c.name)}" title="${esc(c.name)}" src="${itemIcon(atlas, c.id)}">`).join('')}</div></td><td class="num">${price}</td>`;
 }));
 fill('tabla-muebles-nuevos', FURNITURE.filter((f) => (f.seller === 'muebles' || f.seller === 'urbano') && f.buy).map((f) => `<td>${item(f.id, 1, false)}</td><td>${(FURNITURE_STYLE[f.id] ?? []).map((st) => STYLE_NAMES[st]).join(', ')}</td><td>${SELLER_NAMES[f.seller!]}</td><td class="num">${formatBerries(f.buy!)}</td>`));
+
+// --- Atlas de biomas (v4.19) ---
+fill('tabla-biomas', BIOME_ATLAS.map((b) => `<td><b>${esc(BIOME_NAMES[b.biome])}</b></td><td>${CLIMATE_NAMES[b.climate]}</td><td>${esc(b.text)}</td><td>${b.finds.map((id) => item(id, 1, false)).join(' ')}</td><td>${esc(b.weather)}</td>`));
 
 // --- Tareas, premios y logros ---
 fill('tabla-tareas', TASKS.map((t) => `<td>${esc(t.text)}</td><td class="num">${formatBerries(t.points)}</td>`));

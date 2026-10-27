@@ -1,5 +1,5 @@
 import { Block, isSolid } from './blocks';
-import { type TreeBlock, fruitTreeShape, palmShape, pineShape } from './trees';
+import { type TreeBlock, acaciaShape, blossomShape, ceibaShape, firShape, fruitTreeShape, palmShape, pineShape, willowShape } from './trees';
 
 /** Días de juego que tarda un brote en hacerse árbol. */
 export const GROW_DAYS = 2;
@@ -10,7 +10,9 @@ export interface TreeKind {
   name: string;
   /** Fruta que da; la palmera da cocos y el pino nada (Air). */
   fruit: Block;
-  block: Block.Sapling | Block.PalmSapling | Block.PineSapling;
+  block: Block;
+  /** Árboles de los climas (v4.19): la forma en que crece. */
+  shape?: 'acacia' | 'ceiba' | 'flor' | 'sauce' | 'abeto';
 }
 
 /** Cada tipo de árbol, con su brote para replantarlo. */
@@ -22,7 +24,18 @@ export const TREE_KINDS: TreeKind[] = [
   { sapling: 'brote_cerezo', name: 'Brote de cerezo', fruit: Block.Cherry, block: Block.Sapling },
   { sapling: 'brote_palmera', name: 'Brote de palmera', fruit: Block.Coconut, block: Block.PalmSapling },
   { sapling: 'brote_pino', name: 'Brote de pino', fruit: Block.Air, block: Block.PineSapling },
+  // Climas (v4.19).
+  { sapling: 'brote_acacia', name: 'Brote de acacia', fruit: Block.Air, block: Block.AcaciaSapling, shape: 'acacia' },
+  { sapling: 'brote_ceiba', name: 'Brote de ceiba', fruit: Block.Air, block: Block.JungleSapling, shape: 'ceiba' },
+  { sapling: 'brote_cerezo_flor', name: 'Brote de cerezo en flor', fruit: Block.Air, block: Block.CherrySapling, shape: 'flor' },
+  { sapling: 'brote_sauce', name: 'Brote de sauce', fruit: Block.Air, block: Block.WillowSapling, shape: 'sauce' },
+  { sapling: 'brote_abeto', name: 'Brote de abeto', fruit: Block.Air, block: Block.FirSapling, shape: 'abeto' },
 ];
+
+/** Forma de cada árbol de los climas. */
+export function climateTreeShape(shape: NonNullable<TreeKind['shape']>, seed = 0): TreeBlock[] {
+  return shape === 'acacia' ? acaciaShape(seed) : shape === 'ceiba' ? ceibaShape() : shape === 'flor' ? blossomShape() : shape === 'sauce' ? willowShape() : firShape();
+}
 
 export function treeKindOfSapling(id: string): TreeKind | undefined {
   return TREE_KINDS.find((k) => k.sapling === id);
@@ -33,12 +46,12 @@ export function treeKindOfFruit(fruit: number): TreeKind | undefined {
 }
 
 export function isSapling(b: number): boolean {
-  return b === Block.Sapling || b === Block.PalmSapling || b === Block.PineSapling;
+  return b === Block.Sapling || b === Block.PalmSapling || b === Block.PineSapling || TREE_KINDS.some((k) => k.shape && k.block === b);
 }
 
 /** Suelo donde se puede plantar un brote. */
 export function canPlantOn(b: number): boolean {
-  return b === Block.Grass || b === Block.Dirt || b === Block.Sand;
+  return b === Block.Grass || b === Block.Dirt || b === Block.Sand || b === Block.RedSand || b === Block.DryGrass || b === Block.SnowGrass || b === Block.Mud || b === Block.Moss;
 }
 
 export interface PlantedTree {
@@ -101,6 +114,7 @@ export class Orchard {
   /** Bloques del árbol en que se convierte un brote. */
   shape(t: PlantedTree): TreeBlock[] {
     const kind = treeKindOfSapling(t.sapling)!;
+    if (kind.shape) return climateTreeShape(kind.shape, ((t.x + t.z) % 4 + 4) % 4);
     if (kind.block === Block.PineSapling) return pineShape();
     return kind.block === Block.PalmSapling ? palmShape() : fruitTreeShape(kind.fruit, ((t.x * 7 + t.z * 13) % 5 + 5) % 5 / 5);
   }

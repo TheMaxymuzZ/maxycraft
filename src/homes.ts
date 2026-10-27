@@ -2,7 +2,7 @@
 // anfitrión. La primera vez que entra se le monta una tienda de campaña con una cama y un cartel con su nombre,
 // en un sitio llano y libre. Ahí duerme y ahí despierta si se desmaya. El anfitrión la recuerda para la próxima vez.
 
-import { Block, isSolid } from './blocks';
+import { Block, LEAF_BLOCKS, isSolid } from './blocks';
 import { SEA_LEVEL, type World, buildTent } from './world';
 
 export interface PlayerHome {
@@ -19,7 +19,7 @@ export interface PlayerHome {
 export const MAX_HOMES = 5;
 
 /** Lo que hay que quitar para hacer sitio a la tienda: árboles y plantas. */
-const CLEARABLE = new Set<number>([Block.Log, Block.PalmLog, Block.Leaves, Block.PalmLeaves, Block.PineLeaves]);
+const CLEARABLE = new Set<number>([Block.Log, Block.PalmLog, ...LEAF_BLOCKS]);
 
 /**
  * Busca un sitio para la casa de un amigo: llano, en tierra firme, lejos de las demás casas y de lo que

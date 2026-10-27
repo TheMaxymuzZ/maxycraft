@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.19',
+    title: 'Cálidos, templados y fríos',
+    items: [
+      'Las islas nuevas eligen su clima en «Mis islas»: templada, cálida o fría. Las que ya tenías siguen igual.',
+      'Diez biomas nuevos: pantano y bosque de cerezos (templada), desierto, sabana, selva y cañón (cálida), taiga, tundra, glaciar y picos nevados (fría).',
+      'Cinco árboles nuevos con su brote: acacia, ceiba con lianas, cerezo en flor, sauce llorón y abeto nevado.',
+      'Bloques nuevos: arena roja, arenisca, terracota de colores, barro, musgo, nieve en polvo, hielo compacto y hielo azul. Y plantas: cactus (con flor), arbustos secos, nenúfares y flores de nieve.',
+      'Cada bioma tiene su aire: tormentas de arena en el desierto, ventiscas en el glaciar, bruma en el pantano y ríos helados en el frío.',
+    ],
+  },
+  {
     version: '4.18',
     title: 'Moda, muebles y cosméticos',
     items: [

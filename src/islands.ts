@@ -2,7 +2,7 @@ import { BLOCKS } from './blocks';
 import { SLOTS, type SaveData, backupName, deleteGame, exportAll, exportSlot, fullBackupName, importAll, importSaveFile, loadGame, saveGame, saveVisited } from './save';
 import { formatBytes, storageUsage, usingDatabase } from './store';
 import { formatBerries } from './shop';
-import { islandFruit } from './world';
+import { CLIMATES, CLIMATE_KEY, CLIMATE_NAMES, islandFruit } from './world';
 
 export interface IslandsContext {
   /** La isla que se está jugando ahora. */
@@ -108,6 +108,7 @@ export class Islands {
     if (data) {
       const fruit = BLOCKS[islandFruit(data.seed)].name.toLowerCase();
       const parts = [`Fruta: ${fruit}`, `${formatBerries(data.wallet ?? 0)} bayas`];
+      if (data.climate) parts.unshift(`Isla ${CLIMATE_NAMES[data.climate].toLowerCase()}`);
       if (data.savedAt) parts.push(`guardada el ${dateFormat.format(new Date(data.savedAt))}`);
       info.textContent = parts.join(' · ');
     } else {
@@ -117,7 +118,20 @@ export class Islands {
 
     const actions = document.createElement('div');
     actions.className = 'island-actions';
-    if (!active) actions.appendChild(this.button(data ? 'Jugar aquí' : 'Crear isla aquí', 'primary', () => this.ctx.switchTo(slot)));
+    if (!active && data) actions.appendChild(this.button('Jugar aquí', 'primary', () => this.ctx.switchTo(slot)));
+    // Las islas nuevas eligen su clima (v4.19): templada, cálida o fría.
+    if (!active && !data) {
+      for (const c of CLIMATES) {
+        actions.appendChild(this.button(`Crear isla ${CLIMATE_NAMES[c].toLowerCase()}`, c === 'templado' ? 'primary' : '', () => {
+          try {
+            sessionStorage.setItem(CLIMATE_KEY, c);
+          } catch {
+            // Sin almacén: sale templada.
+          }
+          this.ctx.switchTo(slot);
+        }));
+      }
+    }
     if (data) actions.appendChild(this.button('Guardar copia', '', () => this.download(slot, data)));
     actions.appendChild(this.button('Cargar copia', '', () => this.pickFile(slot)));
     if (data) {
