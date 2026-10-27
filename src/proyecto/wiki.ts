@@ -14,6 +14,7 @@ import { formatBerries } from '../shop';
 import { PARCEL_PRICES, PARCEL_SIZES, PERKS } from '../parcels';
 import { HALL_LEVELS, PUBLIC_WORKS } from '../townhall';
 import { WINGS } from '../museum';
+import { SHOP_LEVELS } from '../shopBuilding';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
 import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
 import './comun';
@@ -145,6 +146,9 @@ const creatureRow = (c: Creature) =>
   `<td>${item(c.id)}</td><td>${HABITAT_TEXT[c.habitat]}</td><td>${hoursText(c)}</td><td>${seasonsOf(c)}</td><td class="num">${formatBerries(c.sell)}</td>`;
 fill('tabla-peces', CREATURES.filter((c) => c.kind === 'pez').map(creatureRow));
 fill('tabla-insectos', CREATURES.filter((c) => c.kind === 'bicho').map(creatureRow));
+
+// --- Tienda (v4.16) ---
+fill('tabla-niveles-tienda', SHOP_LEVELS.map((l) => `<td><b>${l.name}</b></td><td class="num">${l.spent ? formatBerries(l.spent) : 'Desde el principio'}</td><td>${esc(l.text)}</td>`));
 
 // --- Museo (v4.15) ---
 const fossils = CREATURES.filter((c) => c.kind === 'fosil');

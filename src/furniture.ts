@@ -235,6 +235,45 @@ export const FURNITURE: FurnitureDef[] = [
       [0.04, 0.24, 0.1, 0xe8505b, 0.2, 0.9, -0.12],
     ],
   },
+  // Tienda y terminal (v4.16): no se venden; los usan Avellana y Plumas, pero si te regalan uno es tuyo.
+  {
+    id: 'mostrador', name: 'Mostrador', sell: 400,
+    parts: [
+      [1, 0.9, 0.7, WOOD, 0, 0, 0.1],
+      [1, 0.08, 0.8, DARK, 0, 0.9, 0.08],
+      [0.9, 0.5, 0.04, 0xd8c19a, 0, 0.2, 0.46],
+    ],
+  },
+  {
+    id: 'caja_registradora', name: 'Caja registradora', sell: 600,
+    parts: [
+      [1, 0.9, 0.7, WOOD, 0, 0, 0.1],
+      [1, 0.08, 0.8, DARK, 0, 0.9, 0.08],
+      [0.5, 0.26, 0.4, 0x5f6670, 0, 0.98, -0.04],
+      [0.44, 0.08, 0.2, 0x3a3f46, 0, 1.24, -0.12],
+      [0.3, 0.06, 0.12, 0xf2c230, 0, 1.0, 0.18],
+    ],
+  },
+  {
+    id: 'bascula', name: 'Báscula de equipaje', sell: 350,
+    parts: [
+      [0.8, 0.12, 0.8, 0x6a6e76, 0, 0, 0],
+      [0.1, 0.9, 0.1, 0x6a6e76, 0, 0.12, -0.34],
+      [0.36, 0.3, 0.08, 0xf4f1e8, 0, 0.86, -0.34],
+      [0.04, 0.14, 0.02, 0xd04030, 0.04, 0.94, -0.29],
+    ],
+  },
+  {
+    id: 'panel_salidas', name: 'Panel de salidas', sell: 500, glow: 0xffb030,
+    parts: [
+      [0.1, 1.2, 0.1, 0x3a3a3a, -0.4, 0, 0],
+      [0.1, 1.2, 0.1, 0x3a3a3a, 0.4, 0, 0],
+      [1, 0.7, 0.12, 0x22262c, 0, 1.2, 0],
+      [0.84, 0.08, 0.02, 0xffb030, 0, 1.6, 0.07],
+      [0.6, 0.08, 0.02, 0xffb030, -0.1, 1.44, 0.07],
+      [0.74, 0.08, 0.02, 0xffb030, -0.04, 1.28, 0.07],
+    ],
+  },
 ];
 
 export const FURNITURE_TILE = (id: string) => FURNITURE_TILE_START + FURNITURE.findIndex((f) => f.id === id);

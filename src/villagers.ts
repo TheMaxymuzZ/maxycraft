@@ -6,6 +6,7 @@ import { type Cell, pathsFor, standable } from './pathfind';
 import { type Activity, type AgendaItem, type Errand, activityAt, agendaFor } from './schedule';
 import { type Species, buildVillagerModel } from './villagerModel';
 import { type MysteryKind, type Plot, type World } from './world';
+import { SHOPKEEPER_BED, SHOPKEEPER_SPOT, shopOrigin } from './shopBuilding';
 
 export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido' | 'deportista' | 'dulce';
 export type { Species };
@@ -211,6 +212,11 @@ export class Villager {
   activity: Activity = 'pasear';
   /** En multijugador, en casa de un amigo: lo mueve el anfitrión y aquí solo se sigue (v4.8). */
   remote: VillagerState | null = null;
+
+  /** Cama de los que viven donde trabajan (Avellana, v4.16): de noche se tumba allí en vez de desaparecer. */
+  rest?: Cell;
+  /** Hacia dónde mira el que está quieto en su puesto (por defecto, +z). */
+  lookAt?: [number, number];
 
   constructor(readonly profile: Profile, readonly home: Plot, private world: World, public memory: VillagerMemory) {
     this.buildModel();
@@ -564,10 +570,25 @@ export class Villager {
     this.asleep = sleepy;
     this.group.visible = !sleepy;
     this.activity = sleepy ? 'dormir' : 'trabajo';
+    if (sleepy && this.rest) {
+      // Duerme en su cama, tumbado, y se le ve si subes (v4.16).
+      const [bx, by, bz] = this.rest;
+      this.position.set(bx + 0.5, by, bz + 0.5);
+      this.group.visible = true;
+      this.group.rotation.set(-Math.PI / 2, 0, 0);
+      this.group.position.set(this.position.x, this.position.y + 0.55, this.position.z + 0.75);
+      if (this.zzz) {
+        this.zzz.visible = true;
+        this.zzz.position.set(bx + 0.5, by + 1.6, bz + 0.5);
+      }
+      return;
+    }
+    if (this.group.rotation.x !== 0) this.group.rotation.set(0, this.facing, 0);
+    if (this.zzz && this.rest) this.zzz.visible = false;
     if (!sleepy) {
       const [dx, dy, dz] = this.home.door;
       this.position.set(dx + 0.5, dy, dz + 0.5);
-      this.faceTowards(this.position.x, this.position.z + 1, dt * 4);
+      this.faceTowards(this.position.x + (this.lookAt?.[0] ?? 0), this.position.z + (this.lookAt?.[1] ?? 1), dt * 4);
       this.animate(dt, false);
       this.group.position.copy(this.position);
     }
@@ -812,6 +833,12 @@ export interface Guest {
   lot?: boolean;
 }
 
+/** Casilla de la tienda en el mundo. */
+function atShop(shop: Plot, [x, y, z]: Cell): Cell {
+  const [ox, oy, oz] = shopOrigin(shop);
+  return [ox + x, oy + y, oz + z];
+}
+
 /**
  * Elige vecinos para las casas de la isla, siempre los mismos para cada semilla.
  * `guests`: los invitados desde islas misteriosas, cada uno en su parcela nueva.
@@ -820,7 +847,9 @@ export interface Guest {
 export function createVillagers(world: World, memories: Record<string, VillagerMemory>, guests: Guest[] = [], built: Plot[] = []): Villager[] {
   const pool = [...PROFILES];
   const shop = world.plots.find((p) => p.kind === 'shop');
-  const keeper = shop ? [new Villager(SHOPKEEPER, shop, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
+  // Desde la v4.16 Avellana atiende detrás del mostrador y por la noche sube a dormir a su casa, encima de la tienda.
+  const keeper = shop ? [new Villager(SHOPKEEPER, { ...shop, door: atShop(shop, SHOPKEEPER_SPOT) }, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
+  if (shop) keeper[0].rest = atShop(shop, SHOPKEEPER_BED);
   const museum = world.plots.find((p) => p.kind === 'museum');
   // Desde la v4.15 Matilde espera dentro del museo, en la recepción, mirando a la puerta.
   const curator = museum ? [new Villager(CURATOR, { ...museum, door: [museum.x + 2, museum.y + 1, museum.z + 2] }, world, memories[CURATOR.name] ?? { friendship: 0 })] : [];

@@ -61,11 +61,15 @@ export function saveTrip(t: Trip | null) {
   }
 }
 
+/** Segundos que tarda en amarizar. */
+const LANDING_SECONDS = 4;
+
 /** Avioneta de cubos que flota en el agua junto a la playa, con la hélice girando. */
 export class Seaplane {
   readonly group = new THREE.Group();
   private propeller = new THREE.Group();
   private takeoff = -1;
+  private landing = -1;
   private base = new THREE.Vector3();
 
   constructor() {
@@ -111,6 +115,11 @@ export class Seaplane {
     this.group.rotation.y = Math.atan2(-dx, -dz);
   }
 
+  /** Llega volando desde el mar y amariza en su sitio (al volver de un viaje). */
+  land() {
+    this.landing = 0;
+  }
+
   /** Empieza a despegar: avanza hacia el mar y sube. */
   fly() {
     this.takeoff = 0;
@@ -129,6 +138,21 @@ export class Seaplane {
       this.group.position.y = this.base.y + Math.max(0, t - 0.8) ** 2 * 3;
       this.group.rotation.x = Math.min(0.3, Math.max(0, t - 0.8) * 0.3);
       this.propeller.rotation.z += dt * 40;
+      return;
+    }
+    if (this.landing >= 0) {
+      // Llega por detrás, por encima de la isla, bajando hacia el mar, y frena al tocar el agua.
+      this.landing += dt;
+      const left = Math.max(0, 1 - this.landing / LANDING_SECONDS);
+      const back = new THREE.Vector3(0, 0, 1).applyQuaternion(this.group.quaternion);
+      this.group.position.copy(this.base).addScaledVector(back, left * left * 60);
+      this.group.position.y = this.base.y + left * left * 18;
+      this.group.rotation.x = -Math.min(0.15, left * 0.3);
+      this.propeller.rotation.z += dt * 30;
+      if (left <= 0) {
+        this.landing = -1;
+        this.group.rotation.x = 0;
+      }
       return;
     }
     // Se mece un poco con las olas y la hélice gira despacio.

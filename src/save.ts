@@ -1,4 +1,5 @@
 import type { Parcel } from './parcels';
+import type { TerminalSite } from './terminal';
 import type { TownSave } from './townhall';
 import type { EconomySave } from './economy';
 import type { ClockSave } from './clock';
@@ -73,6 +74,8 @@ export interface SaveData {
   parcels?: Parcel[];
   /** Último día en que se leyó la carta del buzón de la parcela. */
   mail?: string;
+  /** Desde la v4.16: dónde está la terminal de la avioneta (se construye una vez). */
+  terminal?: TerminalSite;
   furniture?: PlacedFurniture[];
   /** Desde la v0.9: recetas aprendidas para la mesa de trabajo y la botella del día. */
   recipes?: string[];

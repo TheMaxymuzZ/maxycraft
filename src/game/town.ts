@@ -64,7 +64,10 @@ export class Town {
     if (deps.host) {
       if (!this.state) this.found();
       if (this.state && !this.state.ramps) this.ramps();
-      else if (this.state && !this.state.museum) this.museumRamp();
+      else if (this.state) {
+        if (!this.state.museum) this.bigBuildingRamp('museum');
+        if (!this.state.shop) this.bigBuildingRamp('shop');
+      }
     }
     this.spawnStaff();
   }
@@ -86,23 +89,26 @@ export class Town {
     const made = [places.tienda, places.museo].filter((p) => !!p && !!places.plaza).map((p) => buildRamp(this.build, p!, places.plaza!).length);
     this.state!.ramps = true;
     this.state!.museum = true;
+    this.state!.shop = true;
     if (made.some((n) => n > 0)) this.deps.toast('Se han hecho rampas para que los vecinos lleguen a la tienda y al museo');
   }
 
   /**
-   * En las islas de antes de la v4.15 el museo era una casita y la rampa llegaba a su puerta. El museo grande
-   * ocupa la parcela entera: se quita lo que hubiera dentro (la rampa vieja) y se hace otra hasta el porche.
+   * En las islas de antes el museo (hasta la v4.15) y la tienda (hasta la v4.16) eran casitas y la rampa llegaba
+   * a su puerta. Los edificios nuevos ocupan la parcela entera: se quita lo que hubiera dentro (la rampa vieja)
+   * y se hace otra hasta la puerta nueva.
    */
-  private museumRamp() {
+  private bigBuildingRamp(kind: 'museum' | 'shop') {
     const { world } = this.deps;
-    const museum = world.plots.find((p) => p.kind === 'museum');
-    if (museum) {
-      const cells = world.editsIn(museum.x - 5, museum.z - 5, museum.x + 5, museum.z + 5).map(([x, y, z]) => [x, y, z] as [number, number, number]);
+    const plot = world.plots.find((p) => p.kind === kind);
+    if (plot) {
+      const cells = world.editsIn(plot.x - 5, plot.z - 5, plot.x + 5, plot.z + 5).map(([x, y, z]) => [x, y, z] as [number, number, number]);
       if (cells.length) this.deps.clearEdits?.(cells);
       const places = errandPlaces(world);
-      if (places.museo && places.plaza) buildRamp(this.build, places.museo, places.plaza);
+      const to = kind === 'museum' ? places.museo : places.tienda;
+      if (to && places.plaza) buildRamp(this.build, to, places.plaza);
     }
-    this.state!.museum = true;
+    this.state![kind] = true;
   }
 
   /** El parcelo del ayuntamiento, con la puerta del nivel de ahora, para que el alcalde y el urbanista estén en ella. */

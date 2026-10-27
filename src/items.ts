@@ -169,6 +169,8 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.BridgeRail, 'barandilla', 15],
   [Block.BridgePillar, 'pilar', 20],
   [Block.ClockFace, 'reloj', 200],
+  // Tienda y terminal (v4.16).
+  [Block.Awning, 'toldo', 30],
   // Islas misteriosas (v2.9): lo que solo se encuentra allí.
   [Block.Basalt, 'basalto', 15],
   [Block.Magma, 'roca_magma', 120],
@@ -392,6 +394,7 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.BridgeRail]: { time: 0.8, tool: 'axe' },
   [Block.BridgePillar]: { time: 1.5, tool: 'pickaxe', needsTool: true },
   [Block.ClockFace]: { time: 1.5, tool: 'pickaxe', needsTool: true },
+  [Block.Awning]: { time: 0.6 },
   [Block.Gate]: { time: 0.8, tool: 'axe' },
   [Block.Brick]: { time: 1.5, tool: 'pickaxe', needsTool: true },
   [Block.Chest]: { time: 1.2, tool: 'axe' },

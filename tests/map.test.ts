@@ -16,12 +16,13 @@ describe('mapa de la isla (v4.4)', () => {
     expect(isWater(sea.block)).toBe(true);
     expect(sea.depth).toBeGreaterThan(3);
     const shop = world.plots.find((p) => p.kind === 'shop')!;
-    const before = world.mapColumn(shop.x + 4, shop.z + 4);
+    // En la acera de la tienda, fuera del toldo (desde la v4.16 la tienda llena su parcela).
+    const before = world.mapColumn(shop.x + 5, shop.z + 5);
     world.update(shop.x, shop.z, 1, 99);
-    const after = world.mapColumn(shop.x + 4, shop.z + 4);
+    const after = world.mapColumn(shop.x + 5, shop.z + 5);
     expect(after.y).toBe(before.y);
     expect(after.y).toBeGreaterThan(SEA_LEVEL);
-    world.setBlock(shop.x + 4, after.y + 1, shop.z + 4, Block.Planks);
-    expect(world.mapColumn(shop.x + 4, shop.z + 4).block).toBe(Block.Planks);
+    world.setBlock(shop.x + 5, after.y + 1, shop.z + 5, Block.Planks);
+    expect(world.mapColumn(shop.x + 5, shop.z + 5).block).toBe(Block.Planks);
   });
 });

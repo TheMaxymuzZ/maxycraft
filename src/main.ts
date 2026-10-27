@@ -54,6 +54,8 @@ import { Shop, formatBerries } from './shop';
 import { Economy } from './economy';
 import { itemCard } from './itemCard';
 import { MuseumHall } from './game/museum';
+import { ShopFront } from './game/shopFront';
+import { PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, findTerminalSite, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
 import { WEATHER_TEXT, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
@@ -329,14 +331,46 @@ scene.add(animals.group);
 const shopPlot = world.plots.find((p) => p.kind === 'shop');
 const airport = world.findAirport(shopPlot ? Math.atan2(shopPlot.z, shopPlot.x) : 0);
 const plane = new Seaplane();
-if (airport) {
+/** La terminal con su muelle (v4.16): en tu isla se construye una vez en la playa de la avioneta. */
+const terminalWorld = {
+  getBlock: (x: number, y: number, z: number) => world.getBlock(x, y, z),
+  setBlock: (x: number, y: number, z: number, b: Block) => sync.setBlock(x, y, z, b),
+  heightAt: (x: number, z: number) => world.heightAt(x, z),
+  isEdited: (x: number, y: number, z: number) => world.isEdited(x, y, z),
+  plotAt: (x: number, z: number, m?: number) => world.plotAt(x, z, m),
+};
+let terminalSite: TerminalSite | null = [trip ? null : joined ? joined.snapshot.terminal : save?.terminal].find(isTerminalSite) ?? null;
+if (!terminalSite && airport && !joined && !trip) {
+  terminalSite = findTerminalSite(terminalWorld, airport);
+  buildTerminal(terminalWorld, terminalSite);
+}
+if (terminalSite) {
+  // Amarrada junto al final del muelle, con el morro hacia el mar.
+  const [px, pz] = terminalPoint(terminalSite, ...PLANE_SPOT);
+  const [sx, sz] = seaward(terminalSite);
+  plane.place(px, SEA_LEVEL + 0.7, pz, sx, sz);
+  scene.add(plane.group);
+} else if (airport) {
   plane.place(airport.x + 0.5 + airport.dx * 5, SEA_LEVEL + 0.7, airport.z + 0.5 + airport.dz * 5, airport.dx, airport.dz);
   scene.add(plane.group);
+}
+// Al llegar de un viaje la avioneta amariza (v4.16).
+const LANDING_KEY = 'maxycraft.amarizaje';
+try {
+  if (sessionStorage.getItem(LANDING_KEY)) {
+    sessionStorage.removeItem(LANDING_KEY);
+    plane.land();
+  }
+} catch {
+  // sin almacenamiento, ya está en el agua
 }
 
 const player = new Player(world, camera);
 // El piloto espera en la playa a un lado del avión (donde también haya playa).
-const pilotSpot = airport && [1, -1].map((side) => [airport.x + Math.round(-airport.dz * side), airport.z + Math.round(airport.dx * side)])
+const pilotSpot = terminalSite ? (() => {
+  const [x, , z] = terminalCell(terminalSite, ...PILOT_SPOT);
+  return [x, z];
+})() : airport && [1, -1].map((side) => [airport.x + Math.round(-airport.dz * side), airport.z + Math.round(airport.dx * side)])
   .find(([x, z]) => world.heightAt(x, z) === SEA_LEVEL + 1) || (airport && [airport.x, airport.z]);
 if (joined?.snapshot.spawn) {
   // De visita se aparece al lado de quien invita.
@@ -398,6 +432,17 @@ let pilot: Villager | null = null;
 if (airport) {
   pilot = createVisitor(world, PILOT.name, pilotSpot![0], airport.y, pilotSpot![1], save?.villagers?.[PILOT.name] ?? { friendship: 0 });
   if (pilot) villagers.push(pilot);
+  // En la terminal, Plumas mira desde el mostrador hacia la sala de espera.
+  if (pilot && terminalSite) pilot.lookAt = seaward(terminalSite);
+}
+/** Los muebles de la terminal: bancos, mostrador, panel de salidas y báscula. No se guardan. */
+const terminalFixtures = new Furniture([], lampHook);
+scene.add(terminalFixtures.group);
+if (terminalSite) {
+  for (const [id, x, y, z, rot] of TERMINAL_FIXTURES) {
+    const [cx, cy, cz] = terminalCell(terminalSite, x, y, z);
+    terminalFixtures.place(id, cx, cy, cz, (rot - terminalSite.rotation + 4) % 4);
+  }
 }
 /** Quien está de vacaciones en la isla misteriosa (también si has venido de viaje con un amigo). */
 const visitorName = trip?.visitor ?? joined?.snapshot.visitor ?? null;
@@ -544,6 +589,7 @@ function persist(urgent = false) {
     town: town.state ?? undefined,
     parcels: parcels.list,
     mail: mailDay,
+    terminal: terminalSite ?? undefined,
     missions: missions.serialize(),
     clock: clock.serialize(),
     savedAt: 0,
@@ -866,6 +912,11 @@ function takeOff(text: string, next: () => void) {
     }
   }
   plane.fly();
+  try {
+    sessionStorage.setItem(LANDING_KEY, '1');
+  } catch {
+    // sin almacenamiento, se aparece ya en el agua
+  }
   sound.fanfare();
   document.querySelector('#travel-text')!.textContent = text;
   document.querySelector<HTMLDivElement>('#travel-fade')!.hidden = false;
@@ -946,6 +997,10 @@ function parcelObstacles(): Obstacle[] {
   }));
   const s = town.state;
   if (s) out.push({ x: s.x + 5, z: s.z + 5, r: 6, what: 'el ayuntamiento' });
+  if (terminalSite) {
+    const [tx, tz] = terminalPoint(terminalSite, 4.5, 7);
+    out.push({ x: Math.round(tx), z: Math.round(tz), r: 8, what: 'la terminal de la avioneta' });
+  }
   const [px, pz] = world.findSpawn(0, 0);
   out.push({ x: px, z: pz, r: 3, what: 'la plaza' });
   for (const l of lots) out.push({ x: l.x, z: l.z, r: 4, what: 'una casa de vecino hecha con plano' });
@@ -1334,7 +1389,22 @@ const shop = new Shop({
   getWallet: () => wallet,
   setWallet,
   toast: (t) => hud.toast(t),
+  levelUp: () => refreshShopFront(),
 });
+
+/** El mostrador, las estanterías, el escaparate y la casa de Avellana (v4.16). */
+const shopFront = new ShopFront({
+  world,
+  scene,
+  atlas,
+  lampHook,
+  put: (x, y, z, b) => sync.setBlock(x, y, z, b),
+  host: !joined && !trip,
+});
+function refreshShopFront() {
+  shopFront.refresh(shop.level, season, holiday?.id ?? null, shop.stock);
+}
+refreshShopFront();
 
 function closeShop() {
   shop.close();
@@ -2724,6 +2794,7 @@ function islandSnapshot(): Snapshot {
     homes: friendHomes,
     town: trip ? undefined : town.state ?? undefined,
     parcels: trip ? [] : parcels.list,
+    terminal: terminalSite ?? undefined,
   };
 }
 
@@ -2936,7 +3007,7 @@ function updateClock(now: Date) {
   clockDate.textContent = `${dateFormat.format(now)} · ${holiday ? holiday.name : seasonText}`;
 }
 
-/** Adornos de las fiestas: calabazas en las puertas o un árbol junto a la tienda. No se guardan. */
+/** Adornos de las fiestas: calabazas en las puertas (el árbol de Navidad va en el escaparate de la tienda). No se guardan. */
 function placeHolidayDecor() {
   decor.clear();
   for (const p of world.plots) {
@@ -2945,7 +3016,6 @@ function placeHolidayDecor() {
       decor.place('calabaza', dx - 2, dy, dz, 0);
       decor.place('calabaza', dx + 2, dy, dz, 0);
     }
-    if (holiday?.id === 'navidad' && p.kind === 'shop') decor.place('arbol_navidad', dx + 3, dy, dz + 1, 0);
   }
 }
 
@@ -2985,6 +3055,7 @@ function newDay() {
     placeHolidayDecor();
     if (holiday) hud.toast(`¡Hoy es ${holiday.name}!`);
   }
+  refreshShopFront();
   lastClock = '';
   persist();
 }
@@ -3222,6 +3293,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { mesher, villagerHomes, town, parcels, museumHall, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { mesher, villagerHomes, town, parcels, museumHall, shopFront, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

@@ -4,6 +4,7 @@ import { itemIcon } from './icons';
 import { itemCard } from './itemCard';
 import { AVELLANA, type Economy, FILTER_KINDS, type ShopDef, buyPrice, closedText, sellPrice, shopBuys, stockFor, weekdayOf } from './economy';
 import type { Season } from './seasons';
+import { SHOP_LEVELS, shopLevel } from './shopBuilding';
 
 export function formatBerries(n: number): string {
   return new Intl.NumberFormat('es').format(n);
@@ -26,6 +27,8 @@ export interface ShopContext {
   getWallet: () => number;
   setWallet: (n: number) => void;
   toast: (text: string) => void;
+  /** La tienda ha subido de nivel (v4.16). */
+  levelUp?: (level: number) => void;
 }
 
 type Tab = 'comprar' | 'vender';
@@ -59,11 +62,16 @@ export class Shop {
     }
   }
 
+  /** Nivel de la tienda según lo que se ha gastado en ella (v4.16). */
+  get level(): number {
+    return shopLevel(this.ctx.economy?.spentAt(this.def.id) ?? 0);
+  }
+
   /** Cambia lo que hay a la venta: al abrir el juego y cada día nuevo. */
   restock() {
     const ctx = this.ctx;
     ctx.economy?.newDay(ctx.today);
-    const items = stockFor(this.def, { today: ctx.today, season: ctx.season ?? null, holiday: ctx.holiday, planner: ctx.planner });
+    const items = stockFor(this.def, { today: ctx.today, season: ctx.season ?? null, holiday: ctx.holiday, planner: ctx.planner, level: this.level });
     this.stock = items.map((i) => i.id);
     this.units = new Map(items.filter((i) => i.units !== undefined).map((i) => [i.id, i.units!]));
   }
@@ -201,8 +209,14 @@ export class Shop {
     const wallet = this.ctx.getWallet();
     if (wallet < price || this.remaining(id) <= 0 || this.ctx.inventory.add(id) > 0) return;
     this.ctx.setWallet(wallet - price);
+    const before = this.level;
     this.ctx.economy?.recordPurchase(this.def, id, 1, price);
     this.ctx.toast(`Has comprado: ${itemDef(id).name.toLowerCase()}`);
+    if (this.level > before) {
+      // Sube de nivel: lo nuevo sale a la venta mañana, y Avellana lo anuncia.
+      this.ctx.toast(`¡La tienda pasa a ser ${SHOP_LEVELS[this.level].name}! ${SHOP_LEVELS[this.level].text}`);
+      this.ctx.levelUp?.(this.level);
+    }
     this.render();
   }
 
