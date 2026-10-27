@@ -3,11 +3,12 @@ import { type PlayerHome, isPlayerHome } from '../homes';
 import type { Lot } from '../lots';
 import type { Guest, VillagerState } from '../villagers';
 import type { Edits, WorldOptions } from '../world';
+import { type Parcel, isParcelList } from '../parcels';
 import { type TownSave, isTownSave } from '../townhall';
 import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
-/** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. 4: bloques en 16 bits (v4.5). */
-export const PROTOCOL = 5;
+/** Sube cuando cambian los mensajes: dos versiones distintas del juego no se mezclan. 4: bloques en 16 bits (v4.5). 6: parcelas (v4.14). */
+export const PROTOCOL = 6;
 /** Jugadores a la vez en una isla, contando al anfitrión. */
 export const MAX_PLAYERS = 6;
 /** Gestos que se pueden hacer a los demás. */
@@ -57,7 +58,13 @@ export interface Snapshot {
   homes?: PlayerHome[];
   /** Desde la v4.13: el ayuntamiento, para que los invitados vean al alcalde y al urbanista. */
   town?: TownSave;
+  /** Desde la v4.14: las parcelas de la isla. */
+  parcels?: Parcel[];
 }
+
+/** Lo que un amigo pide al anfitrión sobre las parcelas (v4.14). */
+export type ParcelOp = 'tienda' | 'ampliar' | 'permiso';
+export const PARCEL_OPS: readonly ParcelOp[] = ['tienda', 'ampliar', 'permiso'];
 
 export type Message =
   | { t: 'hola'; v: number; peer: PeerInfo }
@@ -81,7 +88,13 @@ export type Message =
   /** Desde la v4.3: el anfitrión ha dado casa a un amigo (o le recuerda la que ya tenía). */
   | { t: 'casa'; home: PlayerHome }
   /** El anfitrión cuenta dónde están sus vecinos (v4.8). */
-  | { t: 'vecinos'; s: VillagerState[] };
+  | { t: 'vecinos'; s: VillagerState[] }
+  /** Desde la v4.14: el anfitrión cuenta cómo están las parcelas. */
+  | { t: 'parcelas'; p: Parcel[] }
+  /** Un amigo pide algo de su parcela; `who` es el amigo al que da o quita permiso para construir. */
+  | { t: 'pide'; n: number; op: ParcelOp; who?: string }
+  /** El anfitrión contesta a la petición `n`: si se ha hecho y, si no, por qué. */
+  | { t: 'respuesta'; n: number; ok: boolean; text?: string };
 
 export const MAX_CHAT = 140;
 
@@ -103,6 +116,8 @@ function isSnapshot(v: unknown): v is Snapshot {
   const homes = v && (v as Record<string, unknown>).homes;
   const town = v && (v as Record<string, unknown>).town;
   if (town !== undefined && !isTownSave(town)) return false;
+  const parcels = v && (v as Record<string, unknown>).parcels;
+  if (parcels !== undefined && !isParcelList(parcels)) return false;
   return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots) && spot(v.spawn) && (homes === undefined || (Array.isArray(homes) && homes.every(isPlayerHome)));
 }
 
@@ -146,6 +161,12 @@ export function parseMessage(raw: unknown): Message | null {
       return isObj(raw.clock) && isNum(raw.clock.day) && isNum(raw.clock.minute) && typeof raw.slept === 'boolean' ? (raw as Message) : null;
     case 'vecinos':
       return Array.isArray(raw.s) && raw.s.length <= MAX_VILLAGERS && raw.s.every(isVillagerState) ? (raw as Message) : null;
+    case 'parcelas':
+      return isParcelList(raw.p) ? (raw as Message) : null;
+    case 'pide':
+      return Number.isInteger(raw.n) && PARCEL_OPS.includes(raw.op as ParcelOp) && (raw.who === undefined || isId(raw.who)) ? (raw as Message) : null;
+    case 'respuesta':
+      return Number.isInteger(raw.n) && typeof raw.ok === 'boolean' && (raw.text === undefined || (typeof raw.text === 'string' && raw.text.length <= 160)) ? (raw as Message) : null;
     default:
       return null;
   }

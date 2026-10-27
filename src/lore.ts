@@ -120,6 +120,7 @@ export const LORE: Record<string, string> = {
   billete: 'Un billete de avioneta. Plumas te lleva a una isla misteriosa.',
   mapa: 'Con él siempre sabrás dónde estás. Y dónde está la tienda.',
   plano_casa: 'El dibujo de una casa nueva. Solo falta elegir dónde.',
+  permiso_mudanza: 'Un papel con muchos sellos de Ladrillo. Con él, tu parcela entera se va de paseo, con casa y huerto incluidos.',
   // Peces
   sardina: 'Nadan en bancos enormes que se mueven como un solo pez gigante.',
   caballa: 'Rápida y brillante, con rayas como de tigre en el lomo.',

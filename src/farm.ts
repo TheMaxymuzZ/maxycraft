@@ -92,6 +92,29 @@ export class Farm {
     return true;
   }
 
+  /** Riega las plantas que cumplan `where` (el huerto que se riega solo, v4.14). Devuelve si ha cambiado algo. */
+  waterWhere(today: string, where: (x: number, y: number, z: number) => boolean): boolean {
+    let changed = false;
+    for (const [k, s] of this.crops) {
+      if (s.watered.includes(today) || !where(...(k.split(',').map(Number) as [number, number, number]))) continue;
+      s.watered.push(today);
+      changed = true;
+    }
+    return changed;
+  }
+
+  /** Lleva las plantas a otro sitio (al mudar una parcela, v4.14). */
+  relocate(to: (x: number, y: number, z: number) => [number, number, number] | null) {
+    const moved: [string, CropState][] = [];
+    for (const [k, s] of this.crops) {
+      const dest = to(...(k.split(',').map(Number) as [number, number, number]));
+      if (!dest) continue;
+      this.crops.delete(k);
+      moved.push([key(...dest), s]);
+    }
+    for (const [k, s] of moved) this.crops.set(k, s);
+  }
+
   /** La lluvia riega todo el huerto. Devuelve si ha cambiado algo. */
   waterAll(today: string): boolean {
     let changed = false;

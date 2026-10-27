@@ -25,10 +25,10 @@ const CLEARABLE = new Set<number>([Block.Log, Block.PalmLog, Block.Leaves, Block
  * Busca un sitio para la casa de un amigo: llano, en tierra firme, lejos de las demás casas y de lo que
  * se haya construido, y sin árboles encima (los sitios que la isla guarda para vecinos nuevos valen igual).
  */
-export function pickHomeSpot(world: World, homes: PlayerHome[]): [number, number, number] | null {
+export function pickHomeSpot(world: World, homes: PlayerHome[], avoid: (x: number, z: number) => boolean = () => false): [number, number, number] | null {
   const spots = world.findGuestSpots(8);
   for (const [x, z] of spots) {
-    if (homes.some((h) => Math.hypot(h.x - x, h.z - z) < 14)) continue;
+    if (homes.some((h) => Math.hypot(h.x - x, h.z - z) < 14) || avoid(x, z)) continue;
     const y = world.heightAt(x, z) + 1;
     let clear = true;
     for (let dz = -3; dz <= 3 && clear; dz++) {
@@ -44,7 +44,7 @@ export function pickHomeSpot(world: World, homes: PlayerHome[]): [number, number
     for (let a = 0; a < 24; a++) {
       const x = Math.round(Math.cos((a / 24) * Math.PI * 2 + d) * d);
       const z = Math.round(Math.sin((a / 24) * Math.PI * 2 + d) * d);
-      if (spotIsFree(world, homes, x, z)) return [x, world.heightAt(x, z) + 1, z];
+      if (!avoid(x, z) && spotIsFree(world, homes, x, z)) return [x, world.heightAt(x, z) + 1, z];
     }
   }
   return null;

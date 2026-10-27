@@ -93,7 +93,6 @@ describe('v4.12: casas de vecinos', () => {
     const ctx = {
       inventory, selectedSlot: () => 0, today: '2026-10-26', hour: 12, fruitName: 'manzana', toast: (t: string) => toasts.push(t),
       onClose: () => {}, openShop: () => {}, donatable: () => [], donate: () => false, openCollection: () => {},
-      home: { available: false, state: () => ({ level: 0, debt: 0, wallet: 0 }), upgrade: () => {}, pay: () => {} },
       learnRecipe: () => null, holiday: null, isBirthday: () => false,
       travel: { away: false, tickets: () => 0, fly: () => {}, goHome: () => {} }, invite: () => 'ok' as const,
       decor: { available: hasDecorableHome, slots: (x: Villager) => homes.slots(x).length, changed: () => homes.refresh(), roof: () => {} },

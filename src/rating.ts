@@ -46,7 +46,7 @@ export function countPlaced(edits: Record<string, Record<number, number>>): Pick
 const PARTS: { key: keyof IslandStats; per: number; max: number; tip: string }[] = [
   { key: 'flowers', per: 1.5, max: 40, tip: 'Planta flores por la isla: alegran mucho.' },
   { key: 'furniture', per: 2, max: 30, tip: 'Pon más muebles, dentro o fuera de casa.' },
-  { key: 'house', per: 20, max: 3, tip: 'Amplía tu casa hablando con Avellana en la tienda.' },
+  { key: 'house', per: 20, max: 3, tip: 'Amplía tu parcela hablando con Ladrillo, el urbanista del ayuntamiento.' },
   { key: 'fences', per: 1, max: 40, tip: 'Unas vallas ordenan mucho los jardines.' },
   { key: 'lights', per: 3, max: 10, tip: 'Pon antorchas para que la isla luzca de noche.' },
   { key: 'guests', per: 15, max: 3, tip: 'Invita vecinos nuevos desde las islas misteriosas.' },

@@ -85,7 +85,7 @@ type NewItem = Omit<ItemDef, 'kind' | 'rarity'> & Partial<Pick<ItemDef, 'kind' |
 
 const CREATURE_IDS = new Set(CREATURES.map((c) => c.id));
 /** Objetos que no son ni bloque ni herramienta ni comida: billetes, mapas, planos, animales... */
-const SPECIAL = new Set(['billete', 'mapa', 'plano_casa', 'botella', 'gallina', 'vaca']);
+const SPECIAL = new Set(['billete', 'mapa', 'plano_casa', 'permiso_mudanza', 'botella', 'gallina', 'vaca']);
 /** Lo que se encuentra por la playa o dentro de la tierra y se colecciona. */
 const TREASURE = new Set(['concha', 'caracola', 'estrella', 'amatista', 'pepita_oro']);
 /** Bloques que solo salen en las islas misteriosas. */
@@ -254,6 +254,8 @@ add({ id: 'billete', name: 'Billete de avioneta', tile: Tile.Ticket, maxStack: 1
 add({ id: 'mapa', name: 'Mapa de la isla', tile: Tile.Map, maxStack: 1, sell: 250, buy: 2500, always: true });
 // Con un plano se marca un solar y se construye la casa de un vecino nuevo (v2.10).
 add({ id: 'plano_casa', name: 'Plano de casa', tile: Tile.Blueprint, maxStack: 5, sell: 100, buy: 1000, always: true });
+// Lo vende Ladrillo, el urbanista (v4.14): sirve para mudar tu parcela entera a otro sitio.
+add({ id: 'permiso_mudanza', name: 'Permiso de mudanza', tile: Tile.Blueprint, maxStack: 1, sell: 1000, rarity: 'raro' });
 
 // Peces e insectos: se pueden vender o donar al museo.
 CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell }));

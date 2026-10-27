@@ -1,5 +1,6 @@
 import { BUSINESS, DECORATE_LEVEL, FRIEND_LEVELS, HOUSE_LEVELS, type DecorPiece, STYLE_NAMES, addDecor, decorLine, decorTaste, furnitureName, friendLevel, houseLevel, likesFurniture, moveDecor } from './decor';
 import { furnitureDef } from './furniture';
+import { MOVE_PRICE, PARCEL_PRICES, PARCEL_SIZES, PERKS, type Role, TENT_PERMIT } from './parcels';
 import { FLAG_COLORS } from './townhall';
 import type { Inventory } from './inventory';
 import { itemDef } from './items';
@@ -313,19 +314,21 @@ const CATEGORY: Record<string, 'fruta' | 'conchas' | 'flores' | 'madera'> = {
 
 const RETURN_ITEMS = ['tulipan', 'pensamiento', 'cosmos', 'tablones'];
 
-/** La casa del jugador: de la tienda de campaña a la casa grande, pagando poco a poco. */
-export const HOUSE_NAMES = ['tienda de campaña', 'casa pequeña', 'casa mediana', 'casa grande'];
-export const HOUSE_COSTS = [5000, 15000, 40000];
 const ROOF_NAMES = ['Rojo', 'Azul', 'Verde', 'Amarillo'];
-const PAYMENT = 1000;
 
-export interface HomeActions {
-  /** Si la isla tiene parcela para el jugador. */
-  available: boolean;
-  state(): { level: number; debt: number; wallet: number };
-  /** Construye el siguiente nivel con el tejado elegido (índice de ROOFS) y suma su precio a la deuda. */
-  upgrade(roof: number): void;
-  pay(amount: number): void;
+/** Tu parcela, con el urbanista (v4.14). Lo que devuelve texto es por qué no se ha podido (null: hecho). */
+export interface ParcelActions {
+  /** Qué eres en esta isla: quien vive en ella, residente con parcela o invitado. */
+  role(): Role;
+  /** Tamaño (índice en PARCEL_SIZES) y mejoras de tu parcela, o null si no tienes. */
+  mine(): { size: number; perks: string[] } | null;
+  wallet(): number;
+  /** Mudar y comprar mejoras solo se hace en tu isla. */
+  manage(): boolean;
+  grow(): Promise<string | null>;
+  buyMove(): string | null;
+  perk(id: string): string | null;
+  tent(): Promise<string | null>;
 }
 
 /** Las casas de los vecinos (v4.12): muebles regalados, decorar y tejado. */
@@ -380,7 +383,8 @@ export interface DialogContext {
   donatable: () => string[];
   donate: (id: string) => boolean;
   openCollection: () => void;
-  home: HomeActions;
+  /** Parcelas (v4.14). */
+  parcel?: ParcelActions;
   /** Aprende una receta nueva para la mesa de trabajo; devuelve su nombre o null. */
   learnRecipe: () => string | null;
   /** Fiesta de hoy, si la hay. */
@@ -521,7 +525,6 @@ export class Dialog {
         this.finish(true);
         this.ctx.openShop();
       });
-      if (this.ctx.home.available) add('Mi casa', () => this.homeMenu());
     } else if (v.isCurator) {
       add('Donar', () => this.donateAll());
       add('Ver la colección', () => {
@@ -537,7 +540,7 @@ export class Dialog {
       if (t.level() >= 3) add('Nombre y bandera', () => this.nameMenu());
     } else if (v.isPlanner && this.ctx.town) {
       add('Plano de casa', () => this.blueprint());
-      add('Parcelas y mudanzas', () => this.say('Estoy preparando los papeles de las parcelas, las ampliaciones y las mudanzas. ¡Muy pronto podrás mover tu casa donde quieras, {c}!', [['Volver', this.back]]));
+      if (this.ctx.parcel) add(this.ctx.parcel.mine() ? 'Tu parcela' : 'Tienda de campaña', () => this.parcelMenu());
     } else {
       add('Charlar', () => this.chat());
       add('Háblame de ti', () => this.aboutMe());
@@ -626,50 +629,6 @@ export class Dialog {
     else if (r === 'full') this.say('Me encantaría, pero en tu isla no hay ninguna casa libre para mí. Constrúyeme una con un plano de casa y vuelve a buscarme, {c}.');
     else if (r === 'visita') this.say('¡Qué ilusión! Pero de momento me invita quien te ha traído de viaje. ¡Otro día vienes tú, {c}!');
     else this.say('¡Ya tengo las maletas hechas! Nos vemos muy pronto en tu isla, {c}.');
-  }
-
-  private homeMenu() {
-    const { level, debt, wallet } = this.ctx.home.state();
-    if (debt > 0) {
-      const part = Math.min(PAYMENT, debt);
-      const options: Option[] = [];
-      if (wallet >= part) options.push([`Pagar ${formatBerries(part)}`, () => this.pay(part)]);
-      if (debt > part && wallet >= debt) options.push(['Pagar todo', () => this.pay(debt)]);
-      options.push(['Volver', this.back]);
-      this.say(`Todavía te quedan ${formatBerries(debt)} bayas por pagar de tu ${HOUSE_NAMES[level]}. Sin prisa, ¡aquí no se cobran intereses, {c}!`, options);
-      return;
-    }
-    if (level >= HOUSE_COSTS.length) {
-      this.say('¡Tu casa ya es la más grande de la isla! Ha quedado preciosa, {c}.', [['Volver', this.back]]);
-      return;
-    }
-    const cost = formatBerries(HOUSE_COSTS[level]);
-    const line = level === 0
-      ? `Así que duermes en una tienda de campaña… ¿Quieres una casa de verdad? Una ${HOUSE_NAMES[1]} cuesta ${cost} bayas, y me las puedes ir pagando poco a poco, {c}.`
-      : `¿Quieres ampliar tu casa? Una ${HOUSE_NAMES[level + 1]} cuesta ${cost} bayas. Como siempre, pagas cuando puedas, {c}.`;
-    this.say(line, [
-      ['¡Sí, por favor!', () => this.chooseRoof()],
-      ['Ahora no', this.back],
-    ]);
-  }
-
-  private chooseRoof() {
-    this.say(
-      '¡Estupendo! ¿De qué color quieres el tejado, {c}?',
-      ROOF_NAMES.map((name, i): Option => [name, () => {
-        this.ctx.home.upgrade(i);
-        const { level } = this.ctx.home.state();
-        this.say(`¡Listo! Tu ${HOUSE_NAMES[level]} ya está construida. ¡Ve a verla y llénala de muebles, {c}!`);
-      }]),
-    );
-  }
-
-  private pay(amount: number) {
-    this.ctx.home.pay(amount);
-    const { debt } = this.ctx.home.state();
-    this.say(debt > 0
-      ? `¡Gracias! Te quedan ${formatBerries(debt)} bayas por pagar, {c}.`
-      : '¡Ya has pagado toda la casa! Cuando quieras, podemos hacerla más grande, {c}.');
   }
 
   private donateAll() {
@@ -881,6 +840,86 @@ export class Dialog {
       ])],
       ['Volver', this.back],
     ]);
+  }
+
+  /** Tu parcela: ampliar, mudar y mejoras; o el permiso de tienda si eres invitado (v4.14). */
+  private parcelMenu() {
+    const a = this.ctx.parcel!;
+    const mine = a.mine();
+    if (!mine) {
+      if (a.role() !== 'invitado') {
+        this.say('En esta isla no queda sitio para tu parcela. ¡Lo siento mucho, {c}!', [['Volver', this.back]]);
+        return;
+      }
+      this.say(`Aquí eres invitado, {c}: puedes recoger cosas y ayudar, pero no construir. Con el permiso de tienda de campaña (${formatBerries(TENT_PERMIT)} bayas) te monto una tienda con tu cama y tu nombre, y pasas a ser residente con tu parcela de ${PARCEL_SIZES[0]}×${PARCEL_SIZES[0]}.`, [
+        ['Comprar el permiso', () => this.buyTent()],
+        ['Ahora no', this.back],
+      ]);
+      return;
+    }
+    const side = PARCEL_SIZES[mine.size];
+    const next = PARCEL_SIZES[mine.size + 1];
+    const options: Option[] = [];
+    if (next) options.push([`Ampliar a ${next}×${next}`, () => this.growParcel()]);
+    if (a.manage()) {
+      options.push(['Mudar la parcela', () => this.moveParcel()]);
+      if (PERKS.some((k) => !mine.perks.includes(k.id))) options.push(['Mejoras', () => this.perksMenu()]);
+    }
+    options.push(['Volver', this.back]);
+    this.say(`Tu parcela mide ${side}×${side}. Dentro solo construyes tú y quien tú dejes (se elige en Jugar con amigos). Al llevar bloques en la mano se ve su borde. ¿Qué hacemos, {c}?`, options);
+  }
+
+  private growParcel() {
+    const a = this.ctx.parcel!;
+    const size = a.mine()!.size + 1;
+    const side = PARCEL_SIZES[size];
+    const price = PARCEL_PRICES[size];
+    this.say(`Ampliarla a ${side}×${side} cuesta ${formatBerries(price)} bayas. Crece desde el centro hacia todos los lados. ¿La amplío, {c}?`, [
+      ['¡Sí!', () => {
+        if (a.wallet() < price) {
+          this.say('No llevas bayas suficientes. ¡Vuelve cuando tengas, {c}!', [['Volver', this.back]]);
+          return;
+        }
+        void a.grow().then((problem) => this.say(problem ? `Uy, no puedo: ${problem.toLowerCase()}. No te he cobrado nada, {c}.` : `¡Hecho! Tu parcela ya mide ${side}×${side}. ¡A construir, {c}!`, [['Volver', this.back]]));
+      }],
+      ['Ahora no', this.back],
+    ]);
+  }
+
+  private moveParcel() {
+    const a = this.ctx.parcel!;
+    this.say(`Con el permiso de mudanza (${formatBerries(MOVE_PRICE)} bayas) eliges sitio nuevo: úsalo en el suelo para ver dónde quedaría tu parcela, con el borde azul, y otra vez en el mismo sitio para mudarte. Lo construido, los muebles, los cofres y el huerto se vienen contigo.`, [
+      ['Comprar el permiso', () => {
+        const problem = a.buyMove();
+        this.say(problem ?? '¡Aquí tienes tu permiso de mudanza! Úsalo donde quieras vivir, {c}.', [['Volver', this.back]]);
+      }],
+      ['Ahora no', this.back],
+    ]);
+  }
+
+  private perksMenu() {
+    const a = this.ctx.parcel!;
+    const owned = a.mine()?.perks ?? [];
+    const options: Option[] = PERKS.filter((k) => !owned.includes(k.id)).map((k): Option => [`${k.name} · ${formatBerries(k.cost)}`, () => {
+      this.say(`${k.text} Cuesta ${formatBerries(k.cost)} bayas. ¿Lo quieres, {c}?`, [
+        ['¡Sí!', () => {
+          const problem = a.perk(k.id);
+          this.say(problem ?? '¡Listo! Ya lo tienes en tu parcela, {c}.', [['Volver', this.back]]);
+        }],
+        ['Ahora no', this.back],
+      ]);
+    }]);
+    options.push(['Volver', this.back]);
+    this.say('Estas son las mejoras que puedo hacer en tu parcela, {c}:', options);
+  }
+
+  private buyTent() {
+    const a = this.ctx.parcel!;
+    if (a.wallet() < TENT_PERMIT) {
+      this.say('No llevas bayas suficientes. ¡Vuelve cuando tengas, {c}!', [['Volver', this.back]]);
+      return;
+    }
+    void a.tent().then((problem) => this.say(problem ? `Uy, no puedo: ${problem.toLowerCase()}. No te he cobrado nada, {c}.` : '¡Ya eres residente! Tu tienda de campaña está montada, con tu cama y tu nombre en el cartel. ¡Te damos la bienvenida al pueblo, {c}!', [['Volver', this.back]]));
   }
 
   private blueprint() {

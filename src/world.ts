@@ -1302,6 +1302,43 @@ export class World {
     }
   }
 
+  /** Cambios del jugador dentro de un rectángulo (todas las alturas): [x, y, z, bloque]. Para mudar parcelas (v4.14). */
+  editsIn(x0: number, z0: number, x1: number, z1: number): [number, number, number, number][] {
+    const out: [number, number, number, number][] = [];
+    for (let cz = Math.floor(z0 / CHUNK); cz <= Math.floor(z1 / CHUNK); cz++) {
+      for (let cx = Math.floor(x0 / CHUNK); cx <= Math.floor(x1 / CHUNK); cx++) {
+        const m = this.edits.get(key(cx, cz));
+        if (!m) continue;
+        for (const [i, b] of m) {
+          const x = cx * CHUNK + (i % CHUNK);
+          const z = cz * CHUNK + (Math.floor(i / CHUNK) % CHUNK);
+          const y = Math.floor(i / (CHUNK * CHUNK));
+          if (x >= x0 && x <= x1 && z >= z0 && z <= z1) out.push([x, y, z, b]);
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Como clearEdit con muchas casillas a la vez: cada chunk se vuelve a generar una sola vez. */
+  clearEdits(cells: [number, number, number][]) {
+    const touched = new Set<string>();
+    for (const [x, y, z] of cells) {
+      const cx = Math.floor(x / CHUNK);
+      const cz = Math.floor(z / CHUNK);
+      const k = key(cx, cz);
+      if (!this.edits.get(k)?.delete(index(x - cx * CHUNK, y, z - cz * CHUNK))) continue;
+      this.mesher?.post({ t: 'clear', x, y, z });
+      touched.add(k);
+    }
+    for (const k of touched) {
+      const c = this.chunks.get(k);
+      if (!c) continue;
+      c.data.fill(0);
+      this.generate(c);
+    }
+  }
+
   /** Deshace el cambio del jugador en (x, y, z), por ejemplo para que vuelva a crecer una fruta. */
   clearEdit(x: number, y: number, z: number) {
     const cx = Math.floor(x / CHUNK);

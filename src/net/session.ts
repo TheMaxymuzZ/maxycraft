@@ -1,5 +1,6 @@
 import { type WorldAction, WorldSync } from './actions';
-import { type Gesture, type GiftItem, MAX_CHAT, MAX_PLAYERS, type Message, PROTOCOL, type PeerInfo, type Pose, type Snapshot } from './protocol';
+import { type Gesture, type GiftItem, MAX_CHAT, MAX_PLAYERS, type Message, PROTOCOL, type ParcelOp, type PeerInfo, type Pose, type Snapshot } from './protocol';
+import type { Parcel } from '../parcels';
 import type { Transport } from './transport';
 import type { ClockSave } from '../clock';
 import type { PlayerHome } from '../homes';
@@ -32,6 +33,15 @@ export interface SessionEvents {
   time?(clock: ClockSave, slept: boolean): void;
   /** Dónde están los vecinos del anfitrión (v4.8). */
   villagers?(states: VillagerState[]): void;
+  /** Llegan las parcelas del anfitrión (v4.14). */
+  parcels?(list: Parcel[]): void;
+  /** El anfitrión atiende lo que pide un amigo sobre su parcela: null si se ha hecho, o por qué no. */
+  request?(peer: PeerInfo, op: ParcelOp, who?: string): string | null;
+  /**
+   * El anfitrión mira si un cambio de un amigo vale (las parcelas solo las tocan sus dueños). Si no vale,
+   * devuelve cómo dejarlo como estaba, para mandárselo de vuelta a quien lo hizo.
+   */
+  guard?(peer: PeerInfo, a: WorldAction): WorldAction | null;
 }
 
 interface Peer extends PeerInfo {
@@ -52,6 +62,9 @@ export class NetSession {
   private started = false;
   private now = 0;
   private hostId: string | null;
+  /** Peticiones de parcela esperando respuesta del anfitrión. */
+  private pending = new Map<number, (r: { ok: boolean; text?: string }) => void>();
+  private nextRequest = 1;
 
   private constructor(
     readonly role: 'anfitrion' | 'invitado',
@@ -176,6 +189,30 @@ export class NetSession {
     if (this.role === 'anfitrion' && this.peers.size) this.transport.send({ t: 'vecinos', s: states });
   }
 
+  /** El anfitrión cuenta a todos cómo están las parcelas. */
+  sendParcels(list: Parcel[]) {
+    if (this.role === 'anfitrion' && this.peers.size) this.transport.send({ t: 'parcelas', p: list });
+  }
+
+  /** Un amigo pide algo de su parcela al anfitrión y espera la respuesta (como mucho unos segundos). */
+  request(op: ParcelOp, who?: string, timeoutMs = 8000): Promise<{ ok: boolean; text?: string }> {
+    if (this.role !== 'invitado' || !this.hostId) return Promise.resolve({ ok: false, text: 'Solo se pide en la isla de un amigo' });
+    const n = this.nextRequest++;
+    const answer = new Promise<{ ok: boolean; text?: string }>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(n);
+        resolve({ ok: false, text: 'Tu amigo no contesta. Prueba otra vez' });
+      }, timeoutMs);
+      this.pending.set(n, (r) => {
+        clearTimeout(timer);
+        resolve(r);
+      });
+    });
+    // Se apunta antes de mandarla: la respuesta puede llegar enseguida.
+    this.transport.send(who === undefined ? { t: 'pide', n, op } : { t: 'pide', n, op, who }, this.hostId);
+    return answer;
+  }
+
   get hostPeer(): PeerInfo | null {
     return this.hostId ? this.peers.get(this.hostId) ?? null : null;
   }
@@ -246,12 +283,26 @@ export class NetSession {
         this.addPeer(msg.peer);
         return;
       }
-      case 'accion':
+      case 'accion': {
         // Solo se aceptan cambios de quien de verdad los manda y está en la partida.
         if (msg.from !== from || !this.peers.has(from)) return;
+        // En una parcela ajena no se construye (v4.14): se le devuelve como estaba.
+        const undo = this.events.guard?.(this.peers.get(from)!, msg.a);
+        if (undo) {
+          this.transport.send({ t: 'accion', from: this.self.id, a: undo }, from);
+          return;
+        }
         this.applyRemote(msg.a);
         this.relay(msg, from);
         return;
+      }
+      case 'pide': {
+        const peer = this.peers.get(from);
+        if (!peer) return;
+        const problem = this.events.request ? this.events.request(peer, msg.op, msg.who) : 'Tu amigo tiene otra versión';
+        this.transport.send(problem === null ? { t: 'respuesta', n: msg.n, ok: true } : { t: 'respuesta', n: msg.n, ok: false, text: problem.slice(0, 160) }, from);
+        return;
+      }
       case 'pose':
         if (msg.id !== from || !this.peers.has(from)) return;
         this.events.pose?.(from, msg.p);
@@ -329,6 +380,15 @@ export class NetSession {
       case 'vecinos':
         this.events.villagers?.(msg.s);
         return;
+      case 'parcelas':
+        this.events.parcels?.(msg.p);
+        return;
+      case 'respuesta': {
+        const done = this.pending.get(msg.n);
+        this.pending.delete(msg.n);
+        done?.({ ok: msg.ok, text: msg.text });
+        return;
+      }
       case 'viaje':
         // Mientras dure el viaje no se da por ido al anfitrión: volverá a abrir la isla con el mismo código.
         this.ended = true;

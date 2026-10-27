@@ -102,7 +102,8 @@ export class Town {
       return v;
     };
     this.mayor ??= add(MAYOR, -1);
-    if (this.state!.level >= 2) this.planner ??= add(PLANNER, 1);
+    // Desde la v4.14 el urbanista está desde la caseta de obras: lleva las parcelas.
+    this.planner ??= add(PLANNER, 1);
   }
 
   /** Mueve al alcalde y al urbanista a la puerta nueva al ampliar. */
