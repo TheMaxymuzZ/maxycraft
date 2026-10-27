@@ -94,7 +94,7 @@ const SPECIAL = new Set(['billete', 'mapa', 'plano_casa', 'permiso_mudanza', 'bo
 /** Lo que se encuentra por la playa o dentro de la tierra y se colecciona. */
 const TREASURE = new Set(['concha', 'caracola', 'estrella', 'amatista', 'pepita_oro']);
 /** Bloques que solo salen en las islas misteriosas. */
-const RARE_BLOCKS = new Set<Block>([Block.Magma, Block.SmallMushroom]);
+const RARE_BLOCKS = new Set<Block>([Block.Magma, Block.SmallMushroom, Block.Obsidian, Block.GlowFlower, Block.GlowMushroom]);
 /** Minerales de las islas misteriosas (v4.10): épicos. */
 const EPIC_BLOCKS = new Set<Block>([Block.CrystalCluster, Block.Amethyst]);
 
@@ -202,6 +202,23 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.SnowFlower, 'flor_nieve', 120],
   [Block.AcaciaLeaves, 'hojas_acacia', 1],
   [Block.CherryLeaves, 'flores_cerezo', 8],
+  // Biomas extraños y lava (v4.20).
+  [Block.Obsidian, 'obsidiana', 150],
+  [Block.PetrifiedLava, 'lava_petrificada', 25],
+  [Block.Ash, 'ceniza', 4],
+  [Block.Blackstone, 'roca_negra', 12],
+  [Block.Slate, 'pizarra', 12],
+  [Block.GlowGrass, 'hierba_azul', 20],
+  [Block.GlowFlower, 'flor_luminosa', 180],
+  [Block.GlowMushroom, 'seta_luminosa', 160],
+  [Block.GlowLeaves, 'hojas_luminosas', 10],
+  [Block.Mycelium, 'micelio', 20],
+  [Block.MushroomCapBlue, 'sombrero_seta_azul', 25],
+  [Block.MushroomCapPurple, 'sombrero_seta_morado', 25],
+  [Block.BasaltBricks, 'ladrillo_basalto', 30, 120],
+  [Block.PolishedSlate, 'pizarra_pulida', 30, 120],
+  [Block.CarvedObsidian, 'obsidiana_tallada', 400],
+  [Block.MushroomLamp, 'lampara_seta', 260],
   // Almacenamiento (v2.4).
   [Block.Chest, 'cofre', 60],
   [Block.Trunk, 'baul', 400],
@@ -246,6 +263,7 @@ add({ id: 'carbon', name: 'Carbón', tile: Tile.Coal, maxStack: 30, sell: 50 });
 // Cubos (v3.8): el vacío coge un bloque de agua quieta y el lleno lo echa en otro sitio. No se gastan.
 add({ id: 'cubo', name: 'Cubo', tile: Tile.Bucket, maxStack: 1, tool: 'bucket', sell: 150, buy: 600 });
 add({ id: 'cubo_agua', kind: 'herramienta', name: 'Cubo de agua', tile: Tile.WaterBucket, maxStack: 1, tool: 'bucket', sell: 150 });
+add({ id: 'cubo_lava', kind: 'herramienta', name: 'Cubo de lava', tile: XTile.LavaBucket, maxStack: 1, tool: 'bucket', sell: 300 });
 add({ id: 'pepita_hierro', name: 'Pepita de hierro', tile: Tile.IronNugget, maxStack: 30, sell: 375 });
 add({ id: 'pepita_oro', name: 'Pepita de oro', tile: Tile.GoldNugget, maxStack: 30, sell: 1500 });
 add({ id: 'amatista', rarity: 'epico', name: 'Amatista', tile: Tile.Gem, maxStack: 30, sell: 800 });
@@ -300,7 +318,7 @@ for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.
 // Ropa (v4.18): la vende Seda; las legendarias solo salen en las islas misteriosas.
 for (const c of CLOTHES) {
   const legendary = !!c.garment.legendary;
-  add({ id: c.id, name: c.name, tile: c.tile, maxStack: 1, sell: c.garment.sell, kind: 'ropa', buy: legendary ? undefined : c.garment.sell * 4, seller: legendary ? 'misterio' : 'ropa', ...(legendary ? { rarity: 'legendario' as const } : {}) });
+  add({ id: c.id, name: c.name, tile: c.tile, maxStack: 1, sell: c.garment.sell, kind: 'ropa', buy: legendary ? undefined : c.garment.sell * 4, seller: legendary ? 'misterio' : c.garment.shop ?? 'ropa', ...(legendary ? { rarity: 'legendario' as const } : {}) });
 }
 
 /** Todos los objetos del juego, en el orden en que se definen (para la wiki de la página del proyecto). */
@@ -335,6 +353,11 @@ export function dropFor(b: Block): string | null {
       return 'cactus';
     case Block.Moss:
       return 'musgo';
+    case Block.GlowGrass:
+    case Block.Mycelium:
+      return 'tierra';
+    case Block.GlowLeaves:
+      return null;
     case Block.TallGrass:
       return null;
     case Block.Leaves:
@@ -426,6 +449,19 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.Tiles]: { time: 0.8, tool: 'pickaxe' },
   [Block.Basalt]: { time: 1.6, tool: 'pickaxe', needsTool: true },
   [Block.Magma]: { time: 1.8, tool: 'pickaxe', needsTool: true },
+  // v4.20: la obsidiana es lo más duro que hay.
+  [Block.Obsidian]: { time: 6, tool: 'pickaxe', needsTool: true },
+  [Block.CarvedObsidian]: { time: 6, tool: 'pickaxe', needsTool: true },
+  [Block.PetrifiedLava]: { time: 1.4, tool: 'pickaxe', needsTool: true },
+  [Block.Blackstone]: { time: 1.6, tool: 'pickaxe', needsTool: true },
+  [Block.Slate]: { time: 1.4, tool: 'pickaxe', needsTool: true },
+  [Block.PolishedSlate]: { time: 1.4, tool: 'pickaxe', needsTool: true },
+  [Block.BasaltBricks]: { time: 1.6, tool: 'pickaxe', needsTool: true },
+  [Block.Ash]: { time: 0.4, tool: 'shovel' },
+  [Block.GlowGrass]: { time: 0.6, tool: 'shovel' },
+  [Block.Mycelium]: { time: 0.6, tool: 'shovel' },
+  [Block.MushroomCapBlue]: { time: 0.4, tool: 'axe' },
+  [Block.MushroomCapPurple]: { time: 0.4, tool: 'axe' },
   [Block.Ice]: { time: 0.6, tool: 'pickaxe' },
   [Block.MushroomStem]: { time: 0.8, tool: 'axe' },
   [Block.MushroomCap]: { time: 0.4, tool: 'axe' },
@@ -567,6 +603,12 @@ export const RECIPES: Recipe[] = [
   { result: 'terracota_blanca', count: 2, needs: [['barro', 2], ['nieve', 1]] },
   { result: 'hielo_compacto', count: 1, needs: [['hielo', 4]] },
   { result: 'hielo_azul', count: 1, needs: [['hielo_compacto', 4]] },
+  // Biomas extraños (v4.20).
+  { result: 'brote_luminoso', count: 1, needs: [['hojas_luminosas', 2], ['hierba_azul', 1]] },
+  { result: 'ladrillo_basalto', count: 4, needs: [['basalto', 4]] },
+  { result: 'pizarra_pulida', count: 4, needs: [['pizarra', 4]] },
+  { result: 'obsidiana_tallada', count: 1, needs: [['obsidiana', 2]] },
+  { result: 'lampara_seta', count: 1, needs: [['seta_luminosa', 2], ['tallo_seta', 1]] },
 ];
 
 /** Recetas de la mesa de trabajo. Hay que aprenderlas: de los vecinos o de las botellas de la playa. */

@@ -1,11 +1,12 @@
 // El aire de cada bioma (v4.19): el color de la niebla y el tiempo que hace cambian según por dónde vas.
 // En el desierto la lluvia es tormenta de arena; en el frío, nieve, y en el glaciar, ventisca. El pantano tiene bruma.
+// En los biomas extraños (v4.20) siempre flota algo: luces, ceniza o esporas.
 import * as THREE from 'three';
 import type { Weather } from './seasons';
 import type { Biome } from './world';
 
 /** Lo que se ve caer: el tiempo de la isla, cambiado por el bioma. */
-export type FxWeather = Weather | 'arena' | 'ventisca';
+export type FxWeather = Weather | 'arena' | 'ventisca' | 'ceniza' | 'luces' | 'esporas';
 
 const DRY: ReadonlySet<Biome> = new Set(['desierto', 'cañon']);
 const COLD: ReadonlySet<Biome> = new Set(['taiga', 'tundra', 'glaciar', 'picos']);
@@ -14,6 +15,9 @@ const WINDY: ReadonlySet<Biome> = new Set(['glaciar', 'picos']);
 /** El tiempo que se ve en ese bioma, a partir del de la isla. */
 export function biomeWeather(biome: Biome | null, w: Weather): FxWeather {
   if (!biome) return w;
+  if (biome === 'volcanico') return 'ceniza';
+  if (biome === 'luminoso') return w === 'lluvia' ? 'lluvia' : 'luces';
+  if (biome === 'setas') return w === 'lluvia' ? 'lluvia' : 'esporas';
   if (DRY.has(biome)) return w === 'lluvia' ? 'arena' : w === 'nieve' ? 'sol' : w;
   if (COLD.has(biome)) {
     const snow = w === 'lluvia' || w === 'nieve';
@@ -44,6 +48,9 @@ const LOOKS: Partial<Record<Biome, Look>> = {
   tundra: { color: 0xe6eef8, mix: 0.3, far: 1 },
   glaciar: { color: 0xdcecff, mix: 0.35, far: 1 },
   picos: { color: 0xe8eef6, mix: 0.25, far: 1 },
+  luminoso: { color: 0x4a3c8c, mix: 0.45, far: 0.8 },
+  volcanico: { color: 0xb0583a, mix: 0.5, far: 0.7 },
+  setas: { color: 0xb69ac8, mix: 0.35, far: 0.85 },
 };
 
 /** Cómo es el aire en ese bioma y con ese tiempo. */
@@ -77,7 +84,7 @@ export class BiomeAir {
 /** Ficha de cada bioma para la wiki («Atlas de biomas»): qué hay y qué se puede sacar de él. */
 export interface BiomeInfo {
   biome: Biome;
-  climate: 'templado' | 'calido' | 'frio';
+  climate: 'templado' | 'calido' | 'frio' | 'extrano';
   text: string;
   /** Objetos típicos (ids), para enseñar su dibujo. */
   finds: string[];
@@ -98,5 +105,8 @@ export const BIOME_ATLAS: BiomeInfo[] = [
   { biome: 'taiga', climate: 'frio', text: 'Bosque de abetos nevados con musgo en el suelo.', finds: ['musgo', 'brote_abeto'], weather: 'Nieve en vez de lluvia' },
   { biome: 'tundra', climate: 'frio', text: 'Llanura nevada con flores de nieve y algún abeto suelto.', finds: ['nieve', 'flor_nieve'], weather: 'Nieve en vez de lluvia' },
   { biome: 'glaciar', climate: 'frio', text: 'Hielo compacto y vetas de hielo azul. Los ríos están helados.', finds: ['hielo_compacto', 'hielo_azul'], weather: 'Ventisca cuando nieva' },
+  { biome: 'luminoso', climate: 'extrano', text: 'Hierba azul, flores y setas que brillan en la oscuridad y árboles luminosos con ramas que cuelgan.', finds: ['hierba_azul', 'flor_luminosa', 'seta_luminosa', 'brote_luminoso'], weather: 'Lucecitas flotando en el aire' },
+  { biome: 'volcanico', climate: 'extrano', text: 'Basalto, ceniza, roca negra y pizarra, columnas de basalto y lagos y ríos de lava.', finds: ['ceniza', 'roca_negra', 'pizarra', 'obsidiana'], weather: 'Cielo rojizo y ceniza que cae' },
+  { biome: 'setas', climate: 'extrano', text: 'Micelio y setas gigantes rojas, azules y moradas: sus sombreros son plataformas.', finds: ['micelio', 'sombrero_seta_azul', 'sombrero_seta_morado'], weather: 'Esporas en el aire' },
   { biome: 'picos', climate: 'frio', text: 'Terrazas altísimas de roca, cumbres nevadas y abetos.', finds: ['piedra', 'nieve'], weather: 'Ventisca cuando nieva' },
 ];

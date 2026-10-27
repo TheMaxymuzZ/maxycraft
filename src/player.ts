@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { type Box, collisionBoxes, isSolid } from './blocks';
+import { type Box, collisionBoxes, isLava, isSolid } from './blocks';
 import { waterFlow } from './fluids';
 import { type KeyMap, defaultKeys } from './keys';
 import type { World } from './world';
@@ -94,6 +94,8 @@ export class Player {
     const feet = this.world.inWater(p.x, p.y + 0.1, p.z) ? waterFlow((x, y, z) => this.world.getBlock(x, y, z), Math.floor(p.x), Math.floor(p.y + 0.1), Math.floor(p.z)) : null;
     let speed = controls && (this.keys.has(keys.sprint) || pushed) ? SPRINT : WALK;
     if (this.inWater) speed *= 0.55;
+    // En la lava (v4.20) se anda muy despacio, como en barro espeso.
+    if (isLava(this.world.getBlock(Math.floor(p.x), Math.floor(p.y + 0.2), Math.floor(p.z)))) speed *= 0.35;
 
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);

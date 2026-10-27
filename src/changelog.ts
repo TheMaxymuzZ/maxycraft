@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.20',
+    title: 'Biomas extraños y lava',
+    items: [
+      'Nuevo clima de isla: «Extraña», con tres biomas que no existen en ningún otro sitio: el bosque bioluminiscente, las tierras volcánicas y el bosque de setas gigantes.',
+      'La lava ya es de verdad: corre como el agua pero más despacio y menos lejos, alumbra, quema plantas y madera y hace mucho daño si te metes.',
+      'Lava y agua: al tocarse, la lava se enfría y se vuelve lava petrificada (u obsidiana si era una fuente), con su chisporroteo.',
+      'Cubo de lava, y botas ignífugas en la caseta de Grava: con ellas la roca de magma no quema y la lava quema la mitad.',
+      'Bloques nuevos: obsidiana, roca negra, pizarra, ceniza, hierba azul, micelio, flores y setas luminosas, sombreros de seta azules y morados. Y para construir: ladrillo de basalto, pizarra pulida, obsidiana tallada y lámpara de seta.',
+      'Cada bioma extraño tiene su aire: lucecitas flotando, ceniza que cae con el cielo rojizo y esporas.',
+    ],
+  },
+  {
     version: '4.19',
     title: 'Cálidos, templados y fríos',
     items: [

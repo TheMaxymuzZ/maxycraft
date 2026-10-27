@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { waterFlow } from './fluids';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoor, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid, isWater, waterHeight, waterLevel as fluidLevel } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoor, isDoorTop, isFence, isFullBlock, isGate, isLava, isOpaque, isOpen, isSolid, isWater, lavaHeight, waterHeight, waterLevel as fluidLevel } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
-import { acaciaShape, blossomShape, ceibaShape, firShape, fruitTreeShape, palmShape, pineShape, willowShape } from './trees';
+import { acaciaShape, blossomShape, ceibaShape, firShape, glowShape, fruitTreeShape, palmShape, pineShape, willowShape } from './trees';
 import { type BuildingTemplate, templateCells } from './buildings';
 import { SHOP_BUILDING, shopOrigin } from './shopBuilding';
 import { MUSEUM, museumOrigin } from './museum';
@@ -24,32 +24,40 @@ export const TERRAIN_VERSION = 2;
 /** Zonas de la isla con su propio paisaje (solo en el terreno 2). */
 export type Biome =
   | 'playa' | 'bosque' | 'pradera' | 'bambu' | 'montaña'
-  | 'pantano' | 'cerezos' | 'desierto' | 'sabana' | 'selva' | 'cañon' | 'taiga' | 'tundra' | 'glaciar' | 'picos';
+  | 'pantano' | 'cerezos' | 'desierto' | 'sabana' | 'selva' | 'cañon' | 'taiga' | 'tundra' | 'glaciar' | 'picos'
+  | 'luminoso' | 'volcanico' | 'setas';
 export const BIOME_NAMES: Record<Biome, string> = {
   playa: 'Playa', bosque: 'Bosque', pradera: 'Pradera', bambu: 'Bambú', montaña: 'Montaña',
   pantano: 'Pantano', cerezos: 'Bosque de cerezos', desierto: 'Desierto', sabana: 'Sabana', selva: 'Selva', cañon: 'Cañón',
   taiga: 'Taiga', tundra: 'Tundra', glaciar: 'Glaciar', picos: 'Picos nevados',
+  luminoso: 'Bosque bioluminiscente', volcanico: 'Tierras volcánicas', setas: 'Bosque de setas gigantes',
 };
 const INLAND_BIOMES: Biome[] = ['bosque', 'pradera', 'montaña', 'bambu'];
 
 /** Clima de la isla (v4.19). Las islas de antes no tienen y siguen con sus cuatro biomas de siempre. */
-export type Climate = 'templado' | 'calido' | 'frio';
-export const CLIMATES: Climate[] = ['templado', 'calido', 'frio'];
-export const CLIMATE_NAMES: Record<Climate, string> = { templado: 'Templada', calido: 'Cálida', frio: 'Fría' };
+export type Climate = 'templado' | 'calido' | 'frio' | 'extrano';
+export const CLIMATES: Climate[] = ['templado', 'calido', 'frio', 'extrano'];
+export const CLIMATE_NAMES: Record<Climate, string> = { templado: 'Templada', calido: 'Cálida', frio: 'Fría', extrano: 'Extraña' };
 /** Biomas de cada clima, alrededor del pueblo del centro. */
 export const CLIMATE_BIOMES: Record<Climate, Biome[]> = {
   templado: ['bosque', 'pradera', 'montaña', 'bambu', 'pantano', 'cerezos'],
   calido: ['desierto', 'sabana', 'selva', 'cañon'],
   frio: ['taiga', 'tundra', 'glaciar', 'picos'],
+  // Islas extrañas (v4.20): solo los tres biomas raros.
+  extrano: ['luminoso', 'volcanico', 'setas'],
 };
 /** Biomas altos, con más terrazas (el de cada clima). */
-const TALL_BIOMES: Biome[] = ['montaña', 'cañon', 'picos'];
+const TALL_BIOMES: Biome[] = ['montaña', 'cañon', 'picos', 'volcanico'];
 /** Rayas de los acantilados del cañón, de abajo arriba. */
 const STRATA: Block[] = [Block.TerracottaOrange, Block.TerracottaYellow, Block.RedSand, Block.TerracottaWhite, Block.TerracottaOrange, Block.Sandstone];
+/** Capas de los acantilados volcánicos (v4.20). */
+const VOLCANIC_STRATA: Block[] = [Block.Basalt, Block.Slate, Block.Blackstone, Block.Basalt, Block.Ash, Block.Blackstone];
+/** Luces que salen solas en el terreno y alumbran desde el principio (v4.20): lava y setas luminosas. */
+const GENERATED_LIGHTS: ReadonlySet<number> = new Set([Block.Lava, Block.GlowMushroom, Block.Magma]);
 /** Clima elegido para la próxima isla nueva (se guarda un momento mientras se recarga el juego). */
 export const CLIMATE_KEY = 'maxycraft-clima';
 export function isClimate(v: unknown): v is Climate {
-  return v === 'templado' || v === 'calido' || v === 'frio';
+  return v === 'templado' || v === 'calido' || v === 'frio' || v === 'extrano';
 }
 
 /**
@@ -856,7 +864,7 @@ export class World {
   }
 
   /** Bloque de arriba y de debajo de una columna de altura `h`, y si es arena de playa o de río. */
-  private surfaceAt(x: number, z: number, h: number): { top: Block; under: Block; beach: boolean; strata?: boolean } {
+  private surfaceAt(x: number, z: number, h: number): { top: Block; under: Block; beach: boolean; strata?: Block[] } {
     // Arena en la playa y en el fondo y las orillas del río (también el de las terrazas altas).
     const beach = this.isBeach(h) || (this.terrain >= 2 && h <= this.waterLevel(x, z) + 1 && this.river(x, z) < 3.6);
     if (beach) return { top: Block.Sand, under: Block.Sand, beach };
@@ -887,7 +895,7 @@ export class World {
   }
 
   /** Suelo de los biomas nuevos (v4.19); null para los de siempre (bosque, pradera, bambú, montaña). */
-  private climateSurface(x: number, z: number, h: number): { top: Block; under: Block; strata?: boolean } | null {
+  private climateSurface(x: number, z: number, h: number): { top: Block; under: Block; strata?: Block[] } | null {
     const biome = this.biomeAt(x, z);
     if (this.plotAt(x, z)) return biome === 'desierto' || biome === 'cañon' ? { top: Block.Sand, under: Block.Sandstone } : null;
     const patch = fbm(x / 9, z / 9, this.seed + 71, 2);
@@ -898,7 +906,7 @@ export class World {
       case 'sabana':
         return { top: patch > 0.62 ? Block.Grass : Block.DryGrass, under: Block.Dirt };
       case 'cañon':
-        return { top: h >= SEA_LEVEL + 2 + 8 && patch > 0.5 ? Block.TerracottaOrange : Block.RedSand, under: Block.RedSand, strata: true };
+        return { top: h >= SEA_LEVEL + 2 + 8 && patch > 0.5 ? Block.TerracottaOrange : Block.RedSand, under: Block.RedSand, strata: STRATA };
       case 'pantano':
         return { top: patch > 0.58 ? Block.Mud : Block.Grass, under: Block.Mud };
       case 'taiga':
@@ -910,6 +918,12 @@ export class World {
       case 'picos':
         if (cliff()) return { top: Block.Stone, under: Block.Stone };
         return { top: h >= SEA_LEVEL + 2 + 8 ? Block.PowderSnow : Block.SnowGrass, under: Block.Dirt };
+      case 'luminoso':
+        return { top: Block.GlowGrass, under: Block.Dirt };
+      case 'volcanico':
+        return { top: patch > 0.6 ? Block.Ash : patch < 0.32 ? Block.Blackstone : Block.Basalt, under: Block.Blackstone, strata: VOLCANIC_STRATA };
+      case 'setas':
+        return { top: Block.Mycelium, under: Block.Dirt };
       default:
         return null;
     }
@@ -963,6 +977,17 @@ export class World {
       case 'picos':
         if (r < 0.01 && top === Block.SnowGrass) put(Block.SnowFlower);
         return true;
+      case 'luminoso':
+        if (r < 0.07) put(Block.GlowFlower);
+        else if (r < 0.095) put(Block.GlowMushroom);
+        return true;
+      case 'volcanico':
+        if (r < 0.012 && top !== Block.Ash) put(Block.DryShrub);
+        return true;
+      case 'setas':
+        if (r < 0.05) put(Block.SmallMushroom);
+        else if (r < 0.062) put(Block.GlowMushroom);
+        return true;
       default:
         return false;
     }
@@ -987,11 +1012,19 @@ export class World {
         for (let y = 0; y <= h; y++) {
           let b: Block;
           if (y === h) b = top;
-          else if (y > h - 4) b = strata ? STRATA[y % STRATA.length] : under;
+          else if (y > h - 4) b = strata ? strata[y % strata.length] : under;
           else if (y > 0 && caves && y < h - 5 && this.isCave(wx, y, wz)) b = Block.Air;
           else if (y > 0) b = this.oreAt(wx, y, wz);
           else b = Block.Stone;
           d[index(x, y, z)] = b;
+        }
+        // Lagos y ríos de lava de las tierras volcánicas (v4.20), en el suelo llano.
+        if (biome === 'volcanico' && !beach && !this.plotAt(wx, wz, 3) && this.river(wx, wz) > 5 &&
+          (fbm(wx / 8, wz / 8, this.seed + 76, 2) > 0.64 || Math.abs(fbm(wx / 34, wz / 34, this.seed + 77, 2) - 0.5) < 0.018) &&
+          SIDES.every(([dx, dz]) => this.heightAt(wx + dx, wz + dz) >= h)) {
+          d[index(x, h, z)] = Block.Lava;
+          d[index(x, h - 1, z)] = Block.Basalt;
+          continue;
         }
         // Charcas del pantano (v4.19): agua de un bloque en el suelo llano, con nenúfares.
         if (biome === 'pantano' && !beach && h === SEA_LEVEL + 2 && !this.plotAt(wx, wz, 2) && fbm(wx / 7, wz / 7, this.seed + 72, 2) > 0.6 &&
@@ -1050,7 +1083,8 @@ export class World {
         else if (kind === 'spire') this.placeSpire(wx, wz, tx, tz, set);
         else if (kind === 'rock') this.placeRock(wx, wz, tx, tz, set);
         else if (kind) {
-          const shape = kind === 'acacia' ? acaciaShape(Math.floor(columnRandom(wx, wz, this.seed + 74) * 4)) : kind === 'ceiba' ? ceibaShape() : kind === 'blossom' ? blossomShape() : kind === 'willow' ? willowShape() : firShape();
+          const shape = kind === 'acacia' ? acaciaShape(Math.floor(columnRandom(wx, wz, this.seed + 74) * 4)) : kind === 'ceiba' ? ceibaShape() : kind === 'blossom' ? blossomShape()
+            : kind === 'willow' ? willowShape() : kind === 'glow' ? glowShape() : kind === 'giant' ? this.giantMushroom(wx, wz) : kind === 'column' ? this.basaltColumn(wx, wz) : firShape();
           for (const [dx, dy, dz, b, replace] of shape) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
         }
       }
@@ -1107,6 +1141,17 @@ export class World {
         // Así las islas guardadas se ven igual que antes (sin agujeros en el mar ni sótanos inundados de golpe).
         const column = i % (CHUNK * CHUNK);
         d[i] = b === Block.Air && Math.floor(i / (CHUNK * CHUNK)) <= waterUpTo[column] ? Block.Water : b;
+      }
+    }
+
+    // En las islas extrañas (v4.20) la lava y las setas luminosas alumbran desde que salen.
+    if (this.climate === 'extrano') {
+      for (let i = 0; i < d.length; i++) {
+        if (!GENERATED_LIGHTS.has(d[i])) continue;
+        const x = i % CHUNK;
+        const z = Math.floor(i / CHUNK) % CHUNK;
+        const y = Math.floor(i / (CHUNK * CHUNK));
+        this.torches.set(`${ox + x},${y},${oz + z}`, [ox + x, y, oz + z]);
       }
     }
 
@@ -1286,7 +1331,7 @@ export class World {
     return null;
   }
 
-  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | 'mushroom' | 'spire' | 'acacia' | 'ceiba' | 'blossom' | 'willow' | 'fir' | null {
+  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | 'mushroom' | 'spire' | 'acacia' | 'ceiba' | 'blossom' | 'willow' | 'fir' | 'glow' | 'giant' | 'column' | null {
     if (this.plotAt(x, z, 3) || this.zoneAt(x, z) === 'bambu') return null;
     const r = columnRandom(x, z, this.seed);
     const h = this.heightAt(x, z);
@@ -1305,6 +1350,9 @@ export class World {
         if (biome === 'tundra') return r < 0.003 ? 'fir' : null;
         if (biome === 'picos') return top === Block.SnowGrass && r < 0.012 ? 'fir' : r > 0.993 ? 'boulder' : null;
         if (biome === 'glaciar' || biome === 'cañon') return null;
+        if (biome === 'luminoso') return top === Block.GlowGrass && r < 0.02 ? 'glow' : null;
+        if (biome === 'setas') return top === Block.Mycelium && r < 0.02 ? 'giant' : null;
+        if (biome === 'volcanico') return r < 0.012 ? 'column' : null;
       }
       if (this.river(x, z) <= 6 || this.surfaceAt(x, z, h).top !== Block.Grass) return null;
       if (biome === 'bosque') return r < 0.022 ? 'fruit' : r < 0.04 ? 'pine' : null;
@@ -1327,6 +1375,33 @@ export class World {
     if (h > SEA_LEVEL + 1 && this.river(x, z) > 6 && r < fruit) return 'fruit';
     if (kind === 'minerales' && h > SEA_LEVEL + 1 && r > 0.985) return 'rock';
     return null;
+  }
+
+  /** Seta gigante del bosque de setas (v4.20): tallo alto y sombrero ancho, rojo, azul o morado, como una plataforma. */
+  private giantMushroom(wx: number, wz: number): [number, number, number, Block, boolean][] {
+    const out: [number, number, number, Block, boolean][] = [];
+    const tall = 5 + Math.floor(columnRandom(wx, wz, this.seed + 78) * 5);
+    const cap = [Block.MushroomCap, Block.MushroomCapBlue, Block.MushroomCapPurple][Math.floor(columnRandom(wx, wz, this.seed + 79) * 3)];
+    const radius = tall > 7 ? 3 : 2;
+    for (let y = 0; y < tall; y++) out.push([0, y, 0, Block.MushroomStem, true]);
+    for (let dz = -radius; dz <= radius; dz++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx * dx + dz * dz > radius * radius + 1) continue;
+        out.push([dx, tall, dz, cap, false]);
+        // Borde que cuelga un poco.
+        if (dx * dx + dz * dz > (radius - 1) * (radius - 1) + 1) out.push([dx, tall - 1, dz, cap, false]);
+      }
+    }
+    return out;
+  }
+
+  /** Columna de basalto de las tierras volcánicas (v4.20), a veces con magma en lo alto. */
+  private basaltColumn(wx: number, wz: number): [number, number, number, Block, boolean][] {
+    const tall = 2 + Math.floor(columnRandom(wx, wz, this.seed + 80) * 6);
+    const out: [number, number, number, Block, boolean][] = [];
+    for (let y = 0; y < tall; y++) out.push([0, y, 0, Block.Basalt, true]);
+    if (tall > 5) out.push([0, tall, 0, Block.Magma, true]);
+    return out;
   }
 
   /** Roca de 2x2 con vetas de minerales, que asoma del suelo en las islas misteriosas. */
@@ -2161,11 +2236,12 @@ export class World {
           if (def.shape !== 'cube') {
             const [u0, v0] = tileUV(def.tiles[0]);
             const sky = skyLight(x, y, z);
-            const glow = blockLight(wx, y, wz);
+            const glow = def.shape === 'lava' ? 1 : blockLight(wx, y, wz);
             const tint = tintAt(b, wx, y, wz);
-            // Caja pequeña dentro del bloque; la textura se recorta según su tamaño.
-            const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
+            // Caja pequeña dentro del bloque; la textura se recorta según su tamaño. `hide` quita caras tapadas.
+            const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, hide?: (f: number) => boolean) => {
               for (let f = 0; f < 6; f++) {
+                if (hide?.(f)) continue;
                 const face = FACES[f];
                 const [nx, ny, nz] = face.dir;
                 const start = positions.length / 3;
@@ -2208,6 +2284,21 @@ export class World {
               const alongX = this.doorAlongX(wx, isDoorTop(b) ? y - 1 : y, wz);
               if (isOpen(b)) along(!alongX, 0, 0, 0, 1, 1, 0.1875);
               else along(alongX, 0, 0, 0.40625, 1, 1, 0.59375);
+              continue;
+            }
+            if (def.shape === 'lava') {
+              // La lava (v4.20): un bloque más bajo según lo lejos que está de su fuente. Sin las caras que tapa otra lava
+              // igual de alta o un bloque entero.
+              const top = isLava(get(x, y + 1, z)) ? 1 : lavaHeight(b);
+              box(0, 0, 0, 1, top, 1, (f) => {
+                const [nx, ny, nz] = FACES[f].dir;
+                const n = get(x + nx, y + ny, z + nz);
+                if (isOpaque(n)) return true;
+                if (!isLava(n)) return false;
+                if (ny > 0) return true;
+                if (ny < 0) return true;
+                return (isLava(get(x + nx, y + 1, z + nz)) ? 1 : lavaHeight(n)) >= top;
+              });
               continue;
             }
             if (def.shape === 'pad') {

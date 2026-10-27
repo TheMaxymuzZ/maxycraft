@@ -50,14 +50,15 @@ export class WeatherFx {
     if (kind === this.kind) return;
     this.kind = kind;
     const rain = kind === 'lluvia';
-    this.material.color.setHex(rain ? 0x7fa6cc : kind === 'arena' ? 0xd8b273 : 0xffffff);
-    this.material.size = rain ? 0.12 : kind === 'arena' ? 0.14 : 0.2;
+    const COLORS: Partial<Record<FxWeather, number>> = { lluvia: 0x7fa6cc, arena: 0xd8b273, ceniza: 0x6a6460, luces: 0x9ff0ff, esporas: 0xe6d2f4 };
+    this.material.color.setHex(COLORS[kind] ?? 0xffffff);
+    this.material.size = rain ? 0.12 : kind === 'arena' || kind === 'luces' ? 0.14 : kind === 'esporas' ? 0.1 : 0.2;
   }
 
   update(dt: number, center: THREE.Vector3) {
     this.time += dt;
     // Con lluvia o nieve el cielo se cubre del todo (v3.9); con nubes, solo un poco.
-    const target = this.kind === 'lluvia' || this.kind === 'nieve' || this.kind === 'ventisca' ? 1 : this.kind === 'arena' ? 0.6 : this.kind === 'nubes' ? 0.35 : 0;
+    const target = this.kind === 'lluvia' || this.kind === 'nieve' || this.kind === 'ventisca' ? 1 : this.kind === 'arena' || this.kind === 'ceniza' ? 0.6 : this.kind === 'nubes' ? 0.35 : 0;
     this.gloom += (target - this.gloom) * Math.min(1, dt * 0.5);
     const falling = this.kind !== 'sol' && this.kind !== 'nubes';
     this.points.visible = falling;
@@ -71,8 +72,13 @@ export class WeatherFx {
       const k = i * 3;
       // La arena y la ventisca van casi de lado, empujadas por el viento.
       const gale = this.kind === 'arena' || this.kind === 'ventisca';
-      p[k + 1] -= (rain ? 16 : gale ? 1.2 : 2.2) * this.speeds[i] * dt;
-      if (gale) {
+      // Las luces y las esporas flotan despacio y suben un poco; la ceniza cae muy despacio.
+      const floating = this.kind === 'luces' || this.kind === 'esporas';
+      p[k + 1] -= (rain ? 16 : gale ? 1.2 : floating ? -0.25 : this.kind === 'ceniza' ? 0.9 : 2.2) * this.speeds[i] * dt;
+      if (floating) {
+        p[k] += Math.sin(this.time * 0.7 + i) * 0.5 * dt;
+        p[k + 2] += Math.cos(this.time * 0.6 + i * 1.3) * 0.5 * dt;
+      } else if (gale) {
         p[k] += 14 * this.speeds[i] * dt;
         if (p[k] > AREA) p[k] -= AREA * 2;
       } else if (!rain) p[k] += Math.sin(this.time * 1.3 + i) * 0.3 * dt; // la nieve baila un poco
@@ -80,10 +86,11 @@ export class WeatherFx {
       const wz = Math.floor(base.z + p[k + 2]);
       // Bajo techo (o al tocar el suelo) la gota vuelve a empezar arriba.
       const ground = this.world.skyHeight(wx, wz) + 1 - base.y;
-      if (p[k + 1] < Math.max(-TOP, ground)) {
+      if (p[k + 1] < Math.max(-TOP, ground) || p[k + 1] > TOP + 4) {
         p[k] = (Math.random() - 0.5) * AREA * 2;
         p[k + 2] = (Math.random() - 0.5) * AREA * 2;
-        p[k + 1] = TOP + Math.random() * 4;
+        // Lo que flota vuelve a salir cerca del suelo; lo que cae, desde arriba.
+        p[k + 1] = floating ? this.world.skyHeight(Math.floor(base.x + p[k]), Math.floor(base.z + p[k + 2])) + 1 - base.y + Math.random() * 8 : TOP + Math.random() * 4;
       }
     }
     (this.points.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;

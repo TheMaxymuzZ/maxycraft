@@ -254,5 +254,28 @@ const GARMENT_LORE: Record<string, string> = {
   gafas_sol: 'Con ellas el sol de mediodía parece un atardecer.',
   corona: 'Dicen que perteneció a la reina de una isla que ya nadie encuentra en el mapa.',
   capa_estelar: 'Tejida con hilo de estrellas fugaces. Brilla un poco de noche… ¿o no?',
+  botas_ignifugas: 'Suela gorda de basalto: con ellas la roca de magma no quema y la lava quema menos.',
 };
 for (const c of CLOTHES) LORE[c.id] ??= GARMENT_LORE[c.garment.base];
+
+// Biomas extraños y lava (v4.20).
+Object.assign(LORE, {
+  cubo_lava: 'Un cubo lleno de lava. Pesa, quema y alumbra. Échala lejos de la madera.',
+  obsidiana: 'Lava que se enfrió de golpe al tocar el agua. Es lo más duro que hay en la isla.',
+  lava_petrificada: 'Lava que corría y se paró en seco al mojarse. Todavía se ven sus ondas.',
+  ceniza: 'Cae del cielo en las tierras volcánicas. Suave como la harina.',
+  roca_negra: 'Piedra oscura del fondo de los volcanes.',
+  pizarra: 'Se parte en láminas finas. Los tejados de las montañas se hacen con ella.',
+  hierba_azul: 'Brilla un poquito cuando la pisas de noche. Nadie sabe por qué.',
+  flor_luminosa: 'Guarda la luz del día y la suelta de noche, como una luciérnaga quieta.',
+  seta_luminosa: 'Una seta morada que alumbra sin calentar. Las polillas la adoran.',
+  hojas_luminosas: 'Hojas de árbol luminoso. Si las miras mucho rato, ves las estrellas en ellas.',
+  brote_luminoso: 'Un árbol que alumbra el jardín por las noches. No necesita bombillas.',
+  micelio: 'Tierra llena de hilillos de seta. Huele a bosque después de la lluvia.',
+  sombrero_seta_azul: 'Sombrero de una seta gigante azul. Se puede saltar encima.',
+  sombrero_seta_morado: 'Sombrero de una seta gigante morada. Blandito y un poco elástico.',
+  ladrillo_basalto: 'Ladrillos de basalto para casas que aguantan el calor del volcán.',
+  pizarra_pulida: 'Pizarra lisa como un espejo oscuro.',
+  obsidiana_tallada: 'Obsidiana trabajada con paciencia. Dicen que trae buena suerte a las puertas.',
+  lampara_seta: 'Dos setas luminosas dentro de un farol. Luz morada y suave para leer de noche.',
+});

@@ -7,6 +7,7 @@ const HURT_TEXT: Record<HurtCause, string> = {
   caida: 'Te has caído desde muy alto',
   agua: 'Te has quedado sin aire bajo el agua',
   magma: 'Te has quemado con la roca de magma',
+  lava: 'Te has metido en la lava',
   hambre: 'Tenías mucha hambre',
 };
 
