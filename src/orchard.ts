@@ -1,5 +1,5 @@
 import { Block, isSolid } from './blocks';
-import { type TreeBlock, acaciaShape, blossomShape, ceibaShape, firShape, fruitTreeShape, palmShape, pineShape, willowShape } from './trees';
+import { type TreeBlock, acaciaShape, blossomShape, ceibaShape, firShape, fruitTreeShape, glowShape, palmShape, pineShape, willowShape } from './trees';
 
 /** Días de juego que tarda un brote en hacerse árbol. */
 export const GROW_DAYS = 2;
@@ -12,7 +12,7 @@ export interface TreeKind {
   fruit: Block;
   block: Block;
   /** Árboles de los climas (v4.19): la forma en que crece. */
-  shape?: 'acacia' | 'ceiba' | 'flor' | 'sauce' | 'abeto';
+  shape?: 'acacia' | 'ceiba' | 'flor' | 'sauce' | 'abeto' | 'luminoso';
 }
 
 /** Cada tipo de árbol, con su brote para replantarlo. */
@@ -30,11 +30,13 @@ export const TREE_KINDS: TreeKind[] = [
   { sapling: 'brote_cerezo_flor', name: 'Brote de cerezo en flor', fruit: Block.Air, block: Block.CherrySapling, shape: 'flor' },
   { sapling: 'brote_sauce', name: 'Brote de sauce', fruit: Block.Air, block: Block.WillowSapling, shape: 'sauce' },
   { sapling: 'brote_abeto', name: 'Brote de abeto', fruit: Block.Air, block: Block.FirSapling, shape: 'abeto' },
+  // Biomas extraños (v4.20).
+  { sapling: 'brote_luminoso', name: 'Brote luminoso', fruit: Block.Air, block: Block.GlowSapling, shape: 'luminoso' },
 ];
 
 /** Forma de cada árbol de los climas. */
 export function climateTreeShape(shape: NonNullable<TreeKind['shape']>, seed = 0): TreeBlock[] {
-  return shape === 'acacia' ? acaciaShape(seed) : shape === 'ceiba' ? ceibaShape() : shape === 'flor' ? blossomShape() : shape === 'sauce' ? willowShape() : firShape();
+  return shape === 'acacia' ? acaciaShape(seed) : shape === 'ceiba' ? ceibaShape() : shape === 'flor' ? blossomShape() : shape === 'sauce' ? willowShape() : shape === 'luminoso' ? glowShape() : firShape();
 }
 
 export function treeKindOfSapling(id: string): TreeKind | undefined {
@@ -51,7 +53,7 @@ export function isSapling(b: number): boolean {
 
 /** Suelo donde se puede plantar un brote. */
 export function canPlantOn(b: number): boolean {
-  return b === Block.Grass || b === Block.Dirt || b === Block.Sand || b === Block.RedSand || b === Block.DryGrass || b === Block.SnowGrass || b === Block.Mud || b === Block.Moss;
+  return b === Block.Grass || b === Block.Dirt || b === Block.Sand || b === Block.RedSand || b === Block.DryGrass || b === Block.SnowGrass || b === Block.Mud || b === Block.Moss || b === Block.GlowGrass || b === Block.Mycelium;
 }
 
 export interface PlantedTree {

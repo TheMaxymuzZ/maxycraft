@@ -40,7 +40,7 @@ const STARVE_EVERY = 8;
 /** Caer desde más de esta altura hace daño (como en Minecraft, 3 bloques). */
 const SAFE_FALL = 3.5;
 
-export type HurtCause = 'caida' | 'agua' | 'magma' | 'hambre';
+export type HurtCause = 'caida' | 'agua' | 'magma' | 'lava' | 'hambre';
 
 /** Lo que está haciendo el jugador, para gastar hambre y hacerse daño. */
 export interface Activity {
@@ -50,6 +50,10 @@ export interface Activity {
   underwater: boolean;
   /** Pisa algo que quema (roca de magma). */
   burning: boolean;
+  /** Metido en la lava (v4.20): quema mucho más. */
+  inLava?: boolean;
+  /** Lleva botas ignífugas: la lava quema la mitad. */
+  heatproof?: boolean;
 }
 
 export interface VitalsSave {
@@ -116,7 +120,13 @@ export class Vitals {
       this.drownTimer = 0;
     }
 
-    if (a.burning) {
+    if (a.inLava) {
+      this.burnTimer += dt;
+      if (this.burnTimer >= 0.5) {
+        this.burnTimer = 0;
+        this.hurt(a.heatproof ? 1 : 2, 'lava');
+      }
+    } else if (a.burning) {
       this.burnTimer += dt;
       if (this.burnTimer >= 1) {
         this.burnTimer = 0;

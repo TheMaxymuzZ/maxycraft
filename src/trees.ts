@@ -142,6 +142,19 @@ export function willowShape(): TreeBlock[] {
   return out;
 }
 
+/** Árbol luminoso del bosque bioluminiscente (v4.20): copa redonda de hojas que brillan, con ramas que cuelgan. */
+export function glowShape(): TreeBlock[] {
+  const out: TreeBlock[] = [];
+  disc(out, 5, 2, Block.GlowLeaves);
+  disc(out, 6, 2, Block.GlowLeaves);
+  disc(out, 7, 1, Block.GlowLeaves, true);
+  for (const [dx, dz, len] of [[2, 0, 3], [-2, 0, 2], [0, 2, 3], [0, -2, 2], [2, 2, 2], [-2, -2, 3]]) {
+    for (let k = 1; k <= len; k++) out.push([dx, 5 - k, dz, Block.GlowLeaves, false]);
+  }
+  for (let y = 0; y < 6; y++) out.push([0, y, 0, Block.Log, true]);
+  return out;
+}
+
 /** Abeto nevado: como el pino, más alto y con nieve en las ramas. */
 export function firShape(): TreeBlock[] {
   return pineShape().flatMap(([dx, dy, dz, b, r]): TreeBlock[] => (b === Block.PineLeaves ? [[dx, dy + 1, dz, Block.SnowLeaves, r]] : dy === 5 ? [[dx, dy, dz, b, r], [dx, dy + 1, dz, b, r]] : [[dx, dy, dz, b, r]]));

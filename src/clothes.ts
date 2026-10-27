@@ -29,6 +29,8 @@ export interface Garment {
   sell: number;
   /** Las legendarias no se venden: salen en las islas misteriosas. */
   legendary?: boolean;
+  /** Comercio que la vende, si no es la boutique de Seda. */
+  shop?: string;
 }
 
 const BOTH_LEGS = (box: [number, number, number, number, number, number], color: GarmentPart[2]): GarmentPart[] => [['legL', box, color], ['legR', box, color]];
@@ -104,6 +106,12 @@ export const GARMENTS: Garment[] = [
     parts: [['head', [0.18, 0.12, 0.02, -0.11, 0.02, 0.27], 'c'], ['head', [0.18, 0.12, 0.02, 0.11, 0.02, 0.27], 'c'], ['head', [0.1, 0.03, 0.02, 0, 0.06, 0.27], 'a']],
     icon: ['................', '................', '................', '................', '................', '.aaaaaaaaaaaaaa.', '.ccccccaaccccccc', '.cccccc..cccccc.', '..cccc....cccc..', '................', '................', '................', '................', '................', '................', '................'],
   },
+  // Botas ignífugas (v4.20): las vende Grava en la mina. Con ellas la roca de magma no quema y la lava quema menos.
+  {
+    base: 'botas_ignifugas', slot: 'pies', name: 'Botas ignífugas', sell: 900, shop: 'mina',
+    parts: [...BOTH_LEGS([0.27, 0.34, 0.31, 0, -0.59, 0.02], 'c'), ...BOTH_LEGS([0.28, 0.06, 0.34, 0, -0.74, 0.04], 'a')],
+    icon: ['................', '................', '...cccc...cccc..', '...cacc...cacc..', '...cccc...cccc..', '...cacc...cacc..', '...cccc...cccc..', '...cccc...cccc..', '...cccccc.cccccc', '...cccccc.cccccc', '...aaaaaa.aaaaaa', '................', '................', '................', '................', '................'],
+  },
   // Legendarias: no las vende nadie.
   {
     base: 'corona', slot: 'cabeza', name: 'Corona', sell: 5000, legendary: true,
@@ -136,6 +144,7 @@ export const COLORS: ClothColor[] = [
   { id: 'blanco', name: 'blanco', f: 'blanca', c: 0xf2efe6, a: 0x6a8ad0 },
   { id: 'morado', name: 'morado', f: 'morada', c: 0x8a5ac0, a: 0xf2d060 },
   { id: 'marron', name: 'marrón', f: 'marrón', c: 0x8b5a35, a: 0xe8c890 },
+  { id: 'lava', name: 'de lava', f: 'de lava', c: 0x4a3a36, a: 0xf07a20 },
 ];
 
 /** Qué colores tiene cada prenda (las de la lista con 4 colores, las otras con 3; las gafas y las legendarias, uno). */
@@ -156,9 +165,10 @@ const RANGE: Record<string, string[]> = {
   gafas_sol: ['negro'],
   corona: ['amarillo'],
   capa_estelar: ['morado'],
+  botas_ignifugas: ['lava'],
 };
 /** Palabras en femenino: el color concuerda con la prenda. */
-const FEMININE = new Set(['gorra', 'camiseta', 'sudadera', 'zapatillas', 'botas', 'mochila', 'capa', 'gafas', 'gafas_sol', 'corona', 'capa_estelar']);
+const FEMININE = new Set(['gorra', 'camiseta', 'sudadera', 'zapatillas', 'botas', 'botas_ignifugas', 'mochila', 'capa', 'gafas', 'gafas_sol', 'corona', 'capa_estelar']);
 const PLURAL = new Set(['zapatillas', 'botas', 'gafas', 'gafas_sol']);
 
 export interface Cloth {
@@ -179,7 +189,7 @@ function plural(word: string): string {
 }
 
 function clothName(g: Garment, color: ClothColor): string {
-  if (g.legendary || g.base === 'gafas' || g.base === 'gafas_sol') return g.name;
+  if (g.legendary || RANGE[g.base].length === 1) return g.name;
   const word = FEMININE.has(g.base) ? color.f : color.name;
   return `${g.name} ${PLURAL.has(g.base) ? plural(word) : word}`;
 }

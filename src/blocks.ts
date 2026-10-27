@@ -86,6 +86,13 @@ export enum Block {
   AcaciaLeaves = 130, JungleLeaves = 131, CherryLeaves = 132, WillowLeaves = 133, SnowLeaves = 134,
   Vine = 135, LilyPad = 136, CactusFlower = 137, SnowFlower = 138,
   AcaciaSapling = 139, JungleSapling = 140, CherrySapling = 141, WillowSapling = 142, FirSapling = 143,
+  // Lava de verdad (v4.20): fuente, lava que corre (3 niveles) y lava que cae.
+  Lava = 144, LavaFlow1 = 145, LavaFlow2 = 146, LavaFlow3 = 147, LavaFall = 148,
+  // Biomas extraños (v4.20): volcánico, bioluminiscente y setas gigantes.
+  Obsidian = 149, PetrifiedLava = 150, Ash = 151, Blackstone = 152, Slate = 153,
+  GlowGrass = 154, GlowFlower = 155, GlowMushroom = 156, GlowLeaves = 157, GlowSapling = 158,
+  Mycelium = 159, MushroomCapBlue = 160, MushroomCapPurple = 161,
+  BasaltBricks = 162, PolishedSlate = 163, CarvedObsidian = 164, MushroomLamp = 165,
 }
 
 export const TILE = 16;
@@ -149,6 +156,28 @@ export const XTile = {
   CherrySapling: EXTRA_TILE_START + 44,
   WillowSapling: EXTRA_TILE_START + 45,
   FirSapling: EXTRA_TILE_START + 46,
+  // Biomas extraños y lava (v4.20). De la 47 a la 63, y desde la 112 (entre medias está la ropa).
+  Lava: EXTRA_TILE_START + 47,
+  Obsidian: EXTRA_TILE_START + 48,
+  PetrifiedLava: EXTRA_TILE_START + 49,
+  Ash: EXTRA_TILE_START + 50,
+  Blackstone: EXTRA_TILE_START + 51,
+  Slate: EXTRA_TILE_START + 52,
+  GlowGrassTop: EXTRA_TILE_START + 53,
+  GlowGrassSide: EXTRA_TILE_START + 54,
+  GlowFlower: EXTRA_TILE_START + 55,
+  GlowMushroom: EXTRA_TILE_START + 56,
+  GlowLeaves: EXTRA_TILE_START + 57,
+  MyceliumTop: EXTRA_TILE_START + 58,
+  MyceliumSide: EXTRA_TILE_START + 59,
+  MushroomCapBlue: EXTRA_TILE_START + 60,
+  MushroomCapPurple: EXTRA_TILE_START + 61,
+  BasaltBricks: EXTRA_TILE_START + 62,
+  PolishedSlate: EXTRA_TILE_START + 63,
+  CarvedObsidian: EXTRA_TILE_START + 112,
+  MushroomLamp: EXTRA_TILE_START + 113,
+  LavaBucket: EXTRA_TILE_START + 114,
+  GlowSapling: EXTRA_TILE_START + 115,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -186,7 +215,7 @@ export enum Tile {
  * cube: bloque normal. cross: planta dibujada con dos planos en X, sin colisión. fence: poste con travesaños que se unen a sus vecinos.
  * gate: puerta de valla. door: puerta de casa (una tabla fina que se orienta según las paredes de los lados).
  */
-export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door' | 'slab' | 'stairs' | 'liquid' | 'pad';
+export type Shape = 'cube' | 'cross' | 'fence' | 'gate' | 'door' | 'slab' | 'stairs' | 'liquid' | 'pad' | 'lava';
 
 export interface BlockDef {
   name: string;
@@ -347,6 +376,27 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.CherrySapling]: cross('Brote de cerezo en flor', XTile.CherrySapling as unknown as Tile),
   [Block.WillowSapling]: cross('Brote de sauce', XTile.WillowSapling as unknown as Tile),
   [Block.FirSapling]: cross('Brote de abeto', XTile.FirSapling as unknown as Tile),
+  // Lava y biomas extraños (v4.20).
+  [Block.Lava]: { name: 'Lava', tiles: [XTile.Lava, XTile.Lava, XTile.Lava], transparent: true, shape: 'lava' },
+  ...Object.fromEntries(Array.from({ length: 3 }, (_, i) => [Block.LavaFlow1 + i, { name: 'Lava que corre', tiles: [XTile.Lava, XTile.Lava, XTile.Lava], transparent: true, shape: 'lava' }])),
+  [Block.LavaFall]: { name: 'Lava que cae', tiles: [XTile.Lava, XTile.Lava, XTile.Lava], transparent: true, shape: 'lava' },
+  [Block.Obsidian]: cube('Obsidiana', XTile.Obsidian),
+  [Block.PetrifiedLava]: cube('Lava petrificada', XTile.PetrifiedLava),
+  [Block.Ash]: cube('Ceniza', XTile.Ash),
+  [Block.Blackstone]: cube('Roca negra', XTile.Blackstone),
+  [Block.Slate]: cube('Pizarra', XTile.Slate),
+  [Block.GlowGrass]: cube('Hierba azul', XTile.GlowGrassSide, XTile.GlowGrassTop, Tile.Dirt),
+  [Block.GlowFlower]: cross('Flor luminosa', XTile.GlowFlower as unknown as Tile),
+  [Block.GlowMushroom]: cross('Seta luminosa', XTile.GlowMushroom as unknown as Tile),
+  [Block.GlowLeaves]: cube('Hojas luminosas', XTile.GlowLeaves, XTile.GlowLeaves, XTile.GlowLeaves, true),
+  [Block.GlowSapling]: cross('Brote luminoso', XTile.GlowSapling as unknown as Tile),
+  [Block.Mycelium]: cube('Micelio', XTile.MyceliumSide, XTile.MyceliumTop, Tile.Dirt),
+  [Block.MushroomCapBlue]: cube('Sombrero de seta azul', XTile.MushroomCapBlue),
+  [Block.MushroomCapPurple]: cube('Sombrero de seta morado', XTile.MushroomCapPurple),
+  [Block.BasaltBricks]: cube('Ladrillo de basalto', XTile.BasaltBricks),
+  [Block.PolishedSlate]: cube('Pizarra pulida', XTile.PolishedSlate),
+  [Block.CarvedObsidian]: cube('Obsidiana tallada', XTile.CarvedObsidian),
+  [Block.MushroomLamp]: cube('Lámpara de seta', XTile.MushroomLamp),
 };
 /** Material de cada juego de escaleras: su primer bloque (mirando a -z), nombre y textura. */
 export const STAIRS: [Block, string, Tile][] = [
@@ -421,11 +471,16 @@ export function isGate(b: number): boolean {
 export const SWAYING: ReadonlySet<number> = new Set([
   Block.TallGrass, Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink, Block.Bamboo,
   Block.Wheat1, Block.Wheat2, Block.Wheat3, Block.Carrot1, Block.Carrot2, Block.Carrot3, Block.Tomato1, Block.Tomato2, Block.Tomato3,
-  Block.DryShrub, Block.Vine, Block.SnowFlower,
+  Block.DryShrub, Block.Vine, Block.SnowFlower, Block.GlowFlower,
 ]);
 
 /** Bloques que dan luz y cuánta (nivel de 1 a 15: la luz baja uno por cada bloque que avanza). */
-export const LIGHT_RADIUS: Partial<Record<Block, number>> = { [Block.Torch]: 13, [Block.LightBlock]: 15, [Block.Magma]: 11, [Block.CrystalCluster]: 8, [Block.Amethyst]: 10 };
+export const LIGHT_RADIUS: Partial<Record<Block, number>> = {
+  [Block.Torch]: 13, [Block.LightBlock]: 15, [Block.Magma]: 11, [Block.CrystalCluster]: 8, [Block.Amethyst]: 10,
+  // v4.20: la lava alumbra mucho; lo del bosque bioluminiscente, poco y de color.
+  [Block.Lava]: 15, [Block.LavaFlow1]: 14, [Block.LavaFlow2]: 13, [Block.LavaFlow3]: 12, [Block.LavaFall]: 14,
+  [Block.GlowFlower]: 7, [Block.GlowMushroom]: 8, [Block.GlowLeaves]: 6, [Block.MushroomLamp]: 13,
+};
 /**
  * Color de la luz de cada bloque (v3.2), en la paleta LIGHT_COLORS: la lava da luz roja, los cristales azul…
  * Lo que no sale aquí (antorchas, farolas, lámparas) da la luz cálida de una llama, la 0.
@@ -437,7 +492,11 @@ export const LIGHT_COLORS: readonly [number, number, number][] = [
   [0.6, 0.95, 1.25], // cristal: azul
   [0.95, 0.6, 1.3], // amatista: morada
 ];
-export const LIGHT_COLOR: Partial<Record<Block, number>> = { [Block.LightBlock]: 1, [Block.Magma]: 2, [Block.CrystalCluster]: 3, [Block.Amethyst]: 4 };
+export const LIGHT_COLOR: Partial<Record<Block, number>> = {
+  [Block.LightBlock]: 1, [Block.Magma]: 2, [Block.CrystalCluster]: 3, [Block.Amethyst]: 4,
+  [Block.Lava]: 2, [Block.LavaFlow1]: 2, [Block.LavaFlow2]: 2, [Block.LavaFlow3]: 2, [Block.LavaFall]: 2,
+  [Block.GlowFlower]: 3, [Block.GlowMushroom]: 4, [Block.GlowLeaves]: 3, [Block.MushroomLamp]: 4,
+};
 /** Nivel máximo de luz. */
 export const MAX_LIGHT = 15;
 
@@ -462,7 +521,7 @@ export const FRUITS = [Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block
 /** Bloquea el paso del jugador. */
 /** Si choca con el jugador. */
 export function isSolid(b: number): boolean {
-  return b !== Block.Air && BLOCKS[b].shape !== 'cross' && BLOCKS[b].shape !== 'liquid' && !OPEN.has(b);
+  return b !== Block.Air && BLOCKS[b].shape !== 'cross' && BLOCKS[b].shape !== 'liquid' && BLOCKS[b].shape !== 'lava' && !OPEN.has(b);
 }
 
 // --- Agua (v3.8) ---
@@ -517,7 +576,47 @@ export function isFullBlock(b: number): boolean {
 
 /** Se puede apuntar y romper. */
 export function isTargetable(b: number): boolean {
-  return b !== Block.Air && !isWater(b);
+  return b !== Block.Air && !isWater(b) && !isLava(b);
+}
+
+// --- Lava (v4.20) ---
+// Como el agua, pero más lenta y llega menos lejos: la que corre baja de 1 a 3 y se para.
+
+/** Si es lava, de cualquier tipo. */
+export function isLava(b: number): boolean {
+  return b >= Block.Lava && b <= Block.LavaFall;
+}
+
+export function isLavaSource(b: number): boolean {
+  return b === Block.Lava;
+}
+
+/** Nivel de la lava: 0 la fuente y la que cae, de 1 a 3 la que corre; -1 si no es lava. */
+export function lavaLevel(b: number): number {
+  if (b === Block.Lava || b === Block.LavaFall) return 0;
+  if (b >= Block.LavaFlow1 && b <= Block.LavaFlow3) return b - Block.Lava;
+  return -1;
+}
+
+export function flowingLava(level: number): Block {
+  return (Block.Lava + level) as Block;
+}
+
+/** Altura de la lava dentro del bloque (0 a 1). */
+export function lavaHeight(b: number): number {
+  const level = lavaLevel(b);
+  if (level < 0) return 0;
+  return b === Block.LavaFall ? 1 : (0.9 * (4 - level)) / 4;
+}
+
+/** Lo que arde si la lava lo toca: plantas, hojas y madera. La hierba se queda en tierra. */
+export function burnt(b: number): Block | null {
+  if (b === Block.Grass || b === Block.DryGrass || b === Block.GlowGrass || b === Block.Mycelium || b === Block.Moss) return Block.Dirt;
+  if (b === Block.Air || isWater(b) || isLava(b)) return null;
+  const def = BLOCKS[b];
+  if (!def) return null;
+  if (def.shape === 'cross' || isLeaves(b) || b === Block.Log || b === Block.PalmLog || b === Block.Planks || b === Block.Vine || b === Block.Bamboo) return Block.Air;
+  return null;
 }
 
 // --- Registro de bloques (v4.5) ---
@@ -553,6 +652,7 @@ export function isOpaque(b: number): boolean {
 /** Hojas de todos los árboles (las de antes y las de los climas de la v4.19). */
 export const LEAF_BLOCKS: ReadonlySet<number> = new Set([
   Block.Leaves, Block.PalmLeaves, Block.PineLeaves, Block.AcaciaLeaves, Block.JungleLeaves, Block.CherryLeaves, Block.WillowLeaves, Block.SnowLeaves,
+  Block.GlowLeaves,
 ]);
 
 export function isLeaves(b: number): boolean {
@@ -627,6 +727,55 @@ function paintClimateTiles(ctx: CanvasRenderingContext2D) {
   sapling(XTile.CherrySapling, [246, 178, 206], [110, 72, 60]);
   sapling(XTile.WillowSapling, [100, 150, 70], [116, 90, 60]);
   sapling(XTile.FirSapling, [46, 112, 74], [102, 72, 44]);
+  sapling(XTile.GlowSapling, [90, 200, 240], [70, 60, 110]);
+  paintStrangeTiles(ctx);
+}
+
+/** Dibujos de la lava y de los biomas extraños (v4.20). */
+function paintStrangeTiles(ctx: CanvasRenderingContext2D) {
+  paintTile(ctx, XTile.Lava, (x, y, r) => {
+    const swirl = Math.sin(x * 0.9 + y * 0.4) + Math.cos(y * 0.8 - x * 0.3);
+    return swirl > 1.2 ? pick(r, [[255, 236, 120], [255, 220, 96]]) : swirl > 0 ? pick(r, [[255, 150, 30], [250, 130, 24]]) : pick(r, [[226, 88, 20], [214, 76, 18]]);
+  });
+  paintTile(ctx, XTile.Obsidian, (x, y, r) => ((x * 3 + y * 5) % 17 === 0 ? [96, 60, 140] : pick(r, [[26, 18, 40], [34, 24, 52], [20, 14, 32]])));
+  paintTile(ctx, XTile.PetrifiedLava, (x, y, r) => ((x + y * 2) % 11 === 0 ? [120, 70, 50] : pick(r, [[78, 70, 70], [88, 78, 76], [68, 62, 62]])));
+  paintTile(ctx, XTile.Ash, (_x, _y, r) => pick(r, [[120, 118, 116], [132, 130, 128], [110, 108, 106], [140, 136, 132]]));
+  paintTile(ctx, XTile.Blackstone, (x, y, r) => ((x * 7 + y * 3) % 13 === 0 ? [60, 56, 64] : pick(r, [[36, 34, 40], [44, 42, 48], [30, 28, 34]])));
+  paintTile(ctx, XTile.Slate, (_x, y, r) => (y % 4 === 3 ? [70, 76, 86] : pick(r, [[96, 102, 112], [104, 110, 120], [88, 94, 104]])));
+  const GLOW: RGB[] = [[60, 120, 210], [52, 108, 196], [72, 136, 224], [46, 98, 184]];
+  paintTile(ctx, XTile.GlowGrassTop, (x, y, r) => ((x * 5 + y * 7) % 23 === 0 ? [150, 240, 255] : pick(r, GLOW)));
+  paintTile(ctx, XTile.GlowGrassSide, (_x, y, r) => (y < 3 + Math.floor(r() * 2) ? pick(r, GLOW) : pick(r, DIRT)));
+  paintSprite(ctx, XTile.GlowFlower, [
+    '................', '......c.c.......', '.....cCcCc......', '......cWc.......', '.....cCcCc......', '......c.c.......', '.......s........', '...c...s........',
+    '..cWc..s..c.....', '...c...s.cWc....', '....s..s..c.....', '.....s.s.s......', '......sss.......', '.......s........', '.......s........', '................',
+  ], { c: [120, 220, 255], C: [190, 250, 255], W: [255, 255, 255], s: [60, 140, 150] });
+  paintSprite(ctx, XTile.GlowMushroom, [
+    ...Array(5).fill('................'),
+    '.....pppppp.....', '....ppWppppp....', '...ppppppWppp...', '...pWpppppppp...', '......ssss......', '......ssss......',
+    '......ssss......', '.....ssssss.....', '................', '................', '................',
+  ], { p: [186, 110, 250], W: [240, 220, 255], s: [200, 230, 240] });
+  paintTile(ctx, XTile.GlowLeaves, (x, y, r) => ((x * 3 + y * 5) % 6 === 0 && r() < 0.5 ? null : (x + y * 3) % 11 === 0 ? [200, 250, 255] : pick(r, [[70, 150, 220], [60, 130, 200], [90, 170, 230], [110, 90, 210]])));
+  const MYC: RGB[] = [[134, 110, 140], [124, 100, 132], [146, 120, 150], [116, 94, 124]];
+  paintTile(ctx, XTile.MyceliumTop, (x, y, r) => ((x * 3 + y * 7) % 19 === 0 ? [210, 200, 214] : pick(r, MYC)));
+  paintTile(ctx, XTile.MyceliumSide, (_x, y, r) => (y < 3 + Math.floor(r() * 2) ? pick(r, MYC) : pick(r, DIRT)));
+  const cap = (tile: number, palette: RGB[], dot: RGB) => paintTile(ctx, tile, (x, y, r) =>
+    [[3, 3], [11, 4], [7, 9], [2, 12], [12, 12]].some(([dx, dy]) => Math.abs(x - dx) + Math.abs(y - dy) <= 1) ? dot : pick(r, palette));
+  cap(XTile.MushroomCapBlue, [[60, 110, 214], [52, 100, 200], [70, 124, 226]], [200, 230, 255]);
+  cap(XTile.MushroomCapPurple, [[146, 70, 196], [134, 60, 184], [160, 84, 208]], [240, 210, 255]);
+  paintTile(ctx, XTile.BasaltBricks, (x, y, r) => (y % 8 === 7 || (x + (y < 8 ? 0 : 8)) % 16 === 15 ? [50, 50, 58] : pick(r, [[96, 96, 106], [104, 104, 114], [90, 90, 100]])));
+  paintTile(ctx, XTile.PolishedSlate, (x, y, r) => (x === 0 || y === 0 ? [130, 136, 146] : x === 15 || y === 15 ? [70, 76, 86] : pick(r, [[104, 110, 120], [108, 114, 124]])));
+  paintTile(ctx, XTile.CarvedObsidian, (x, y, r) => {
+    const ring = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5)) | 0;
+    return ring === 6 || ring === 3 ? [130, 80, 190] : pick(r, [[26, 18, 40], [34, 24, 52]]);
+  });
+  paintTile(ctx, XTile.MushroomLamp, (x, y, r) => {
+    const frame = x < 2 || x > 13 || y < 2 || y > 13;
+    return frame ? pick(r, [[236, 230, 214], [226, 220, 204]]) : (x + y) % 5 === 0 ? [255, 250, 210] : pick(r, [[250, 200, 120], [255, 214, 140], [244, 190, 110]]);
+  });
+  paintSprite(ctx, XTile.LavaBucket, [
+    '................', '................', '................', '...gggggggggg...', '..gllllllllllg..', '..gLLlLLlLLLlg..', '..gllllllllllg..', '...gGGGGGGGGg...',
+    '...gGGGGGGGGg...', '....gGGGGGGg....', '....gGGGGGGg....', '.....gGGGGg.....', '.....gggggg.....', '................', '................', '................',
+  ], { g: [120, 120, 130], G: [176, 176, 186], l: [250, 120, 24], L: [255, 220, 90] });
 }
 
 function rng(seed: number) {

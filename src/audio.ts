@@ -293,6 +293,13 @@ export class Sound {
     this.tone(500, t, 0.15, 'sine', 0.2, this.sfx, 200);
   }
 
+  /** Chisporroteo de la lava al apagarse con agua (v4.20). */
+  sizzle() {
+    const t = this.now;
+    if (t < 0) return;
+    this.hiss(t, 0.5, 0.5, 2400, this.sfx, 'highpass');
+  }
+
   /** Fanfarria al pescar o atrapar algo. */
   fanfare() {
     const t = this.now;

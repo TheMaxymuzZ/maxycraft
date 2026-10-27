@@ -6,7 +6,7 @@ import '@fontsource/pixelify-sans/latin-500.css';
 import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isLeaves, isPath, isSolid, isStairs, isTargetable, isWater, isWaterSource, stairsFacing, toggled } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isLeaves, isPath, isSolid, isStairs, isLava, isLavaSource, isTargetable, isWater, isWaterSource, stairsFacing, toggled } from './blocks';
 import { Fluids } from './fluids';
 import { Breaker } from './breaking';
 import { Birds } from './birds';
@@ -262,6 +262,10 @@ const fluids = new Fluids({
 });
 fluids.enabled = !joined;
 world.onBlockChange = (x, y, z) => fluids.wake(x, y, z);
+// La lava chisporrotea al apagarse con agua (v4.20), si estás cerca.
+fluids.onQuench = (x, y, z) => {
+  if (Math.hypot(x - player.position.x, y - player.position.y, z - player.position.z) < 16) sound.sizzle();
+};
 // Los invitados antes de la v2.10 se mudan al volver a casa: se les busca sitio una vez y se guarda.
 // Desde la v2.10 cada invitado ya trae su casa: la que construyó el jugador.
 if (!trip && !joined) {
@@ -1846,7 +1850,7 @@ function removeBlock(x: number, y: number, z: number, b: number, burst: boolean)
 }
 
 
-const CLIMATE_LEAVES: Record<string, Block> = { acacia: Block.AcaciaLeaves, ceiba: Block.JungleLeaves, flor: Block.CherryLeaves, sauce: Block.WillowLeaves, abeto: Block.SnowLeaves };
+const CLIMATE_LEAVES: Record<string, Block> = { acacia: Block.AcaciaLeaves, ceiba: Block.JungleLeaves, flor: Block.CherryLeaves, sauce: Block.WillowLeaves, abeto: Block.SnowLeaves, luminoso: Block.GlowLeaves };
 
 /** Tala el árbol desde el tronco (x, y, z): todo lo de encima cae y suelta madera, fruta y un brote. */
 function fell(x: number, y: number, z: number) {
@@ -2116,7 +2120,7 @@ function useItem() {
     return;
   }
   if (def?.tool === 'bucket') {
-    useBucket(def.id === 'cubo_agua');
+    useBucket(def.id === 'cubo_agua' ? 'agua' : def.id === 'cubo_lava' ? 'lava' : null);
     return;
   }
 
@@ -2293,7 +2297,9 @@ function updateVitals(dt: number) {
     moving: Math.hypot(player.velocity.x, player.velocity.z) > 0.5,
     sprinting: player.sprinting,
     underwater: world.inWater(camera.position.x, camera.position.y, camera.position.z),
-    burning: player.onGround && under === Block.Magma,
+    burning: player.onGround && under === Block.Magma && wardrobe.outfit.pies !== 'botas_ignifugas',
+    inLava: isLava(world.getBlock(Math.floor(p.x), Math.floor(p.y + 0.2), Math.floor(p.z))),
+    heatproof: wardrobe.outfit.pies === 'botas_ignifugas',
   });
 }
 
@@ -2670,9 +2676,9 @@ function keepCreature(id: string, verb: string, tool: string) {
 
 /**
  * Cubo (v3.8), como en Minecraft: el vacío coge un bloque de agua quieta (el agua que corre no se puede coger)
- * y el lleno la echa delante del bloque al que apuntas, donde se pone a correr.
+ * y el lleno la echa delante del bloque al que apuntas, donde se pone a correr. Desde la v4.20 también lava.
  */
-function useBucket(full: boolean) {
+function useBucket(full: 'agua' | 'lava' | null) {
   camera.getWorldDirection(dir);
   const swap = (id: string) => {
     inventory.slots[hud.selected] = { id, count: 1 };
@@ -2680,9 +2686,20 @@ function useBucket(full: boolean) {
     sound.splash();
   };
   if (!full) {
-    const hit = raycast(world, camera.position, dir, REACH, (b) => isTargetable(b) || isWater(b));
-    if (!hit || !isWater(world.getBlock(...hit.block))) return;
-    if (!isWaterSource(world.getBlock(...hit.block))) {
+    const hit = raycast(world, camera.position, dir, REACH, (b) => isTargetable(b) || isWater(b) || isLava(b));
+    if (!hit) return;
+    const b = world.getBlock(...hit.block);
+    if (isLava(b)) {
+      if (!isLavaSource(b)) {
+        hud.toast('Esa lava corre: busca lava quieta para llenar el cubo');
+        return;
+      }
+      sync.setBlock(...hit.block, Block.Air);
+      swap('cubo_lava');
+      return;
+    }
+    if (!isWater(b)) return;
+    if (!isWaterSource(b)) {
       hud.toast('Esa agua corre: busca agua quieta para llenar el cubo');
       return;
     }
@@ -2694,9 +2711,11 @@ function useBucket(full: boolean) {
   if (!hit) return;
   const [x, y, z] = hit.place;
   const here = world.getBlock(x, y, z);
-  if ((here !== Block.Air && !isWater(here)) || furniture.at(x, y, z)) return;
+  if ((here !== Block.Air && !isWater(here) && !isLava(here)) || furniture.at(x, y, z)) return;
   if (!mayBuild(x, z, 'poner')) return;
-  sync.setBlock(x, y, z, Block.Water);
+  // Lava sobre agua (o agua sobre lava) se enfría al momento.
+  if (full === 'lava') sync.setBlock(x, y, z, isWater(here) ? Block.Obsidian : Block.Lava);
+  else sync.setBlock(x, y, z, isLava(here) ? (isLavaSource(here) ? Block.Obsidian : Block.PetrifiedLava) : Block.Water);
   swap('cubo');
 }
 
