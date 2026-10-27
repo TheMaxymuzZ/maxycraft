@@ -36,6 +36,8 @@ export interface TownDeps {
   persist(): void;
   /** Lugares que no se pueden ocupar (solares del jugador). */
   avoid?: (x: number, z: number) => boolean;
+  /** Vuelve a dejar esas casillas como las genera la isla, para todos los jugadores. */
+  clearEdits?(cells: [number, number, number][]): void;
 }
 
 /** Nombres que propone el alcalde para la isla. */
@@ -62,6 +64,7 @@ export class Town {
     if (deps.host) {
       if (!this.state) this.found();
       if (this.state && !this.state.ramps) this.ramps();
+      else if (this.state && !this.state.museum) this.museumRamp();
     }
     this.spawnStaff();
   }
@@ -82,7 +85,24 @@ export class Town {
     const places = errandPlaces(this.deps.world);
     const made = [places.tienda, places.museo].filter((p) => !!p && !!places.plaza).map((p) => buildRamp(this.build, p!, places.plaza!).length);
     this.state!.ramps = true;
+    this.state!.museum = true;
     if (made.some((n) => n > 0)) this.deps.toast('Se han hecho rampas para que los vecinos lleguen a la tienda y al museo');
+  }
+
+  /**
+   * En las islas de antes de la v4.15 el museo era una casita y la rampa llegaba a su puerta. El museo grande
+   * ocupa la parcela entera: se quita lo que hubiera dentro (la rampa vieja) y se hace otra hasta el porche.
+   */
+  private museumRamp() {
+    const { world } = this.deps;
+    const museum = world.plots.find((p) => p.kind === 'museum');
+    if (museum) {
+      const cells = world.editsIn(museum.x - 5, museum.z - 5, museum.x + 5, museum.z + 5).map(([x, y, z]) => [x, y, z] as [number, number, number]);
+      if (cells.length) this.deps.clearEdits?.(cells);
+      const places = errandPlaces(world);
+      if (places.museo && places.plaza) buildRamp(this.build, places.museo, places.plaza);
+    }
+    this.state!.museum = true;
   }
 
   /** El parcelo del ayuntamiento, con la puerta del nivel de ahora, para que el alcalde y el urbanista estén en ella. */

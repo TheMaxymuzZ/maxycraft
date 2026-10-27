@@ -822,7 +822,8 @@ export function createVillagers(world: World, memories: Record<string, VillagerM
   const shop = world.plots.find((p) => p.kind === 'shop');
   const keeper = shop ? [new Villager(SHOPKEEPER, shop, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
   const museum = world.plots.find((p) => p.kind === 'museum');
-  const curator = museum ? [new Villager(CURATOR, museum, world, memories[CURATOR.name] ?? { friendship: 0 })] : [];
+  // Desde la v4.15 Matilde espera dentro del museo, en la recepción, mirando a la puerta.
+  const curator = museum ? [new Villager(CURATOR, { ...museum, door: [museum.x + 2, museum.y + 1, museum.z + 2] }, world, memories[CURATOR.name] ?? { friendship: 0 })] : [];
   const locals = world.plots.filter((p) => p.kind === 'house' && !p.guest).map((plot, i) => {
     const pick = Math.floor(columnRandom(i, 99, world.seed) * pool.length);
     const profile = pool.splice(pick, 1)[0];

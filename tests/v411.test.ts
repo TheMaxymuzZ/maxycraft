@@ -52,7 +52,7 @@ describe('v4.11: un día entero con un vecino', () => {
   it('desde fuera no se le ve dentro de casa; desde dentro, sí', () => {
     const world = new World(20261025, material, {}, { terrain: 2 });
     const v = createVillagers(world, {}).find((x) => !x.profile.role)!;
-    followDay(v, world, 20); // acaba a las 20:00, en casa
+    followDay(v, world, 21); // acaba a las 21:00, en casa (a las 20:00 justas puede estar aún llegando)
     const [x, y, z] = v.home.door;
     v.update(0.1, 2, new THREE.Vector3(x + 0.5, y, z + 6), 1);
     expect(v.inside).toBe(true);

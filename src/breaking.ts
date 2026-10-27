@@ -48,6 +48,11 @@ export class Breaker {
       this.warn(key, 'Es la casa de un vecino. Mejor no tocarla');
       return;
     }
+    // El museo grande (v4.15) es de piedra y cristal: se protege entero, cordones incluidos.
+    if (plot?.kind === 'museum' && y > plot.y - 1) {
+      this.warn(key, 'Es el museo. Matilde se enfadaría muchísimo');
+      return;
+    }
     const blocked = this.ctx.blocked?.(x, z);
     if (blocked) {
       this.warn(key, blocked);

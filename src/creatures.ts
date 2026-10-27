@@ -1,7 +1,8 @@
-// Peces e insectos de la isla: dónde y cuándo salen, cuánto valen y cómo se dibujan.
+// Peces, insectos y fósiles de la isla: dónde y cuándo salen, cuánto valen y cómo se dibujan.
 
-export type CreatureKind = 'pez' | 'bicho';
-export type Habitat = 'mar' | 'río' | 'flores' | 'árboles' | 'suelo' | 'agua';
+/** Desde la v4.15 también fósiles: se encuentran cavando y se donan al museo como los peces y los insectos. */
+export type CreatureKind = 'pez' | 'bicho' | 'fosil';
+export type Habitat = 'mar' | 'río' | 'flores' | 'árboles' | 'suelo' | 'agua' | 'tierra';
 
 type RGB = [number, number, number];
 
@@ -17,7 +18,7 @@ export interface Creature {
   sell: number;
   /** Cuanto más alto, más fácil de encontrar. */
   weight: number;
-  sprite: 'pez' | 'pulpo' | 'mariposa' | 'escarabajo' | 'luciernaga' | 'libelula';
+  sprite: 'pez' | 'pulpo' | 'mariposa' | 'escarabajo' | 'luciernaga' | 'libelula' | 'amonites' | 'trilobites' | 'diente' | 'hueso';
   colors: Record<string, RGB>;
 }
 
@@ -48,7 +49,17 @@ export const CREATURES: Creature[] = [
   { id: 'grillo', name: 'Grillo', kind: 'bicho', habitat: 'suelo', hours: [17, 8], sell: 130, weight: 8, sprite: 'escarabajo', colors: { a: [70, 60, 40], b: [40, 30, 20] } },
   { id: 'luciernaga', name: 'Luciérnaga', kind: 'bicho', habitat: 'agua', hours: [19, 4], months: [5, 8], sell: 300, weight: 6, sprite: 'luciernaga', colors: { a: [250, 250, 140], b: [50, 50, 40] } },
   { id: 'libelula', name: 'Libélula', kind: 'bicho', habitat: 'agua', hours: [8, 17], sell: 180, weight: 7, sprite: 'libelula', colors: { a: [200, 60, 60], b: [180, 220, 240] } },
+  // Fósiles (v4.15): salen cavando tierra, arena o piedra, más a menudo en las islas misteriosas.
+  { id: 'amonites', name: 'Amonites', kind: 'fosil', habitat: 'tierra', hours: ALL_DAY, sell: 600, weight: 10, sprite: 'amonites', colors: { a: [190, 160, 120], b: [120, 95, 70] } },
+  { id: 'trilobites', name: 'Trilobites', kind: 'fosil', habitat: 'tierra', hours: ALL_DAY, sell: 700, weight: 8, sprite: 'trilobites', colors: { a: [140, 130, 120], b: [80, 75, 70] } },
+  { id: 'diente_tiburon', name: 'Diente de megalodón', kind: 'fosil', habitat: 'tierra', hours: ALL_DAY, sell: 1200, weight: 5, sprite: 'diente', colors: { a: [235, 225, 200], b: [150, 130, 100] } },
+  { id: 'craneo_dino', name: 'Cráneo de dinosaurio', kind: 'fosil', habitat: 'tierra', hours: ALL_DAY, sell: 2500, weight: 2, sprite: 'hueso', colors: { a: [225, 215, 190], b: [160, 145, 120] } },
+  { id: 'costillas_dino', name: 'Costillas de dinosaurio', kind: 'fosil', habitat: 'tierra', hours: ALL_DAY, sell: 2000, weight: 3, sprite: 'hueso', colors: { a: [215, 205, 180], b: [150, 135, 110] } },
+  { id: 'cola_dino', name: 'Cola de dinosaurio', kind: 'fosil', habitat: 'tierra', hours: ALL_DAY, sell: 2000, weight: 3, sprite: 'hueso', colors: { a: [205, 195, 170], b: [140, 125, 100] } },
 ];
+
+/** Las tres piezas que forman el esqueleto de dinosaurio del museo. */
+export const DINO_PIECES = ['craneo_dino', 'costillas_dino', 'cola_dino'];
 
 export const CREATURE_IDS = new Set(CREATURES.map((c) => c.id));
 
@@ -88,6 +99,7 @@ export const HABITAT_TEXT: Record<Habitat, string> = {
   'árboles': 'en los troncos de los árboles',
   suelo: 'en la hierba',
   agua: 'junto al agua',
+  tierra: 'cavando',
 };
 
 /** Elige al azar, según su frecuencia, una criatura de los hábitats dados que esté activa a esa hora. */
@@ -209,6 +221,78 @@ export const CREATURE_SPRITES: Record<Creature['sprite'], string[]> = {
     '.......aa.......',
     '.......aa.......',
     '.......aa.......',
+    '................',
+    '................',
+  ],
+  amonites: [
+    '................',
+    '................',
+    '.....aaaaaa.....',
+    '....abbbbbba....',
+    '...abaaaaaaba...',
+    '..abaabbbbaaba..',
+    '..abababbabaab..',
+    '..ababaabababa..',
+    '..ababbbbababa..',
+    '..abaaaaaabaab..',
+    '...abbbbbbaab...',
+    '....aaaaaaab....',
+    '......bbbbb.....',
+    '................',
+    '................',
+    '................',
+  ],
+  trilobites: [
+    '................',
+    '.......aa.......',
+    '.....aaaaaa.....',
+    '....aeaaaaea....',
+    '...aaaaaaaaaa...',
+    '...bbbbbbbbbb...',
+    '...aaaaaaaaaa...',
+    '...bbbbbbbbbb...',
+    '....aaaaaaaa....',
+    '....bbbbbbbb....',
+    '.....aaaaaa.....',
+    '.....bbbbbb.....',
+    '......aaaa......',
+    '.......aa.......',
+    '................',
+    '................',
+  ],
+  diente: [
+    '................',
+    '................',
+    '...bbbbbbbbbb...',
+    '...baaaaaaaab...',
+    '...baaaaaaaab...',
+    '....baaaaaab....',
+    '....baaaaaab....',
+    '.....baaaab.....',
+    '.....baaaab.....',
+    '......baab......',
+    '......baab......',
+    '.......bb.......',
+    '................',
+    '................',
+    '................',
+    '................',
+  ],
+  hueso: [
+    '................',
+    '................',
+    '.aa..........aa.',
+    'aaab........baaa',
+    'aaaabbbbbbbbaaaa',
+    '.baaaaaaaaaaaab.',
+    '..baaaaaaaaaab..',
+    '.baaaaaaaaaaaab.',
+    'aaaabbbbbbbbaaaa',
+    'aaab........baaa',
+    '.aa..........aa.',
+    '................',
+    '................',
+    '................',
     '................',
     '................',
   ],

@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.15',
+    title: 'Museo de cuatro plantas',
+    items: [
+      'El museo es ahora un edificio de piedra de cuatro plantas con porche y columnas, también en las islas de antes. Matilde te recibe dentro.',
+      'Lo que donas se ve: los fósiles en pedestales, los peces nadando en el acuario de la primera planta y los insectos revoloteando en el insectario de la segunda. Clic derecho en una pieza para leer su ficha.',
+      'Las plantas de arriba se abren al donar: el acuario con 3 donaciones, el insectario con 8 y la terraza mirador con cúpula de cristal con 15.',
+      'Fósiles nuevos: amonites, trilobites, diente de megalodón y las tres piezas del dinosaurio. Salen a veces al cavar tierra, arena o piedra, más en las islas misteriosas. Con las tres piezas se arma el esqueleto en el centro de la sala.',
+      'La enciclopedia tiene una página nueva de fósiles.',
+    ],
+  },
+  {
     version: '4.14',
     title: 'Parcelas, hogar e invitados',
     items: [

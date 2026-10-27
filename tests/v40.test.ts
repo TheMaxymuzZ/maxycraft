@@ -43,8 +43,10 @@ describe('arreglos de la v4.0', () => {
     const world = new World(SEED, material);
     for (const p of world.plots.filter((x) => x.kind !== 'player')) {
       world.update(p.x, p.z, 1, 99);
-      expect(isDoor(world.getBlock(p.x, p.y + 1, p.z + 2))).toBe(true);
-      expect(world.getBlock(p.x, p.y + 2, p.z + 2)).toBe(Block.DoorTop);
+      // El museo grande (v4.15) tiene la puerta tras el porche, un bloque detrás de la casilla de la puerta.
+      const dz = p.door[2] - 1;
+      expect(isDoor(world.getBlock(p.x, p.y + 1, dz))).toBe(true);
+      expect(world.getBlock(p.x, p.y + 2, dz)).toBe(Block.DoorTop);
     }
   });
 

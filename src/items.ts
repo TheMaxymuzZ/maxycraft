@@ -258,7 +258,8 @@ add({ id: 'plano_casa', name: 'Plano de casa', tile: Tile.Blueprint, maxStack: 5
 add({ id: 'permiso_mudanza', name: 'Permiso de mudanza', tile: Tile.Blueprint, maxStack: 1, sell: 1000, rarity: 'raro' });
 
 // Peces e insectos: se pueden vender o donar al museo.
-CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell }));
+// Los fósiles (v4.15) son tesoros, no criaturas.
+CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell, ...(c.kind === 'fosil' ? { kind: 'tesoro' as const } : {}) }));
 
 // Muebles para decorar la casa.
 for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: f.stack ?? 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday });

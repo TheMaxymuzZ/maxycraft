@@ -13,6 +13,7 @@ import { Portraits } from '../portraits';
 import { formatBerries } from '../shop';
 import { PARCEL_PRICES, PARCEL_SIZES, PERKS } from '../parcels';
 import { HALL_LEVELS, PUBLIC_WORKS } from '../townhall';
+import { WINGS } from '../museum';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
 import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
 import './comun';
@@ -145,6 +146,16 @@ const creatureRow = (c: Creature) =>
 fill('tabla-peces', CREATURES.filter((c) => c.kind === 'pez').map(creatureRow));
 fill('tabla-insectos', CREATURES.filter((c) => c.kind === 'bicho').map(creatureRow));
 
+// --- Museo (v4.15) ---
+const fossils = CREATURES.filter((c) => c.kind === 'fosil');
+const fossilWeight = fossils.reduce((n, c) => n + c.weight, 0);
+fill('tabla-fosiles', fossils.map((c) => {
+  const share = c.weight / fossilWeight;
+  const rarity = share >= 0.25 ? 'Común' : share >= 0.15 ? 'Normal' : share >= 0.09 ? 'Raro' : 'Muy raro';
+  return `<td>${item(c.id)}</td><td>${rarity}</td><td class="num">${formatBerries(c.sell)}</td>`;
+}));
+fill('tabla-plantas', WINGS.map((w) => `<td><b>${w.name}</b></td><td>${w.opens ? `${w.opens} donaciones` : 'Desde el principio'}</td><td>${esc(w.text)}</td>`));
+
 // --- Tareas, premios y logros ---
 fill('tabla-tareas', TASKS.map((t) => `<td>${esc(t.text)}</td><td class="num">${formatBerries(t.points)}</td>`));
 fill('tabla-premios', PRIZES.map((p) => `<td>${item(p.id, p.count)}</td><td class="num">${formatBerries(p.cost)}</td>`));
@@ -166,7 +177,7 @@ document.querySelector<HTMLInputElement>('#buscar-objeto')!.addEventListener('in
 // --- Vecinos, con su retrato ---
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const LIKES: Record<string, string> = { fruta: 'le gusta la fruta', conchas: 'le gustan las conchas', flores: 'le gustan las flores', madera: 'le gusta la madera' };
-const ROLE: Record<string, string> = { shop: 'La dependienta de la tienda', museum: 'La conservadora del museo', pilot: 'El piloto de la avioneta' };
+const ROLE: Record<string, string> = { shop: 'La dependienta de la tienda', museum: 'La conservadora del museo', pilot: 'El piloto de la avioneta', mayor: 'El alcalde, en el ayuntamiento', planner: 'El urbanista, en el ayuntamiento' };
 let portraits: Portraits | null = null;
 try {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });

@@ -25,6 +25,8 @@ export interface TownSave {
   name?: string;
   /** Color de la bandera (índice de FLAG_COLORS). */
   flag?: number;
+  /** Ya se hizo la rampa a la puerta del museo grande (v4.15). */
+  museum?: boolean;
 }
 
 /** Si lo que llega (de la red o de una copia) tiene forma de ayuntamiento. */
@@ -398,8 +400,10 @@ function gridRoute(world: RampWorld, a: Cell, b: Cell): [number, number][] | nul
 
 /** Si (x, z) cae dentro de una casa, la tienda o el museo (con el alero del tejado), no en su jardín. */
 function inBuilding(world: RampWorld, x: number, z: number): boolean {
-  const p = world.plotAt?.(x, z) as { x: number; z: number } | undefined;
-  return !!p && Math.abs(p.x - x) <= 3 && Math.abs(p.z - z) <= 3;
+  const p = world.plotAt?.(x, z) as { x: number; z: number; kind?: string } | undefined;
+  // El museo (v4.15) ocupa la parcela entera.
+  const r = p?.kind === 'museum' ? 5 : 3;
+  return !!p && Math.abs(p.x - x) <= r && Math.abs(p.z - z) <= r;
 }
 
 /** Arriba del agua de esa columna, o null si no hay agua. */
