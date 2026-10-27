@@ -77,6 +77,8 @@ export enum Block {
   WaterFall = 110,
   // Ayuntamiento y obras públicas (v4.13): tablones de puente, barandilla, pilares y la esfera del reloj.
   BridgeDeck = 111, BridgeRail = 112, BridgePillar = 113, ClockFace = 114,
+  // Tienda y terminal (v4.16): toldo de rayas.
+  Awning = 115,
 }
 
 export const TILE = 16;
@@ -97,6 +99,8 @@ export const XTile = {
   BridgePillarTop: EXTRA_TILE_START + 3,
   ClockFace: EXTRA_TILE_START + 4,
   DarkWood: EXTRA_TILE_START + 5,
+  Awning: EXTRA_TILE_START + 6,
+  AwningTop: EXTRA_TILE_START + 7,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -209,6 +213,7 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.BridgeRail]: fence('Barandilla', XTile.DarkWood),
   [Block.BridgePillar]: cube('Pilar de puente', XTile.BridgePillar, XTile.BridgePillarTop),
   [Block.ClockFace]: cube('Reloj', XTile.ClockFace, Tile.Brick, Tile.Brick),
+  [Block.Awning]: cube('Toldo de rayas', XTile.Awning, XTile.AwningTop, XTile.AwningTop),
   [Block.Bamboo]: cross('Bambú', Tile.Bamboo),
   [Block.FlowerBlue]: cross('Nomeolvides azul', Tile.FlowerBlue),
   [Block.FlowerPink]: cross('Clavel rosa', Tile.FlowerPink),
@@ -1350,6 +1355,13 @@ export function createAtlasCanvas(): HTMLCanvasElement {
     return joint ? [98, 100, 106] : pick(r, STONE);
   });
   paintTile(ctx, XTile.BridgePillarTop, (x, y, r) => (x === 0 || y === 0 || x === 15 || y === 15 ? [98, 100, 106] : pick(r, STONE)));
+  // Toldo de rayas (v4.16): franjas rojas y blancas, con un ribete más oscuro abajo.
+  paintTile(ctx, XTile.Awning, (x, y, r) => {
+    if (y === 15) return Math.floor(x / 4) % 2 === 0 ? [150, 40, 36] : [200, 196, 186];
+    const red = Math.floor(x / 4) % 2 === 0;
+    return red ? pick(r, [[214, 64, 58], [204, 58, 52], [222, 72, 64]]) : pick(r, [[246, 242, 232], [238, 234, 224], [250, 248, 240]]);
+  });
+  paintTile(ctx, XTile.AwningTop, (x, _y, r) => (Math.floor(x / 4) % 2 === 0 ? pick(r, [[214, 64, 58], [204, 58, 52]]) : pick(r, [[246, 242, 232], [238, 234, 224]])));
   paintTile(ctx, XTile.ClockFace, (x, y) => {
     const d = Math.hypot(x - 7.5, y - 7.5);
     if (d > 7.6) return [150, 78, 60];

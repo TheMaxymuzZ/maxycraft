@@ -37,6 +37,8 @@ export interface StockGroup {
   units?: number;
   /** Solo en estas estaciones. */
   seasons?: Season[];
+  /** Cuántos distintos de más salen según el nivel del comercio (v4.16): [nivel 1, nivel 2…]. */
+  perLevel?: number[];
 }
 
 export interface ShopDef {
@@ -63,6 +65,8 @@ export interface StockContext {
   holiday: string | null;
   /** Ya hay urbanista en la isla y vende él los planos de casa (v4.13). */
   planner?: boolean;
+  /** Nivel del comercio, desde 0 (v4.16). */
+  level?: number;
 }
 
 /** La tienda de Avellana, de todo un poco. Vende exactamente lo mismo que antes de la 4.9. */
@@ -75,8 +79,8 @@ export const AVELLANA: ShopDef = {
     { pick: (d, c) => !!d.holiday && d.holiday === c.holiday },
     { pick: (d) => !!d.tool },
     { pick: (d, c) => !!d.always && !(c.planner && d.id === 'plano_casa') },
-    { pick: (d) => !!d.furniture && !d.holiday, daily: 3, units: 2 },
-    { pick: (d) => !d.tool && !d.furniture && !d.always, daily: 5 },
+    { pick: (d) => !!d.furniture && !d.holiday, daily: 3, units: 2, perLevel: [0, 2, 4] },
+    { pick: (d) => !d.tool && !d.furniture && !d.always, daily: 5, perLevel: [0, 2, 4] },
   ],
   margin: 1,
 };
@@ -116,7 +120,8 @@ export function stockFor(shop: ShopDef, ctx: StockContext): { id: string; units?
   for (const g of shop.stock) {
     if (g.seasons && (!ctx.season || !g.seasons.includes(ctx.season))) continue;
     let ids = CATALOG.filter((id) => g.pick(itemDef(id), ctx));
-    if (g.daily !== undefined) ids = ids.sort((a, b) => hash01(ctx.today + a) - hash01(ctx.today + b)).slice(0, g.daily);
+    const daily = g.daily === undefined ? undefined : g.daily + (g.perLevel?.[Math.min(ctx.level ?? 0, g.perLevel.length - 1)] ?? 0);
+    if (daily !== undefined) ids = ids.sort((a, b) => hash01(ctx.today + a) - hash01(ctx.today + b)).slice(0, daily);
     for (const id of ids) out.push({ id, units: g.units });
   }
   return out;
@@ -150,6 +155,8 @@ export interface EconomySave {
   /** Unidades vendidas recientemente de cada objeto (baja cada día). */
   pressure: Record<string, number>;
   ledger: LedgerDay[];
+  /** Bayas gastadas en cada comercio desde siempre, para su nivel (v4.16). */
+  spent?: Record<string, number>;
 }
 
 function daysBetween(a: string, b: string): number {
@@ -166,6 +173,8 @@ export class Economy {
     this.data.bought ??= {};
     this.data.pressure ??= {};
     this.data.ledger ??= [];
+    // Partidas de antes de la 4.16: lo gastado se saca de las cuentas que hay (los últimos días).
+    this.data.spent ??= { avellana: this.data.ledger.reduce((n, d) => n + d.out, 0) };
     this.newDay(today);
   }
 
@@ -209,7 +218,13 @@ export class Economy {
   recordPurchase(shop: ShopDef, id: string, count: number, total: number) {
     const b = (this.data.bought[shop.id] ??= {});
     b[id] = (b[id] ?? 0) + count;
+    this.data.spent![shop.id] = (this.data.spent![shop.id] ?? 0) + total;
     this.log(-total, `compra:${itemDef(id).kind}`);
+  }
+
+  /** Bayas gastadas en un comercio desde siempre. */
+  spentAt(shopId: string): number {
+    return this.data.spent?.[shopId] ?? 0;
   }
 
   private log(amount: number, key: string) {

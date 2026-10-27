@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.16',
+    title: 'La tienda nueva y la terminal',
+    items: [
+      'La tienda es ahora un edificio de dos plantas con toldo de rayas, escaparate que cambia con la estación, mostrador con caja registradora y estanterías donde se ve lo que hay hoy a la venta. También en las islas de antes.',
+      'Avellana vive arriba: atiende detrás del mostrador y de noche sube a dormir a su casa.',
+      'La tienda crece con lo que gastas: con 20.000 bayas pasa a Tienda grande y con 80.000 a Gran almacén, que abre la sala de muebles de arriba. Cada nivel vende más muebles y cosas al día.',
+      'La avioneta tiene terminal: sala de espera con bancos, panel de salidas, báscula de equipaje y el mostrador de Plumas, y un muelle con un faro pequeño donde queda amarrada.',
+      'Al volver de un viaje la avioneta llega volando y amariza junto al muelle.',
+    ],
+  },
+  {
     version: '4.15',
     title: 'Museo de cuatro plantas',
     items: [

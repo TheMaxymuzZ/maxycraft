@@ -3,7 +3,8 @@ import { waterFlow } from './fluids';
 import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoor, isDoorTop, isFence, isFullBlock, isGate, isOpaque, isOpen, isSolid, isWater, waterHeight, waterLevel as fluidLevel } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 import { fruitTreeShape, palmShape, pineShape } from './trees';
-import { templateCells } from './buildings';
+import { type BuildingTemplate, templateCells } from './buildings';
+import { SHOP_BUILDING, shopOrigin } from './shopBuilding';
 import { MUSEUM, museumOrigin } from './museum';
 
 export const CHUNK = 16;
@@ -162,6 +163,13 @@ export function buildTent(x: number, y: number, z: number, put: (x: number, y: n
   put(x, y + 2, z - 2, Block.Canvas);
 }
 
+/** El museo y la tienda son edificios de plantilla que llenan su parcela: cuál y dónde va su esquina. */
+function bigBuilding(p: Plot): { template: BuildingTemplate; origin: [number, number, number] } | null {
+  if (p.kind === 'museum') return { template: MUSEUM, origin: museumOrigin(p) };
+  if (p.kind === 'shop') return { template: SHOP_BUILDING, origin: shopOrigin(p) };
+  return null;
+}
+
 /** Medio lado de la parcela que se allana y se deja sin árboles. */
 export const PLOT_RADIUS = 5;
 
@@ -285,11 +293,12 @@ export class World {
     this.caveEntrances = this.mystery ? [] : this.findCaveEntrances(2);
     // Las casas de los invitados van al final para no mover nada de lo que ya había.
     for (const [x, z] of options.guests ?? []) this.addGuestPlot(x, z);
-    // Las luces del techo del museo (v4.15) salen con la isla.
-    const museum = this.plots.find((p) => p.kind === 'museum');
-    if (museum) {
-      const [mx, my, mz] = museumOrigin(museum);
-      for (const [dx, dy, dz, b] of templateCells(MUSEUM, 0)) {
+    // Las luces del techo del museo (v4.15) y de la tienda (v4.16) salen con la isla.
+    for (const p of this.plots) {
+      const big = bigBuilding(p);
+      if (!big) continue;
+      const [mx, my, mz] = big.origin;
+      for (const [dx, dy, dz, b] of templateCells(big.template, 0)) {
         if (b !== null && LIGHT_RADIUS[b]) this.torches.set(`${mx + dx},${my + dy},${mz + dz}`, [mx + dx, my + dy, mz + dz]);
       }
     }
@@ -368,8 +377,8 @@ export class World {
       // Las dos primeras parcelas son para la tienda y el museo.
       const kind = plots.length === 0 ? 'shop' : plots.length === 1 ? 'museum' : 'house';
       const roof = kind === 'shop' ? Block.RoofGreen : kind === 'museum' ? Block.RoofBlue : ROOFS[(plots.length - 2) % ROOFS.length];
-      // El museo (v4.15) ocupa toda la parcela y tiene la puerta tras un porche, en el borde.
-      plots.push({ kind, x, z, y: h, roof, door: [x, h + 1, z + (kind === 'museum' ? 5 : 3)] });
+      // El museo (v4.15) y la tienda (v4.16) ocupan toda la parcela, con la puerta al fondo del porche o la acera.
+      plots.push({ kind, x, z, y: h, roof, door: [x, h + 1, z + (kind === 'museum' ? 5 : kind === 'shop' ? 4 : 3)] });
     }
     // La última es la del jugador; así las islas de antes conservan sus casas.
     if (plots.length > 2) plots[plots.length - 1].kind = 'player';
@@ -924,7 +933,7 @@ export class World {
 
     // Casas de los vecinos.
     for (const plot of this.plots) {
-      const r = plot.kind === 'museum' ? PLOT_RADIUS : 3;
+      const r = plot.kind === 'museum' || plot.kind === 'shop' ? PLOT_RADIUS : 3;
       if (plot.x + r < ox || plot.x - r >= ox + CHUNK || plot.z + r < oz || plot.z - r >= oz + CHUNK) continue;
       this.buildHouse(plot, (x, y, z, b) => set(x - ox, y, z - oz, b, true));
     }
@@ -1014,9 +1023,10 @@ export class World {
       buildTent(x, y, z, put);
       return;
     }
-    if (p.kind === 'museum') {
-      const [mx, my, mz] = museumOrigin(p);
-      for (const [dx, dy, dz, b] of templateCells(MUSEUM, 0)) if (b !== null) put(mx + dx, my + dy, mz + dz, b);
+    const big = bigBuilding(p);
+    if (big) {
+      const [mx, my, mz] = big.origin;
+      for (const [dx, dy, dz, b] of templateCells(big.template, 0)) if (b !== null) put(mx + dx, my + dy, mz + dz, b);
       return;
     }
     for (let dz = -2; dz <= 2; dz++) {

@@ -4,6 +4,7 @@ import type { Lot } from '../lots';
 import type { Guest, VillagerState } from '../villagers';
 import type { Edits, WorldOptions } from '../world';
 import { type Parcel, isParcelList } from '../parcels';
+import { type TerminalSite, isTerminalSite } from '../terminal';
 import { type TownSave, isTownSave } from '../townhall';
 import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
@@ -60,6 +61,8 @@ export interface Snapshot {
   town?: TownSave;
   /** Desde la v4.14: las parcelas de la isla. */
   parcels?: Parcel[];
+  /** La terminal de la avioneta (v4.16). */
+  terminal?: TerminalSite;
 }
 
 /** Lo que un amigo pide al anfitrión sobre las parcelas (v4.14). */
@@ -118,6 +121,8 @@ function isSnapshot(v: unknown): v is Snapshot {
   if (town !== undefined && !isTownSave(town)) return false;
   const parcels = v && (v as Record<string, unknown>).parcels;
   if (parcels !== undefined && !isParcelList(parcels)) return false;
+  const terminal = v && (v as Record<string, unknown>).terminal;
+  if (terminal !== undefined && !isTerminalSite(terminal)) return false;
   return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots) && spot(v.spawn) && (homes === undefined || (Array.isArray(homes) && homes.every(isPlayerHome)));
 }
 
