@@ -20,6 +20,8 @@ export const CROPS: Record<CropId, CropDef> = {
 
 /** Días regados que necesita una planta para madurar. */
 export const RIPE_STAGE = 3;
+/** Abonos que acepta cada planta. */
+export const MAX_BOOST = 2;
 
 export function cropForSeed(seed: string): CropDef | null {
   return Object.values(CROPS).find((c) => c.seed === seed) ?? null;
@@ -42,6 +44,8 @@ export interface CropState {
   crop: CropId;
   /** Días (AAAA-MM-DD) en que se regó. */
   watered: string[];
+  /** Fases de más por el abono (v4.17). */
+  boost?: number;
 }
 
 /** Cultivos guardados: "x,y,z" del bloque de la planta → su estado. */
@@ -72,7 +76,7 @@ export class Farm {
 
   constructor(save: FarmSave = {}) {
     for (const [k, s] of Object.entries(save)) {
-      if (s && s.crop in CROPS && Array.isArray(s.watered)) this.crops.set(k, { crop: s.crop, watered: [...s.watered] });
+      if (s && s.crop in CROPS && Array.isArray(s.watered)) this.crops.set(k, { crop: s.crop, watered: [...s.watered], ...(s.boost ? { boost: Math.min(MAX_BOOST, s.boost) } : {}) });
     }
   }
 
@@ -126,9 +130,19 @@ export class Farm {
     return changed;
   }
 
-  /** Fase de 0 (brote) a 3 (maduro): un paso por cada día regado antes de hoy. */
+  /** Fase de 0 (brote) a 3 (maduro): un paso por cada día regado antes de hoy, y uno más por cada abono. */
   stageOf(s: CropState, today: string): number {
-    return Math.min(RIPE_STAGE, s.watered.filter((d) => d < today).length);
+    return Math.min(RIPE_STAGE, s.watered.filter((d) => d < today).length + (s.boost ?? 0));
+  }
+
+  /** Echa abono a una planta (v4.17): crece una fase al momento. Como mucho dos veces por planta. */
+  fertilize(x: number, y: number, z: number, today: string): 'ok' | 'none' | 'ripe' | 'max' {
+    const s = this.crops.get(key(x, y, z));
+    if (!s) return 'none';
+    if (this.stageOf(s, today) >= RIPE_STAGE) return 'ripe';
+    if ((s.boost ?? 0) >= MAX_BOOST) return 'max';
+    s.boost = (s.boost ?? 0) + 1;
+    return 'ok';
   }
 
   /** Quita la planta y dice qué se recoge: la cosecha si estaba madura o la semilla si no. */
@@ -162,7 +176,7 @@ export class Farm {
   serialize(): FarmSave {
     const out: FarmSave = {};
     // Basta con recordar los últimos días regados.
-    for (const [k, s] of this.crops) out[k] = { crop: s.crop, watered: [...s.watered].sort().slice(-RIPE_STAGE - 1) };
+    for (const [k, s] of this.crops) out[k] = { crop: s.crop, watered: [...s.watered].sort().slice(-RIPE_STAGE - 1), ...(s.boost ? { boost: s.boost } : {}) };
     return out;
   }
 }

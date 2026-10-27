@@ -39,6 +39,8 @@ export interface StockGroup {
   seasons?: Season[];
   /** Cuántos distintos de más salen según el nivel del comercio (v4.16): [nivel 1, nivel 2…]. */
   perLevel?: number[];
+  /** Cosas que vende aunque no estén en el catálogo de la tienda (v4.17), por ejemplo vallas o brotes. */
+  ids?: string[];
 }
 
 export interface ShopDef {
@@ -56,6 +58,8 @@ export interface ShopDef {
   specialty?: { pick: (def: ItemDef) => boolean; bonus: number };
   /** Recargo al venderte sus cosas (1 = precio de la tabla). */
   margin: number;
+  /** Cada día rebaja una cosa (v4.17). */
+  offers?: boolean;
 }
 
 export interface StockContext {
@@ -77,13 +81,79 @@ export const AVELLANA: ShopDef = {
   hours: Array.from({ length: 7 }, () => [8, 22] as [number, number]),
   stock: [
     { pick: (d, c) => !!d.holiday && d.holiday === c.holiday },
-    { pick: (d) => !!d.tool },
+    { pick: (d) => !!d.tool && !d.seller },
     { pick: (d, c) => !!d.always && !(c.planner && d.id === 'plano_casa') },
-    { pick: (d) => !!d.furniture && !d.holiday, daily: 3, units: 2, perLevel: [0, 2, 4] },
-    { pick: (d) => !d.tool && !d.furniture && !d.always, daily: 5, perLevel: [0, 2, 4] },
+    { pick: (d) => !!d.furniture && !d.holiday && !d.seller, daily: 3, units: 2, perLevel: [0, 2, 4] },
+    { pick: (d) => !d.tool && !d.furniture && !d.always && !d.seller, daily: 5, perLevel: [0, 2, 4] },
   ],
   margin: 1,
 };
+
+// --- Comercios del campo y la mina (v4.17) ---
+
+const SEEDS = ['semillas_trigo', 'semillas_zanahoria', 'semillas_tomate'];
+const SAPLINGS = ['brote_manzano', 'brote_palmera', 'brote_pino'];
+
+/** La tienda agrícola de Espiga: madruga y cierra a mediodía. Semillas, abono, regaderas y brotes en primavera. */
+export const ESPIGA: ShopDef = {
+  id: 'agricola',
+  name: 'Agrícola de Espiga',
+  owner: 'Espiga',
+  hours: Array.from({ length: 7 }, () => [6, 14] as [number, number]),
+  stock: [
+    { pick: (d) => SEEDS.includes(d.id) || d.seller === 'agricola' || d.id === 'regadera' },
+    { ids: SAPLINGS, pick: () => true, seasons: ['primavera', 'otoño'] },
+  ],
+  buys: (d) => d.kind === 'consumible' || d.kind === 'recurso',
+  specialty: { pick: (d) => ['trigo', 'zanahoria', 'tomate'].includes(d.id), bonus: 1.25 },
+  margin: 0.95,
+  offers: true,
+};
+
+/** La granja de Heno: cierra los domingos. Animales, pienso y vallas para el cercado. */
+export const HENO: ShopDef = {
+  id: 'granja',
+  name: 'Granja de Heno',
+  owner: 'Heno',
+  hours: Array.from({ length: 7 }, (_, d) => (d === 0 ? null : [8, 18] as [number, number])),
+  stock: [
+    { pick: (d) => d.id === 'gallina' || d.id === 'vaca' || d.seller === 'granja' },
+    { ids: ['valla', 'puerta_valla'], pick: () => true },
+  ],
+  buys: (d) => ['huevo', 'leche', 'lana', 'trigo', 'zanahoria'].includes(d.id) || d.kind === 'consumible',
+  specialty: { pick: (d) => ['huevo', 'leche', 'lana'].includes(d.id), bonus: 1.3 },
+  margin: 1,
+  offers: true,
+};
+
+/** La caseta de la mina de Grava: abre por la tarde. Herramientas de cristal, antorchas y le compra minerales. */
+export const GRAVA: ShopDef = {
+  id: 'mina',
+  name: 'Mina de Grava',
+  owner: 'Grava',
+  hours: Array.from({ length: 7 }, () => [14, 23] as [number, number]),
+  stock: [
+    { pick: (d) => d.seller === 'mina' },
+    { pick: (d) => d.id === 'antorcha' || d.id === 'pico' || d.id === 'hacha' || d.id === 'pala' || d.id === 'cubo' },
+  ],
+  buys: (d) => MINERALS.includes(d.id) || d.kind === 'bloque' || d.kind === 'tesoro',
+  specialty: { pick: (d) => MINERALS.includes(d.id), bonus: 1.3 },
+  margin: 1.05,
+  offers: true,
+};
+
+/** Lo que Grava paga mejor que nadie. */
+export const MINERALS = ['carbon', 'pepita_hierro', 'pepita_oro', 'amatista', 'cristal_brillante', 'basalto', 'roca_magma'];
+
+/** Rebaja de la oferta del día (v4.17): una cosa de cada comercio, cada día distinta. */
+export const OFFER_DISCOUNT = 0.7;
+
+/** La oferta de hoy de un comercio: una de las cosas que vende hoy, la misma todo el día. */
+export function offerOf(shop: ShopDef, today: string, stock: readonly string[]): string | null {
+  const options = stock.filter((id) => !itemDef(id).always || shop.id !== 'avellana');
+  if (!options.length) return null;
+  return options[Math.floor(hash01(`${today}:${shop.id}:oferta`) * options.length)];
+}
 
 /** Un día de la semana del texto "2026-10-25" (0 = domingo). */
 export function weekdayOf(today: string): number {
@@ -115,11 +185,17 @@ export function closedText(shop: ShopDef, weekday: number, hour: number): string
 }
 
 /** Lo que hay a la venta hoy, en orden, y cuántas unidades de cada uno (undefined: sin límite). */
+/** Todo lo que puede llegar a vender un comercio, sin mirar el día ni la estación (para la wiki). */
+export function catalogOf(shop: ShopDef): string[] {
+  const ctx = { today: '', season: null, holiday: null, planner: true, level: 99 };
+  return [...new Set(shop.stock.flatMap((g) => (g.ids ?? CATALOG).filter((id) => g.pick(itemDef(id), ctx))))];
+}
+
 export function stockFor(shop: ShopDef, ctx: StockContext): { id: string; units?: number }[] {
   const out: { id: string; units?: number }[] = [];
   for (const g of shop.stock) {
     if (g.seasons && (!ctx.season || !g.seasons.includes(ctx.season))) continue;
-    let ids = CATALOG.filter((id) => g.pick(itemDef(id), ctx));
+    let ids = (g.ids ?? CATALOG).filter((id) => g.pick(itemDef(id), ctx));
     const daily = g.daily === undefined ? undefined : g.daily + (g.perLevel?.[Math.min(ctx.level ?? 0, g.perLevel.length - 1)] ?? 0);
     if (daily !== undefined) ids = ids.sort((a, b) => hash01(ctx.today + a) - hash01(ctx.today + b)).slice(0, daily);
     for (const id of ids) out.push({ id, units: g.units });

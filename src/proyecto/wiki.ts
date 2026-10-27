@@ -15,6 +15,8 @@ import { PARCEL_PRICES, PARCEL_SIZES, PERKS } from '../parcels';
 import { HALL_LEVELS, PUBLIC_WORKS } from '../townhall';
 import { WINGS } from '../museum';
 import { SHOP_LEVELS } from '../shopBuilding';
+import { MERCHANTS } from '../commerce';
+import { catalogOf } from '../economy';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
 import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
 import './comun';
@@ -159,6 +161,16 @@ fill('tabla-fosiles', fossils.map((c) => {
   return `<td>${item(c.id)}</td><td>${rarity}</td><td class="num">${formatBerries(c.sell)}</td>`;
 }));
 fill('tabla-plantas', WINGS.map((w) => `<td><b>${w.name}</b></td><td>${w.opens ? `${w.opens} donaciones` : 'Desde el principio'}</td><td>${esc(w.text)}</td>`));
+
+// --- Comercios del campo y la mina (v4.17) ---
+const DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+function shopHours(hours: ([number, number] | null)[]): string {
+  const open = hours.find((h) => h)!;
+  const shut = hours.map((h, d) => (h ? null : DAYS[d])).filter(Boolean);
+  return `${open[0]}:00 a ${open[1]}:00${shut.length ? `, cierra los ${shut.join(' y ')}s` : ', todos los días'}`;
+}
+fill('tabla-comercios', MERCHANTS.map((m) => `<td>${m.icon} <b>${esc(m.shop.name)}</b></td><td>${esc(m.profile.name)} (${esc(SPECIES_NAMES[m.profile.species] ?? m.profile.species)})</td><td>${shopHours(m.shop.hours)}</td><td>${esc(m.unlockText)}</td>`));
+fill('tabla-catalogos', MERCHANTS.map((m) => `<td><b>${esc(m.shop.name)}</b></td><td>${catalogOf(m.shop).map((id) => item(id)).join(' ')}</td>`));
 
 // --- Tareas, premios y logros ---
 fill('tabla-tareas', TASKS.map((t) => `<td>${esc(t.text)}</td><td class="num">${formatBerries(t.points)}</td>`));

@@ -1,4 +1,4 @@
-import { BLOCKS, Block, CREATURE_TILE_START, STAIRS, Tile, blockIconTile } from './blocks';
+import { BLOCKS, Block, CREATURE_TILE_START, STAIRS, Tile, XTile, blockIconTile } from './blocks';
 import { CREATURES } from './creatures';
 import { FURNITURE, FURNITURE_TILE } from './furniture';
 import { TREE_KINDS } from './orchard';
@@ -68,6 +68,10 @@ export interface ItemDef {
   holiday?: string;
   /** La tienda lo tiene siempre (lo del huerto, la granja y los billetes). */
   always?: boolean;
+  /** Solo lo vende ese comercio (v4.17): 'agricola', 'granja' o 'mina'. */
+  seller?: string;
+  /** Regaderas: casillas de alrededor que riega de una vez (1: 3×3). */
+  reach?: number;
 }
 
 export interface ItemStack {
@@ -215,6 +219,10 @@ add({ id: 'red', name: 'Red', tile: Tile.Net, maxStack: 1, tool: 'net', durabili
 add({ id: 'hacha_hierro', rarity: 'raro', name: 'Hacha de hierro', tile: Tile.IronAxe, maxStack: 1, tool: 'axe', durability: 120, power: 8, sell: 200 });
 add({ id: 'pico_hierro', rarity: 'raro', name: 'Pico de hierro', tile: Tile.IronPickaxe, maxStack: 1, tool: 'pickaxe', durability: 120, power: 8, sell: 200 });
 add({ id: 'pala_hierro', rarity: 'raro', name: 'Pala de hierro', tile: Tile.IronShovel, maxStack: 1, tool: 'shovel', durability: 120, power: 8, sell: 200 });
+// Herramientas de cristal (v4.17): las mejores; solo las vende Grava en la mina.
+add({ id: 'hacha_cristal', rarity: 'epico', name: 'Hacha de cristal', tile: XTile.CrystalAxe, maxStack: 1, tool: 'axe', durability: 260, power: 12, sell: 900, buy: 6000, seller: 'mina' });
+add({ id: 'pico_cristal', rarity: 'epico', name: 'Pico de cristal', tile: XTile.CrystalPickaxe, maxStack: 1, tool: 'pickaxe', durability: 260, power: 12, sell: 900, buy: 6500, seller: 'mina' });
+add({ id: 'pala_cristal', rarity: 'epico', name: 'Pala de cristal', tile: XTile.CrystalShovel, maxStack: 1, tool: 'shovel', durability: 260, power: 12, sell: 900, buy: 6000, seller: 'mina' });
 add({ id: 'antorcha', name: 'Antorcha', tile: blockIconTile(Block.Torch), maxStack: 99, block: Block.Torch, sell: 20, buy: 60 });
 add({ id: 'carbon', name: 'Carbón', tile: Tile.Coal, maxStack: 30, sell: 50 });
 // Cubos (v3.8): el vacío coge un bloque de agua quieta y el lleno lo echa en otro sitio. No se gastan.
@@ -227,6 +235,8 @@ add({ id: 'muro_piedra', name: 'Muro de piedra', tile: blockIconTile(Block.Museu
 
 // Huerto y granja (v1.8).
 add({ id: 'regadera', name: 'Regadera', tile: Tile.WateringCan, maxStack: 1, tool: 'can', durability: 60, sell: 50, buy: 500 });
+add({ id: 'regadera_cobre', rarity: 'raro', name: 'Regadera de cobre', tile: XTile.CopperCan, maxStack: 1, tool: 'can', durability: 150, reach: 1, sell: 400, buy: 3000, seller: 'agricola' });
+add({ id: 'abono', name: 'Abono', tile: XTile.Fertilizer, maxStack: 30, sell: 30, buy: 150, seller: 'agricola' });
 add({ id: 'semillas_trigo', name: 'Semillas de trigo', tile: Tile.Seeds, maxStack: 30, sell: 10, buy: 40, always: true });
 add({ id: 'semillas_zanahoria', name: 'Semillas de zanahoria', tile: Tile.SeedsCarrot, maxStack: 30, sell: 10, buy: 50, always: true });
 add({ id: 'semillas_tomate', name: 'Semillas de tomate', tile: Tile.SeedsTomato, maxStack: 30, sell: 10, buy: 60, always: true });
@@ -237,6 +247,9 @@ add({ id: 'huevo', name: 'Huevo', tile: Tile.Egg, maxStack: 30, sell: 50 });
 add({ id: 'leche', name: 'Leche', tile: Tile.Milk, maxStack: 10, sell: 70 });
 add({ id: 'gallina', name: 'Gallina', tile: Tile.ChickenIcon, maxStack: 1, sell: 500, buy: 2000, always: true });
 add({ id: 'vaca', name: 'Vaca', tile: Tile.CowIcon, maxStack: 1, sell: 1000, buy: 4000, always: true });
+add({ id: 'oveja', name: 'Oveja', tile: XTile.SheepIcon, maxStack: 1, sell: 800, buy: 3200, seller: 'granja' });
+add({ id: 'pienso', name: 'Pienso', tile: XTile.Feed, maxStack: 30, sell: 20, buy: 120, seller: 'granja' });
+add({ id: 'lana', name: 'Lana', tile: XTile.Wool, maxStack: 30, sell: 220 });
 add({ id: 'pan', name: 'Pan', tile: Tile.Bread, maxStack: 10, sell: 300 });
 add({ id: 'tortilla', name: 'Tortilla', tile: Tile.Omelette, maxStack: 10, sell: 400 });
 add({ id: 'sopa', name: 'Sopa de zanahoria', tile: Tile.Soup, maxStack: 10, sell: 450 });
@@ -264,7 +277,7 @@ add({ id: 'permiso_mudanza', name: 'Permiso de mudanza', tile: Tile.Blueprint, m
 CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell, ...(c.kind === 'fosil' ? { kind: 'tesoro' as const } : {}) }));
 
 // Muebles para decorar la casa.
-for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: f.stack ?? 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday });
+for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: f.stack ?? 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday, seller: f.seller });
 
 /** Todos los objetos del juego, en el orden en que se definen (para la wiki de la página del proyecto). */
 export const ITEMS: readonly ItemDef[] = defs;

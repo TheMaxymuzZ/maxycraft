@@ -47,7 +47,8 @@ describe('tienda', () => {
 
   it('siempre vende herramientas y solo cosas del catálogo', () => {
     const s = shop('2026-10-25');
-    for (const id of CATALOG.filter((id) => itemDef(id).tool && !itemDef(id).holiday)) expect(s.stock).toContain(id);
+    // Las herramientas de otros comercios (v4.17) no las vende Avellana.
+    for (const id of CATALOG.filter((id) => itemDef(id).tool && !itemDef(id).holiday && !itemDef(id).seller)) expect(s.stock).toContain(id);
     for (const id of s.stock) expect(CATALOG).toContain(id);
   });
 

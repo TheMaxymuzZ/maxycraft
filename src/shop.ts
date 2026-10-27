@@ -2,7 +2,7 @@ import type { Inventory } from './inventory';
 import { ITEM_KINDS, type ItemKind, itemDef } from './items';
 import { itemIcon } from './icons';
 import { itemCard } from './itemCard';
-import { AVELLANA, type Economy, FILTER_KINDS, type ShopDef, buyPrice, closedText, sellPrice, shopBuys, stockFor, weekdayOf } from './economy';
+import { AVELLANA, type Economy, FILTER_KINDS, OFFER_DISCOUNT, type ShopDef, buyPrice, closedText, offerOf, sellPrice, shopBuys, stockFor, weekdayOf } from './economy';
 import type { Season } from './seasons';
 import { SHOP_LEVELS, shopLevel } from './shopBuilding';
 
@@ -52,13 +52,21 @@ export class Shop {
   private tab: Tab = 'comprar';
   private filter: ItemKind | null = null;
 
+  /** El comercio que tiene abierta la ventana (todos comparten la misma, v4.17). */
+  private static current: Shop | null = null;
+  static get active(): Shop | null {
+    return Shop.current;
+  }
+
   constructor(private ctx: ShopContext, readonly def: ShopDef = AVELLANA) {
     this.restock();
     ctx.inventory.onChange(() => {
-      if (!this.el.hidden) this.render();
+      if (!this.el.hidden && Shop.current === this) this.render();
     });
     for (const b of document.querySelectorAll<HTMLButtonElement>('#shop [data-shop-tab]')) {
-      b.addEventListener('click', () => this.show(b.dataset.shopTab as Tab));
+      b.addEventListener('click', () => {
+        if (Shop.current === this) this.show(b.dataset.shopTab as Tab);
+      });
     }
   }
 
@@ -109,6 +117,7 @@ export class Shop {
       return false;
     }
     if (this.titleEl) this.titleEl.textContent = this.def.name;
+    Shop.current = this;
     this.el.hidden = false;
     this.render();
     return true;
@@ -116,6 +125,7 @@ export class Shop {
 
   close() {
     this.el.hidden = true;
+    if (Shop.current === this) Shop.current = null;
     itemCard().hide();
   }
 
@@ -173,10 +183,12 @@ export class Shop {
 
     this.buyEl.innerHTML = '';
     if (this.tab === 'comprar') this.renderFilters(this.stock);
+    const offer = this.offer;
     for (const id of this.stock.filter(shown)) {
-      const price = buyPrice(this.def, id);
+      const price = this.priceOf(id);
       const left = this.remaining(id);
-      const detail = `${formatBerries(price)} bayas${left === Infinity ? '' : left ? ` · quedan ${left}` : ' · agotado hasta mañana'}`;
+      const deal = id === offer ? ' · ¡oferta del día!' : '';
+      const detail = `${formatBerries(price)} bayas${deal}${left === Infinity ? '' : left ? ` · quedan ${left}` : ' · agotado hasta mañana'}`;
       const li = this.row(id, detail);
       this.button(li, 'Comprar', left > 0 && wallet >= price && this.ctx.inventory.canFit(id), () => this.buy(id));
       this.buyEl.appendChild(li);
@@ -204,8 +216,19 @@ export class Shop {
     }
   }
 
-  private buy(id: string) {
+  /** La oferta de hoy (v4.17), en los comercios que las hacen. */
+  get offer(): string | null {
+    return this.def.offers ? offerOf(this.def, this.ctx.today, this.stock) : null;
+  }
+
+  /** Lo que cuesta hoy comprar algo aquí (con la rebaja si es la oferta del día). */
+  priceOf(id: string): number {
     const price = buyPrice(this.def, id);
+    return id === this.offer ? Math.max(1, Math.round(price * OFFER_DISCOUNT)) : price;
+  }
+
+  private buy(id: string) {
+    const price = this.priceOf(id);
     const wallet = this.ctx.getWallet();
     if (wallet < price || this.remaining(id) <= 0 || this.ctx.inventory.add(id) > 0) return;
     this.ctx.setWallet(wallet - price);
