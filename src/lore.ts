@@ -307,6 +307,8 @@ Object.assign(LORE, {
   corona_limo: 'El limo más grande de todos la llevaba puesta. Nadie sabe de dónde la sacó.',
   corazon_volcan: 'Late despacio, como si el volcán estuviera dormido dentro.',
   lagrima_estrella: 'Los espíritus del bosque lloran una de estas una vez cada cien años.',
+  espada_estelar: 'Solo sale del tesoro de una mazmorra. Dicen que se forjó con un trozo de estrella fugaz.',
+  arco_lunar: 'Sus flechas dejan un rastro plateado, como la luna sobre el mar.',
   carta_nautica: 'El mar alrededor de tu isla, con las islas que ya has visitado. Lo que no has explorado sale tapado por la niebla.',
 });
 

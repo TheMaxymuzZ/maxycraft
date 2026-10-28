@@ -40,7 +40,7 @@ const STARVE_EVERY = 8;
 /** Caer desde más de esta altura hace daño (como en Minecraft, 3 bloques). */
 const SAFE_FALL = 3.5;
 
-export type HurtCause = 'caida' | 'agua' | 'magma' | 'lava' | 'hambre' | 'criatura';
+export type HurtCause = 'caida' | 'agua' | 'magma' | 'lava' | 'hambre' | 'criatura' | 'trampa';
 
 /** Lo que está haciendo el jugador, para gastar hambre y hacerse daño. */
 export interface Activity {

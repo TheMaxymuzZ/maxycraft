@@ -826,3 +826,11 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
 .reel-bar.tension i.hot { background: #e8a030; }
 .reel-bar.tension i.danger { background: #e04040; }
 @keyframes reel-shake { 0%, 100% { transform: translateX(-50%); } 25% { transform: translateX(calc(-50% - 3px)); } 75% { transform: translateX(calc(-50% + 3px)); } }
+
+/* Barra de vida del jefe de la mazmorra (v4.25). */
+#boss-bar {
+  position: fixed; left: 50%; top: 14px; transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); z-index: 4; pointer-events: none;
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 14px; text-align: center;
+  background: var(--paper); color: var(--ink); border: 3px solid #7a2a2a; border-radius: 14px; font: 800 14px/1.2 var(--body);
+}
+#boss-bar[hidden] { display: none; }

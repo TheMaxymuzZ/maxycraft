@@ -6,7 +6,18 @@ import * as THREE from 'three';
 import { Population } from './population';
 import { type Part, type PartsModel, partsModel } from './wildlife';
 
-export type HostileKind = 'limo' | 'murcielago' | 'esqueleto' | 'golem_lava' | 'espiritu';
+export type HostileKind = 'limo' | 'murcielago' | 'esqueleto' | 'golem_lava' | 'espiritu'
+  | 'rey_esqueleto' | 'limo_dorado' | 'golem_hielo' | 'golem_magma';
+
+/** Ataques de los jefes de las mazmorras (v4.25). Antes de cada uno avisan, para que se puedan aprender. */
+export type BossAttack = 'rafaga' | 'pisoton' | 'llamada' | 'anillo';
+
+export const BOSS_TELLS: Record<BossAttack, string> = {
+  rafaga: 'tensa el arco: ¡apártate de su línea!',
+  pisoton: 'levanta los brazos: ¡aléjate o esquiva!',
+  llamada: 'llama a sus ayudantes',
+  anillo: 'brilla muy fuerte: ¡cúbrete con el escudo!',
+};
 
 /** Dónde puede salir: en una cueva (bajo tierra y a oscuras) o en un bioma extraño. */
 export type HostilePlace = 'cueva' | 'luminoso' | 'volcanico' | 'setas';
@@ -27,9 +38,11 @@ export interface HostileDef {
   loot: string[];
   text: string;
   parts: Part[];
+  /** Los jefes de las mazmorras (v4.25): sus ataques, su tamaño y a quién llaman. */
+  boss?: { attacks: BossAttack[]; scale: number; size: [number, number]; minion?: HostileKind };
 }
 
-export const HOSTILES: Record<HostileKind, HostileDef> = {
+export const HOSTILES = {
   limo: {
     name: 'Limo', hp: 8, damage: 2, speed: 2.2, move: 'salta', places: ['setas', 'cueva'],
     loot: ['baba_limo', 'perla_negra', 'corona_limo'],
@@ -84,9 +97,46 @@ export const HOSTILES: Record<HostileKind, HostileDef> = {
       { s: [0.1, 0.12, 0.04], p: [-0.1, 0.08, 0.26], c: 0x1a3a5a }, { s: [0.1, 0.12, 0.04], p: [0.1, 0.08, 0.26], c: 0x1a3a5a },
     ],
   },
-};
+} as Record<HostileKind, HostileDef>;
+
+/** Las piezas de un modelo con otros colores (para los jefes, que son versiones grandes de las criaturas). */
+function recolor(parts: Part[], colors: Record<number, number>, extra: Part[] = []): Part[] {
+  return [...parts.map((p) => ({ ...p, c: colors[p.c] ?? p.c })), ...extra];
+}
+
+Object.assign(HOSTILES, {
+  rey_esqueleto: {
+    name: 'Rey esqueleto', hp: 60, damage: 3, speed: 1.4, move: 'anda', places: [],
+    loot: ['hueso', 'perla_negra'],
+    text: 'Jefe de las catacumbas. Dispara ráfagas de flechas, da pisotones y llama a otros esqueletos.',
+    parts: recolor(HOSTILES.esqueleto.parts, {}, [{ s: [0.42, 0.16, 0.42], p: [0, 1.86, 0], c: 0xf0c030 }, { s: [0.08, 0.12, 0.08], p: [0, 2, 0.17], c: 0xe03040 }]),
+    boss: { attacks: ['rafaga', 'pisoton', 'llamada'], scale: 1.6, size: [0.6, 3.1], minion: 'esqueleto' },
+  },
+  limo_dorado: {
+    name: 'Gran limo dorado', hp: 70, damage: 4, speed: 2, move: 'salta', places: [],
+    loot: ['baba_limo', 'perla_negra'],
+    text: 'Jefe del templo de arenisca. Cae encima con todo su peso y suelta limos pequeños.',
+    parts: recolor(HOSTILES.limo.parts, { 0x6cc850: 0xf0c040, 0x4a9a38: 0xc08a20 }),
+    boss: { attacks: ['pisoton', 'llamada'], scale: 2.6, size: [1.2, 2.2], minion: 'limo' },
+  },
+  golem_hielo: {
+    name: 'Gólem de hielo', hp: 80, damage: 4, speed: 1.1, move: 'anda', places: [],
+    loot: ['perla_negra'],
+    text: 'Jefe de la cueva helada. Lanza esquirlas de hielo, golpea el suelo y suelta un anillo de escarcha.',
+    parts: recolor(HOSTILES.golem_lava.parts, { 0x3a3030: 0x9cc8e8, 0x2e2626: 0x88b8e0, 0x443838: 0xa8d4f0, 0xff7a20: 0xe8f8ff, 0xffb040: 0x2060c0 }),
+    boss: { attacks: ['rafaga', 'pisoton', 'anillo'], scale: 1.3, size: [1, 3.4] },
+  },
+  golem_magma: {
+    name: 'Gólem de magma', hp: 90, damage: 5, speed: 1.1, move: 'anda', places: [],
+    loot: ['nucleo_lava', 'perla_negra'],
+    text: 'Jefe de la fragua volcánica. Suelta anillos de fuego, golpea el suelo y llama a murciélagos.',
+    parts: recolor(HOSTILES.golem_lava.parts, { 0x3a3030: 0x5a2a20, 0xff7a20: 0xffd040 }),
+    boss: { attacks: ['anillo', 'pisoton', 'llamada'], scale: 1.4, size: [1.1, 3.7], minion: 'murcielago' },
+  },
+} satisfies Partial<Record<HostileKind, HostileDef>>);
 
 export const HOSTILE_KINDS = Object.keys(HOSTILES) as HostileKind[];
+export const BOSS_KINDS = HOSTILE_KINDS.filter((k) => HOSTILES[k].boss);
 
 /** Las criaturas que pueden salir en un sitio a esa hora. */
 export function hostilesFor(place: HostilePlace, night: boolean): HostileKind[] {
@@ -128,6 +178,9 @@ export interface Hostile {
   pinned?: boolean;
   /** Segundos hasta el próximo bote (limos). */
   hop: number;
+  /** El ataque que está preparando un jefe y lo que le falta para soltarlo. */
+  casting: BossAttack | null;
+  castT: number;
 }
 
 export interface Arrow {
@@ -142,8 +195,11 @@ export interface Arrow {
 /** Lo que pasa en un fotograma: golpes que recibes. */
 export interface HostileEvents {
   hits: { kind: HostileKind; damage: number; from: THREE.Vector3 }[];
+  /** Avisos de los jefes antes de atacar («El rey esqueleto tensa el arco…»). */
+  announce: string[];
 }
 
+const UP = new THREE.Vector3(0, 1, 0);
 const SPAWN_NEAR = 10;
 const SPAWN_FAR = 24;
 const GONE = 48;
@@ -170,12 +226,12 @@ export class Hostiles {
   spawn(kind: HostileKind, x: number, y: number, z: number, size = kind === 'limo' ? 2 : 1): Hostile {
     const def = HOSTILES[kind];
     const model = partsModel(def.parts, kind === 'espiritu' ? 0.8 : 1);
-    const scale = kind === 'limo' ? (size >= 2 ? 1 : 0.55) : 1;
+    const scale = def.boss?.scale ?? (kind === 'limo' ? (size >= 2 ? 1 : 0.55) : 1);
     model.group.scale.setScalar(scale);
     const max = kind === 'limo' && size < 2 ? 3 : def.hp;
     const h: Hostile = {
       kind, hp: max, max, size, pos: new THREE.Vector3(x, y, z), vy: 0, yaw: this.random() * Math.PI * 2, model,
-      zone: this.population.add('hostiles', x, z), cooldown: 1, flash: 0, push: new THREE.Vector3(), phase: this.random() * 10, angry: false, hop: 0.5,
+      zone: this.population.add('hostiles', x, z), cooldown: 1, flash: 0, push: new THREE.Vector3(), phase: this.random() * 10, angry: false, hop: 0.5, casting: null, castT: 0,
     };
     model.group.position.copy(h.pos);
     this.group.add(model.group);
@@ -184,7 +240,7 @@ export class Hostiles {
   }
 
   update(dt: number, seconds: number, player: THREE.Vector3, night: number, world: HostileWorld): HostileEvents {
-    const events: HostileEvents = { hits: [] };
+    const events: HostileEvents = { hits: [], announce: [] };
     this.population.update(dt);
     if (!this.enabled) {
       this.clear();
@@ -316,7 +372,8 @@ export class Hostiles {
     // Golpe cuerpo a cuerpo.
     const reach = h.kind === 'golem_lava' ? MELEE + 0.6 : MELEE;
     const dy = Math.abs(player.y - h.pos.y);
-    if (!def.ranged && h.angry && dist < reach && dy < 2 && h.cooldown <= 0) {
+    if (def.boss) this.bossAct(h, dt, dist, player, events);
+    else if (!def.ranged && h.angry && dist < reach && dy < 2 && h.cooldown <= 0) {
       h.cooldown = h.kind === 'golem_lava' ? 1.8 : h.kind === 'murcielago' ? 1 : 1.2;
       events.hits.push({ kind: h.kind, damage: h.kind === 'limo' && h.size < 2 ? 1 : def.damage, from: h.pos.clone() });
     }
@@ -324,17 +381,60 @@ export class Hostiles {
     // Dibujo.
     const g = h.model.group;
     g.position.copy(h.pos);
-    if (hopping) g.scale.y = (h.size >= 2 ? 1 : 0.55) * (1 + Math.max(-0.2, Math.min(0.2, -h.vy * 0.03)));
+    if (hopping) g.scale.y = (def.boss?.scale ?? (h.size >= 2 ? 1 : 0.55)) * (1 + Math.max(-0.2, Math.min(0.2, -h.vy * 0.03)));
     g.rotation.y = h.yaw;
     for (const leg of h.model.legs) leg.rotation.x = Math.sin(h.phase * 8) * 0.6 * leg.userData.side * Math.min(1, move.length());
     for (const wing of h.model.wings) wing.rotation.z = Math.sin(seconds * 18 + h.phase) * 0.7 * wing.userData.side;
-    for (const m of h.model.mats) m.emissive.setHex(h.flash > 0 ? 0xaa0000 : 0x000000);
+    // Rojo al recibir un golpe; los jefes brillan en blanco mientras preparan un ataque.
+    for (const m of h.model.mats) m.emissive.setHex(h.flash > 0 ? 0xaa0000 : h.casting && Math.sin(seconds * 30) > 0 ? 0x666666 : 0x000000);
     for (const m of h.model.glow) if (h.flash <= 0) m.emissive.setHex(m.color.getHex());
     if (h.kind === 'espiritu') {
       // Se vuelve casi invisible justo antes de atacar.
       const fade = h.angry && dist < 4 && h.cooldown < 0.5 ? 0.2 : 0.8;
       for (const m of h.model.mats) m.opacity = fade;
     }
+  }
+
+  /** Los jefes: eligen un ataque, avisan y lo sueltan un momento después. */
+  private bossAct(h: Hostile, dt: number, dist: number, player: THREE.Vector3, events: HostileEvents) {
+    const def = HOSTILES[h.kind];
+    const boss = def.boss!;
+    if (h.casting) {
+      h.castT -= dt;
+      if (h.castT > 0) return;
+      const attack = h.casting;
+      h.casting = null;
+      h.cooldown = 2 + this.random();
+      const chest = h.pos.clone().add(new THREE.Vector3(0, boss.size[1] * 0.5, 0));
+      if (attack === 'rafaga') {
+        const aim = player.clone().add(new THREE.Vector3(0, 1.2, 0)).sub(chest).normalize();
+        for (const a of [-0.22, 0, 0.22]) this.shoot(chest, aim.clone().applyAxisAngle(UP, a).multiplyScalar(15), 2, false);
+      } else if (attack === 'pisoton') {
+        if (dist < 4 && Math.abs(player.y - h.pos.y) < 2) events.hits.push({ kind: h.kind, damage: def.damage, from: h.pos.clone() });
+      } else if (attack === 'llamada' && boss.minion) {
+        const alive = this.list.filter((o) => o.kind === boss.minion && o.pinned).length;
+        for (let i = alive; i < 2; i++) {
+          const a = this.random() * Math.PI * 2;
+          const fly = HOSTILES[boss.minion].move === 'vuela';
+          const m = this.spawn(boss.minion, h.pos.x + Math.cos(a) * 2, h.pos.y + (fly ? 2 : 0), h.pos.z + Math.sin(a) * 2, 1);
+          m.angry = true;
+          m.pinned = true;
+        }
+      } else if (attack === 'anillo') {
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2;
+          this.shoot(h.pos.clone().add(new THREE.Vector3(0, 1.1, 0)), new THREE.Vector3(Math.cos(a), 0.05, Math.sin(a)).multiplyScalar(9), 2, false);
+        }
+      }
+      return;
+    }
+    if (!h.angry || h.cooldown > 0) return;
+    // El pisotón solo de cerca; de lejos, lo demás.
+    const options = boss.attacks.filter((a) => (a === 'pisoton' ? dist < 5 : a === 'llamada' ? true : dist > 3));
+    if (!options.length) return;
+    h.casting = options[Math.floor(this.random() * options.length)];
+    h.castT = 0.9;
+    events.announce.push(`${def.name} ${BOSS_TELLS[h.casting]}`);
   }
 
   /** Dispara una flecha (un esqueleto, o tú con el arco). */
@@ -374,6 +474,8 @@ export class Hostiles {
 
   /** La caja de una criatura, para los golpes y las flechas. */
   bounds(h: Hostile): THREE.Box3 {
+    const boss = HOSTILES[h.kind].boss;
+    if (boss) return this.box.set(new THREE.Vector3(h.pos.x - boss.size[0], h.pos.y, h.pos.z - boss.size[0]), new THREE.Vector3(h.pos.x + boss.size[0], h.pos.y + boss.size[1], h.pos.z + boss.size[0]));
     const big = h.kind === 'golem_lava' ? 0.8 : h.kind === 'limo' ? (h.size >= 2 ? 0.5 : 0.3) : 0.35;
     const tall = h.kind === 'golem_lava' ? 2.6 : h.kind === 'esqueleto' ? 1.9 : h.kind === 'limo' ? (h.size >= 2 ? 0.85 : 0.5) : 0.6;
     const flying = HOSTILES[h.kind].move === 'vuela' || HOSTILES[h.kind].move === 'flota';
@@ -402,9 +504,9 @@ export class Hostiles {
     h.hp -= amount;
     h.flash = 0.2;
     h.angry = true;
-    const knock = h.kind === 'golem_lava' ? 2 : 7;
+    const knock = HOSTILES[h.kind].boss ? 0.8 : h.kind === 'golem_lava' ? 2 : 7;
     h.push.copy(dir).setY(0).normalize().multiplyScalar(knock);
-    if (HOSTILES[h.kind].move !== 'vuela' && HOSTILES[h.kind].move !== 'flota' && h.kind !== 'golem_lava') h.vy = 4;
+    if (HOSTILES[h.kind].move !== 'vuela' && HOSTILES[h.kind].move !== 'flota' && h.kind !== 'golem_lava' && !HOSTILES[h.kind].boss) h.vy = 4;
     if (h.hp > 0) return false;
     const i = this.list.indexOf(h);
     this.remove(i, true);
