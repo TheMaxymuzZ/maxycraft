@@ -9,7 +9,7 @@ import type { ShopDef } from './economy';
 import type { Cell } from './pathfind';
 import { rotationFacing } from './terminal';
 import type { Profile } from './villagers';
-import { SEA_LEVEL } from './world';
+import { SEA_LEVEL, buildCottage } from './world';
 
 /** El suelo del astillero y del muelle: a ras de la playa. */
 export const DECK_Y = SEA_LEVEL + 1;
@@ -151,6 +151,83 @@ export interface ShipyardSite {
   rotation: number;
   /** Etapa de la reparación (0 son las ruinas). */
   stage: number;
+  /** Casa de Bartolo y Brújula (v5.1): centro del suelo de la casita, junto al astillero. */
+  home?: Cell;
+}
+
+/** Etapa a partir de la cual Bartolo y Brújula tienen su casa al lado del astillero (v5.1). */
+export const HOME_STAGE = 1;
+
+/** Camas de la casa de los del astillero (Bartolo a la izquierda, Brújula a la derecha), desde el centro del suelo. */
+export function workerBeds(home: Cell): [Cell, Cell] {
+  const [x, y, z] = home;
+  return [[x - 1, y + 1, z - 1], [x + 1, y + 1, z - 1]];
+}
+
+/**
+ * Busca sitio para la casa de los del astillero: tierra firme y casi llana detrás del astillero (hacia el
+ * interior), sin pisar las casas de la isla.
+ */
+export function findWorkersHome(world: BuildWorld, site: ShipyardSite): Cell | null {
+  // De los sitios que valen, el que tenga menos árboles alrededor (que no quede escondida en el bosque).
+  let best: Cell | null = null;
+  let bestTrees = Infinity;
+  for (let back = 8; back <= 30; back += 2) {
+    for (const side of [0, 6, -6, 12, -12]) {
+      const [px, pz] = shipyardPoint(site, W / 2 + side, -back);
+      const x = Math.round(px);
+      const z = Math.round(pz);
+      if (world.plotAt?.(x, z, 4)) continue;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let dz = -3; dz <= 4; dz++) {
+        for (let dx = -3; dx <= 3; dx++) {
+          const h = world.heightAt(x + dx, z + dz);
+          // Ni charcas ni orilla de río: tierra seca.
+          if (isWater(world.getBlock(x + dx, h, z + dz)) || isWater(world.getBlock(x + dx, h + 1, z + dz))) lo = -Infinity;
+          lo = Math.min(lo, h);
+          hi = Math.max(hi, h);
+        }
+      }
+      if (lo <= SEA_LEVEL + 1 || hi - lo > 2) continue;
+      let trees = 0;
+      for (let dz = -7; dz <= 8; dz += 1) {
+        for (let dx = -7; dx <= 7; dx += 1) {
+          const h = world.heightAt(x + dx, z + dz);
+          if (isSolid(world.getBlock(x + dx, h + 3, z + dz)) || isSolid(world.getBlock(x + dx, h + 5, z + dz))) trees++;
+        }
+      }
+      if (trees < bestTrees) {
+        bestTrees = trees;
+        best = [x, hi, z];
+      }
+      if (trees === 0) return best;
+    }
+  }
+  return best;
+}
+
+/** Levanta la casita: allana un poco alrededor (tierra debajo, aire encima) y pone la casa con la puerta a +z. */
+export function buildWorkersHome(world: BuildWorld, home: Cell) {
+  const [x, y, z] = home;
+  // Fuera los árboles y las plantas de alrededor, para que la casa no quede metida en la copa de un árbol.
+  for (let dz = -6; dz <= 7; dz++) {
+    for (let dx = -6; dx <= 6; dx++) {
+      const h = world.heightAt(x + dx, z + dz);
+      for (let yy = Math.max(h, y) + 1; yy <= y + 14; yy++) if (world.getBlock(x + dx, yy, z + dz) !== Block.Air) world.setBlock(x + dx, yy, z + dz, Block.Air);
+    }
+  }
+  for (let dz = -3; dz <= 4; dz++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const h = world.heightAt(x + dx, z + dz);
+      for (let yy = h + 1; yy < y; yy++) world.setBlock(x + dx, yy, z + dz, Block.Dirt);
+      if (h < y || Math.abs(dx) === 3 || dz >= 3) world.setBlock(x + dx, y, z + dz, Block.Grass);
+      for (let yy = y + 1; yy <= y + 9; yy++) if (world.getBlock(x + dx, yy, z + dz) !== Block.Air) world.setBlock(x + dx, yy, z + dz, Block.Air);
+    }
+  }
+  buildCottage(x, y, z, Block.RoofBlue, (bx, by, bz, b) => world.setBlock(bx, by, bz, b));
+  // Un caminito de losas delante de la puerta.
+  for (let dz = 3; dz <= 4; dz++) world.setBlock(x, y, z + dz, Block.StonePath);
 }
 
 /** Si lo que llega (de la partida o de la red) tiene forma de astillero. */

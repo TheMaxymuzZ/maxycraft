@@ -1,6 +1,6 @@
 {
   "name": "maxycraft",
-  "version": "5.0.1",
+  "version": "5.1.0",
   "private": true,
   "description": "Una mezcla de Minecraft y Animal Crossing que se juega en el navegador.",
   "type": "module",

@@ -1,6 +1,8 @@
 // Wiki del juego: el texto está en wiki.html y las tablas salen de los mismos datos que usa el juego,
 // así recetas, precios, peces o vecinos nuevos aparecen solos en la wiki al añadirlos.
 import { KIND_ICONS } from '../itemCard';
+import { zoomableImages } from './comun';
+import { COMMANDS } from '../commands';
 import * as THREE from 'three';
 import { BLOCKS, createAtlasCanvas } from '../blocks';
 import { CALENDAR, SEASON_DAYS } from '../clock';
@@ -275,6 +277,8 @@ fill('tabla-astillero', STAGES.slice(1).map((st, i) => `<td><b>${i + 1}. ${esc(s
 fill('tabla-barcos', BOATS.map((b) => `<td><b>${esc(b.name)}</b></td><td>${esc(b.text)}</td><td class="num">${b.speed}</td><td class="num">${b.hold}</td><td>Etapa ${b.stage}</td><td>${costCells(b.cost)}</td>`));
 fill('tabla-mejoras-barco', UPGRADES.map((u) => `<td><b>${esc(u.name)}</b></td><td>${esc(u.text)}${u.max > 1 ? ` (hasta ${u.max} veces)` : ''}</td><td>${costCells(u.cost)}</td>`));
 fill('tabla-brujula', [`<td>${catalogOf(BRUJULA).map((id) => item(id)).join(' ')}</td>`]);
+// Modo tester (v5.1).
+fill('tabla-comandos', COMMANDS.map((c) => `<td><code>${c.usage}</code></td><td>${c.text}</td>`));
 fill('tabla-islas-mar', (Object.keys(SEA_TYPES) as (keyof typeof SEA_TYPES)[]).map((t) => {
   const kinds = { misteriosa: ['cristal', 'volcan', 'setas'], recursos: ['minerales', 'bambu', 'nieve', 'flores'], aldea: ['frutas', 'flores'] }[t] as (keyof typeof MYSTERY_NAMES)[];
   return `<td>${SEA_TYPES[t].icon} <b>${esc(SEA_TYPES[t].name)}</b></td><td>${esc(SEA_TYPES[t].text)}</td><td>${kinds.map((k) => esc(MYSTERY_NAMES[k].replace(/^Isla /, ''))).join(', ')}</td>`;
@@ -413,3 +417,6 @@ fill('tabla-estilos', ALL_PROFILES.filter((p) => !p.role).map((p) => {
   const pieces = Object.keys(FURNITURE_STYLE).filter((id) => FURNITURE_STYLE[id].includes(style));
   return `<td><b>${p.name}</b></td><td>${STYLE_NAMES[style]}</td><td><div class="needs">${pieces.map((id) => item(id, 1, false)).join('')}</div></td>`;
 }));
+
+// Las capturas de la wiki (v5.1) se ven en grande al pulsarlas.
+zoomableImages();

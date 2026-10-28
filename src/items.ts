@@ -711,6 +711,8 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'escalera_ladrillo', count: 4, needs: [['ladrillo', 6]] },
   // Almacenamiento (v2.4).
   { result: 'caja', count: 1, needs: [['tablones', 4]] },
+  // El toldo de los puestos del mercado de las aldeas (v5.1).
+  { result: 'toldo', count: 2, needs: [['lana', 2], ['rama', 2]] },
   { result: 'cofre', count: 1, needs: [['tablones', 8]] },
   { result: 'baul', count: 1, needs: [['tablones', 8], ['pepita_hierro', 1]] },
   // Calles y decoración (v2.8).
@@ -732,7 +734,7 @@ export const DIY_RECIPES: Recipe[] = [
 ];
 
 /** Recetas de construcción que se saben sin aprenderlas. */
-const BUILDING_DIY = ['camino_tierra', 'camino_losas', 'calle', 'baldosas', 'farola', 'papelera', 'cartel', 'macetero', 'fuente_plaza', 'buzon', 'caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo', 'tablones_puente', 'barandilla', 'pilar', 'reloj'];
+const BUILDING_DIY = ['toldo', 'camino_tierra', 'camino_losas', 'calle', 'baldosas', 'farola', 'papelera', 'cartel', 'macetero', 'fuente_plaza', 'buzon', 'caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo', 'tablones_puente', 'barandilla', 'pilar', 'reloj'];
 
 /** Las que ya se saben al empezar. */
 export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'cana_hierro', 'cana_legendaria', 'espada_hierro', 'espada_obsidiana', 'escudo_hierro', 'puerta', 'puerta_valla', ...BUILDING_DIY];

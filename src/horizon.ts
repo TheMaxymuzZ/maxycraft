@@ -37,9 +37,16 @@ export class Horizon {
 
   private sample() {
     const cells: NonNullable<Horizon['cells']> = [];
-    const R = this.world.outerRadius + 24;
-    for (let z = -R; z < R; z += CELL) {
-      for (let x = -R; x < R; x += CELL) {
+    // Tu isla y, desde la v5.1, las islas del archipiélago, que están en el mismo mar y se ven venir de lejos.
+    const areas: [number, number, number][] = [[0, 0, this.world.outerRadius + 24]];
+    for (const { spot, radius } of this.world.seaSpots) areas.push([spot.x, spot.z, Math.ceil(radius * 1.4 / CELL) * CELL]);
+    for (const [cx, cz, R] of areas) this.sampleArea(cells, cx, cz, R);
+    this.cells = cells;
+  }
+
+  private sampleArea(cells: NonNullable<Horizon['cells']>, cx: number, cz: number, R: number) {
+    for (let z = cz - R; z < cz + R; z += CELL) {
+      for (let x = cx - R; x < cx + R; x += CELL) {
         // El punto más alto de la celda, para que las montañas y los árboles se vean.
         let best: { block: number; y: number } | null = null;
         for (const [dx, dz] of [[1, 1], [3, 1], [1, 3], [3, 3]]) {
@@ -52,7 +59,6 @@ export class Horizon {
         cells.push({ x, z, y: best.y + 1, color: [r / 255, g / 255, b / 255] });
       }
     }
-    this.cells = cells;
   }
 
   /** Rehace la silueta fuera de los `radius` chunks alrededor del jugador. */

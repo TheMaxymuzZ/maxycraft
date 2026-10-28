@@ -5,14 +5,15 @@ import * as THREE from 'three';
 import { Block, isSolid, isWater } from '../blocks';
 import { Boat } from '../boat';
 import type { BuildWorld } from '../buildings';
+import { Furniture } from '../furniture';
 import type { Inventory } from '../inventory';
 import { itemDef } from '../items';
 import type { MapMarker } from '../map';
 import type { Cell } from '../pathfind';
 import {
-  BOAT_SPOT, type BoatKind, type BoatSave, type Cost, KIOSK_KEEPER, KIOSK_SPOT, MAX_STAGE, SHIPWRIGHT, SHIPWRIGHT_SPOT, STAGE_COSTS,
-  type ShipyardSite, type UpgradeId, boatModel, buildShipyard, costText, findShipyardSite, isBoatSave, isShipyardSite,
-  shipyardCell, shipyardCenter, shipyardPoint, shipyardSeaward, upgradeOf, windOf,
+  BOAT_SPOT, type BoatKind, type BoatSave, type Cost, HOME_STAGE, KIOSK_KEEPER, KIOSK_SPOT, MAX_STAGE, SHIPWRIGHT, SHIPWRIGHT_SPOT, STAGE_COSTS,
+  type ShipyardSite, type UpgradeId, boatModel, buildShipyard, buildWorkersHome, costText, findShipyardSite, findWorkersHome, isBoatSave, isShipyardSite,
+  shipyardCell, shipyardCenter, shipyardPoint, shipyardSeaward, upgradeOf, windOf, workerBeds,
 } from '../shipyard';
 import { type Profile, Villager, type VillagerMemory } from '../villagers';
 import { SEA_LEVEL, type World } from '../world';
@@ -29,6 +30,8 @@ export interface ShipyardDeps {
   inventory: Inventory;
   wallet(): number;
   pay(n: number): void;
+  /** Para la luz de los muebles (las camas de la casa de los del astillero no alumbran, pero así es como las demás). */
+  lampHook?: (x: number, y: number, z: number, level: number) => void;
 }
 
 export class ShipyardGame {
@@ -41,6 +44,9 @@ export class ShipyardGame {
   private seat = new THREE.Vector3();
   private windDay = '';
   private windNow = { angle: 0, strength: 0.5 };
+  /** Las camas de su casa (v5.1): no se guardan, salen cada vez. */
+  private fixtures: Furniture;
+  private bedsPlaced = false;
 
   /**
    * `saved`: el astillero de la partida o de la isla del amigo. Si no hay y es tu isla, se busca una playa (la
@@ -53,7 +59,24 @@ export class ShipyardGame {
       buildShipyard(this.buildWorld(), this.site);
     }
     if (isBoatSave(boat)) this.setBoat(new Boat(boat));
+    this.fixtures = new Furniture([], deps.lampHook ?? null);
+    deps.scene.add(this.fixtures.group);
+    // Partidas de antes de la v5.1 con el astillero ya arreglado: la casa sale ahora.
+    this.buildHome();
     this.spawn();
+  }
+
+  /**
+   * Casa de Bartolo y Brújula (v5.1): aparece al arreglar el astillero, detrás de él, y allí se van a dormir al
+   * cerrar (andando, como los demás tenderos) en vez de desaparecer.
+   */
+  private buildHome() {
+    const s = this.site;
+    if (!s || s.home || !this.deps.host || s.stage < HOME_STAGE) return;
+    const home = findWorkersHome(this.buildWorld(), s);
+    if (!home) return;
+    buildWorkersHome(this.buildWorld(), home);
+    s.home = home;
   }
 
   get stage(): number {
@@ -84,6 +107,21 @@ export class ShipyardGame {
     const [sx, sz] = shipyardSeaward(s);
     this.worker(SHIPWRIGHT, SHIPWRIGHT_SPOT, [sx, sz]);
     if (s.stage >= 1) this.worker(KIOSK_KEEPER, KIOSK_SPOT, [-sx, -sz]);
+    if (!s.home) return;
+    const beds = workerBeds(s.home);
+    if (!this.bedsPlaced) {
+      this.bedsPlaced = true;
+      for (const b of beds) this.fixtures.place('cama', ...b, 0);
+    }
+    const bartolo = this.workers.get(SHIPWRIGHT.name);
+    const brujula = this.workers.get(KIOSK_KEEPER.name);
+    if (bartolo) bartolo.rest = beds[0];
+    if (brujula) brujula.rest = beds[1];
+  }
+
+  /** Dónde está la casa de los del astillero (para el mapa). */
+  get home() {
+    return this.site?.home ?? null;
   }
 
   private worker(profile: Profile, at: Cell, look: [number, number]) {
@@ -137,6 +175,7 @@ export class ShipyardGame {
     this.charge(c);
     s.stage++;
     buildShipyard(this.buildWorld(), s);
+    this.buildHome();
     this.spawn();
     return null;
   }
@@ -150,6 +189,12 @@ export class ShipyardGame {
     const problem = this.missing(m.cost);
     if (problem) return problem;
     this.charge(m.cost);
+    this.makeBoat(kind);
+    return null;
+  }
+
+  private makeBoat(kind: BoatKind) {
+    const s = this.site!;
     if (this.boat) {
       this.boat.refit(kind);
       if (!this.sailing) this.moor();
@@ -158,6 +203,29 @@ export class ShipyardGame {
       const [dx, dz] = shipyardSeaward(s);
       this.setBoat(new Boat({ kind, upgrades: {}, x, z, yaw: Math.atan2(-dx, -dz), hold: [] }));
     }
+  }
+
+  // --- Modo tester (v5.1): sin cobrar ---
+
+  /** Arregla el astillero hasta la etapa `stage` (de 0 a 4) de golpe. */
+  setStage(stage: number): string | null {
+    const s = this.site;
+    if (!s || !this.deps.host) return 'Aquí no hay astillero';
+    const to = Math.max(0, Math.min(MAX_STAGE, stage));
+    while (s.stage < to) {
+      s.stage++;
+      buildShipyard(this.buildWorld(), s);
+    }
+    this.buildHome();
+    this.spawn();
+    return null;
+  }
+
+  /** Te da ese barco (y arregla el astillero lo que haga falta para él). */
+  giveBoat(kind: BoatKind): string | null {
+    const problem = this.setStage(Math.max(this.stage, boatModel(kind).stage));
+    if (problem) return problem;
+    this.makeBoat(kind);
     return null;
   }
 
@@ -265,6 +333,7 @@ export class ShipyardGame {
     if (this.site) {
       const [x, z] = shipyardCenter(this.site);
       out.push({ x, z, icon: '⚓', label: this.site.stage ? 'Astillero' : 'Ruinas del astillero', kind: 'edificios' });
+      if (this.site.home) out.push({ x: this.site.home[0], z: this.site.home[2], icon: '🏠', label: 'Casa de Bartolo y Brújula', kind: 'vecinos' });
     }
     if (this.boat) out.push({ x: this.boat.x, z: this.boat.z, icon: '⛵', label: `Tu ${boatModel(this.boat.kind).name.toLowerCase()}`, kind: 'edificios' });
     return out;

@@ -300,6 +300,10 @@ interface Wild {
   fleeing: number;
   /** Salto del delfín o chorro de la ballena en curso (0 si nada). */
   leap: number;
+  /** Segundos que lleva el delfín acompañando al barco (v5.1: al rato se cansa y se va). */
+  follow: number;
+  /** A qué lado del barco nada (-1 babor, 1 estribor). */
+  side: number;
   spout?: THREE.Mesh;
 }
 
@@ -311,12 +315,16 @@ const WHALE_NEAR = 40;
 const WHALE_FAR = 58;
 const WHALE_GONE = 90;
 const SCARE = 5;
+/** Segundos que un delfín acompaña al barco antes de irse (v5.1). */
+const DOLPHIN_ESCORT = 25;
 
 export class Wildlife {
   readonly group = new THREE.Group();
   readonly list: Wild[] = [];
   private spawnTimer = 0;
   private population = new Population(WILD_RULES);
+  private lastBoat = new THREE.Vector3();
+  private heading: [number, number] = [0, -1];
 
   constructor(private random: () => number = Math.random) {}
 
@@ -325,6 +333,14 @@ export class Wildlife {
    */
   update(dt: number, seconds: number, player: THREE.Vector3, night: number, world: WildWorld, boat: THREE.Vector3 | null) {
     this.population.update(dt);
+    // Hacia dónde va el barco, para que los delfines naden a su lado y no detrás.
+    if (boat) {
+      const dx = boat.x - this.lastBoat.x;
+      const dz = boat.z - this.lastBoat.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 0.02 && d < 5) this.heading = [dx / d, dz / d];
+      this.lastBoat.copy(boat);
+    }
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = 0.7;
@@ -372,7 +388,7 @@ export class Wildlife {
     this.group.add(model.group);
     const w: Wild = {
       kind, group, zone: this.population.add(group, x, z), model, pos, target: pos.clone(), yaw: this.random() * Math.PI * 2,
-      phase: this.random() * 10, timer: 0, fleeing: 0, leap: 0,
+      phase: this.random() * 10, timer: 0, fleeing: 0, leap: 0, follow: 0, side: this.random() < 0.5 ? -1 : 1,
     };
     if (kind === 'ballena') {
       w.spout = new THREE.Mesh(BOX, new THREE.MeshLambertMaterial({ color: 0xe8f4ff, transparent: true, opacity: 0.7 }));
@@ -404,10 +420,21 @@ export class Wildlife {
     }
     w.fleeing = Math.max(0, w.fleeing - dt);
     w.timer -= dt;
-    if (w.kind === 'delfin' && boat && Math.hypot(w.pos.x - boat.x, w.pos.z - boat.z) < 30) {
-      // Junto al barco: lo acompaña por un lado y salta de vez en cuando.
-      w.target.set(boat.x + Math.sin(w.phase) * 4, w.pos.y, boat.z + Math.cos(w.phase) * 4);
-      if (w.leap <= 0 && this.random() < dt * 0.5) w.leap = 1.2;
+    const escort = w.kind === 'delfin' && boat && w.follow < DOLPHIN_ESCORT && Math.hypot(w.pos.x - boat.x, w.pos.z - boat.z) < 30;
+    if (escort && boat) {
+      // Junto al barco (v5.1): nada a un lado, a unos metros, un poco por delante; salta de vez en cuando y al
+      // rato se cansa y se va. Si el barco corre más que él, se queda atrás.
+      const [fx, fz] = this.heading;
+      // Se queda por el lado del barco por el que ha llegado (sin cruzar por debajo).
+      if (w.follow === 0) w.side = -fz * (w.pos.x - boat.x) + fx * (w.pos.z - boat.z) >= 0 ? 1 : -1;
+      w.follow += dt;
+      w.target.set(boat.x + fx * 3 - fz * w.side * 7, w.pos.y, boat.z + fz * 3 + fx * w.side * 7);
+      if (w.leap <= 0 && this.random() < dt * 0.12) w.leap = 1;
+      if (w.follow >= DOLPHIN_ESCORT) {
+        // Se despide: se aleja hacia su lado.
+        w.target.set(w.pos.x - fz * w.side * 25, w.pos.y, w.pos.z + fx * w.side * 25);
+        w.timer = 8;
+      }
     } else if (w.timer <= 0 && w.fleeing <= 0) {
       w.timer = 3 + this.random() * 5;
       const a = this.random() * Math.PI * 2;
@@ -418,7 +445,7 @@ export class Wildlife {
     const tx = w.target.x - w.pos.x;
     const tz = w.target.z - w.pos.z;
     const left = Math.hypot(tx, tz);
-    const speed = def.speed * (w.fleeing > 0 ? 2 : 1) * (w.kind === 'delfin' && boat ? 1.6 : 1);
+    const speed = def.speed * (w.fleeing > 0 ? 2 : 1) * (escort ? 1.3 : 1);
     let moving = false;
     if (left > 0.3) {
       const step = Math.min(left, speed * dt);
@@ -449,9 +476,10 @@ export class Wildlife {
     if (w.leap > 0) {
       w.leap = Math.max(0, w.leap - dt);
       if (w.kind === 'delfin') {
-        const t = 1 - w.leap / 1.2;
-        y += Math.sin(t * Math.PI) * 1.8;
-        pitch = -Math.cos(t * Math.PI) * 0.8;
+        // Un salto corto que sale del agua y vuelve a entrar (antes parecía que volaban).
+        const t = 1 - w.leap;
+        y += Math.sin(t * Math.PI) * 1.1;
+        pitch = -Math.cos(t * Math.PI) * 0.6;
       } else if (w.spout) {
         // La ballena asoma el lomo y echa el chorro.
         y += Math.sin((w.leap / 2.5) * Math.PI) * 0.6;

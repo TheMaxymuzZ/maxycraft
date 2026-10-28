@@ -51,7 +51,8 @@ import { hasUnseenNews, markNewsSeen } from './changelog';
 import { type MissionEvent, Missions } from './missions';
 import { MissionsPanel } from './missionsPanel';
 import { type Rating, countPlaced, rateIsland } from './rating';
-import { type ItemStack, LEAF_BRANCH_CHANCE, SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
+import { DIY_RECIPES, type ItemStack, LEAF_BRANCH_CHANCE, SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
+import { type CommandContext, plain, runCommand } from './commands';
 import { Player } from './player';
 import { raycast } from './raycast';
 import { SAVE_VERSION, type SaveData, activeSlot, flushSaves, loadGame, openSaves, saveGame, saveGameNow, setActiveSlot } from './save';
@@ -66,11 +67,11 @@ import { CLOTHES, clothOf } from './clothes';
 import { MERCHANTS, repairCost } from './commerce';
 import { ShopFront } from './game/shopFront';
 import { ShipyardGame } from './game/shipyard';
-import { type SeaSave, RING_BOAT, archipelago, canReach, dayNumber, genericVillagers, islandAhead, islandSeed, isSeaSave } from './archipelago';
+import { type SeaIsland, type SeaSave, RING_BOAT, SEA_TYPES, archipelago, boatReach, canReach, dayNumber, genericVillagers, isSeaSave, seaSpots, seededRandom } from './archipelago';
 import { chartList, chartSvg } from './seaChart';
-import { BRUJULA, boatModel, shipyardCell, shipyardCenter } from './shipyard';
+import { BRUJULA, type BoatKind, MAX_STAGE, boatModel, shipyardCell, shipyardCenter } from './shipyard';
 import { DECK_Y, PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, clearTerminalSurroundings, eraseTerminal, findTerminalSite, terminalDeckFor, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
-import { WEATHER_TEXT, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
+import { WEATHER_TEXT, type Weather, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
 import { SunShadows } from './shadows';
@@ -92,7 +93,7 @@ import { HAND_LIGHT, Lighting } from './lighting';
 import { type PlayerHome, buildHome, isPlayerHome, pickHomeSpot } from './homes';
 import type { MapMarker } from './map';
 import { Beds, hourText, wakeClock } from './sleep';
-import { MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals';
+import { MAX_HEALTH, MAX_HUNGER, Vitals, type HurtCause, faintLoss, isFood } from './vitals';
 import { FaintScreen } from './game/faintScreen';
 import { MapScreen } from './game/mapScreen';
 import { SleepScreen } from './game/sleepScreen';
@@ -106,7 +107,7 @@ import { HOST, MOVE_PRICE, type Obstacle, PARCEL_PRICES, PARCEL_SIZES, PERKS, RO
 import { isTownSave } from './townhall';
 import { VitalsHud } from './vitalsHud';
 import { BiomeAir, biomeLook, biomeWeather } from './biomeFx';
-import { BIOME_NAMES, type Biome, CLIMATE_KEY, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World, isClimate } from './world';
+import { BIOME_NAMES, type Biome, CLIMATE_KEY, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World, type WorldOptions, isClimate } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
 // v5.0.1: los números de la letra pixelada se confundían (3 y 8, 5 y 8...). Solo las cifras usan otra letra pixelada más clara.
@@ -263,11 +264,27 @@ applySeason(atlas, season);
 
 const sound = new Sound(seed);
 sound.season = season;
+/**
+ * Las islas del archipiélago en el mismo mar que la tuya (v5.1): se llega navegando, sin pantallas de carga.
+ * Las de recursos cambian cada tres días (su semilla depende del día).
+ */
+const seaPlaces = trip || joined ? [] : seaSpots(seaIslands, seed, terrain, dayNumber(dayKey(startDate)));
+/** Cómo se genera la isla de casa (también se manda a los amigos que vienen de visita). */
+const homeOptions: WorldOptions = { terrain, climate, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])), sea: seaPlaces };
 const world = joined
   ? new World(joined.snapshot.seed, material, joined.snapshot.edits, joined.snapshot.options)
   : trip
   ? new World(trip.seed, material, {}, { mystery: { kind: trip.kind, fruit: trip.fruit } })
-  : new World(seed, material, save?.edits ?? {}, { terrain, climate, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) });
+  : new World(seed, material, save?.edits ?? {}, homeOptions);
+// Una isla de recursos renovada (otra semilla) vuelve a salir entera: se olvida lo que se cambió en la de antes.
+for (const spot of seaPlaces) {
+  const before = seaSave.seeds?.[spot.id];
+  if (before !== undefined && before !== spot.seed) {
+    const half = 92;
+    world.clearEdits(world.editsIn(spot.x - half, spot.z - half, spot.x + half, spot.z + half).map(([x, y, z]) => [x, y, z] as [number, number, number]));
+  }
+  (seaSave.seeds ??= {})[spot.id] = spot.seed;
+}
 // Las mallas se dibujan en otro hilo para que no haya tirones (v4.7). Para probar sin él: ?sinhilo
 const mesher = startMesher(world, !params.has('sinhilo'));
 /** Todos los cambios de bloques pasan por aquí, para poder compartirlos con otros jugadores. */
@@ -369,7 +386,10 @@ const hostileWorld = {
 };
 /** Si aquí puede haber criaturas hostiles. */
 function hostileIsland(): boolean {
-  return !!trip && trip.sea?.type !== 'aldea' && !joined;
+  if (joined) return false;
+  if (trip) return trip.sea?.type !== 'aldea';
+  // En las islas de recursos y misteriosas del mismo mar (v5.1), solo en tierra.
+  return !!hereIsland && hereIsland.type !== 'aldea' && !shipyard.sailing;
 }
 /** Combate: golpe cargado, esquiva y bloqueo con escudo. */
 const fight = { charging: 0, cooldown: 0, dodge: 0, dodgeWait: 0, blocking: false, blockUntil: 0 };
@@ -577,6 +597,48 @@ if (trip?.sea?.type === 'aldea') {
     if (world.getBlock(x - 1, y + 1, z) === Block.Air) decor.place('banco', x - 1, y + 1, z, 1);
   }
 }
+/**
+ * Los pueblos de las islas aldea del archipiélago (v5.1): cada vecino sin nombre vive en una de las casitas y el
+ * primero atiende el puesto del mercado de la plaza (y duerme en la primera casa).
+ */
+const villageShops = new Map<string, { island: string; name: string }>();
+if (!trip) {
+  for (const island of seaIslands) {
+    const village = island.type === 'aldea' ? world.villageOf(island.id) : null;
+    if (!village || !village.plots.length) continue;
+    const spot = world.seaSpots.find((s) => s.spot.id === island.id)!.spot;
+    for (const [i, generic] of genericVillagers(spot.seed, village.plots.length).entries()) {
+      // Si en otra aldea ya hay alguien que se llama igual, se le apellida con su isla.
+      const name = genericNames.has(generic.name) ? `${generic.name} de ${island.name.replace(/^Isla /, '')}` : generic.name;
+      const market = i === 0;
+      const shopId = `aldea:${island.id}`;
+      const profile = market ? { ...generic, name, role: 'shop' as const, shop: shopId, stationary: true } : { ...generic, name };
+      const [sx, sy, sz] = village.stall;
+      const home = market ? { kind: 'house' as const, x: sx, z: sz - 3, y: sy - 1, roof: Block.RoofRed, door: [sx, sy, sz] as [number, number, number] } : village.plots[i];
+      const v = new Villager(profile, home, world, save?.villagers?.[name] ?? { friendship: 0 });
+      if (market) {
+        const [dx, dy, dz] = village.plots[0].door;
+        v.rest = [dx - 1, dy, dz - 4];
+        v.lookAt = [0, 1];
+        villageShops.set(shopId, { island: island.id, name: island.name });
+      }
+      villagers.push(v);
+      scene.add(v.group, v.extras);
+      genericNames.add(name);
+    }
+    // Y alguien con nombre de vacaciones en la plaza, al que se puede invitar a vivir en tu isla (cambia cada día).
+    const residents = [...villagers.filter((v) => !v.profile.role).map((v) => v.name), ...guests.map((g) => g.name)];
+    const name = pickVisitor(residents, seededRandom(spot.seed ^ dayNumber(dayKey(startDate))), island.kind);
+    if (name && !joined) {
+      const [x, z] = world.findSpawn(village.stall[0] + 3, village.stall[2] + 3);
+      const visitor = createVisitor(world, name, x, world.heightAt(x, z) + 1, z, save?.villagers?.[name] ?? { friendship: 0 });
+      if (visitor) {
+        villagers.push(visitor);
+        scene.add(visitor.group, visitor.extras);
+      }
+    }
+  }
+}
 /** El astillero y tu barco (v4.21): en tu isla aparecen unas ruinas en la playa del otro lado de la isla. */
 const shipyardBeaches = trip || joined ? [] : [Math.PI, Math.PI / 2, -Math.PI / 2]
   .map((turn) => world.findAirport((shopPlot ? Math.atan2(shopPlot.z, shopPlot.x) : 0) + turn))
@@ -587,6 +649,7 @@ const shipyard = new ShipyardGame({
   put: (x, y, z, b) => sync.setBlock(x, y, z, b),
   wallet: () => wallet,
   pay: (n) => setWallet(wallet - n, 'barco'),
+  lampHook,
 }, trip ? null : joined ? joined.snapshot.shipyard : save?.shipyard, trip && !trip.sea ? null : joined ? joined.snapshot.boat : save?.boat, shipyardBeaches);
 // Llegando en barco a otra isla (v4.22), el barco queda en el agua frente a la playa, a un lado de la avioneta.
 if (trip?.sea && airport) {
@@ -603,7 +666,9 @@ scene.add(villagerHomes.furniture.group);
 const dungeonParam = params.get('mazmorra') as DungeonTheme | null;
 const dungeonTheme: DungeonTheme | null = dungeonParam && dungeonParam in THEMES ? dungeonParam
   : trip?.sea && (trip.sea.type === 'recursos' || trip.sea.type === 'misteriosa') ? KIND_THEME[trip.kind] : null;
-const dungeon = dungeonTheme ? new DungeonGame({ world, hostiles }, planDungeon(dungeonTheme, world, Math.random)) : null;
+let dungeon = dungeonTheme ? new DungeonGame({ world, hostiles }, planDungeon(dungeonTheme, world, Math.random)) : null;
+/** La isla del archipiélago cuya mazmorra está preparada (v5.1). */
+let dungeonAt = '';
 if (dungeon) scene.add(dungeon.group);
 /** Lo legendario que ya te ha salido en los tesoros: no se repite hasta tenerlo todo. */
 const legends = new Set<string>(pockets?.legends ?? []);
@@ -709,7 +774,7 @@ function persist(urgent = false) {
     guests,
     missions: missions.serialize(),
     clock: clock.serialize(),
-    sea: { discovered: [...seaSave.discovered] },
+    sea: { discovered: [...seaSave.discovered], seeds: { ...seaSave.seeds } },
     // El barco vuelve solo a su sitio en el muelle de casa, con lo que lleve en la bodega (v4.22).
     boat: shipyard.boat && homeSave.boat ? { ...shipyard.boat.save(), x: homeSave.boat.x, z: homeSave.boat.z, yaw: homeSave.boat.yaw } : homeSave.boat,
     savedAt: 0,
@@ -755,7 +820,7 @@ function persist(urgent = false) {
     mail: mailDay,
     terminal: terminalSite ?? undefined,
     ...shipyard.save(),
-    sea: { discovered: [...seaSave.discovered] },
+    sea: { discovered: [...seaSave.discovered], seeds: { ...seaSave.seeds } },
     wardrobe: wardrobe.serialize(),
     missions: missions.serialize(),
     clock: clock.serialize(),
@@ -1727,6 +1792,9 @@ merchantShops.set(BRUJULA.id, new Shop(shopContext(), BRUJULA));
 // El puesto del mercado de las islas aldea (v4.26).
 for (const v of villagers) {
   if (trip?.sea && v.profile.shop?.startsWith('aldea:')) merchantShops.set(v.profile.shop, new Shop(shopContext(), villageShop(trip.sea, v.name)));
+  // En las aldeas del mismo mar (v5.1), cada puesto vende y compra con los precios de su isla.
+  const island = villageShops.get(v.profile.shop ?? '');
+  if (island) merchantShops.set(v.profile.shop!, new Shop(Object.assign(shopContext(), { market: island.island }), villageShop(island, v.name)));
 }
 /** La tienda de quien atiende. */
 function shopOf(v: Villager): Shop {
@@ -3552,7 +3620,7 @@ function islandSnapshot(): Snapshot {
   return {
     seed: world.seed,
     edits: world.exportEdits(),
-    options: trip ? { mystery: { kind: trip.kind, fruit: trip.fruit } } : { terrain, climate, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) },
+    options: trip ? { mystery: { kind: trip.kind, fruit: trip.fruit } } : { ...homeOptions, guests: guests.flatMap((g) => (g.x !== undefined && g.z !== undefined && !g.lot ? [[g.x, g.z] as [number, number]] : [])) },
     clock: clock.serialize(),
     furniture: furniture.serialize(),
     guests: trip ? [] : guests,
@@ -3686,6 +3754,12 @@ const friends = new FriendsUI({
   },
   leave: leaveFriends,
   say: (text) => {
+    // Modo tester (v5.1): lo que empieza por «/» es un comando, no un mensaje.
+    const answer = runCommand(commandContext, text);
+    if (answer !== null) {
+      friends.addLine('🧪', answer, 0x7a4ab0);
+      return;
+    }
     if (!net) {
       hud.toast('Abre tu isla a amigos para chatear (menú › Jugar con amigos)');
       return;
@@ -3701,6 +3775,126 @@ const friends = new FriendsUI({
   toast: (t) => hud.toast(t),
   togglePermit: (p) => void togglePermit(p),
 });
+
+// --- Modo tester (v5.1): comandos del chat para probarlo todo sin bayas ni recursos ---
+const TESTER_KEY = 'maxycraft.tester';
+const tester = {
+  on: (() => {
+    try {
+      return localStorage.getItem(TESTER_KEY) === '1';
+    } catch {
+      return false;
+    }
+  })(),
+  invincible: false,
+  weather: null as Weather | null,
+};
+{
+  const hurt = vitals.hurt.bind(vitals);
+  vitals.hurt = (amount, cause) => {
+    if (!tester.invincible) hurt(amount, cause);
+  };
+}
+/** Te pone de pie en (x, z), bajándote del barco si ibas en él. */
+function teleportTo(x: number, z: number) {
+  if (shipyard.sailing) {
+    shipyard.sailing = false;
+    player.mounted = null;
+  }
+  const y = world.heightAt(x, z) + 1;
+  player.position.set(x + 0.5, y + 0.2, z + 0.5);
+  player.velocity.set(0, 0, 0);
+}
+const commandContext: CommandContext = {
+  get tester() {
+    return tester.on;
+  },
+  setTester(on) {
+    tester.on = on;
+    if (!on) {
+      tester.invincible = false;
+      tester.weather = null;
+    }
+    try {
+      localStorage.setItem(TESTER_KEY, on ? '1' : '0');
+    } catch {
+      // Sin almacén: dura hasta cerrar el juego.
+    }
+  },
+  get visiting() {
+    return !!joined || !!trip;
+  },
+  wallet: () => wallet,
+  setWallet: (n) => setWallet(n, 'tester'),
+  give: (id, n) => {
+    const left = inventory.add(id, n);
+    persist();
+    return left;
+  },
+  setHour: (h) => {
+    clock.minute = h * 60;
+  },
+  setWeather: (w) => {
+    tester.weather = w as Weather | null;
+  },
+  heal: () => {
+    vitals.health = MAX_HEALTH;
+    vitals.hunger = MAX_HUNGER;
+  },
+  learnAll: () => {
+    let n = 0;
+    for (const r of DIY_RECIPES) {
+      if (workbench.known.has(r.result)) continue;
+      workbench.known.add(r.result);
+      n++;
+    }
+    persist();
+    return n;
+  },
+  shipyard: (stage) => {
+    const problem = shipyard.setStage(stage ?? MAX_STAGE);
+    if (problem) return problem;
+    persist();
+    return `Astillero en la etapa ${shipyard.stage}`;
+  },
+  boat: (kind) => {
+    const problem = shipyard.giveBoat(kind as BoatKind);
+    if (problem) return problem;
+    persist();
+    return `Tienes ${boatModel(kind as BoatKind).name.toLowerCase()} en el astillero`;
+  },
+  islands: () => seaIslands.map((i) => ({ id: i.id, name: i.name })),
+  goTo: (where) => {
+    if (where === 'casa') {
+      const plot = world.playerPlot;
+      const [x, z] = plot ? [plot.door[0], plot.door[2] + 1] : world.findSpawn(0, 0);
+      teleportTo(x, z);
+      return 'En casa';
+    }
+    if (where === 'astillero') {
+      if (!shipyard.site) return 'Aquí no hay astillero';
+      const [x, , z] = shipyardCell(shipyard.site, 2, 1, 12);
+      teleportTo(x, z);
+      return 'En el astillero';
+    }
+    const island = seaIslands.find((i) => plain(i.name).includes(where));
+    const place = island && seaPlaces.find((p) => p.id === island.id);
+    if (!island || !place) return seaPlaces.length ? `No hay ninguna isla «${where}»` : 'Aquí no hay islas alrededor';
+    const village = world.villageOf(island.id);
+    const [x, z] = village ? [village.stall[0] + 2, village.stall[2] + 3] : world.findSpawn(place.x, place.z);
+    teleportTo(x, z);
+    return `En ${island.name}`;
+  },
+  revealSea: () => {
+    for (const i of seaIslands) if (!seaSave.discovered.includes(i.id)) seaSave.discovered.push(i.id);
+    persist();
+    return seaIslands.length;
+  },
+  invincible: (on) => {
+    tester.invincible = on ?? !tester.invincible;
+    return tester.invincible;
+  },
+};
 
 /** Quién es cada jugador para las parcelas: el anfitrión es HOST y los demás su id de siempre. */
 function parcelIdOf(p: PeerInfo): string {
@@ -3876,7 +4070,7 @@ function openChart() {
   const boat = shipyard.boat?.kind ?? null;
   const p = shipyard.sailing && shipyard.boat ? shipyard.boat : player.position;
   const you = trip ? null : { x: p.x, z: p.z, yaw: shipyard.sailing && shipyard.boat ? shipyard.boat.yaw : player.yaw };
-  document.querySelector('#sea-chart-map')!.innerHTML = chartSvg(seaIslands, discovered, boat, you, world.outerRadius);
+  document.querySelector('#sea-chart-map')!.innerHTML = chartSvg(seaIslands, discovered, boat, you, world.outerRadius, seaPlaces);
   document.querySelector('#sea-chart-list')!.innerHTML = chartList(seaIslands, discovered, boat);
   breaker.active = false;
   panel = 'carta';
@@ -3937,43 +4131,61 @@ function checkOpenSea(seconds: number) {
   const b = shipyard.boat;
   if (!shipyard.sailing || !b || leavingByBoat || joined) return;
   const d = Math.hypot(b.x, b.z);
-  const edge = world.outerRadius + 36;
-  if (d < edge) return;
   if (trip?.sea) {
-    sailAway('Volviendo a casa navegando…', () => saveTrip(null));
+    // Un viaje de antes de la v5.1 (otra isla aparte): se vuelve a casa como entonces.
+    if (d > world.outerRadius + 36) sailAway('Volviendo a casa navegando…', () => saveTrip(null));
     return;
   }
-  if (trip) return;
-  const island = islandAhead(seaIslands, b.x, b.z);
-  if (!island) {
-    if (d > edge + 24) turnBack('Aquí solo hay mar abierto. Mira la carta náutica para saber hacia dónde quedan las islas');
-    else if (seconds - openSeaWarned > 8) {
-      openSeaWarned = seconds;
-      hud.toast('Mar abierto: por aquí no se ve ninguna isla');
-    }
-    return;
+  if (trip || !seaPlaces.length) return;
+  // Desde la v5.1 las islas están en el mismo mar: solo hay que no pasarse de lo que aguanta tu barco.
+  const reach = boatReach(seaIslands, seaPlaces, b.kind);
+  if (d < reach) return;
+  const better = seaIslands.filter((i) => !canReach(b.kind, i)).sort((x, y) => x.ring - y.ring)[0];
+  const name = boatModel(b.kind).name.toLowerCase();
+  if (better) turnBack(`Más allá el mar está muy bravo para tu ${name}: para las islas lejanas hace falta ${boatModel(RING_BOAT[better.ring]).name.toLowerCase()} o mejor`);
+  else turnBack('Aquí solo hay mar abierto. Mira la carta náutica para saber hacia dónde quedan las islas');
+  if (seconds - openSeaWarned > 8) openSeaWarned = seconds;
+}
+
+/** La isla del archipiélago en la que estás (v5.1), o null en el mar de casa. */
+let hereIsland: SeaIsland | null = null;
+/** Islas a las que ya se ha llegado en esta partida (para el aviso y la tarea del día). */
+const greeted = new Set<string>();
+
+/** Al acercarte a una isla del archipiélago: se descubre, se saluda y, si tiene mazmorra, se prepara (v5.1). */
+function checkArrival() {
+  if (trip || !seaPlaces.length) return;
+  const p = shipyard.sailing && shipyard.boat ? shipyard.boat : player.position;
+  const spot = world.seaIslandAt(Math.floor(p.x), Math.floor(p.z));
+  const near = spot && world.seaSpots.find((s) => s.spot.id === spot.id);
+  const inside = near ? Math.hypot(p.x - near.spot.x, p.z - near.spot.z) < near.radius * 1.35 : false;
+  if (hereIsland && (!near || near.spot.id !== hereIsland.id || Math.hypot(p.x - near.spot.x, p.z - near.spot.z) > near.radius * 1.6)) hereIsland = null;
+  if (!near || !inside || hereIsland) return;
+  const island = seaIslands.find((i) => i.id === near.spot.id)!;
+  hereIsland = island;
+  const first = !seaSave.discovered.includes(island.id);
+  if (first) seaSave.discovered.push(island.id);
+  if (!greeted.has(island.id)) {
+    greeted.add(island.id);
+    record('viajar');
+    tutorial.complete('navegar');
+    sound.fanfare();
+    hud.toast(`${SEA_TYPES[island.type].icon} ¡${first ? 'Has descubierto' : 'Has llegado a'} ${island.name}! ${SEA_TYPES[island.type].text}`);
   }
-  if (!canReach(b.kind, island)) {
-    turnBack(`Esa isla queda muy lejos para tu ${boatModel(b.kind).name.toLowerCase()}: hace falta ${boatModel(RING_BOAT[island.ring]).name.toLowerCase()} o mejor`);
-    return;
+  if ((island.type === 'recursos' || island.type === 'misteriosa') && dungeonAt !== island.id && !dungeonParam) {
+    // La mazmorra de la isla: siempre la misma para la misma semilla (sus bloques se guardan con la isla).
+    if (dungeon) scene.remove(dungeon.group);
+    dungeon = new DungeonGame({ world, hostiles }, planDungeon(KIND_THEME[island.kind], world, seededRandom(near.spot.seed), near.spot.x, near.spot.z));
+    scene.add(dungeon.group);
+    dungeonAt = island.id;
   }
-  const residents = [...villagers.filter((v) => !v.profile.role).map((v) => v.name), ...guests.map((g) => g.name)];
-  checkLots();
-  const t = planTrip(activeSlot(), world.fruit, null, freeLots().length);
-  t.seed = islandSeed(island, dayNumber(dayKey(gameDate())));
-  t.kind = island.kind;
-  t.visitor = pickVisitor(residents, Math.random, t.kind);
-  t.sea = { island: island.id, name: island.name, type: island.type, plumas: Math.random() < 0.4 };
-  saveTrip(t);
-  record('viajar');
-  const known = seaSave.discovered.includes(island.id);
-  sailAway(known ? `Navegando hacia ${island.name}…` : 'Navegando hacia una isla sin explorar…', () => {});
 }
 
 /** El barco (v4.21): avanza con lo que pulsas, te lleva sentado y se mece en las olas. */
 const boatSeat = new THREE.Vector3();
 function updateBoat(dt: number, seconds: number) {
   checkOpenSea(seconds);
+  checkArrival();
   if (shipyard.sailing && !isPlaying()) player.drive.throttle = player.drive.turn = 0;
   const drive = shipyard.sailing ? player.drive : null;
   if (shipyard.update(dt, seconds, sky.night, dayKey(gameDate()), drive)) {
@@ -4038,7 +4250,7 @@ function frame(now: number) {
   sky.update(hour, camera);
   // Con lluvia o nieve el día se oscurece y la niebla se vuelve gris.
   const nowWeather = params.get('tiempo') as keyof typeof WEATHER_TEXT | null;
-  const islandWeather = nowWeather && nowWeather in WEATHER_TEXT ? nowWeather : weatherAt(date, seed);
+  const islandWeather = tester.weather ?? (nowWeather && nowWeather in WEATHER_TEXT ? nowWeather : weatherAt(date, seed));
   // Cada bioma de las islas con clima tiene su tiempo y su aire (v4.19).
   weather.set(world.climate ? biomeWeather(biomeHere, islandWeather) : islandWeather);
   weather.update(dt, camera.position);
@@ -4222,6 +4434,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { dungeon, legends, hostiles, fight, attackStart, attackRelease, defend, wildlife, shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { command: (t: string) => runCommand(commandContext, t), get hereIsland() { return hereIsland; }, seaPlaces, get dungeon() { return dungeon; }, legends, hostiles, fight, attackStart, attackRelease, defend, wildlife, shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }
