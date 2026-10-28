@@ -423,8 +423,15 @@ export class Villager {
     if (far !== this.far) {
       this.far = far;
       this.dropPath(); // el camino se vuelve a pedir (o se deja de buscar) según dónde esté
+      this.stuckCheck = 0;
     }
     this.closeDoorBehind();
+    // Cerca de ti, nunca metido en un bloque (v5.1): lejos va en línea recta y puede acabar dentro de un árbol o una pared.
+    this.stuckCheck -= dt;
+    if (!far && this.stuckCheck <= 0) {
+      this.stuckCheck = 1;
+      this.unstick();
+    }
 
     if (this.talking) {
       this.inBed = false;
@@ -649,6 +656,32 @@ export class Villager {
     this.group.visible = true;
     this.group.position.copy(this.position);
     return true;
+  }
+
+  /** Segundos hasta volver a mirar si se ha quedado dentro de un bloque. */
+  private stuckCheck = 0;
+
+  /** Si está dentro de un bloque (y no de camino a ningún sitio), sale a la casilla libre más cercana. */
+  private unstick() {
+    if (this.path || this.inBed || this.talking || this.remote) return;
+    const cell: Cell = [Math.floor(this.position.x), Math.round(this.position.y), Math.floor(this.position.z)];
+    if (standable(this.world, ...cell)) return;
+    for (let r = 0; r <= 4; r++) {
+      for (let dz = -r; dz <= r; dz++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          for (const dy of [0, 1, -1, 2, -2, 3, 4, 5]) {
+            const to: Cell = [cell[0] + dx, cell[1] + dy, cell[2] + dz];
+            if (!standable(this.world, ...to)) continue;
+            this.position.set(to[0] + 0.5, to[1], to[2] + 0.5);
+            this.group.position.copy(this.position);
+            this.dropPath();
+            if (this.goal?.kind !== 'casa') this.goal = null;
+            return;
+          }
+        }
+      }
+    }
   }
 
   /** Elige un sitio cerca para dar un paseo (o, si está de recado, cerca del sitio del recado). */

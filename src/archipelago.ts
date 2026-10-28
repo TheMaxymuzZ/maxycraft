@@ -4,9 +4,10 @@
 // aldeas (con vecinos sin nombre y alguien a quien invitar). Las más lejanas piden un barco mejor.
 // Aquí está lo que no depende de la partida.
 
+import { FRUITS } from './blocks';
 import type { BoatKind } from './shipyard';
 import type { Personality, Profile, Species } from './villagers';
-import type { MysteryKind } from './world';
+import { CHUNK, type MysteryKind, type SeaSpot, homeOuterRadius, islandFruit } from './world';
 
 export type SeaIslandType = 'misteriosa' | 'recursos' | 'aldea';
 
@@ -69,6 +70,11 @@ function rng(seed: number) {
   };
 }
 
+/** Números al azar que salen siempre iguales para la misma semilla. */
+export function seededRandom(seed: number): () => number {
+  return rng(seed);
+}
+
 /** Cuántas islas hay alrededor de cada isla de casa. */
 export const SEA_ISLANDS = 9;
 
@@ -108,6 +114,54 @@ export function archipelago(homeSeed: number): SeaIsland[] {
       kind: kinds[Math.floor(r() * kinds.length)],
     };
   });
+}
+
+// --- Las islas en el mismo mar que la tuya (v5.1) ---
+// Desde la v5.1 no se viaja a otra pantalla: las islas están de verdad en el mar, cada una en su dirección y a su
+// distancia, y se ven aparecer en el horizonte al acercarte navegando.
+
+/** Mar abierto entre lo último de tu isla (islotes incluidos) y el centro de las islas cercanas. */
+export const SEA_GAP = 150;
+/** Lo que se alejan las islas de cada anillo respecto al anterior. */
+export const RING_STEP = 150;
+/** Distancia mínima entre los centros de dos islas, para que no se pisen (cada trozo es de la isla más cercana). */
+const MIN_APART = 196;
+
+/**
+ * Dónde está cada isla del archipiélago en el mundo de casa, con la semilla de hoy (las de recursos cambian cada
+ * tres días). Siempre igual para la misma isla de casa; los centros caen en múltiplos de CHUNK.
+ */
+export function seaSpots(islands: SeaIsland[], homeSeed: number, terrain: number, day: number): SeaSpot[] {
+  const outer = homeOuterRadius(terrain);
+  const home = islandFruit(homeSeed);
+  const fruits = FRUITS.filter((f) => f !== home);
+  const out: SeaSpot[] = [];
+  for (const i of [...islands].sort((a, b) => a.ring - b.ring)) {
+    const base = outer + SEA_GAP + (i.ring - 1) * RING_STEP;
+    let x = 0;
+    let z = 0;
+    // Si choca con otra, se gira un poco dentro de su dirección y, si no basta, se aleja.
+    search: for (let extra = 0; ; extra += 24) {
+      for (const turn of [0, 0.08, -0.08, 0.16, -0.16]) {
+        x = Math.round((Math.cos(i.angle + turn) * (base + extra)) / CHUNK) * CHUNK;
+        z = Math.round((Math.sin(i.angle + turn) * (base + extra)) / CHUNK) * CHUNK;
+        if (out.every((o) => Math.hypot(o.x - x, o.z - z) >= MIN_APART)) break search;
+      }
+    }
+    out.push({ id: i.id, seed: islandSeed(i, day), kind: i.kind, fruit: fruits[i.seed % fruits.length], x, z, village: i.type === 'aldea' || undefined });
+  }
+  return islands.map((i) => out.find((o) => o.id === i.id)!);
+}
+
+/** Hasta dónde (desde el centro de casa) puede llegar cada barco: un poco más allá de sus islas más lejanas. */
+export function boatReach(islands: SeaIsland[], spots: SeaSpot[], boat: BoatKind): number {
+  let far = 0;
+  for (const i of islands) {
+    if (!canReach(boat, i)) continue;
+    const s = spots.find((o) => o.id === i.id);
+    if (s) far = Math.max(far, Math.hypot(s.x, s.z));
+  }
+  return far + 140;
 }
 
 /** Diferencia entre dos ángulos, de 0 a π. */
@@ -179,6 +233,8 @@ export function genericVillagers(seed: number, count: number): Profile[] {
 /** Lo que se recuerda del mar: las islas a las que ya se ha llegado. */
 export interface SeaSave {
   discovered: string[];
+  /** Semilla con la que salió cada isla la última vez (v5.1): si cambia, la isla se renueva entera. */
+  seeds?: Record<string, number>;
 }
 
 export function isSeaSave(v: unknown): v is SeaSave {

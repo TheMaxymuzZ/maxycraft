@@ -200,6 +200,36 @@ export function buildTent(x: number, y: number, z: number, put: (x: number, y: n
   put(x, y + 2, z - 2, Block.Canvas);
 }
 
+/**
+ * Casita de 5×5 con tejado a cuatro aguas, ventanas y la puerta hacia +z, con el suelo en `y`. Es la de los vecinos,
+ * y desde la v5.1 también la de las aldeas del archipiélago y la de Bartolo y Brújula junto al astillero.
+ */
+export function buildCottage(x: number, y: number, z: number, roof: Block, put: (x: number, y: number, z: number, b: Block) => void, wall: Block = Block.Wall) {
+  for (let dz = -2; dz <= 2; dz++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      put(x + dx, y, z + dz, Block.Planks);
+      const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
+      for (let h = 1; h <= 3; h++) put(x + dx, y + h, z + dz, edge ? wall : Block.Air);
+    }
+  }
+  // Puerta de verdad (v4.0: antes era solo un hueco) y ventanas a los lados y detrás.
+  put(x, y + 1, z + 2, Block.Door);
+  put(x, y + 2, z + 2, Block.DoorTop);
+  put(x - 2, y + 2, z, Block.Window);
+  put(x + 2, y + 2, z, Block.Window);
+  put(x, y + 2, z - 2, Block.Window);
+  // Tejado: tres capas que se van cerrando.
+  for (let layer = 0; layer < 3; layer++) {
+    const r = 3 - layer;
+    for (let dz = -r; dz <= r; dz++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (layer < 2 && Math.abs(dx) < 2 && Math.abs(dz) < 2) continue; // hueco por dentro
+        put(x + dx, y + 4 + layer, z + dz, roof);
+      }
+    }
+  }
+}
+
 /** El museo y la tienda son edificios de plantilla que llenan su parcela: cuál y dónde va su esquina. */
 function bigBuilding(p: Plot): { template: BuildingTemplate; origin: [number, number, number] } | null {
   if (p.kind === 'museum') return { template: MUSEUM, origin: museumOrigin(p) };
@@ -239,6 +269,52 @@ export interface WorldOptions {
   terrain?: number;
   /** Clima (v4.19), solo en el terreno 2. Sin él, los cuatro biomas de antes. */
   climate?: Climate;
+  /** Las islas del archipiélago (v5.1), en el mismo mundo que la de casa: se llega navegando, sin pantallas de carga. */
+  sea?: SeaSpot[];
+  /** Isla aldea (v5.1): casitas, plaza, caminos y farolas. Solo para las islas del archipiélago. */
+  village?: boolean;
+}
+
+/** Una isla del archipiélago dentro del mundo de casa (v5.1): su terreno sale de su propia semilla, centrado en (x, z). */
+export interface SeaSpot {
+  id: string;
+  seed: number;
+  kind: MysteryKind;
+  fruit: Block;
+  /** Centro de la isla, en múltiplos de CHUNK para que sus trozos coincidan con los del mundo. */
+  x: number;
+  z: number;
+  village?: boolean;
+}
+
+/** Una isla del archipiélago con su generador y medio lado de lo que ocupa (con su mar alrededor). */
+interface SeaWorld {
+  spot: SeaSpot;
+  world: World;
+  half: number;
+}
+
+/** Flores de los parterres de las aldeas. */
+const FLOWER_BEDS = [Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerPink];
+
+/** Lo que ocupa el mar de una isla de casa (la isla y sus islotes), sin crear la isla. */
+export function homeOuterRadius(terrain: number): number {
+  return Math.ceil((terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS) * ISLET_REACH);
+}
+
+/** Lo que hay en una isla aldea además de las casas (v5.1): caminos, plaza, farolas, flores y el puesto del mercado. */
+interface VillagePlan {
+  /** "x,z" → bloque del suelo (camino de losas o calle empedrada). */
+  ground: Map<string, Block>;
+  /** Farolas: poste de dos vallas con un bloque de luz encima. */
+  lamps: [number, number][];
+  flowers: [number, number, Block][];
+  /** Donde está el tendero del mercado (mira hacia +z), con cajas a los lados y toldo encima. */
+  stall: [number, number];
+  /** Columnas donde no crecen árboles (caminos, plaza y alrededor). */
+  clear: Set<string>;
+  /** Centro de la plaza. */
+  center: [number, number];
 }
 
 /** Sitio de la avioneta: la playa donde espera el piloto y el agua donde flota el avión, mirando al mar (dx, dz). */
@@ -306,6 +382,10 @@ export class World {
   /** Casas de invitados añadidas (en el constructor o después), para copiar el mundo en otro hilo. */
   private guestSpots: [number, number][] = [];
   private readonly options: WorldOptions;
+  /** Las islas del archipiélago (v5.1) y el generador de cada una; `half` es medio lado de lo que ocupa. */
+  private seaWorlds: SeaWorld[] = [];
+  /** El pueblo de una isla aldea (v5.1). */
+  private village: VillagePlan | null = null;
   /** El hilo que dibuja las mallas (v4.7), si lo hay. */
   private mesher: MesherLink | null = null;
   /** Chunks pedidos al hilo de dibujo y el `stamp` con que se pidieron. */
@@ -331,7 +411,11 @@ export class World {
     for (const [k, list] of Object.entries(edits)) {
       this.edits.set(k, new Map(Object.entries(list).map(([i, b]) => [Number(i), b])));
     }
-    this.plots = this.mystery ? [] : this.findPlots(6);
+    this.plots = this.mystery ? (options.village ? this.findVillage() : []) : this.findPlots(6);
+    for (const spot of options.sea ?? []) {
+      const world = new World(spot.seed, material, {}, { mystery: { kind: spot.kind, fruit: spot.fruit }, village: spot.village });
+      this.seaWorlds.push({ spot, world, half: Math.ceil(world.radius * 1.45) + 4 });
+    }
     this.caveEntrances = this.mystery ? [] : this.findCaveEntrances(2);
     // Las casas de los invitados van al final para no mover nada de lo que ya había.
     for (const [x, z] of options.guests ?? []) this.addGuestPlot(x, z);
@@ -678,6 +762,8 @@ export class World {
   mapColumn(x: number, z: number): { block: number; y: number; depth: number } {
     const c = this.chunks.get(key(Math.floor(x / CHUNK), Math.floor(z / CHUNK)));
     if (!c) {
+      const sea = this.seaOf(x, z);
+      if (sea) return sea.world.mapColumn(x - sea.spot.x, z - sea.spot.z);
       const h = this.naturalHeight(x, z);
       const level = this.waterLevel(x, z);
       if (h < level) return { block: Block.Water, y: level, depth: level - h };
@@ -775,11 +861,15 @@ export class World {
   }
 
   heightAt(x: number, z: number): number {
+    const sea = this.seaOf(x, z);
+    if (sea) return sea.world.heightAt(x - sea.spot.x, z - sea.spot.z);
     const plot = this.plotAt(x, z);
     return plot ? plot.y : this.naturalHeight(x, z);
   }
 
   private naturalHeight(x: number, z: number): number {
+    const sea = this.seaOf(x, z);
+    if (sea) return sea.world.naturalHeight(x - sea.spot.x, z - sea.spot.z);
     const mask = this.landMask(x, z);
     if (mask < 0.14) {
       const islet = this.isletHeight(x, z);
@@ -859,6 +949,7 @@ export class World {
   /** Bioma de (x, z) en las islas grandes; null en las de antes y en las misteriosas. */
   biomeAt(x: number, z: number): Biome | null {
     if (this.terrain < 2) return null;
+    if (this.seaOf(x, z)) return null;
     if (this.landMask(x, z) < 0.26) return 'playa';
     const n = this.biomeOrder.length;
     return this.biomeOrder[Math.floor(this.biomeAngle(x, z) / ((Math.PI * 2) / n)) % n];
@@ -998,7 +1089,223 @@ export class World {
     }
   }
 
+  // --- El archipiélago en el mismo mundo (v5.1) ---
+
+  /** La isla del archipiélago cuyo trozo de mundo contiene el chunk (cx, cz), si hay. */
+  private seaOfChunk(cx: number, cz: number): SeaWorld | null {
+    if (!this.seaWorlds.length) return null;
+    const x0 = cx * CHUNK;
+    const z0 = cz * CHUNK;
+    // Si dos islas quedan cerca, cada trozo es de la más cercana.
+    let best: SeaWorld | null = null;
+    let bestD = Infinity;
+    for (const s of this.seaWorlds) {
+      if (x0 + CHUNK <= s.spot.x - s.half || x0 > s.spot.x + s.half || z0 + CHUNK <= s.spot.z - s.half || z0 > s.spot.z + s.half) continue;
+      const d = Math.hypot(x0 + CHUNK / 2 - s.spot.x, z0 + CHUNK / 2 - s.spot.z);
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  /** Igual, para la columna (x, z): se decide por trozos para que el terreno y los bloques coincidan siempre. */
+  private seaOf(x: number, z: number): SeaWorld | null {
+    return this.seaWorlds.length ? this.seaOfChunk(Math.floor(x / CHUNK), Math.floor(z / CHUNK)) : null;
+  }
+
+  /** La isla del archipiélago que hay en (x, z), contando el mar de alrededor. */
+  seaIslandAt(x: number, z: number): SeaSpot | null {
+    return this.seaOf(x, z)?.spot ?? null;
+  }
+
+  /** Las islas del archipiélago de este mundo, con su radio. */
+  get seaSpots(): { spot: SeaSpot; radius: number }[] {
+    return this.seaWorlds.map((s) => ({ spot: s.spot, radius: s.world.radius }));
+  }
+
+  /** Las casas de una isla aldea, ya en las coordenadas de este mundo (y el puesto del mercado). */
+  villageOf(id: string): { plots: Plot[]; stall: [number, number, number] } | null {
+    const s = this.seaWorlds.find((w) => w.spot.id === id);
+    if (!s?.world.village) return null;
+    const { x: ox, z: oz } = s.spot;
+    const plots = s.world.plots.map((p) => ({ ...p, x: p.x + ox, z: p.z + oz, door: [p.door[0] + ox, p.door[1], p.door[2] + oz] as [number, number, number] }));
+    const [sx, sz] = s.world.village.stall;
+    return { plots, stall: [sx + ox, s.world.heightAt(sx, sz) + 1, sz + oz] };
+  }
+
+  /** Un trozo de una isla del archipiélago: lo genera su propio mundo y aquí se le ponen los cambios del jugador. */
+  private generateSea(chunk: Chunk, sea: SeaWorld) {
+    const lcx = chunk.cx - sea.spot.x / CHUNK;
+    const lcz = chunk.cz - sea.spot.z / CHUNK;
+    const d = chunk.data;
+    d.set(sea.world.getChunk(lcx, lcz).data);
+    // Que no se quede la copia en memoria: ya está aquí.
+    sea.world.dropChunk(lcx, lcz);
+    const ox = chunk.cx * CHUNK;
+    const oz = chunk.cz * CHUNK;
+    this.findSpills(ox, oz);
+    const edits = this.edits.get(key(chunk.cx, chunk.cz));
+    if (edits) {
+      for (const [i, b] of edits) {
+        const column = i % (CHUNK * CHUNK);
+        const wx = ox + (column % CHUNK);
+        const wz = oz + Math.floor(column / CHUNK);
+        const sunk = b === Block.Air && Math.floor(i / (CHUNK * CHUNK)) <= SEA_LEVEL && this.naturalHeight(wx, wz) < SEA_LEVEL;
+        d[i] = sunk ? Block.Water : b;
+      }
+    }
+    // Las farolas de las aldeas, la roca de magma y los cristales alumbran desde que salen.
+    for (let i = 0; i < d.length; i++) {
+      if (!LIGHT_RADIUS[d[i] as Block]) continue;
+      const x = ox + (i % CHUNK);
+      const z = oz + (Math.floor(i / CHUNK) % CHUNK);
+      const y = Math.floor(i / (CHUNK * CHUNK));
+      this.torches.set(`${x},${y},${z}`, [x, y, z]);
+    }
+    chunk.touch();
+  }
+
+  /**
+   * El pueblo de una isla aldea (v5.1): una plaza empedrada con el puesto del mercado, de cuatro a cinco casitas
+   * alrededor con caminos de losas hasta la plaza, farolas en las esquinas y a lo largo de los caminos, y flores
+   * junto a las puertas. Todo con bloques que el jugador también puede conseguir.
+   */
+  private findVillage(): Plot[] {
+    // La plaza: el sitio llano más cerca del centro.
+    let plaza: [number, number, number] | null = null;
+    for (let r = 0; r < 30 && !plaza; r++) {
+      for (let i = 0; i < Math.max(1, r * 8) && !plaza; i++) {
+        const a = (i / Math.max(1, r * 8)) * Math.PI * 2;
+        const x = Math.round(Math.cos(a) * r);
+        const z = Math.round(Math.sin(a) * r);
+        const h = this.naturalHeight(x, z);
+        if (h <= SEA_LEVEL + 1) continue;
+        let flat = true;
+        for (let dz = -4; dz <= 4 && flat; dz++) for (let dx = -4; dx <= 4 && flat; dx++) flat = this.naturalHeight(x + dx, z + dz) === h;
+        if (flat) plaza = [x, h, z];
+      }
+    }
+    if (!plaza) {
+      const h = Math.max(SEA_LEVEL + 2, this.naturalHeight(0, 0));
+      plaza = [0, h, 0];
+    }
+    const [px, py, pz] = plaza;
+    const plots: Plot[] = [];
+    for (let tries = 0; tries < 500 && plots.length < 5; tries++) {
+      const a = columnRandom(tries, 91, this.seed) * Math.PI * 2;
+      const d = 11 + columnRandom(tries, 92, this.seed) * 16;
+      const x = Math.round(px + Math.cos(a) * d);
+      const z = Math.round(pz + Math.sin(a) * d);
+      // Delante de la puerta (+z) tiene que quedar sitio para el camino, sin pisar la plaza.
+      if (Math.abs(x - px) < 9 && Math.abs(z - pz) < 9) continue;
+      if (plots.some((p) => Math.abs(p.x - x) < 11 && Math.abs(p.z - z) < 11)) continue;
+      const h = this.naturalHeight(x, z);
+      if (h <= SEA_LEVEL + 1) continue;
+      const tolerance = tries < 250 ? 0 : 1;
+      let flat = true;
+      for (let dz = -3; dz <= 4 && flat; dz++) {
+        for (let dx = -3; dx <= 3 && flat; dx++) {
+          const hh = this.naturalHeight(x + dx, z + dz);
+          flat = Math.abs(hh - h) <= tolerance && hh > SEA_LEVEL + 1;
+        }
+      }
+      if (!flat) continue;
+      plots.push({ kind: 'house', x, z, y: h, roof: ROOFS[plots.length % ROOFS.length], door: [x, h + 1, z + 3] });
+    }
+    this.village = this.planVillage(px, py, pz, plots);
+    return plots;
+  }
+
+  private planVillage(px: number, _py: number, pz: number, plots: Plot[]): VillagePlan {
+    const ground = new Map<string, Block>();
+    const lamps: [number, number][] = [];
+    const flowers: [number, number, Block][] = [];
+    const clear = new Set<string>();
+    const k = (x: number, z: number) => `${x},${z}`;
+    // Plaza de 7×7 de calle empedrada.
+    for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) ground.set(k(px + dx, pz + dz), Block.Street);
+    for (const [dx, dz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) lamps.push([px + dx, pz + dz]);
+    const inHouse = (x: number, z: number) => plots.some((p) => Math.abs(p.x - x) <= 3 && Math.abs(p.z - z) <= 3);
+    for (const p of plots) {
+      // Camino en L desde la puerta hasta la plaza; se prueba primero recto hacia +z/-z y luego al revés.
+      const from: [number, number] = [p.x, p.z + 3];
+      const routes: [number, number][][] = [];
+      for (const zFirst of [true, false]) {
+        const cells: [number, number][] = [];
+        let [x, z] = from;
+        const tx = Math.max(px - 3, Math.min(px + 3, x));
+        const tz = Math.max(pz - 3, Math.min(pz + 3, z));
+        cells.push([x, z]);
+        const stepZ = () => { while (z !== tz) { z += Math.sign(tz - z); cells.push([x, z]); } };
+        const stepX = () => { while (x !== tx) { x += Math.sign(tx - x); cells.push([x, z]); } };
+        if (zFirst) { stepZ(); stepX(); } else { stepX(); stepZ(); }
+        routes.push(cells);
+      }
+      const route = routes.find((r) => r.every(([x, z]) => !inHouse(x, z) || (x === from[0] && z === from[1]))) ?? null;
+      if (!route) continue;
+      route.forEach(([x, z], i) => {
+        if (!ground.has(k(x, z))) ground.set(k(x, z), Block.StonePath);
+        // Una farola cada seis pasos, a un lado del camino.
+        if (i > 0 && i % 6 === 0) {
+          const [nx] = route[Math.min(route.length - 1, i + 1)];
+          const side: [number, number] = nx !== x ? [x, z + 1] : [x + 1, z];
+          lamps.push(side);
+        }
+      });
+      // Flores a los dos lados de la puerta.
+      flowers.push([p.x - 2, p.z + 3, FLOWER_BEDS[(p.x & 3)]], [p.x + 2, p.z + 3, FLOWER_BEDS[(p.z & 3)]]);
+    }
+    for (const [x, z] of [...ground.keys()].map((c) => c.split(',').map(Number))) {
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) clear.add(k(x + dx, z + dz));
+    }
+    for (const [x, z] of lamps) clear.add(k(x, z));
+    return { ground, lamps: lamps.filter(([x, z]) => !ground.has(k(x, z)) && !inHouse(x, z)), flowers, stall: [px, pz - 2], clear, center: [px, pz] };
+  }
+
+  /** Pone en el trozo que empieza en (ox, oz) lo que le toque del pueblo. */
+  private buildVillage(v: VillagePlan, ox: number, oz: number, set: (x: number, y: number, z: number, b: Block, replace: boolean) => void) {
+    const inside = (x: number, z: number) => x >= ox && x < ox + CHUNK && z >= oz && z < oz + CHUNK;
+    for (const [c, b] of v.ground) {
+      const [x, z] = c.split(',').map(Number);
+      if (!inside(x, z)) continue;
+      const h = this.heightAt(x, z);
+      if (h <= SEA_LEVEL) continue;
+      set(x - ox, h, z - oz, b, true);
+      set(x - ox, h + 1, z - oz, Block.Air, true);
+      set(x - ox, h + 2, z - oz, Block.Air, true);
+    }
+    for (const [x, z] of v.lamps) {
+      if (!inside(x, z)) continue;
+      const h = this.heightAt(x, z);
+      if (h <= SEA_LEVEL) continue;
+      set(x - ox, h + 1, z - oz, Block.Fence, true);
+      set(x - ox, h + 2, z - oz, Block.Fence, true);
+      set(x - ox, h + 3, z - oz, Block.LightBlock, true);
+    }
+    for (const [x, z, b] of v.flowers) {
+      if (!inside(x, z)) continue;
+      const h = this.heightAt(x, z);
+      if (h > SEA_LEVEL + 1) set(x - ox, h + 1, z - oz, b, true);
+    }
+    // El puesto del mercado: dos cajas a los lados del tendero y un toldo encima.
+    const [sx, sz] = v.stall;
+    const sh = this.heightAt(sx, sz);
+    for (let dx = -1; dx <= 1; dx++) {
+      if (!inside(sx + dx, sz)) continue;
+      if (dx) {
+        set(sx + dx - ox, sh + 1, sz - oz, Block.Crate, true);
+        set(sx + dx - ox, sh + 2, sz - oz, Block.Fence, true);
+        set(sx + dx - ox, sh + 3, sz - oz, Block.Fence, true);
+      }
+      set(sx + dx - ox, sh + 4, sz - oz, Block.Awning, true);
+    }
+  }
+
   private generate(chunk: Chunk) {
+    const sea = this.seaOfChunk(chunk.cx, chunk.cz);
+    if (sea) return this.generateSea(chunk, sea);
     const ox = chunk.cx * CHUNK;
     const oz = chunk.cz * CHUNK;
     const d = chunk.data;
@@ -1110,6 +1417,7 @@ export class World {
       if (plot.x + r < ox || plot.x - r >= ox + CHUNK || plot.z + r < oz || plot.z - r >= oz + CHUNK) continue;
       this.buildHouse(plot, (x, y, z, b) => set(x - ox, y, z - oz, b, true));
     }
+    if (this.village) this.buildVillage(this.village, ox, oz, set);
 
     // El mar y el río (v3.8): bloques de agua quieta donde el terreno natural queda bajo su nivel.
     /** Hasta qué altura llega el agua en cada columna (-1 si es tierra). */
@@ -1215,31 +1523,7 @@ export class World {
       for (const [dx, dy, dz, b] of templateCells(big.template, 0)) if (b !== null) put(mx + dx, my + dy, mz + dz, b);
       return;
     }
-    for (let dz = -2; dz <= 2; dz++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        put(x + dx, y, z + dz, Block.Planks);
-        const edge = Math.abs(dx) === 2 || Math.abs(dz) === 2;
-        // La tienda es de madera, para distinguirla de las casas.
-        const wall = p.kind === 'shop' ? Block.ShopWall : Block.Wall;
-        for (let h = 1; h <= 3; h++) put(x + dx, y + h, z + dz, edge ? wall : Block.Air);
-      }
-    }
-    // Puerta de verdad (v4.0: antes era solo un hueco) y ventanas a los lados y detrás.
-    put(x, y + 1, z + 2, Block.Door);
-    put(x, y + 2, z + 2, Block.DoorTop);
-    put(x - 2, y + 2, z, Block.Window);
-    put(x + 2, y + 2, z, Block.Window);
-    put(x, y + 2, z - 2, Block.Window);
-    // Tejado: tres capas que se van cerrando.
-    for (let layer = 0; layer < 3; layer++) {
-      const r = 3 - layer;
-      for (let dz = -r; dz <= r; dz++) {
-        for (let dx = -r; dx <= r; dx++) {
-          if (layer < 2 && Math.abs(dx) < 2 && Math.abs(dz) < 2) continue; // hueco por dentro
-          put(x + dx, y + 4 + layer, z + dz, p.roof);
-        }
-      }
-    }
+    buildCottage(x, y, z, p.roof, put, p.kind === 'shop' ? Block.ShopWall : Block.Wall);
   }
 
   /** Parcela del jugador, si la isla tiene sitio para ella. */
@@ -1338,6 +1622,9 @@ export class World {
 
   private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | 'mushroom' | 'spire' | 'acacia' | 'ceiba' | 'blossom' | 'willow' | 'fir' | 'glow' | 'giant' | 'column' | null {
     if (this.plotAt(x, z, 3) || this.zoneAt(x, z) === 'bambu') return null;
+    if (this.village?.clear.has(`${x},${z}`)) return null;
+    // En el pueblo hay menos árboles que en el resto de la isla, para que se vean las casas.
+    if (this.village && Math.hypot(x - this.village.center[0], z - this.village.center[1]) < 30 && columnRandom(x, z, this.seed + 93) > 0.3) return null;
     const r = columnRandom(x, z, this.seed);
     const h = this.heightAt(x, z);
     if (this.terrain >= 2) {

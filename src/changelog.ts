@@ -7,6 +7,22 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.1',
+    title: 'Navegar sin pantallas de carga y aldeas de verdad',
+    items: [
+      'Las nueve islas del archipiélago están ahora en el mismo mar que la tuya: aléjate en barco y las verás aparecer en el horizonte. Se llega navegando, sin pantallas de carga, y lo que cambies en ellas se queda guardado.',
+      'La carta náutica dibuja las islas a escala y marca dónde vas. Si te alejas más de lo que aguanta tu barco, el mar se pone bravo y da media vuelta.',
+      'Las islas aldea son pueblos de verdad: plaza empedrada con el puesto del mercado, casitas con tejados de colores, caminos de losas, farolas y flores. Los vecinos viven en sus casas y se van a dormir a ellas, así que ya no aparecen y desaparecen al acercarte o al mirarlos.',
+      'Todo lo que hay en los pueblos se puede conseguir: el toldo del mercado se fabrica con 2 de lana y 2 ramas; lo demás ya se compraba o se fabricaba.',
+      'Los vecinos que se quedaban metidos dentro de un árbol o de una pared salen solos a una casilla libre.',
+      'La balsa y los barcos flotan por encima del agua en vez de ir medio hundidos.',
+      'Los delfines nadan a un lado del barco, a unos metros, saltan de vez en cuando (sin volar) y al rato se despiden.',
+      'Al arreglar el astillero aparece la casa de Bartolo y Brújula detrás de él, y al cerrar se van andando a dormir allí.',
+      'Modo tester: escribe /tester en el chat (Enter) para encenderlo y /ayuda para ver los comandos: bayas, objetos, hora, tiempo, curarte, recetas, astillero, barcos, ir a cualquier isla y descubrir la carta.',
+      'La wiki tiene capturas en casi todas las secciones (se ven en grande al pulsarlas) y una sección del modo tester.',
+    ],
+  },
+  {
     version: '5.0.2',
     title: 'Arreglo de los viajes',
     items: ['Se vuelve a poder viajar en avioneta y en barco: con la 5.0.1 al despegar te quedabas en tu isla.'],

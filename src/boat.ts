@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { isSolid, isWater } from './blocks';
 import { type BoatKind, type BoatSave, type UpgradeId, boatSpeed, holdSize, windFactor } from './shipyard';
-import { SEA_LEVEL } from './world';
+import { SEA_LEVEL, WATER_SURFACE } from './world';
 
 /** Lo que el barco necesita saber del mundo: qué bloque hay en cada sitio. */
 export interface Sea {
@@ -20,6 +20,13 @@ export function navigable(sea: Sea, x: number, z: number): boolean {
   const above = sea.getBlock(bx, SEA_LEVEL + 1, bz);
   return !isSolid(above) || isWater(above);
 }
+
+/**
+ * Altura del barco sobre la superficie del agua (v5.1: antes iba medio hundido) y de su cubierta, donde se
+ * apoyan los pies de quien va a bordo.
+ */
+const FLOAT: Record<BoatKind, number> = { balsa: 0.04, velero: 0.06, expedicion: 0.06 };
+const DECK: Record<BoatKind, number> = { balsa: 0.2, velero: 0.32, expedicion: 0.32 };
 
 /** Medio largo del casco de cada barco (para mirar la proa al chocar). */
 const HALF_LENGTH: Record<BoatKind, number> = { balsa: 1, velero: 1.6, expedicion: 2.3 };
@@ -104,7 +111,7 @@ export class Boat {
   /** Dónde va sentado quien lo lleva. */
   seat(out: THREE.Vector3): THREE.Vector3 {
     const back = this.kind === 'balsa' ? 0.3 : this.kind === 'velero' ? 1.1 : 1.8;
-    return out.set(this.x + Math.sin(this.yaw) * back, SEA_LEVEL + 0.85, this.z + Math.cos(this.yaw) * back);
+    return out.set(this.x + Math.sin(this.yaw) * back, WATER_SURFACE + FLOAT[this.kind] + DECK[this.kind], this.z + Math.cos(this.yaw) * back);
   }
 
   bounds(out: THREE.Box3): THREE.Box3 {
@@ -127,7 +134,7 @@ export class Boat {
 
   /** Mece el barco en las olas y orienta la vela al viento. `night` de 0 a 1 enciende el farol. */
   update(seconds: number, night: number, wind: { angle: number }) {
-    this.group.position.set(this.x, SEA_LEVEL + 0.55 + Math.sin(seconds * 1.6) * 0.05, this.z);
+    this.group.position.set(this.x, WATER_SURFACE + FLOAT[this.kind] + Math.sin(seconds * 1.6) * 0.04, this.z);
     this.group.rotation.set(Math.sin(seconds * 1.1) * 0.03, this.yaw, Math.sin(seconds * 1.3 + 1) * 0.04);
     if (this.sail) this.sail.rotation.y = Math.max(-0.6, Math.min(0.6, Math.sin(wind.angle + this.yaw) * 0.6));
     this.light.intensity = this.upgrades.farol ? night * 2.2 : 0;
