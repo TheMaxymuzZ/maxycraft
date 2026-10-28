@@ -28,6 +28,8 @@ export interface Settings {
   uiScale: number;
   /** Distancia de visión en chunks (3 a 12; desde la v4.7). Al cambiar la calidad se pone la de esa calidad. */
   viewDistance: number;
+  /** Modo tranquilo (v4.24): no sale ninguna criatura hostil. */
+  calm: boolean;
 }
 
 export const VIEW_MIN = 3;
@@ -65,7 +67,7 @@ export function uiScaleFor(percent: number, width: number, height: number, touch
 
 export function defaultSettings(touch: boolean): Settings {
   const quality: Quality = touch ? 'baja' : 'media';
-  return { music: 70, sfx: 80, sensitivity: 1, quality, fov: 75, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24, uiScale: 100, viewDistance: RENDER_RADIUS[quality] };
+  return { music: 70, sfx: 80, sensitivity: 1, quality, fov: 75, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24, uiScale: 100, viewDistance: RENDER_RADIUS[quality], calm: false };
 }
 
 const clamp = (n: unknown, lo: number, hi: number, fallback: number) =>
@@ -85,6 +87,7 @@ export function normalizeSettings(raw: unknown, touch: boolean): Settings {
     keys: normalizeKeys(r.keys),
     bigText: r.bigText === true,
     colorblind: r.colorblind === true,
+    calm: r.calm === true,
     uiScale: Math.round(clamp(r.uiScale, UI_SCALE_MIN, UI_SCALE_MAX, d.uiScale) / 5) * 5,
     viewDistance: Math.round(clamp(r.viewDistance, VIEW_MIN, VIEW_MAX, RENDER_RADIUS[quality])),
     dayLength: DAY_LENGTHS.some((l) => l.minutes === r.dayLength) ? (r.dayLength as number) : d.dayLength,

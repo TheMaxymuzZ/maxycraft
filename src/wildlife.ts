@@ -14,7 +14,7 @@ export type WildKind =
 /** Dónde vive: en tierra, en la orilla (arena junto al mar) o en el mar. */
 export type WildPlace = 'tierra' | 'orilla' | 'mar';
 
-type Part = { s: [number, number, number]; p: [number, number, number]; c: number; leg?: 1 | -1; glow?: boolean; wing?: 1 | -1 };
+export type Part = { s: [number, number, number]; p: [number, number, number]; c: number; leg?: 1 | -1; glow?: boolean; wing?: 1 | -1 };
 
 export interface WildDef {
   name: string;
@@ -234,13 +234,28 @@ export interface WildWorld {
 }
 
 /** Monta el modelo de cubos de un animal, mirando hacia +z. */
-export function wildModel(kind: WildKind): { group: THREE.Group; legs: THREE.Object3D[]; wings: THREE.Object3D[]; glow: THREE.MeshLambertMaterial[] } {
+export function wildModel(kind: WildKind) {
+  return partsModel(WILDLIFE[kind].parts, kind === 'medusa' ? 0.75 : 1);
+}
+
+export interface PartsModel {
+  group: THREE.Group;
+  legs: THREE.Object3D[];
+  wings: THREE.Object3D[];
+  glow: THREE.MeshLambertMaterial[];
+  mats: THREE.MeshLambertMaterial[];
+}
+
+/** Un modelo de cubos a partir de sus piezas (lo usan también las criaturas hostiles de la v4.24). */
+export function partsModel(parts: Part[], opacity = 1): PartsModel {
   const group = new THREE.Group();
   const legs: THREE.Object3D[] = [];
   const wings: THREE.Object3D[] = [];
   const glow: THREE.MeshLambertMaterial[] = [];
-  for (const part of WILDLIFE[kind].parts) {
-    const mat = new THREE.MeshLambertMaterial({ color: part.c, transparent: kind === 'medusa', opacity: kind === 'medusa' ? 0.75 : 1 });
+  const mats: THREE.MeshLambertMaterial[] = [];
+  for (const part of parts) {
+    const mat = new THREE.MeshLambertMaterial({ color: part.c, transparent: opacity < 1, opacity });
+    mats.push(mat);
     if (part.glow) {
       mat.emissive.setHex(part.c);
       glow.push(mat);
@@ -265,7 +280,7 @@ export function wildModel(kind: WildKind): { group: THREE.Group; legs: THREE.Obj
       group.add(mesh);
     }
   }
-  return { group, legs, wings, glow };
+  return { group, legs, wings, glow, mats };
 }
 
 const BOX = new THREE.BoxGeometry(1, 1, 1);
@@ -274,7 +289,7 @@ interface Wild {
   kind: WildKind;
   group: 'tierra' | 'mar';
   zone: string;
-  model: ReturnType<typeof wildModel>;
+  model: PartsModel;
   pos: THREE.Vector3;
   target: THREE.Vector3;
   yaw: number;

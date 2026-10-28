@@ -3,7 +3,7 @@ import { dailyRandom } from './clock';
 /** Cosas que hace el jugador y que cuentan para las tareas y los logros. */
 export type MissionEvent =
   | 'pescar' | 'insecto' | 'vender' | 'sacudir' | 'regar' | 'charlar' | 'concha' | 'fabricar'
-  | 'mueble' | 'romper' | 'cosechar' | 'granja' | 'viajar' | 'donar' | 'regalar' | 'tareas' | 'construir_casa';
+  | 'mueble' | 'romper' | 'cosechar' | 'granja' | 'viajar' | 'donar' | 'regalar' | 'tareas' | 'construir_casa' | 'vencer';
 
 export interface TaskDef {
   id: string;
@@ -44,6 +44,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'pez1', name: 'Primera pesca', text: 'Pesca tu primer pez', event: 'pescar', goal: 1, points: 100 },
   { id: 'pez50', name: 'Lobo de mar', text: 'Pesca 50 peces', event: 'pescar', goal: 50, points: 1000 },
   { id: 'bicho1', name: 'Cazabichos', text: 'Atrapa tu primer insecto', event: 'insecto', goal: 1, points: 100 },
+  { id: 'vencer1', name: 'Primera victoria', text: 'Vence a tu primera criatura hostil', event: 'vencer', goal: 1, points: 150 },
+  { id: 'vencer50', name: 'Guardiana, guardián', text: 'Vence a 50 criaturas hostiles', event: 'vencer', goal: 50, points: 1500 },
   { id: 'bicho50', name: 'Entomóloga, entomólogo', text: 'Atrapa 50 insectos', event: 'insecto', goal: 50, points: 1000 },
   { id: 'museo10', name: 'Amistad con el museo', text: 'Dona 10 cosas al museo', event: 'donar', goal: 10, points: 500 },
   { id: 'bayas10k', name: 'Buen negocio', text: 'Gana 10.000 bayas en la tienda', event: 'vender', goal: 10000, points: 300 },

@@ -18,7 +18,7 @@ describe('opciones', () => {
 
   it('corrige valores fuera de rango o raros', () => {
     const s = normalizeSettings({ music: 250, sfx: -4, sensitivity: 'mucha', quality: 'ultra', fov: 10 }, false);
-    expect(s).toEqual({ music: 100, sfx: 0, sensitivity: 1, quality: 'media', fov: 60, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24, uiScale: 100, viewDistance: RENDER_RADIUS.media });
+    expect(s).toEqual({ music: 100, sfx: 0, sensitivity: 1, quality: 'media', fov: 60, keys: defaultKeys(), bigText: false, colorblind: false, dayLength: 24, uiScale: 100, viewDistance: RENDER_RADIUS.media, calm: false });
   });
 
   it('el tamaño de la interfaz se queda entre 70% y 150%, de 5 en 5 (v3.7)', () => {

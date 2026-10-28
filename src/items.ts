@@ -49,6 +49,10 @@ export interface ItemDef {
   lore?: string;
   /** Daño por golpe (armas). */
   damage?: number;
+  /** Qué arma es (v4.24): espada, arco o escudo. */
+  weapon?: 'espada' | 'arco' | 'escudo';
+  /** Segundos entre golpe y golpe (espadas, v4.24). */
+  cooldown?: number;
   /** Casilla del atlas para el icono. */
   tile: number;
   maxStack: number;
@@ -272,6 +276,25 @@ add({ id: 'cana_hierro', rarity: 'raro', name: 'Caña de hierro', tile: XTile.Ir
 add({ id: 'cana_cristal', rarity: 'epico', name: 'Caña de cristal', tile: XTile.CrystalRod, maxStack: 1, tool: 'rod', durability: 200, sell: 1200, buy: 8000, seller: 'pesca' });
 add({ id: 'cana_legendaria', rarity: 'legendario', name: 'Caña legendaria', tile: XTile.LegendRod, maxStack: 1, tool: 'rod', durability: 500, sell: 5000 });
 add({ id: 'senuelo', kind: 'consumible', rarity: 'raro', name: 'Señuelo', tile: XTile.Lure, maxStack: 30, sell: 60, buy: 300, seller: 'pesca' });
+// Armas y botín (v4.24).
+add({ id: 'espada_madera', kind: 'arma', name: 'Espada de madera', tile: XTile.WoodSword, maxStack: 1, weapon: 'espada', damage: 2, cooldown: 0.5, durability: 60, sell: 40 });
+add({ id: 'espada_piedra', kind: 'arma', name: 'Espada de piedra', tile: XTile.StoneSword, maxStack: 1, weapon: 'espada', damage: 3, cooldown: 0.55, durability: 120, sell: 80 });
+add({ id: 'espada_hierro', kind: 'arma', rarity: 'raro', name: 'Espada de hierro', tile: XTile.IronSword, maxStack: 1, weapon: 'espada', damage: 4, cooldown: 0.55, durability: 250, sell: 250 });
+add({ id: 'espada_cristal', kind: 'arma', rarity: 'epico', name: 'Espada de cristal', tile: XTile.CrystalSword, maxStack: 1, weapon: 'espada', damage: 5, cooldown: 0.45, durability: 400, sell: 1000, buy: 7000, seller: 'mina' });
+add({ id: 'espada_obsidiana', kind: 'arma', rarity: 'epico', name: 'Espada de obsidiana', tile: XTile.ObsidianSword, maxStack: 1, weapon: 'espada', damage: 7, cooldown: 0.8, durability: 800, sell: 1500 });
+add({ id: 'arco', kind: 'arma', rarity: 'raro', name: 'Arco', tile: XTile.Bow, maxStack: 1, weapon: 'arco', damage: 5, durability: 150, sell: 200 });
+add({ id: 'flecha', kind: 'arma', name: 'Flecha', tile: XTile.Arrow, maxStack: 64, sell: 5 });
+add({ id: 'escudo', kind: 'arma', name: 'Escudo de madera', tile: XTile.Shield, maxStack: 1, weapon: 'escudo', durability: 100, sell: 80 });
+add({ id: 'escudo_hierro', kind: 'arma', rarity: 'raro', name: 'Escudo de hierro', tile: XTile.IronShield, maxStack: 1, weapon: 'escudo', durability: 300, sell: 400 });
+add({ id: 'baba_limo', name: 'Baba de limo', tile: XTile.SlimeBall, maxStack: 30, sell: 40, rarity: 'comun' });
+add({ id: 'ala_murcielago', name: 'Ala de murciélago', tile: XTile.BatWing, maxStack: 30, sell: 50, rarity: 'comun' });
+add({ id: 'hueso', name: 'Hueso', tile: XTile.Bone, maxStack: 30, sell: 40, rarity: 'comun' });
+add({ id: 'nucleo_lava', name: 'Núcleo de lava', tile: XTile.LavaCore, maxStack: 10, sell: 600, rarity: 'raro' });
+add({ id: 'polvo_espiritu', name: 'Polvo de espíritu', tile: XTile.SpiritDust, maxStack: 30, sell: 500, rarity: 'raro' });
+add({ id: 'perla_negra', kind: 'tesoro', name: 'Perla negra', tile: XTile.BlackPearl, maxStack: 10, sell: 2000, rarity: 'epico' });
+add({ id: 'corona_limo', kind: 'tesoro', name: 'Corona de limo', tile: XTile.SlimeCrown, maxStack: 1, sell: 6000, rarity: 'legendario' });
+add({ id: 'corazon_volcan', kind: 'tesoro', name: 'Corazón del volcán', tile: XTile.VolcanoHeart, maxStack: 1, sell: 8000, rarity: 'legendario' });
+add({ id: 'lagrima_estrella', kind: 'tesoro', name: 'Lágrima de estrella', tile: XTile.StarTear, maxStack: 1, sell: 7000, rarity: 'legendario' });
 add({ id: 'carta_nautica', kind: 'especial', rarity: 'raro', name: 'Carta náutica', tile: XTile.SeaChart, maxStack: 1, sell: 500, buy: 2500, seller: 'pesca' });
 add({ id: 'pepita_hierro', name: 'Pepita de hierro', tile: Tile.IronNugget, maxStack: 30, sell: 375 });
 add({ id: 'pepita_oro', name: 'Pepita de oro', tile: Tile.GoldNugget, maxStack: 30, sell: 1500 });
@@ -586,6 +609,12 @@ export const RECIPES: Recipe[] = [
   { result: 'red', count: 1, needs: [['rama', 5]] },
   { result: 'antorcha', count: 4, needs: [['rama', 1], ['carbon', 1]] },
   { result: 'cubo', count: 1, needs: [['pepita_hierro', 3]] },
+  // Armas (v4.24).
+  { result: 'espada_madera', count: 1, needs: [['tablones', 2], ['rama', 1]] },
+  { result: 'espada_piedra', count: 1, needs: [['piedra', 2], ['rama', 1]] },
+  { result: 'arco', count: 1, needs: [['rama', 3], ['lana', 1]] },
+  { result: 'flecha', count: 4, needs: [['rama', 1], ['piedra', 1]] },
+  { result: 'escudo', count: 1, needs: [['tablones', 4], ['pepita_hierro', 1]] },
   // Cocina: lo que sale del huerto y la granja vale mucho más cocinado.
   { result: 'pan', count: 1, needs: [['trigo', 3]] },
   { result: 'tortilla', count: 1, needs: [['huevo', 2], ['tomate', 1]] },
@@ -629,6 +658,9 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'hacha_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 3]] },
   // Cañas (v4.23): la de hierro se aprende de primeras; la legendaria sale de la de cristal.
   { result: 'cana_hierro', count: 1, needs: [['rama', 3], ['pepita_hierro', 3]] },
+  { result: 'espada_hierro', count: 1, needs: [['rama', 1], ['pepita_hierro', 3]] },
+  { result: 'espada_obsidiana', count: 1, needs: [['rama', 1], ['obsidiana', 3], ['nucleo_lava', 1]] },
+  { result: 'escudo_hierro', count: 1, needs: [['tablones', 2], ['pepita_hierro', 6]] },
   { result: 'cana_legendaria', count: 1, needs: [['cana_cristal', 1], ['pepita_oro', 5], ['concha', 10]] },
   { result: 'pala_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 2]] },
   { result: 'valla_blanca', count: 4, needs: [['tablones', 2], ['concha', 1]] },
@@ -685,4 +717,4 @@ export const DIY_RECIPES: Recipe[] = [
 const BUILDING_DIY = ['camino_tierra', 'camino_losas', 'calle', 'baldosas', 'farola', 'papelera', 'cartel', 'macetero', 'fuente_plaza', 'buzon', 'caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo', 'tablones_puente', 'barandilla', 'pilar', 'reloj'];
 
 /** Las que ya se saben al empezar. */
-export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'cana_hierro', 'cana_legendaria', 'puerta', 'puerta_valla', ...BUILDING_DIY];
+export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'cana_hierro', 'cana_legendaria', 'espada_hierro', 'espada_obsidiana', 'escudo_hierro', 'puerta', 'puerta_valla', ...BUILDING_DIY];

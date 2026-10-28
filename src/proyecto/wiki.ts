@@ -8,6 +8,7 @@ import { CREATURES, type Creature, HABITAT_TEXT, fightOf, hoursText, monthsText,
 import { sizeText } from '../collection';
 import { RODS } from '../fishing';
 import { WILDLIFE, WILD_KINDS } from '../wildlife';
+import { HOSTILES, HOSTILE_KINDS } from '../hostiles';
 import { FURNITURE, paintFurnitureIcons } from '../furniture';
 import { itemIcon } from '../icons';
 import { DIY_RECIPES, ITEMS, ITEM_KINDS, RARITIES, RECIPES, type Recipe, STARTER_DIY, breakInfo, itemDef, toolNameFor } from '../items';
@@ -170,6 +171,27 @@ const ROD_HOW: Record<string, string> = {
 };
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 fill('tabla-canas', Object.entries(RODS).map(([id, r]) => `<td>${item(id, 1, false)}</td><td class="num">${id === 'cana' ? '—' : pct(1 - r.bite)}</td><td class="num">${pct(r.pull)}</td><td class="num">${pct(r.strain)}</td><td>${ROD_HOW[id]}</td>`));
+// --- Armas y criaturas (v4.24) ---
+const WEAPON_HOW: Record<string, string> = {
+  espada_madera: 'Bolsillos: 2 tablones y 1 rama', espada_piedra: 'Bolsillos: 2 piedras y 1 rama',
+  espada_hierro: 'Mesa de trabajo: 3 pepitas de hierro y 1 rama', espada_cristal: 'La vende la tienda de la mina',
+  espada_obsidiana: 'Mesa de trabajo: 3 obsidianas, 1 rama y 1 núcleo de lava', arco: 'Bolsillos: 3 ramas y 1 lana',
+  flecha: 'Bolsillos: 1 rama y 1 piedra (salen 4)', escudo: 'Bolsillos: 4 tablones y 1 pepita de hierro',
+  escudo_hierro: 'Mesa de trabajo: 2 tablones y 6 pepitas de hierro',
+};
+fill('tabla-armas', Object.keys(WEAPON_HOW).map((id) => {
+  const d = itemDef(id);
+  const dmg = d.weapon === 'escudo' ? `Para el ${id === 'escudo' ? '70' : '85'}%` : d.damage ? `${d.damage}` : '—';
+  const speed = d.cooldown ? (1 / d.cooldown).toFixed(1).replace('.', ',') : '—';
+  return `<td>${item(id, 1, false)}</td><td class="num">${dmg}</td><td class="num">${speed}</td><td class="num">${d.durability ?? '—'}</td><td>${WEAPON_HOW[id]}</td>`;
+}));
+const HOSTILE_PLACE = { cueva: 'Cuevas', luminoso: 'Bosque bioluminiscente', volcanico: 'Tierras volcánicas', setas: 'Bosque de setas' };
+fill('tabla-hostiles', HOSTILE_KINDS.map((k) => {
+  const h = HOSTILES[k];
+  const where = `${h.places.map((p) => HOSTILE_PLACE[p]).join(', ')}${h.night ? ' (de noche, fuera de las cuevas)' : ''}`;
+  return `<td><b>${esc(h.name)}</b><br><small class="muted">${esc(h.text)}</small></td><td>${where}</td><td class="num">${h.hp}</td><td class="num">${h.damage}</td><td>${h.loot.map((id) => item(id, 1, false)).join(' ')}</td>`;
+}));
+
 const WILD_PLACE = { tierra: 'En tierra', orilla: 'En la orilla', mar: 'En el mar' };
 fill('tabla-fauna', WILD_KINDS.map((k) => {
   const d = WILDLIFE[k];
