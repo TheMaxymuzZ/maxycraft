@@ -808,3 +808,21 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
   .wardrobe-panel { grid-template-columns: 1fr; }
   .wardrobe-mirror { width: 160px; justify-self: center; }
 }
+
+/* Minijuego de pesca (v4.23): acercar el pez sin que se rompa el hilo. */
+#reel {
+  position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); width: min(320px, calc(100vw - 32px));
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; z-index: 4; pointer-events: none;
+  background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep); border-radius: 14px;
+  box-shadow: 0 3px 0 rgba(35, 48, 31, .25); font: 800 14px/1.2 var(--body); text-align: center;
+}
+#reel[hidden] { display: none; }
+#reel.surge { animation: reel-shake .15s linear infinite; }
+#reel small { font-weight: 600; opacity: .8; }
+.reel-row { display: flex; align-items: center; gap: 8px; }
+.reel-bar { flex: 1; height: 14px; border-radius: 7px; background: rgba(0, 0, 0, .12); overflow: hidden; }
+.reel-bar i { display: block; height: 100%; width: 0; background: #3a9bd8; border-radius: 7px; transition: width .08s linear; }
+.reel-bar.tension i { background: #6cc04a; }
+.reel-bar.tension i.hot { background: #e8a030; }
+.reel-bar.tension i.danger { background: #e04040; }
+@keyframes reel-shake { 0%, 100% { transform: translateX(-50%); } 25% { transform: translateX(calc(-50% - 3px)); } 75% { transform: translateX(calc(-50% + 3px)); } }

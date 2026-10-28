@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.23',
+    title: 'Fauna, mar y pesca',
+    items: [
+      'Cuarenta peces: nuevos en el mar y el río, peces de alta mar que solo se pescan desde el barco (pez espada, marlín azul, calamar gigante…) y peces de cada clima, como la piraña en la selva o la carpa koi en los cerezos.',
+      'Minijuego de pesca: cuando pica, recoge el sedal a tirones sin que se rompa el hilo. Los peces grandes pelean más. Antes de picar se ve la sombra del pez.',
+      'Cañas de hierro, cristal y legendaria (pican antes y aguantan más), y señuelos que atraen a los peces raros. Pesca en el hielo por un agujero.',
+      'Cada pez sale con su tamaño: el más grande de cada especie queda como récord en la enciclopedia. Cada especie se agota en una zona tras tres capturas y vuelve al día siguiente.',
+      'Fauna salvaje según el bioma (ciervos, zorros, camellos, pingüinos, osos polares, búhos de noche…) y vida marina: delfines que saltan junto al barco, tortugas y cangrejos en la playa, medusas que brillan de noche, rayas y alguna ballena a lo lejos.',
+    ],
+  },
+  {
     version: '4.22',
     title: 'Archipiélago navegable',
     items: [

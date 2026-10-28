@@ -399,7 +399,7 @@ export const BRUJULA: ShopDef = {
     { pick: (d) => d.seller === 'pesca' },
     { ids: ['cana', 'red'], pick: () => true },
   ],
-  buys: (d) => d.kind === 'criatura' || d.id === 'concha' || d.id === 'cebo',
+  buys: (d) => d.kind === 'criatura' || d.id === 'concha' || d.id === 'cebo' || d.id === 'senuelo',
   specialty: { pick: (d) => d.kind === 'criatura', bonus: 1.15 },
   margin: 1,
   offers: true,

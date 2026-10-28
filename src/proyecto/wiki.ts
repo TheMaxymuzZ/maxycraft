@@ -4,7 +4,10 @@ import { KIND_ICONS } from '../itemCard';
 import * as THREE from 'three';
 import { BLOCKS, createAtlasCanvas } from '../blocks';
 import { CALENDAR, SEASON_DAYS } from '../clock';
-import { CREATURES, type Creature, HABITAT_TEXT, hoursText, monthsText } from '../creatures';
+import { CREATURES, type Creature, HABITAT_TEXT, fightOf, hoursText, monthsText, sizeRange } from '../creatures';
+import { sizeText } from '../collection';
+import { RODS } from '../fishing';
+import { WILDLIFE, WILD_KINDS } from '../wildlife';
 import { FURNITURE, paintFurnitureIcons } from '../furniture';
 import { itemIcon } from '../icons';
 import { DIY_RECIPES, ITEMS, ITEM_KINDS, RARITIES, RECIPES, type Recipe, STARTER_DIY, breakInfo, itemDef, toolNameFor } from '../items';
@@ -152,7 +155,27 @@ function seasonsOf(c: Creature): string {
 }
 const creatureRow = (c: Creature) =>
   `<td>${item(c.id)}</td><td>${HABITAT_TEXT[c.habitat]}</td><td>${hoursText(c)}</td><td>${seasonsOf(c)}</td><td class="num">${formatBerries(c.sell)}</td>`;
-fill('tabla-peces', CREATURES.filter((c) => c.kind === 'pez').map(creatureRow));
+/** Dónde sale un pez: el agua y, si es de un clima, sus biomas. */
+const fishWhere = (c: Creature) => `${HABITAT_TEXT[c.habitat]}${c.biomes ? `<br><small class="muted">Solo en: ${c.biomes.map((b) => esc(BIOME_NAMES[b])).join(', ')}</small>` : ''}`;
+const FIGHT = ['Tranquilo', 'Algo', 'Bastante', 'Mucho', '¡Muchísimo!'];
+fill('tabla-peces', CREATURES.filter((c) => c.kind === 'pez').map((c) => {
+  const [lo, hi] = sizeRange(c);
+  return `<td>${item(c.id)}</td><td>${fishWhere(c)}</td><td>${hoursText(c)}</td><td>${seasonsOf(c)}</td><td>${sizeText(lo)} a ${sizeText(hi)}</td><td>${FIGHT[Math.min(4, Math.floor(fightOf(c) * 5))]}</td><td class="num">${formatBerries(c.sell)}</td>`;
+}));
+const ROD_HOW: Record<string, string> = {
+  cana: 'Se fabrica con 5 ramas',
+  cana_hierro: 'Mesa de trabajo: 3 ramas y 3 pepitas de hierro',
+  cana_cristal: 'La vende Brújula en el muelle',
+  cana_legendaria: 'Mesa de trabajo: caña de cristal, 5 pepitas de oro y 10 conchas',
+};
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+fill('tabla-canas', Object.entries(RODS).map(([id, r]) => `<td>${item(id, 1, false)}</td><td class="num">${id === 'cana' ? '—' : pct(1 - r.bite)}</td><td class="num">${pct(r.pull)}</td><td class="num">${pct(r.strain)}</td><td>${ROD_HOW[id]}</td>`));
+const WILD_PLACE = { tierra: 'En tierra', orilla: 'En la orilla', mar: 'En el mar' };
+fill('tabla-fauna', WILD_KINDS.map((k) => {
+  const d = WILDLIFE[k];
+  const where = `${WILD_PLACE[d.place]}${d.biomes ? `: ${d.biomes.map((b) => esc(BIOME_NAMES[b])).join(', ')}` : ''}${d.time === 'noche' ? ' (de noche)' : ''}`;
+  return `<td><b>${esc(d.name)}</b></td><td>${where}</td><td>${esc(d.text)}</td>`;
+}));
 fill('tabla-insectos', CREATURES.filter((c) => c.kind === 'bicho').map(creatureRow));
 
 // --- Tienda (v4.16) ---

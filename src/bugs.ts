@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Block, CREATURE_TILE_START, isCross, isSolid, tileCanvas } from './blocks';
+import { Block, creatureTile, isCross, isSolid, tileCanvas } from './blocks';
 import { CREATURES, type Creature, type Habitat, pickCreature } from './creatures';
 import type { World } from './world';
 import { Population, type PopulationRule } from './population';
@@ -30,7 +30,7 @@ export class Bugs {
   private material(c: Creature): THREE.SpriteMaterial {
     let m = this.materials.get(c.id);
     if (!m) {
-      const tex = new THREE.CanvasTexture(tileCanvas(this.atlas, CREATURE_TILE_START + CREATURES.indexOf(c)));
+      const tex = new THREE.CanvasTexture(tileCanvas(this.atlas, creatureTile(CREATURES.indexOf(c))));
       tex.magFilter = THREE.NearestFilter;
       tex.minFilter = THREE.NearestFilter;
       tex.colorSpace = THREE.SRGBColorSpace;

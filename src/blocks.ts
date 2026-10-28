@@ -105,6 +105,11 @@ export const ATLAS_TILES = 32;
 export const EXTRA_TILE_START = 256;
 /** Las casillas de peces e insectos empiezan aquí, una por criatura. */
 export const CREATURE_TILE_START = 128;
+/** Casillas de los peces, insectos y fósiles: las 48 primeras desde CREATURE_TILE_START y las demás (v4.23) más allá de los extra. */
+export const CREATURE_TILE_MORE = EXTRA_TILE_START + 128;
+export function creatureTile(index: number): number {
+  return index < 48 ? CREATURE_TILE_START + index : CREATURE_TILE_MORE + (index - 48);
+}
 /** Casillas nuevas desde la v4.13, a partir de EXTRA_TILE_START. */
 export const XTile = {
   BridgeDeck: EXTRA_TILE_START,
@@ -183,6 +188,11 @@ export const XTile = {
   Compass: EXTRA_TILE_START + 117,
   Spyglass: EXTRA_TILE_START + 118,
   SeaChart: EXTRA_TILE_START + 119,
+  // Pesca (v4.23).
+  IronRod: EXTRA_TILE_START + 120,
+  CrystalRod: EXTRA_TILE_START + 121,
+  LegendRod: EXTRA_TILE_START + 122,
+  Lure: EXTRA_TILE_START + 123,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -755,6 +765,14 @@ function paintSeaTiles(ctx: CanvasRenderingContext2D) {
     '................', '..pppppppppppp..', '..pbbbbbbbbbbp..', '..pbbbbsssbbbp..', '..pbbbsgggsbbp..', '..pbbsggggsbbp..', '..pbbsgggsbbbp..', '..pbbbsssbbrbp..',
     '..pbbbbbbbrrbp..', '..pbsbbbbbbbbp..', '..psgsbbbbbbbp..', '..pbsbbbbbbbbp..', '..pbbbbbbbbbbp..', '..pppppppppppp..', '................', '................',
   ], { p: [220, 196, 150], b: [120, 176, 220], s: [236, 214, 160], g: [96, 160, 80], r: [210, 60, 60] });
+  // Cañas mejores y señuelo (v4.23).
+  toolSprite(ctx, XTile.IronRod, ROD, { s: [208, 214, 224], S: [140, 148, 166], g: [86, 58, 38], l: [236, 236, 240], r: [222, 52, 52], w: [250, 250, 250] });
+  toolSprite(ctx, XTile.CrystalRod, ROD, { s: [190, 170, 250], S: [110, 84, 190], g: [70, 60, 110], l: [236, 236, 240], r: [120, 220, 255], w: [250, 250, 250] });
+  toolSprite(ctx, XTile.LegendRod, ROD, { s: [250, 210, 90], S: [190, 140, 40], g: [120, 40, 40], l: [255, 250, 220], r: [255, 90, 200], w: [255, 255, 255] });
+  toolSprite(ctx, XTile.Lure, [
+    '................', '.......kk.......', '.......k........', '......yyyy......', '.....yyyyyy.....', '....yyrryyyy....', '....yyrryyyyg...', '....yyyyyyyygg..',
+    '.....oooooo.gg..', '......oooo......', '.......kk.......', '......k..k......', '.......kk.......', '................', '................', '................',
+  ], { k: [150, 150, 160], y: [250, 210, 60], r: [30, 30, 30], o: [240, 120, 40], g: [90, 200, 90] });
 }
 
 /** Dibujos de la lava y de los biomas extraños (v4.20). */
@@ -1754,7 +1772,7 @@ export function createAtlasCanvas(): HTMLCanvasElement {
 
   // Peces e insectos, una casilla para cada uno.
   CREATURES.forEach((c, i) => {
-    paintSprite(ctx, CREATURE_TILE_START + i, CREATURE_SPRITES[c.sprite], { e: [20, 20, 20], c: [255, 255, 200], ...c.colors });
+    paintSprite(ctx, creatureTile(i), CREATURE_SPRITES[c.sprite], { e: [20, 20, 20], c: [255, 255, 200], ...c.colors });
   });
 
   paintTile(ctx, Tile.Window, (x, y) => {

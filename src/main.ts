@@ -13,7 +13,8 @@ import { Birds } from './birds';
 import { Bugs } from './bugs';
 import { GameClock, dailyRandom, dayKey, timeOverrides } from './clock';
 import { Clouds, cloudCover } from './clouds';
-import { Collection } from './collection';
+import { Collection, sizeText } from './collection';
+import { Wildlife } from './wildlife';
 import { calendar, creature, pickCreature } from './creatures';
 import { Dialog, KNOW } from './dialog';
 import { Drops } from './drops';
@@ -325,6 +326,21 @@ function livingBeings(): THREE.Vector3[] {
   return out;
 }
 scene.add(birds.group);
+// Fauna salvaje y vida marina (v4.23).
+const wildlife = new Wildlife();
+const wildWorld = {
+  ...birdWorld,
+  // El suelo de verdad, no la copa de los árboles (los pájaros sí se posan arriba).
+  topAt(x: number, z: number): number {
+    const top = world.heightAt(x, z);
+    let y = top;
+    while (y < top + 4 && isSolid(world.getBlock(x, y + 1, z)) && !isLeaves(world.getBlock(x, y + 1, z))) y++;
+    return y;
+  },
+  biomeAt: (x: number, z: number) => world.biomeAt(x, z),
+};
+const boatSpot = new THREE.Vector3();
+scene.add(wildlife.group);
 
 let today = dayKey(startDate);
 
@@ -528,7 +544,7 @@ if (pockets?.inventory) inventory.load(pockets.inventory);
 else starterKit(inventory);
 inventory.loadOffhand(pockets?.offhand);
 
-const collection = new Collection(pockets?.caught ?? [], pockets?.donated ?? [], atlas, pockets?.met, pockets?.learned);
+const collection = new Collection(pockets?.caught ?? [], pockets?.donated ?? [], atlas, pockets?.met, pockets?.learned, pockets?.records);
 const portraits = new Portraits(renderer);
 collection.portrait = (name, spec) => portraits.get(name, spec);
 collection.friendship = (name) => villagers.find((v) => v.name === name)?.memory.friendship;
@@ -594,6 +610,7 @@ function persist(urgent = false) {
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
+    records: { ...collection.records },
     vitals: vitals.serialize(),
     donated: [...collection.donated],
     recipes: [...workbench.known],
@@ -608,6 +625,7 @@ function persist(urgent = false) {
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
+    records: { ...collection.records },
     vitals: vitals.serialize(),
     donated: [...collection.donated],
     tutorial: tutorial.serialize(),
@@ -639,6 +657,7 @@ function persist(urgent = false) {
     caught: [...collection.caught],
     met: [...collection.met],
     learned: { ...collection.learned },
+    records: { ...collection.records },
     vitals: vitals.serialize(),
     donated: [...collection.donated],
     home,
@@ -710,7 +729,7 @@ scene.add(drops.group);
 const bugs = new Bugs(world, atlas);
 scene.add(bugs.group);
 const fishing = new Fishing(world);
-scene.add(fishing.bobber);
+scene.add(fishing.bobber, fishing.shadow);
 
 // Cada día aparecen conchas nuevas en la playa.
 function spawnBeachFinds() {
@@ -2838,17 +2857,20 @@ function aimRay(): THREE.Ray {
 }
 
 /** Mete una criatura en los bolsillos y la apunta en la enciclopedia. */
-function keepCreature(id: string, verb: string, tool: string) {
+function keepCreature(id: string, verb: string, tool: string, size?: number) {
   const c = creature(id)!;
   if (inventory.add(id) > 0) {
     hud.toast(`No te cabe en los bolsillos. Lo dejas ir`);
     return;
   }
   const first = collection.register(id);
-  record(tool === 'cana' ? 'pescar' : 'insecto');
+  record(itemDef(tool).tool === 'rod' ? 'pescar' : 'insecto');
   sound.fanfare();
   tutorial.complete('criatura');
-  hud.toast(`¡${verb} ${c.name.toLowerCase()}!${first ? ' Nuevo en la enciclopedia.' : ''}`);
+  // Los peces se miden (v4.23): el más grande de cada especie queda como récord en la enciclopedia.
+  const best = size !== undefined && collection.measure(id, size);
+  const measured = size !== undefined ? ` (${sizeText(size)})` : '';
+  hud.toast(`¡${verb} ${c.name.toLowerCase()}${measured}!${first ? ' Nuevo en la enciclopedia.' : best ? ' ¡Nuevo récord!' : ''}`);
   if (inventory.wearTool(hud.selected)) hud.toast(`¡Tu ${itemDef(tool).name.toLowerCase()} se ha roto!`);
 }
 
@@ -2898,7 +2920,8 @@ function useBucket(full: 'agua' | 'lava' | null) {
 }
 
 function useRod(blockDist: number) {
-  const r = fishing.use(aimRay(), currentHour);
+  const lure = inventory.countOf('senuelo') > 0;
+  const r = fishing.use(aimRay(), { hour: currentHour, rod: hud.selectedStack?.id, biome: biomeHere, lure, aboard: shipyard.sailing, today });
   // Si hay un bloque delante más cerca que el agua, no se puede lanzar ahí.
   if (r.kind === 'cast' && fishing.bobber.position.distanceTo(camera.position) > blockDist) {
     fishing.stop();
@@ -2907,12 +2930,31 @@ function useRod(blockDist: number) {
   }
   if (r.kind === 'no-water') hud.toast('Apunta al agua para pescar');
   else if (r.kind === 'too-early') hud.toast('Has tirado demasiado pronto…');
-  else if (r.kind === 'caught') keepCreature(r.creature.id, 'Has pescado:', 'cana');
-  // Con cebo en los bolsillos (v4.21) pican antes.
+  else if (r.kind === 'hooked') {
+    sound.splash();
+    hud.toast(touchMode ? '¡Enganchado! Pulsa Usar para recoger' : '¡Enganchado! Clic derecho para recoger');
+  }
+  // Con cebo en los bolsillos (v4.21) pican antes; el señuelo (v4.23) atrae a los raros.
   if (r.kind === 'cast' && inventory.countOf('cebo') > 0) {
     inventory.remove('cebo', 1);
     fishing.hurry();
   }
+  if (r.kind === 'cast' && lure) inventory.remove('senuelo', 1);
+  showReel();
+}
+
+const reelEl = document.querySelector<HTMLDivElement>('#reel')!;
+const reelProgress = document.querySelector<HTMLElement>('#reel-progress')!;
+const reelTension = document.querySelector<HTMLElement>('#reel-tension')!;
+/** Las dos barras del minijuego de pesca: lo cerca que está el pez y lo tenso que va el hilo. */
+function showReel() {
+  const reel = fishing.reel;
+  reelEl.hidden = !reel;
+  if (!reel) return;
+  reelProgress.style.width = `${Math.round(Math.min(1, reel.progress) * 100)}%`;
+  reelTension.style.width = `${Math.round(Math.min(1, reel.tension) * 100)}%`;
+  reelTension.className = reel.tension > 0.75 ? 'danger' : reel.tension > 0.5 ? 'hot' : '';
+  reelEl.classList.toggle('surge', reel.surge > 0);
 }
 
 function useNet() {
@@ -3651,6 +3693,8 @@ function frame(now: number) {
   water.update(now / 1000, settings.quality !== 'baja', (1 - sky.night) * (1 - weather.gloom));
   wind.update(now / 1000, 1 + weather.gloom * 1.5);
   birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), birdWorld, livingBeings());
+  const sailingBoat = shipyard.sailing && shipyard.boat ? boatSpot.set(shipyard.boat.x, SEA_LEVEL, shipyard.boat.z) : null;
+  wildlife.update(dt, now / 1000, player.position, sky.night, wildWorld, sailingBoat);
   paths.update();
   for (const v of villagers) v.update(dt, hour, player.position, date.getDay());
   plane.update(dt, now / 1000);
@@ -3694,13 +3738,22 @@ function frame(now: number) {
     rainTimer = 0.5;
     sound.setRain(weather.raining ? weather.gloom : 0);
   }
-  if (fishing.active && hud.selectedStack?.id !== 'cana') fishing.stop();
+  const rodInHand = hud.selectedStack ? itemDef(hud.selectedStack.id).tool === 'rod' : false;
+  if (fishing.active && !rodInHand) fishing.stop();
   const fish = fishing.update(dt, player.position);
   if (fish === 'bite') {
     sound.splash();
     hud.toast(touchMode ? '¡Ha picado! Pulsa Usar, ¡rápido!' : '¡Ha picado! Clic derecho, ¡rápido!');
   }
   else if (fish === 'escaped') hud.toast('Se ha escapado…');
+  else if (fish === 'snapped') {
+    hud.toast('¡Se ha roto el hilo! Cuando la barra se ponga roja, espera un poco');
+    if (inventory.wearTool(hud.selected)) hud.toast('¡Tu caña se ha roto!');
+  }
+  else if (fish === 'caught' && fishing.landed && hud.selectedStack) {
+    keepCreature(fishing.landed.creature.id, 'Has pescado:', hud.selectedStack.id, fishing.landed.size);
+  }
+  showReel();
 
   // Bajo el agua todo se ve azul y cerca.
   const submerged = world.inWater(camera.position.x, camera.position.y, camera.position.z);
@@ -3794,6 +3847,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { wildlife, shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

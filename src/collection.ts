@@ -1,5 +1,5 @@
 import { type ItemFilter, itemCard, matchesFilter, renderFilters } from './itemCard';
-import { CREATURE_TILE_START } from './blocks';
+import { creatureTile } from './blocks';
 import { CREATURES, HABITAT_TEXT, hoursText, monthsText } from './creatures';
 import type { Inventory } from './inventory';
 import { itemDef } from './items';
@@ -22,6 +22,11 @@ export function albumInfo(p: Profile, known: number, friendship?: number): strin
 
 const LIKES_SHORT: Record<Profile['likes'], string> = { fruta: 'fruta', conchas: 'conchas', flores: 'flores', madera: 'madera' };
 
+/** "45 cm" o "2,3 m". */
+export function sizeText(cm: number): string {
+  return cm >= 100 ? `${(cm / 100).toFixed(1).replace('.', ',')} m` : `${cm} cm`;
+}
+
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 /** Enciclopedia de peces e insectos y lo donado al museo. */
@@ -43,14 +48,17 @@ export class Collection {
   /** Puntos de amistad con un vecino de la isla (v4.12), si vive aquí. */
   friendship: ((name: string) => number | undefined) | null = null;
   private icons: string[];
+  /** El pez más grande de cada especie que has sacado, en centímetros (v4.23). */
+  readonly records: Record<string, number>;
 
-  constructor(caught: string[], donated: string[], atlas: HTMLCanvasElement, met: string[] = [], learned?: Record<string, number>) {
+  constructor(caught: string[], donated: string[], atlas: HTMLCanvasElement, met: string[] = [], learned?: Record<string, number>, records?: Record<string, number>) {
+    this.records = { ...(records ?? {}) };
     this.met = new Set(met);
     // En las partidas de antes de la v4.0 los vecinos que ya conocías te han dicho al menos cómo se llaman.
     this.learned = learned ? { ...learned } : Object.fromEntries(met.map((n) => [n, KNOW.met]));
     this.caught = new Set(caught);
     this.donated = new Set(donated);
-    this.icons = CREATURES.map((_, i) => tileIcon(atlas, CREATURE_TILE_START + i));
+    this.icons = CREATURES.map((_, i) => tileIcon(atlas, creatureTile(i)));
   }
 
   /** Apunta una captura; devuelve true si es la primera vez. */
@@ -58,6 +66,14 @@ export class Collection {
     if (this.caught.has(id)) return false;
     this.caught.add(id);
     return true;
+  }
+
+  /** Apunta lo que mide un pez; devuelve true si es un récord nuevo (el primero de su especie no cuenta como récord). */
+  measure(id: string, size: number): boolean {
+    const best = this.records[id];
+    if (best !== undefined && size <= best) return false;
+    this.records[id] = size;
+    return best !== undefined;
   }
 
   /** Ids de los bolsillos que el museo aún no tiene (uno de cada). */
@@ -112,8 +128,9 @@ export class Collection {
         card.className = `card${known ? ` rar-${rarity}` : ' unknown'}`;
         if (known) itemCard().attach(card, () => c.id);
         const where = !known ? 'Aún no lo has visto' : c.kind === 'fosil' ? 'Cavando tierra, arena o piedra' : `${HABITAT_TEXT[c.habitat]}, ${hoursText(c)}, ${monthsText(c)}`;
+        const record = known && this.records[c.id] ? `<br>Récord: ${sizeText(this.records[c.id])}` : '';
         const badge = this.donated.has(c.id) ? '<span class="badge">En el museo</span>' : '';
-        card.innerHTML = `<img alt="" src="${this.icons[CREATURES.indexOf(c)]}"><b>${known ? c.name : '???'}</b><small>${where}</small>${badge}`;
+        card.innerHTML = `<img alt="" src="${this.icons[CREATURES.indexOf(c)]}"><b>${known ? c.name : '???'}</b><small>${where}${record}</small>${badge}`;
         el.appendChild(card);
       }
     };
