@@ -289,7 +289,7 @@ export interface BoatModel {
 
 export const BOATS: BoatModel[] = [
   { kind: 'balsa', name: 'Balsa', stage: 2, cost: { items: { tablones: 20, rama: 10 } }, speed: 4, hold: 9, text: 'Troncos atados y un remo. Lenta, pero flota.' },
-  { kind: 'velero', name: 'Velero', stage: 3, cost: { bayas: 12000, items: { tablones: 40, lana: 6, pepita_hierro: 5 } }, speed: 7, hold: 18, text: 'Casco de madera y vela blanca: aprovecha el viento.' },
+  { kind: 'velero', name: 'Velero', stage: 3, cost: { bayas: 15000, items: { tablones: 40, lana: 6, pepita_hierro: 5 } }, speed: 7, hold: 18, text: 'Casco de madera y vela blanca: aprovecha el viento.' },
   { kind: 'expedicion', name: 'Barco de expedición', stage: 4, cost: { bayas: 30000, items: { tablones: 60, pepita_hierro: 20, lana: 10 } }, speed: 9, hold: 27, text: 'Grande, rápido y con camarote. Para ir lejos.' },
 ];
 
