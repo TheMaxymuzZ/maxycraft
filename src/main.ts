@@ -77,7 +77,7 @@ import { TouchControls } from './touch';
 import { fellTree, findTrunk } from './trees';
 import { CONTAINERS, Storage, StoragePanel, isContainer } from './storage';
 import { Orchard, TREE_KINDS, canPlantOn, isSapling, treeKindOfFruit, treeKindOfSapling } from './orchard';
-import { TUTORIAL_REWARD, Tutorial } from './tutorial';
+import { Tutorial } from './tutorial';
 import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel';
 import { LotGhosts, type Lot, describeMissing, inLot, lotFrom, lotPlot, lotProblem, lotProgress } from './lots';
 import { type Guest, PILOT, Villager, createVillagers, createVisitor, knockReply, pickVisitor, villagerWeather } from './villagers';
@@ -618,9 +618,10 @@ const walletEl = document.querySelector<HTMLSpanElement>('#wallet-amount')!;
 function setWallet(n: number, why?: string) {
   if (n !== wallet) sound.coin();
   if (why) economy.recordFlow(n - wallet, why);
+  if (why === 'parcela' && n < wallet) tutorial.complete('parcela');
   // Vender en la tienda cuenta para el tutorial.
   if (n > wallet && panel === 'shop') {
-    tutorial.complete('vender');
+    tutorial.complete(Shop.active?.def.id.startsWith('aldea:') ? 'mercado' : 'vender');
     record('vender', n - wallet);
   }
   wallet = n;
@@ -682,6 +683,7 @@ function persist(urgent = false) {
     donated: [...collection.donated],
     tutorial: tutorial.serialize(),
     tutorialDone: tutorial.finished,
+    guideDone: tutorial.guideFinished,
     recipes: [...workbench.known],
     guests,
     missions: missions.serialize(),
@@ -717,6 +719,7 @@ function persist(urgent = false) {
     furniture: furniture.serialize(),
     tutorial: tutorial.serialize(),
     tutorialDone: tutorial.finished,
+    guideDone: tutorial.guideFinished,
     recipes: [...workbench.known],
     bottle: { day: today, taken: bottleTaken },
     farm: farm.serialize(),
@@ -944,11 +947,13 @@ function closeInventory() {
   lockInput();
 }
 
-const tutorial = new Tutorial(pockets?.tutorial, pockets ? (pockets.tutorialDone ?? pockets.tutorial === undefined) : false, touchMode, () => {
-  setWallet(wallet + TUTORIAL_REWARD, 'regalo');
-  hud.toast(`¡Primeros pasos completados! Avellana te regala ${formatBerries(TUTORIAL_REWARD)} bayas`);
+const tutorial = new Tutorial(pockets?.tutorial, pockets ? (pockets.tutorialDone ?? pockets.tutorial === undefined) : false, touchMode, (chapter) => {
+  setWallet(wallet + chapter.reward, 'regalo');
+  hud.toast(`¡${chapter.title} completado! ${chapter.giver} te regala ${formatBerries(chapter.reward)} bayas`);
   persist();
-});
+}, pockets?.guideDone ?? false);
+// Llegar navegando a otra isla cuenta para la guía del mar (v5.0).
+if (trip?.sea) tutorial.complete('navegar');
 tutorial.keyName = (a) => keyLabel(settings.keys[a as Action] ?? a);
 tutorial.refresh();
 keysChanged = () => tutorial.refresh();
@@ -1486,6 +1491,7 @@ const dialog = new Dialog({
     repair: () => {
       const problem = shipyard.repair();
       if (!problem) {
+        tutorial.complete('astillero');
         sound.fanfare();
         persist();
       }
@@ -1494,6 +1500,7 @@ const dialog = new Dialog({
     build: (kind) => {
       const problem = shipyard.build(kind);
       if (!problem) {
+        tutorial.complete('barco');
         sound.fanfare();
         persist();
       }
@@ -1716,6 +1723,7 @@ function talkTo(v: Villager) {
   }
   if (!v.profile.role && v.memory.talkedDay !== dayKey(gameDate())) record('charlar');
   tutorial.complete('hablar');
+  if (v.isMayor) tutorial.complete('alcalde');
   panel = 'dialog';
   breaker.active = false;
   dialog.start(v);
@@ -3034,6 +3042,7 @@ function updateCombat(dt: number, seconds: number) {
   if (dungeon && spawned && !vitals.fainted) {
     const d = dungeon.update(dt, player.position, settings.calm);
     for (const t of d.toasts) hud.toast(t);
+    if (d.toasts.length) tutorial.complete('mazmorra');
     if (d.hurt) vitals.hurt(d.hurt, 'trampa');
     const bar = dungeon.bossBar();
     bossBar.hidden = !bar;
