@@ -125,8 +125,12 @@ function rarityOf(d: NewItem): Rarity {
 /** Objetos cuya rareza sale del precio (no está dicha a mano): si el precio cambia, cambia con él (v4.26). */
 const PRICED_RARITY = new Set<string>();
 
+/** Lo que se amontona llega al menos a 64 por casilla (v5.0.1): fruta, peces, recursos... Herramientas, armas y muebles sueltos siguen de uno en uno. */
+export const MIN_STACK = 64;
+
 function add(item: NewItem) {
   const def: ItemDef = { ...item, kind: item.kind ?? kindOf(item), rarity: item.rarity ?? rarityOf(item) };
+  if (def.maxStack > 1 && !def.durability && def.maxStack < MIN_STACK) def.maxStack = MIN_STACK;
   if (!item.rarity) PRICED_RARITY.add(def.id);
   defs.push(def);
   byId.set(def.id, def);
@@ -178,9 +182,10 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.Street, 'calle', 6],
   [Block.Tiles, 'baldosas', 8],
   // Obras públicas (v4.13).
-  [Block.BridgeDeck, 'tablones_puente', 10],
-  [Block.BridgeRail, 'barandilla', 15],
-  [Block.BridgePillar, 'pilar', 20],
+  // v5.0.1: el alcalde ya no hace puentes; se fabrican o se compran en la tienda.
+  [Block.BridgeDeck, 'tablones_puente', 10, 35],
+  [Block.BridgeRail, 'barandilla', 15, 45],
+  [Block.BridgePillar, 'pilar', 20, 60],
   [Block.ClockFace, 'reloj', 200],
   // Tienda y terminal (v4.16).
   [Block.Awning, 'toldo', 30],
@@ -429,6 +434,11 @@ export function dropFor(b: Block): string | null {
     case Block.Gate:
     case Block.GateOpen:
       return 'puerta_valla';
+    case Block.WallTorch:
+    case Block.WallTorch1:
+    case Block.WallTorch2:
+    case Block.WallTorch3:
+      return 'antorcha';
     case Block.Door:
     case Block.DoorOpen:
       return 'puerta';

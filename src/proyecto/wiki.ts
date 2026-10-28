@@ -400,10 +400,7 @@ fill('tabla-horarios', (Object.keys(SLEEP) as (keyof typeof SLEEP)[]).map((p) =>
 
 // Ayuntamiento (v4.13): niveles y obras públicas.
 fill('tabla-ayuntamiento', HALL_LEVELS.map((l) => `<td><b>${l.name}</b></td><td class="num">${l.cost ? l.cost.toLocaleString('es') : 'Gratis'}</td><td><div class="needs">${l.materials.map(([id, n]) => item(id, n, false)).join('') || '—'}</div></td><td>${l.opens}</td>`));
-fill('tabla-obras', [
-  `<td><b>Puente a un islote</b></td><td class="num">desde 8.000</td><td class="num">1</td><td>Puente de madera con barandilla y pilares de piedra, hasta la orilla de la isla.</td>`,
-  ...PUBLIC_WORKS.map((w) => `<td><b>${w.name}</b></td><td class="num">${w.cost.toLocaleString('es')}</td><td class="num">${w.level}</td><td>${w.text}</td>`),
-]);
+fill('tabla-obras', PUBLIC_WORKS.map((w) => `<td><b>${w.name}</b></td><td class="num">${w.cost.toLocaleString('es')}</td><td class="num">${w.level}</td><td>${w.text}</td>`));
 
 // Parcelas (v4.14): tamaños con su precio y mejoras.
 fill('tabla-parcelas', PARCEL_SIZES.map((n, i) => `<td><b>${n}×${n}</b></td><td class="num">${PARCEL_PRICES[i] ? `${PARCEL_PRICES[i].toLocaleString('es')} bayas` : 'Gratis'}</td>`));

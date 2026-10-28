@@ -71,6 +71,9 @@ export interface StockContext {
   level?: number;
 }
 
+/** Piezas de puente (v5.0.1). */
+export const BRIDGE_PARTS = ['tablones_puente', 'barandilla', 'pilar'];
+
 /** La tienda de Avellana, de todo un poco. Vende exactamente lo mismo que antes de la 4.9. */
 export const AVELLANA: ShopDef = {
   id: 'avellana',
@@ -82,7 +85,9 @@ export const AVELLANA: ShopDef = {
     { pick: (d) => !!d.tool && !d.seller },
     { pick: (d, c) => !!d.always && !(c.planner && d.id === 'plano_casa') },
     { pick: (d) => !!d.furniture && !d.holiday && !d.seller, daily: 3, units: 2, perLevel: [0, 2, 4] },
-    { pick: (d) => !d.tool && !d.furniture && !d.always && !d.seller, daily: 5, perLevel: [0, 2, 4] },
+    { pick: (d) => !d.tool && !d.furniture && !d.always && !d.seller && !BRIDGE_PARTS.includes(d.id), daily: 5, perLevel: [0, 2, 4] },
+    // v5.0.1: los puentes a los islotes se hacen a mano; lo necesario está siempre a la venta.
+    { ids: BRIDGE_PARTS, pick: () => true },
   ],
   margin: 1,
 };

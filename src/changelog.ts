@@ -7,6 +7,24 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.0.1',
+    title: 'Primeros arreglos de Maxycraft 5',
+    items: [
+      'Tirar cosas: arrastra un objeto fuera de los bolsillos (o del cofre) y cae al suelo delante de ti. También con la tecla X (con Ctrl, el montón entero).',
+      'Cofres, baúles y cajas: lleva cada objeto a la casilla que quieras con clic o arrastrando; Mayús + clic lo pasa de golpe al otro lado.',
+      'Casi todo lo que se amontona (fruta, peces, recursos, muebles de calle...) llega ahora a 64 por casilla.',
+      'Los números se leen mucho mejor (cantidades, hora, bayas), con la misma letra pixelada.',
+      'Esc cierra los bolsillos, las tiendas y cualquier ventana y vuelve al juego sin pasar por el menú. Jugando, Esc abre el menú.',
+      'La terminal de Plumas ya no sale hundida en la tierra: se levanta a ras de la playa (también en las islas de antes).',
+      'Los islotes son mucho más grandes, para construir en ellos. Los puentes se hacen a mano: el alcalde ya no los encarga, y los tablones, la barandilla y los pilares se fabrican o se compran siempre en la tienda.',
+      'La lluvia cae en gotas alargadas y suena más suave; bajo techo se oye amortiguada, como desde casa. La nieve ya no se va contigo al andar y gasta menos.',
+      'Las antorchas puestas en una pared se ven clavadas en diagonal.',
+      'Los animales, los vecinos, las criaturas, los muebles y lo que hay en el suelo se iluminan con las antorchas (y con la que llevas en la mano), también de noche y en sitios oscuros.',
+      'Los tenderos ya no desaparecen al cerrar: se van andando a su cama de la trastienda y vuelven por la mañana.',
+      'Al llegar en avioneta (o en barco) ya estás en la isla al acabar la pantalla de carga, sin pasar por el menú.',
+    ],
+  },
+  {
     version: '5.0',
     title: 'Maxycraft 5: la gran actualización del archipiélago',
     items: [

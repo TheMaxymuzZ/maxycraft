@@ -80,9 +80,18 @@ describe('v4.16: la tienda nueva', () => {
     const keeper = createVillagers(world, {}).find((v) => v.isShopkeeper)!;
     keeper.update(0.1, 12, new THREE.Vector3(), 1);
     expect(keeper.position.y).toBe(shop.y + 1);
-    keeper.update(0.1, 23, new THREE.Vector3(), 1);
+    // v5.0.1: con el jugador cerca, al cerrar se va andando a la cama (se le sigue viendo por el camino).
+    const near = keeper.position.clone();
+    keeper.update(0.1, 23, near, 1);
+    expect(keeper.group.visible).toBe(true);
+    expect(keeper.inside).toBe(false);
+    // Lejos (o sin camino) llega de golpe, como antes.
+    const far = new THREE.Vector3(9999, 0, 9999);
+    keeper.update(0.1, 23, far, 1);
+    keeper.update(0.1, 23, far, 1);
     expect(keeper.position.y).toBe(shop.y + UPPER_FLOOR + 1);
     expect(keeper.group.visible).toBe(true);
+    expect(keeper.sleeping).toBe(true);
   });
 
   it('las piezas nuevas tienen su curiosidad', () => {

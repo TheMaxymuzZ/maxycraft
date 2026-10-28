@@ -93,6 +93,9 @@ export enum Block {
   GlowGrass = 154, GlowFlower = 155, GlowMushroom = 156, GlowLeaves = 157, GlowSapling = 158,
   Mycelium = 159, MushroomCapBlue = 160, MushroomCapPurple = 161,
   BasaltBricks = 162, PolishedSlate = 163, CarvedObsidian = 164, MushroomLamp = 165,
+  // Antorchas en la pared (v5.0.1), clavadas en diagonal. El número de más dice hacia dónde está la pared:
+  // 0 hacia -z, 1 hacia +x, 2 hacia +z, 3 hacia -x.
+  WallTorch = 166, WallTorch1 = 167, WallTorch2 = 168, WallTorch3 = 169,
 }
 
 export const TILE = 16;
@@ -442,6 +445,21 @@ export const STAIRS: [Block, string, Tile][] = [
   [Block.BrickStairs, 'Escalera de ladrillo', Tile.Brick],
 ];
 for (const [first, name, tile] of STAIRS) for (let f = 0; f < 4; f++) BLOCKS[first + f] = stairs(name, tile, f);
+for (let f = 0; f < 4; f++) BLOCKS[Block.WallTorch + f] = { ...cross('Antorcha', Tile.Torch), facing: f };
+
+/** Dirección hacia la pared de cada antorcha de pared (x, z). */
+export const WALL_TORCH_DIRS: readonly [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
+/** Antorcha en el suelo o en la pared (v5.0.1). */
+export function isTorch(b: number): boolean {
+  return b === Block.Torch || (b >= Block.WallTorch && b <= Block.WallTorch3);
+}
+
+/** La antorcha de pared clavada en la pared que hay en (dx, dz) desde ella, o null si no es una pared de lado. */
+export function wallTorchFor(dx: number, dz: number): Block | null {
+  const f = WALL_TORCH_DIRS.findIndex(([x, z]) => x === dx && z === dz);
+  return f < 0 ? null : ((Block.WallTorch + f) as Block);
+}
 
 /** Escalera girada hacia `facing` (0..3) del mismo material que `b`. */
 export function stairsFacing(b: number, facing: number): Block {
@@ -513,7 +531,7 @@ export const SWAYING: ReadonlySet<number> = new Set([
 
 /** Bloques que dan luz y cuánta (nivel de 1 a 15: la luz baja uno por cada bloque que avanza). */
 export const LIGHT_RADIUS: Partial<Record<Block, number>> = {
-  [Block.Torch]: 13, [Block.LightBlock]: 15, [Block.Magma]: 11, [Block.CrystalCluster]: 8, [Block.Amethyst]: 10,
+  [Block.Torch]: 13, [Block.WallTorch]: 13, [Block.WallTorch1]: 13, [Block.WallTorch2]: 13, [Block.WallTorch3]: 13, [Block.LightBlock]: 15, [Block.Magma]: 11, [Block.CrystalCluster]: 8, [Block.Amethyst]: 10,
   // v4.20: la lava alumbra mucho; lo del bosque bioluminiscente, poco y de color.
   [Block.Lava]: 15, [Block.LavaFlow1]: 14, [Block.LavaFlow2]: 13, [Block.LavaFlow3]: 12, [Block.LavaFall]: 14,
   [Block.GlowFlower]: 7, [Block.GlowMushroom]: 8, [Block.GlowLeaves]: 6, [Block.MushroomLamp]: 13,

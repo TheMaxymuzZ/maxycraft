@@ -572,16 +572,22 @@ export class Villager {
   /** Ya ha llegado al sitio del recado y da vueltas por allí. */
   private lingering = false;
 
-  /** La dependienta, la conservadora y el piloto: en su puerta, mirando al frente; de noche, dentro. */
+  /**
+   * La dependienta, la conservadora y el piloto: en su puerta, mirando al frente; de noche, dentro.
+   * Los que tienen cama donde trabajan (los tenderos, v5.0.1) se van andando a ella al cerrar y vuelven por la mañana,
+   * en vez de desaparecer y aparecer.
+   */
   private stand(dt: number, hour: number) {
     const sleepy = this.isSleepTime(hour);
+    this.activity = sleepy ? 'dormir' : 'trabajo';
+    if (this.rest && this.commute(sleepy ? this.rest : this.home.door, dt)) return;
     this.asleep = sleepy;
     this.group.visible = !sleepy;
-    this.activity = sleepy ? 'dormir' : 'trabajo';
     if (sleepy && this.rest) {
       // Duerme en su cama, tumbado, y se le ve si subes (v4.16).
       const [bx, by, bz] = this.rest;
       this.position.set(bx + 0.5, by, bz + 0.5);
+      this.inBed = true;
       this.group.visible = true;
       this.group.rotation.set(-Math.PI / 2, 0, 0);
       this.group.position.set(this.position.x, this.position.y + 0.55, this.position.z + 0.75);
@@ -591,6 +597,7 @@ export class Villager {
       }
       return;
     }
+    this.inBed = false;
     if (this.group.rotation.x !== 0) this.group.rotation.set(0, this.facing, 0);
     if (this.zzz && this.rest) this.zzz.visible = false;
     if (!sleepy) {
@@ -600,6 +607,48 @@ export class Villager {
       this.animate(dt, false);
       this.group.position.copy(this.position);
     }
+  }
+
+  /**
+   * Va andando de su puesto a su cama o al revés (v5.0.1). Devuelve true mientras camina.
+   * Si está lejos del jugador o no hay camino, llega de golpe (nadie lo ve).
+   */
+  private commute(target: Cell, dt: number): boolean {
+    const [tx, ty, tz] = target;
+    const there = Math.hypot(this.position.x - tx - 0.5, this.position.z - tz - 0.5) < 0.2 && Math.abs(this.position.y - ty) < 0.6;
+    if (there || this.far) {
+      if (this.goal) {
+        this.goal = null;
+        this.dropPath();
+      }
+      return false;
+    }
+    if (this.goal?.cell.join() !== target.join()) {
+      // Se levanta (o deja el mostrador) y se pone en marcha.
+      if (this.inBed) this.stretch = 1.2;
+      this.inBed = false;
+      this.asleep = false;
+      if (this.zzz) this.zzz.visible = false;
+      this.group.rotation.set(0, this.facing, 0);
+      this.goTo(target, 'pasear');
+    }
+    if (this.stretch > 0) {
+      this.stretch -= dt;
+      this.animate(dt, false);
+      this.stretchPose(Math.max(0, this.stretch));
+      this.group.position.copy(this.position);
+      this.group.visible = true;
+      return true;
+    }
+    this.walk(dt);
+    // Sin camino (arrive lo quita): se queda donde iba, como antes.
+    if (!this.goal) {
+      this.position.set(tx + 0.5, ty, tz + 0.5);
+      return false;
+    }
+    this.group.visible = true;
+    this.group.position.copy(this.position);
+    return true;
   }
 
   /** Elige un sitio cerca para dar un paseo (o, si está de recado, cerca del sitio del recado). */

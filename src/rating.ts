@@ -1,4 +1,4 @@
-import { Block } from './blocks';
+import { Block, isTorch } from './blocks';
 
 /** Lo que cuenta para la valoración de la isla. */
 export interface IslandStats {
@@ -36,7 +36,7 @@ export function countPlaced(edits: Record<string, Record<number, number>>): Pick
     for (const b of Object.values(chunk)) {
       if (FLOWERS.has(b)) out.flowers++;
       else if (FENCES.has(b)) out.fences++;
-      else if (b === Block.Torch) out.lights++;
+      else if (isTorch(b)) out.lights++;
     }
   }
   return out;
@@ -52,7 +52,7 @@ const PARTS: { key: keyof IslandStats; per: number; max: number; tip: string }[]
   { key: 'guests', per: 15, max: 3, tip: 'Invita vecinos nuevos desde las islas misteriosas.' },
   { key: 'donated', per: 1, max: 40, tip: 'Dona peces e insectos al museo.' },
   { key: 'farm', per: 1.5, max: 20, tip: 'Cuida un huerto o una granja.' },
-  { key: 'works', per: 8, max: 6, tip: 'Encarga obras públicas al alcalde: puentes, fuentes y farolas.' },
+  { key: 'works', per: 8, max: 6, tip: 'Encarga obras públicas al alcalde: fuentes, farolas y bancos.' },
 ];
 
 export const MAX_SCORE = PARTS.reduce((s, p) => s + p.per * p.max, 0);

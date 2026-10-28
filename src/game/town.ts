@@ -9,7 +9,7 @@ import { itemDef } from '../items';
 import type { MapMarker } from '../map';
 import type { Rating } from '../rating';
 import {
-  FLAG_COLORS, HALL_LEVELS, PUBLIC_WORKS, type TownSave, bridgeWorks, buildHall, buildRamp, findHallSite, hallDoor, placeFlag, planBridge,
+  FLAG_COLORS, HALL_LEVELS, PUBLIC_WORKS, type TownSave, buildHall, buildRamp, findHallSite, hallDoor, placeFlag, planBridge,
 } from '../townhall';
 import { MAYOR, PLANNER, Villager, type VillagerMemory, errandPlaces } from '../villagers';
 import type { Plot, World } from '../world';
@@ -231,7 +231,8 @@ export class Town {
   available() {
     if (!this.state) return [];
     const done = new Set(this.state.works);
-    return [...bridgeWorks(this.build), ...PUBLIC_WORKS].filter((w) => !done.has(w.id) && w.level <= this.level);
+    // v5.0.1: los puentes a los islotes ya no se encargan; los construyen los jugadores (los ya hechos se quedan).
+    return PUBLIC_WORKS.filter((w) => !done.has(w.id) && w.level <= this.level);
   }
 
   /** Hace una obra (ya pagada). */

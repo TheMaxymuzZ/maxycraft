@@ -103,7 +103,8 @@ export function isTerminalSite(v: unknown): v is TerminalSite {
   if (typeof v !== 'object' || v === null) return false;
   const t = v as Record<string, unknown>;
   return Number.isInteger(t.x) && Number.isInteger(t.z) && Number.isInteger(t.rotation) && (t.rotation as number) >= 0 && (t.rotation as number) < 4
-    && Math.abs(t.x as number) < 10_000 && Math.abs(t.z as number) < 10_000;
+    && Math.abs(t.x as number) < 10_000 && Math.abs(t.z as number) < 10_000
+    && (t.y === undefined || (Number.isInteger(t.y) && (t.y as number) >= DECK_Y && (t.y as number) <= DECK_MAX));
 }
 
 /** Hacia dónde mira el muelle (hacia el mar). */
@@ -116,6 +117,16 @@ export interface TerminalSite {
   x: number;
   z: number;
   rotation: number;
+  /** Altura de la tarima (v5.0.1). Las terminales de antes no la tienen y están a DECK_Y. */
+  y?: number;
+}
+
+/** La tarima más alta: si la playa sube mucho, la terminal no se sube más (se rebaja la tierra de alrededor). */
+export const DECK_MAX = SEA_LEVEL + 3;
+
+/** Altura de la tarima de una terminal. */
+export function deckOf(site: TerminalSite): number {
+  return site.y ?? DECK_Y;
 }
 
 /** Giro para que el muelle (+z de la plantilla) mire hacia (dx, dz), redondeando al eje más cercano. */
@@ -127,7 +138,7 @@ export function rotationFacing(dx: number, dz: number): number {
 /** Casilla de la plantilla (x, z) en el mundo, con el solar ya colocado. */
 export function terminalCell(site: TerminalSite, x: number, y: number, z: number): Cell {
   const [rx, rz] = rotateCell(x, z, W, D, site.rotation);
-  return [site.x + rx, DECK_Y + y, site.z + rz];
+  return [site.x + rx, deckOf(site) + y, site.z + rz];
 }
 
 /** Punto (con decimales) de la plantilla en el mundo. */
@@ -174,25 +185,54 @@ export function findTerminalSite(world: BuildWorld, airport: { x: number; z: num
   return best!;
 }
 
+/**
+ * Altura a la que va la tarima (v5.0.1): a ras de la tierra que hay junto a la puerta de la playa, para que la sala
+ * no quede hundida cuando la playa sube un poco. Nunca por debajo de DECK_Y ni por encima de DECK_MAX.
+ */
+export function terminalDeckFor(world: BuildWorld, site: TerminalSite): number {
+  let top = DECK_Y;
+  for (let x = 2; x <= 6; x++) {
+    for (const z of [-1, -2]) {
+      const [cx, , cz] = terminalCell({ ...site, y: DECK_Y }, x, 0, z);
+      top = Math.max(top, world.heightAt(cx, cz));
+    }
+  }
+  return Math.min(DECK_MAX, top);
+}
+
+/** Quita una terminal ya construida (para volver a levantarla a otra altura, v5.0.1). */
+export function eraseTerminal(world: BuildWorld, site: TerminalSite) {
+  const deck = deckOf(site);
+  for (const [x, y, z, b] of templateCells(TERMINAL, site.rotation)) {
+    if (b === null) continue;
+    const at = [site.x + x, deck + y, site.z + z] as const;
+    if (world.getBlock(...at) === b) world.setBlock(...at, Block.Air);
+  }
+}
+
 /** Construye la terminal: pilotes hasta el fondo, la tarima, la sala, el muelle y el faro. */
 export function buildTerminal(world: BuildWorld, site: TerminalSite) {
   const [w, , d] = templateSize(TERMINAL);
+  const deck = deckOf(site);
   for (let z = 0; z < d; z++) {
     for (let x = 0; x < w; x++) {
       if (TERMINAL.layers[0][z][x] !== 'K') continue;
       const [cx, , cz] = terminalCell(site, x, 0, z);
-      // Pilotes en las esquinas de la sala y a lo largo del muelle; bajo lo demás, tierra si ya había tierra.
+      // Pilotes en las esquinas de la sala y a lo largo del muelle; bajo lo demás, arena si debajo hay tierra.
       const pillar = (x === 0 || x === w - 1 || x === 3 || x === 5) && z % 3 === 0;
-      for (let y = DECK_Y - 1; y > 0; y--) {
+      let floor = deck - 1;
+      while (floor > 0 && world.getBlock(cx, floor, cz) === Block.Air) floor--;
+      const overWater = isWater(world.getBlock(cx, floor, cz));
+      for (let y = deck - 1; y > 0; y--) {
         const b = world.getBlock(cx, y, cz);
         if (isSolid(b) && !isWater(b)) break;
         if (pillar) world.setBlock(cx, y, cz, Block.BridgePillar);
-        else if (!isWater(b)) world.setBlock(cx, y, cz, Block.Sand);
-        else break;
+        else if (!overWater && !isWater(b)) world.setBlock(cx, y, cz, Block.Sand);
+        else if (isWater(b)) break;
       }
       // Lo que hubiera por encima de la tarima donde la plantilla no pone nada (arena, hierba, flores) se quita.
-      for (let y = DECK_Y + 1; y < DECK_Y + TERMINAL.layers.length; y++) {
-        const free = (TERMINAL.layers[y - DECK_Y][z]?.[x] ?? ' ') === ' ';
+      for (let y = deck + 1; y < deck + TERMINAL.layers.length; y++) {
+        const free = (TERMINAL.layers[y - deck][z]?.[x] ?? ' ') === ' ';
         const b = world.getBlock(cx, y, cz);
         if (free && b !== Block.Air && !isWater(b)) world.setBlock(cx, y, cz, Block.Air);
       }
@@ -200,7 +240,43 @@ export function buildTerminal(world: BuildWorld, site: TerminalSite) {
   }
   for (const [x, y, z, b] of templateCells(TERMINAL, site.rotation)) {
     if (b === null) continue;
-    const at = [site.x + x, DECK_Y + y, site.z + z] as const;
+    const at = [site.x + x, deck + y, site.z + z] as const;
     if (world.getBlock(...at) !== b) world.setBlock(...at, b);
   }
+}
+
+/**
+ * Despeja la tierra que tapa la terminal (v5.0.1): si la playa sube detrás de la sala, la puerta quedaba enterrada.
+ * Rebaja a la altura de la tarima un margen de dos bloques alrededor de la sala y abre una bajada de tres de ancho
+ * desde la puerta de la playa, un escalón cada dos bloques. No toca lo que haya construido el jugador.
+ * Se puede llamar en cada carga: lo ya despejado no se vuelve a tocar.
+ */
+export function clearTerminalSurroundings(world: BuildWorld, site: TerminalSite): number {
+  const MARGIN = 2;
+  const DECK = deckOf(site);
+  const PATH = 10;
+  let changed = 0;
+  for (let z = -PATH; z <= HALL; z++) {
+    for (let x = -MARGIN; x < W + MARGIN; x++) {
+      if (x >= 0 && x < W && z >= 0) continue; // la sala
+      const path = x >= 3 && x <= 5 && z < 0;
+      const d = Math.max(x < 0 ? -x : x >= W ? x - W + 1 : 0, z < 0 ? -z : 0);
+      if (!path && d > MARGIN) continue;
+      // Altura hasta la que se deja tierra: a ras de la tarima cerca de la sala y subiendo poco a poco por la bajada.
+      const top = DECK + (path ? Math.max(0, Math.floor((d - MARGIN + 1) / 2)) : 0);
+      const [cx, , cz] = terminalCell(site, x, 0, z);
+      if (world.plotAt?.(cx, cz, 0)) continue;
+      let cut = false;
+      for (let y = DECK + 10; y > top; y--) {
+        const b = world.getBlock(cx, y, cz);
+        if (b === Block.Air || isWater(b) || world.isEdited?.(cx, y, cz)) continue;
+        world.setBlock(cx, y, cz, Block.Air);
+        changed++;
+        cut = true;
+      }
+      // La tierra que queda al aire vuelve a tener hierba.
+      if (cut && world.getBlock(cx, top, cz) === Block.Dirt) world.setBlock(cx, top, cz, Block.Grass);
+    }
+  }
+  return changed;
 }

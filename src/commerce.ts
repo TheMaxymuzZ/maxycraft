@@ -28,6 +28,8 @@ export interface Merchant {
   fixtures: Fixture[];
   /** Dónde atiende el dueño (en coordenadas del edificio). */
   counter: Cell;
+  /** Su cama, en la trastienda (v5.0.1): al cerrar se va andando a dormir en vez de desaparecer. */
+  bed: Cell;
   /** Si ya puede abrir. */
   unlocked: (c: UnlockContext) => boolean;
   /** Cómo se desbloquea, para la wiki y el tablón. */
@@ -145,6 +147,7 @@ export const MERCHANTS: Merchant[] = [
     building: GREENHOUSE,
     fixtures: [...COUNTER, ['macetero', 1, 1, 5, 0], ['macetero', 5, 1, 5, 0], ['espantapajaros', 6, 1, 7, 0]],
     counter: [3, 1, 2],
+    bed: [1, 1, 2],
     unlocked: (c) => c.townLevel >= 2,
     unlockText: 'Cuando el ayuntamiento llega a oficina (nivel 2).',
     greetings: [
@@ -163,6 +166,7 @@ export const MERCHANTS: Merchant[] = [
     building: BARN,
     fixtures: [...COUNTER, ['barril', 1, 1, 1, 0], ['barril', 5, 1, 1, 0], ['banco', 1, 1, 5, 1]],
     counter: [3, 1, 2],
+    bed: [5, 1, 2],
     unlocked: (c) => c.bestFriend >= 2,
     unlockText: 'Cuando eres amigo (nivel 3 de amistad) de algún vecino.',
     greetings: [
@@ -181,6 +185,7 @@ export const MERCHANTS: Merchant[] = [
     building: MINE_HUT,
     fixtures: [...COUNTER, ['barril', 1, 1, 1, 0], ['farol', 5, 1, 1, 0], ['railes', 4, 1, 7, 0], ['vagoneta', 5, 1, 7, 0], ['railes', 6, 1, 7, 0]],
     counter: [3, 1, 2],
+    bed: [1, 1, 2],
     unlocked: (c) => c.townLevel >= 3,
     unlockText: 'Cuando el ayuntamiento llega a ayuntamiento (nivel 3).',
     greetings: [
@@ -199,6 +204,7 @@ export const MERCHANTS: Merchant[] = [
     building: BOUTIQUE,
     fixtures: [...COUNTER, ['maniqui', 1, 1, 5, 0], ['maniqui', 5, 1, 5, 0], ['perchero', 1, 1, 2, 1], ['espejo', 1, 1, 4, 1], ['perchero', 5, 1, 2, 3]],
     counter: [3, 1, 2],
+    bed: [5, 1, 1],
     unlocked: (c) => c.townLevel >= 2 && c.bestFriend >= 1,
     unlockText: 'Con el ayuntamiento en oficina (nivel 2) y un vecino que sea ya conocido (nivel 2 de amistad).',
     greetings: [
@@ -217,6 +223,7 @@ export const MERCHANTS: Merchant[] = [
     building: WAREHOUSE,
     fixtures: [...COUNTER, ['sofa', 1, 1, 5, 1], ['mesa', 5, 1, 5, 0], ['lampara', 1, 1, 1, 0], ['estanteria', 5, 1, 1, 0]],
     counter: [3, 1, 2],
+    bed: [1, 1, 2],
     unlocked: (c) => (c.shopLevel ?? 0) >= 1,
     unlockText: 'Cuando la tienda de Avellana llega a Tienda grande (20.000 bayas gastadas).',
     greetings: [
@@ -235,6 +242,7 @@ export const MERCHANTS: Merchant[] = [
     building: WORKSHOP,
     fixtures: [...COUNTER, ['farola_hierro', 0, 1, 7, 0], ['banco_parque', 1, 1, 7, 0], ['jardinera', 5, 1, 7, 0], ['senal_calle', 6, 1, 7, 0], ['barril', 1, 1, 1, 0]],
     counter: [3, 1, 2],
+    bed: [5, 1, 1],
     unlocked: (c) => c.townLevel >= 3 && (c.works ?? 0) >= 1,
     unlockText: 'Con el ayuntamiento de nivel 3 y una obra pública ya hecha.',
     greetings: [
