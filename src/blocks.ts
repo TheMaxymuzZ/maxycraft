@@ -1902,14 +1902,18 @@ export function blockIconTile(b: Block): number {
   return def.tiles[b === Block.Grass || def.shape === 'cross' ? 0 : 1];
 }
 
-/** Recolorea la hierba y las hojas del atlas según la estación. El verano se queda como está. */
-export function applySeason(atlas: HTMLCanvasElement, season: 'primavera' | 'verano' | 'otoño' | 'invierno') {
+/**
+ * Recolorea la hierba y las hojas del atlas según la estación. El verano se queda como está.
+ * `size` es el lado de cada casilla (16, o más en el atlas grande de los dibujos nuevos) y `only` elige qué casillas tocar.
+ */
+export function applySeason(atlas: HTMLCanvasElement, season: 'primavera' | 'verano' | 'otoño' | 'invierno', size = TILE, only?: (tile: number) => boolean) {
   if (season === 'verano') return;
   const ctx = atlas.getContext('2d')!;
   const recolor = (tile: number, fn: (c: RGB, x: number, y: number, r: number) => RGB) => {
-    const ox = (tile % ATLAS_TILES) * TILE;
-    const oy = Math.floor(tile / ATLAS_TILES) * TILE;
-    const img = ctx.getImageData(ox, oy, TILE, TILE);
+    if (only && !only(tile)) return;
+    const ox = (tile % ATLAS_TILES) * size;
+    const oy = Math.floor(tile / ATLAS_TILES) * size;
+    const img = ctx.getImageData(ox, oy, size, size);
     const d = img.data;
     const r = rng(tile * 131 + season.length);
     for (let i = 0; i < d.length; i += 4) {
@@ -1917,7 +1921,7 @@ export function applySeason(atlas: HTMLCanvasElement, season: 'primavera' | 'ver
       if (d[i + 3] === 0) continue;
       // Solo los píxeles verdes: el borde de tierra del lateral de la hierba no cambia.
       if (!(d[i + 1] > d[i] && d[i + 1] > d[i + 2])) continue;
-      const [nr, ng, nb] = fn([d[i], d[i + 1], d[i + 2]], (i / 4) % TILE, Math.floor(i / 4 / TILE), roll);
+      const [nr, ng, nb] = fn([d[i], d[i + 1], d[i + 2]], (i / 4) % size, Math.floor(i / 4 / size), roll);
       d[i] = nr;
       d[i + 1] = ng;
       d[i + 2] = nb;
