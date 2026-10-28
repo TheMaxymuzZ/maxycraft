@@ -1,8 +1,12 @@
 // Peces, insectos y fósiles de la isla: dónde y cuándo salen, cuánto valen y cómo se dibujan.
+// Desde la v4.23, cuarenta peces: algunos solo en ciertos biomas, otros solo en alta mar (pescando desde el barco),
+// y cada uno con su tamaño (para los récords) y lo que pelea al recoger el sedal.
+
+import type { Biome } from './world';
 
 /** Desde la v4.15 también fósiles: se encuentran cavando y se donan al museo como los peces y los insectos. */
 export type CreatureKind = 'pez' | 'bicho' | 'fosil';
-export type Habitat = 'mar' | 'río' | 'flores' | 'árboles' | 'suelo' | 'agua' | 'tierra';
+export type Habitat = 'mar' | 'río' | 'alta_mar' | 'flores' | 'árboles' | 'suelo' | 'agua' | 'tierra';
 
 type RGB = [number, number, number];
 
@@ -18,6 +22,12 @@ export interface Creature {
   sell: number;
   /** Cuanto más alto, más fácil de encontrar. */
   weight: number;
+  /** Solo sale en estos biomas (v4.23). */
+  biomes?: Biome[];
+  /** Tamaño en centímetros, de menos a más (v4.23). */
+  size?: [number, number];
+  /** Lo que pelea al recogerlo, de 0 (nada) a 1 (muchísimo) (v4.23). */
+  fight?: number;
   sprite: 'pez' | 'pulpo' | 'mariposa' | 'escarabajo' | 'luciernaga' | 'libelula' | 'amonites' | 'trilobites' | 'diente' | 'hueso';
   colors: Record<string, RGB>;
 }
@@ -58,6 +68,61 @@ export const CREATURES: Creature[] = [
   { id: 'cola_dino', name: 'Cola de dinosaurio', kind: 'fosil', habitat: 'tierra', hours: ALL_DAY, sell: 2000, weight: 3, sprite: 'hueso', colors: { a: [205, 195, 170], b: [140, 125, 100] } },
 ];
 
+const COLD: Biome[] = ['taiga', 'tundra', 'glaciar', 'picos'];
+
+// Peces nuevos (v4.23). Van al final para que los de antes conserven su casilla en el atlas.
+CREATURES.push(
+  // Mar
+  { id: 'boqueron', name: 'Boquerón', kind: 'pez', habitat: 'mar', hours: ALL_DAY, sell: 90, weight: 10, size: [8, 16], fight: 0.1, sprite: 'pez', colors: { a: [140, 170, 200], b: [230, 236, 244] } },
+  { id: 'dorada', name: 'Dorada', kind: 'pez', habitat: 'mar', hours: ALL_DAY, sell: 350, weight: 6, size: [20, 50], fight: 0.35, sprite: 'pez', colors: { a: [170, 170, 150], b: [240, 210, 110] } },
+  { id: 'calamar', name: 'Calamar', kind: 'pez', habitat: 'mar', hours: [17, 6], sell: 500, weight: 4, size: [20, 60], fight: 0.3, sprite: 'pulpo', colors: { a: [236, 200, 200], b: [250, 230, 230] } },
+  { id: 'pez_globo', name: 'Pez globo', kind: 'pez', habitat: 'mar', hours: [21, 4], months: [7, 9], sell: 900, weight: 3, size: [15, 40], fight: 0.25, sprite: 'pez', colors: { a: [210, 190, 120], b: [250, 240, 200] } },
+  { id: 'caballito_mar', name: 'Caballito de mar', kind: 'pez', habitat: 'mar', hours: [4, 21], sell: 1100, weight: 3, size: [5, 20], fight: 0.1, sprite: 'pez', colors: { a: [240, 170, 60], b: [250, 220, 140] } },
+  { id: 'rape', name: 'Rape', kind: 'pez', habitat: 'mar', hours: [16, 9], sell: 2000, weight: 2, size: [40, 120], fight: 0.6, sprite: 'pez', colors: { a: [110, 90, 70], b: [170, 150, 120] } },
+  // Alta mar: solo pescando desde el barco.
+  { id: 'lampuga', name: 'Lampuga', kind: 'pez', habitat: 'alta_mar', hours: ALL_DAY, sell: 900, weight: 6, size: [60, 140], fight: 0.55, sprite: 'pez', colors: { a: [60, 170, 120], b: [240, 220, 80] } },
+  { id: 'pez_espada', name: 'Pez espada', kind: 'pez', habitat: 'alta_mar', hours: ALL_DAY, sell: 3500, weight: 3, size: [120, 300], fight: 0.85, sprite: 'pez', colors: { a: [70, 90, 130], b: [200, 210, 220] } },
+  { id: 'pez_vela', name: 'Pez vela', kind: 'pez', habitat: 'alta_mar', hours: [4, 21], sell: 4500, weight: 2, size: [150, 330], fight: 0.85, sprite: 'pez', colors: { a: [40, 80, 160], b: [180, 200, 230] } },
+  { id: 'tiburon_martillo', name: 'Tiburón martillo', kind: 'pez', habitat: 'alta_mar', hours: [16, 9], months: [6, 9], sell: 8000, weight: 1, size: [200, 450], fight: 0.95, sprite: 'pez', colors: { a: [120, 130, 140], b: [210, 214, 220] } },
+  { id: 'marlin_azul', name: 'Marlín azul', kind: 'pez', habitat: 'alta_mar', hours: ALL_DAY, sell: 10000, weight: 1, size: [250, 450], fight: 1, sprite: 'pez', colors: { a: [30, 60, 150], b: [170, 200, 240] } },
+  { id: 'calamar_gigante', name: 'Calamar gigante', kind: 'pez', habitat: 'alta_mar', hours: [21, 4], sell: 12000, weight: 1, size: [500, 1200], fight: 1, sprite: 'pulpo', colors: { a: [190, 70, 70], b: [240, 160, 150] } },
+  { id: 'pez_linterna', name: 'Pez linterna', kind: 'pez', habitat: 'alta_mar', hours: [19, 4], sell: 1500, weight: 3, size: [5, 15], fight: 0.15, sprite: 'pez', colors: { a: [40, 50, 80], b: [140, 240, 255] } },
+  // Río
+  { id: 'pez_dorado', name: 'Pez dorado', kind: 'pez', habitat: 'río', hours: [9, 16], sell: 1300, weight: 3, size: [5, 20], fight: 0.1, sprite: 'pez', colors: { a: [250, 150, 40], b: [255, 210, 120] } },
+  { id: 'anguila', name: 'Anguila', kind: 'pez', habitat: 'río', hours: [16, 9], sell: 600, weight: 4, size: [40, 120], fight: 0.5, sprite: 'pez', colors: { a: [70, 80, 50], b: [150, 150, 100] } },
+  { id: 'perca', name: 'Perca', kind: 'pez', habitat: 'río', hours: ALL_DAY, sell: 250, weight: 8, size: [15, 45], fight: 0.25, sprite: 'pez', colors: { a: [110, 140, 60], b: [230, 200, 120] } },
+  { id: 'lucio', name: 'Lucio', kind: 'pez', habitat: 'río', hours: [4, 21], sell: 700, weight: 4, size: [40, 130], fight: 0.6, sprite: 'pez', colors: { a: [90, 120, 80], b: [200, 210, 160] } },
+  { id: 'esturion', name: 'Esturión', kind: 'pez', habitat: 'río', hours: ALL_DAY, months: [9, 3], sell: 6000, weight: 1, size: [100, 300], fight: 0.9, sprite: 'pez', colors: { a: [90, 90, 100], b: [190, 190, 200] } },
+  // Solo en ciertos biomas (islas con clima).
+  { id: 'pirana', name: 'Piraña', kind: 'pez', habitat: 'río', biomes: ['selva'], hours: [9, 16], sell: 900, weight: 6, size: [15, 35], fight: 0.45, sprite: 'pez', colors: { a: [120, 130, 140], b: [220, 70, 60] } },
+  { id: 'arapaima', name: 'Arapaima', kind: 'pez', habitat: 'río', biomes: ['selva'], hours: [16, 9], sell: 9000, weight: 1, size: [150, 300], fight: 0.95, sprite: 'pez', colors: { a: [70, 80, 60], b: [200, 80, 60] } },
+  { id: 'pez_hielo', name: 'Pez de hielo', kind: 'pez', habitat: 'mar', biomes: COLD, hours: ALL_DAY, sell: 600, weight: 6, size: [20, 50], fight: 0.3, sprite: 'pez', colors: { a: [200, 220, 240], b: [240, 248, 255] } },
+  { id: 'trucha_artica', name: 'Trucha ártica', kind: 'pez', habitat: 'río', biomes: COLD, hours: ALL_DAY, sell: 900, weight: 5, size: [30, 70], fight: 0.45, sprite: 'pez', colors: { a: [90, 110, 140], b: [240, 150, 130] } },
+  { id: 'pez_del_fango', name: 'Pez del fango', kind: 'pez', habitat: 'río', biomes: ['pantano'], hours: ALL_DAY, sell: 400, weight: 7, size: [10, 25], fight: 0.2, sprite: 'pez', colors: { a: [110, 100, 70], b: [170, 160, 120] } },
+  { id: 'koi', name: 'Carpa koi', kind: 'pez', habitat: 'río', biomes: ['cerezos'], hours: [4, 21], sell: 2000, weight: 3, size: [30, 80], fight: 0.35, sprite: 'pez', colors: { a: [250, 250, 250], b: [230, 90, 50] } },
+  { id: 'pez_luminoso', name: 'Pez luminoso', kind: 'pez', habitat: 'río', biomes: ['luminoso'], hours: [18, 6], sell: 1800, weight: 4, size: [10, 30], fight: 0.25, sprite: 'pez', colors: { a: [60, 120, 220], b: [150, 250, 255] } },
+  { id: 'pez_brasa', name: 'Pez brasa', kind: 'pez', habitat: 'mar', biomes: ['volcanico'], hours: ALL_DAY, sell: 2200, weight: 3, size: [20, 60], fight: 0.55, sprite: 'pez', colors: { a: [60, 40, 40], b: [250, 120, 40] } },
+  { id: 'pez_seta', name: 'Pez seta', kind: 'pez', habitat: 'río', biomes: ['setas'], hours: ALL_DAY, sell: 800, weight: 5, size: [10, 30], fight: 0.2, sprite: 'pez', colors: { a: [190, 60, 60], b: [250, 240, 230] } },
+  { id: 'cachorrito', name: 'Cachorrito del desierto', kind: 'pez', habitat: 'río', biomes: ['desierto', 'cañon', 'sabana'], hours: [9, 16], sell: 1500, weight: 3, size: [3, 8], fight: 0.1, sprite: 'pez', colors: { a: [80, 120, 200], b: [230, 210, 120] } },
+);
+
+/** Tamaño de cada pez, si no tiene uno propio: según lo que pesa en el mar (los raros, más grandes). */
+export function sizeRange(c: Creature): [number, number] {
+  if (c.size) return c.size;
+  return c.weight >= 8 ? [10, 30] : c.weight >= 4 ? [25, 60] : c.weight >= 2 ? [40, 100] : [80, 250];
+}
+
+/** Lo que pelea un pez al recogerlo (de 0 a 1). */
+export function fightOf(c: Creature): number {
+  return c.fight ?? Math.min(1, 0.15 + (1 / Math.max(1, c.weight)) * 0.7);
+}
+
+/** Tamaño al azar de un pez recién pescado, en centímetros (los muy grandes son raros). */
+export function rollSize(c: Creature, random = Math.random): number {
+  const [lo, hi] = sizeRange(c);
+  return Math.round(lo + (hi - lo) * random() ** 1.8);
+}
+
 /** Las tres piezas que forman el esqueleto de dinosaurio del museo. */
 export const DINO_PIECES = ['craneo_dino', 'costillas_dino', 'cola_dino'];
 
@@ -94,6 +159,7 @@ export function hoursText(c: Creature): string {
 
 export const HABITAT_TEXT: Record<Habitat, string> = {
   mar: 'en el mar',
+  alta_mar: 'en alta mar, desde el barco',
   'río': 'en el río',
   flores: 'cerca de las flores',
   'árboles': 'en los troncos de los árboles',
@@ -103,12 +169,16 @@ export const HABITAT_TEXT: Record<Habitat, string> = {
 };
 
 /** Elige al azar, según su frecuencia, una criatura de los hábitats dados que esté activa a esa hora. */
-export function pickCreature(habitats: Habitat[], hour: number, random = Math.random): Creature | null {
-  const options = CREATURES.filter((c) => habitats.includes(c.habitat) && isActive(c, hour));
-  const total = options.reduce((n, c) => n + c.weight, 0);
+export function pickCreature(
+  habitats: Habitat[], hour: number, random = Math.random, biome: Biome | null = null, lure = false, skip?: (c: Creature) => boolean,
+): Creature | null {
+  // Los de bioma solo salen en su bioma; con señuelo (v4.23) los raros salen más.
+  const options = CREATURES.filter((c) => habitats.includes(c.habitat) && isActive(c, hour) && (!c.biomes || (biome !== null && c.biomes.includes(biome))) && !skip?.(c));
+  const weight = (c: Creature) => (lure && c.weight <= 3 ? c.weight * 3 : c.weight);
+  const total = options.reduce((n, c) => n + weight(c), 0);
   let r = random() * total;
   for (const c of options) {
-    r -= c.weight;
+    r -= weight(c);
     if (r <= 0) return c;
   }
   return options[options.length - 1] ?? null;

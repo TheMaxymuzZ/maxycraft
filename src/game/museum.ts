@@ -2,7 +2,7 @@
 // nadando en el acuario y los insectos revoloteando en el terrario. Cada jugador ve lo que él ha donado. El
 // anfitrión, además, quita el cordón de cada planta cuando se abre. El edificio está en museum.ts.
 import * as THREE from 'three';
-import { Block, CREATURE_TILE_START, tileCanvas } from '../blocks';
+import { Block, creatureTile, tileCanvas } from '../blocks';
 import { CREATURES, type Creature, DINO_PIECES } from '../creatures';
 import { WINGS, barrierCell, exhibitSpot, museumOrigin, openWings } from '../museum';
 import type { World } from '../world';
@@ -82,7 +82,7 @@ export class MuseumHall {
   private add(c: Creature, index: number, dino: number) {
     const [ox, oy, oz] = this.origin!;
     const spot = exhibitSpot(c.kind, index, dino);
-    const tex = new THREE.CanvasTexture(tileCanvas(this.deps.atlas, CREATURE_TILE_START + CREATURES.indexOf(c)));
+    const tex = new THREE.CanvasTexture(tileCanvas(this.deps.atlas, creatureTile(CREATURES.indexOf(c))));
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.colorSpace = THREE.SRGBColorSpace;

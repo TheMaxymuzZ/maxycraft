@@ -1,5 +1,5 @@
 import { CLOTHES } from './clothes';
-import { BLOCKS, Block, CREATURE_TILE_START, STAIRS, Tile, XTile, blockIconTile } from './blocks';
+import { BLOCKS, Block, creatureTile, STAIRS, Tile, XTile, blockIconTile } from './blocks';
 import { CREATURES } from './creatures';
 import { FURNITURE, FURNITURE_TILE } from './furniture';
 import { TREE_KINDS } from './orchard';
@@ -268,6 +268,10 @@ add({ id: 'cubo_lava', kind: 'herramienta', name: 'Cubo de lava', tile: XTile.La
 add({ id: 'cebo', kind: 'consumible', name: 'Cebo', tile: XTile.Bait, maxStack: 30, sell: 15, buy: 60, seller: 'pesca' });
 add({ id: 'brujula', kind: 'herramienta', rarity: 'raro', name: 'Brújula', tile: XTile.Compass, maxStack: 1, sell: 300, buy: 1500, seller: 'pesca' });
 add({ id: 'catalejo', kind: 'herramienta', rarity: 'raro', name: 'Catalejo', tile: XTile.Spyglass, maxStack: 1, sell: 600, buy: 3000, seller: 'pesca' });
+add({ id: 'cana_hierro', rarity: 'raro', name: 'Caña de hierro', tile: XTile.IronRod, maxStack: 1, tool: 'rod', durability: 80, sell: 300 });
+add({ id: 'cana_cristal', rarity: 'epico', name: 'Caña de cristal', tile: XTile.CrystalRod, maxStack: 1, tool: 'rod', durability: 200, sell: 1200, buy: 8000, seller: 'pesca' });
+add({ id: 'cana_legendaria', rarity: 'legendario', name: 'Caña legendaria', tile: XTile.LegendRod, maxStack: 1, tool: 'rod', durability: 500, sell: 5000 });
+add({ id: 'senuelo', kind: 'consumible', rarity: 'raro', name: 'Señuelo', tile: XTile.Lure, maxStack: 30, sell: 60, buy: 300, seller: 'pesca' });
 add({ id: 'carta_nautica', kind: 'especial', rarity: 'raro', name: 'Carta náutica', tile: XTile.SeaChart, maxStack: 1, sell: 500, buy: 2500, seller: 'pesca' });
 add({ id: 'pepita_hierro', name: 'Pepita de hierro', tile: Tile.IronNugget, maxStack: 30, sell: 375 });
 add({ id: 'pepita_oro', name: 'Pepita de oro', tile: Tile.GoldNugget, maxStack: 30, sell: 1500 });
@@ -315,7 +319,7 @@ add({ id: 'permiso_mudanza', name: 'Permiso de mudanza', tile: Tile.Blueprint, m
 
 // Peces e insectos: se pueden vender o donar al museo.
 // Los fósiles (v4.15) son tesoros, no criaturas.
-CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: CREATURE_TILE_START + i, maxStack: 10, sell: c.sell, ...(c.kind === 'fosil' ? { kind: 'tesoro' as const } : {}) }));
+CREATURES.forEach((c, i) => add({ id: c.id, name: c.name, tile: creatureTile(i), maxStack: 10, sell: c.sell, ...(c.kind === 'fosil' ? { kind: 'tesoro' as const } : {}) }));
 
 // Muebles para decorar la casa.
 for (const f of FURNITURE) add({ id: f.id, name: f.name, tile: FURNITURE_TILE(f.id), maxStack: f.stack ?? 1, sell: f.sell, buy: f.buy, furniture: true, holiday: f.holiday, seller: f.seller });
@@ -623,6 +627,9 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'banco', count: 1, needs: [['tablones', 3], ['rama', 2]] },
   { result: 'pico_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 3]] },
   { result: 'hacha_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 3]] },
+  // Cañas (v4.23): la de hierro se aprende de primeras; la legendaria sale de la de cristal.
+  { result: 'cana_hierro', count: 1, needs: [['rama', 3], ['pepita_hierro', 3]] },
+  { result: 'cana_legendaria', count: 1, needs: [['cana_cristal', 1], ['pepita_oro', 5], ['concha', 10]] },
   { result: 'pala_hierro', count: 1, needs: [['rama', 2], ['pepita_hierro', 2]] },
   { result: 'valla_blanca', count: 4, needs: [['tablones', 2], ['concha', 1]] },
   { result: 'mesa', count: 1, needs: [['tablones', 6]] },
@@ -678,4 +685,4 @@ export const DIY_RECIPES: Recipe[] = [
 const BUILDING_DIY = ['camino_tierra', 'camino_losas', 'calle', 'baldosas', 'farola', 'papelera', 'cartel', 'macetero', 'fuente_plaza', 'buzon', 'caja', 'cofre', 'baul', 'ladrillo', 'adoquin', 'piedra_pulida', 'cristal', 'tablones_palmera', 'bloque_luz', 'losa_madera', 'losa_adoquin', 'losa_ladrillo', 'losa_piedra_pulida', 'escalera_madera', 'escalera_adoquin', 'escalera_ladrillo', 'tablones_puente', 'barandilla', 'pilar', 'reloj'];
 
 /** Las que ya se saben al empezar. */
-export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'puerta', 'puerta_valla', ...BUILDING_DIY];
+export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'cana_hierro', 'cana_legendaria', 'puerta', 'puerta_valla', ...BUILDING_DIY];
