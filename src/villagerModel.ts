@@ -8,7 +8,9 @@ export type Species =
   // Los comercios del campo y la mina (v4.17).
   | 'cabra' | 'caballo' | 'topo'
   // Moda, muebles y mobiliario urbano (v4.18).
-  | 'alpaca' | 'mapache' | 'jirafa';
+  | 'alpaca' | 'mapache' | 'jirafa'
+  // El astillero (v4.21).
+  | 'morsa' | 'nutria';
 
 export interface SpeciesLook {
   /** Color del pelo (o plumas, o piel). */
@@ -44,6 +46,8 @@ export const LOOKS: Record<Species, SpeciesLook> = {
   alpaca: { fur: 0xf6ecdc, belly: 0xfffaf0, feet: 0x8a7060 },
   mapache: { fur: 0x8a8a92, belly: 0xe0e0e4, feet: 0x3a3a40 },
   jirafa: { fur: 0xf0c060, belly: 0xfff0c8, feet: 0x6a4a2a },
+  morsa: { fur: 0x9a6e5a, belly: 0xd8b8a0, feet: 0x6a4a3a },
+  nutria: { fur: 0x7a5a3e, belly: 0xe8d4b8, feet: 0x4a3424 },
 };
 
 /** Lo que hace falta para dibujar a un vecino. */
@@ -398,6 +402,31 @@ export function buildVillagerModel(spec: ModelSpec): VillagerModel {
       ear(0.16, 0.16, 0.08, -0.26, y + 0.38, fur, 0x3a3a40);
       ear(0.16, 0.16, 0.08, 0.26, y + 0.38, fur, 0x3a3a40);
       for (const [i, c] of [fur, 0x3a3a40, fur, 0x3a3a40].entries()) box(0.14, 0.14, 0.12, c, 0, 0.36 + i * 0.02, -0.24 - i * 0.12);
+      break;
+    case 'morsa':
+      // Bigote grande, colmillos largos y aletas.
+      eye(-0.17, y + 0.08);
+      eye(0.17, y + 0.08);
+      cheeks();
+      box(0.46, 0.2, 0.12, belly, 0, y - 0.1, front + 0.06);
+      box(0.1, 0.06, 0.03, DARK, 0, y - 0.03, front + 0.13);
+      for (const sx of [-1, 1]) {
+        box(0.06, 0.3, 0.06, WHITE, sx * 0.1, y - 0.3, front + 0.08);
+        for (const wy of [-0.08, -0.13]) box(0.12, 0.012, 0.01, DARK, sx * 0.28, y + wy, front + 0.13);
+      }
+      tail(0.4, 0.08, 0.24, shade(fur, 0.8), 0.12, -0.22);
+      break;
+    case 'nutria':
+      // Orejitas redondas, hocico claro con bigotes y cola larga y gorda.
+      eye(-0.15, y + 0.05);
+      eye(0.15, y + 0.05);
+      cheeks();
+      box(0.3, 0.14, 0.08, belly, 0, y - 0.12, front + 0.05);
+      box(0.1, 0.06, 0.03, DARK, 0, y - 0.07, front + 0.1);
+      for (const sx of [-1, 1]) for (const wy of [-0.09, -0.13]) box(0.16, 0.012, 0.01, DARK, sx * 0.3, y + wy, front + 0.1);
+      ear(0.1, 0.1, 0.08, -0.3, y + 0.34, fur, belly);
+      ear(0.1, 0.1, 0.08, 0.3, y + 0.34, fur, belly);
+      tail(0.18, 0.14, 0.5, fur, 0.3, -0.36, -0.3);
       break;
     case 'jirafa':
       // Cuernecitos con bola, manchas y orejas de lado.

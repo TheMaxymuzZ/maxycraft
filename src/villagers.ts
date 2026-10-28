@@ -20,6 +20,7 @@ export const SPECIES_NAMES: Record<Species, string> = {
   gato: 'Gato', conejo: 'Conejo', oso: 'Oso', pato: 'Pato', perro: 'Perro', rana: 'Rana', ardilla: 'Ardilla', tortuga: 'Tortuga',
   oveja: 'Oveja', cerdo: 'Cerdo', 'pingüino': 'Pingüino', koala: 'Koala', zorro: 'Zorro', elefante: 'Elefante',
   'búho': 'Búho', castor: 'Castor', cabra: 'Cabra', caballo: 'Caballo', topo: 'Topo', alpaca: 'Alpaca', mapache: 'Mapache', jirafa: 'Jirafa',
+  morsa: 'Morsa', nutria: 'Nutria',
 };
 
 export interface Profile {
@@ -35,7 +36,7 @@ export interface Profile {
   sleep?: [number, number];
   /** No pasea: se queda en la puerta (la dependienta y la conservadora). */
   stationary?: boolean;
-  role?: 'shop' | 'museum' | 'pilot' | 'mayor' | 'planner';
+  role?: 'shop' | 'museum' | 'pilot' | 'mayor' | 'planner' | 'shipwright';
   /** El comercio que atiende, si no es la tienda de Avellana (v4.17). */
   shop?: string;
   /** Cumpleaños: [mes, día]. */
@@ -249,6 +250,11 @@ export class Villager {
 
   get isPlanner() {
     return this.profile.role === 'planner';
+  }
+
+  /** El carpintero de ribera del astillero (v4.21). */
+  get isShipwright() {
+    return this.profile.role === 'shipwright';
   }
 
   /** Está de vacaciones en una isla misteriosa y se le puede invitar. */

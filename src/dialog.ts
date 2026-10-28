@@ -7,6 +7,7 @@ import type { Inventory } from './inventory';
 import { itemDef } from './items';
 import type { Holiday } from './seasons';
 import { formatBerries } from './shop';
+import { BOATS, type BoatKind, KIOSK_GREETINGS, MAX_STAGE, STAGES, STAGE_COSTS, UPGRADES, type UpgradeId, boatModel, upgradeOf } from './shipyard';
 import type { Personality, Villager } from './villagers';
 
 // Frases de los vecinos. {c} es su coletilla y {saludo} depende de la hora.
@@ -304,6 +305,11 @@ const PLANNER_GREETINGS = [
   '¡{saludo}! Soy Ladrillo, el urbanista. Si hay que construir algo, ¡aquí estoy, {c}!',
   '¡Hola! Me paso el día dibujando planos. ¿Necesitas uno, {c}?',
 ];
+const SHIPWRIGHT_GREETINGS = [
+  'Bfff… {saludo}. Soy Bartolo, carpintero de ribera. Esto era un astillero, y volverá a serlo, {c}.',
+  'Huele a brea y a sal. Así huele un buen día de trabajo, {c}.',
+  'Un barco bien hecho dura más que quien lo hace. Bfff, {c}.',
+];
 const GOODBYE = ['¡Hasta luego, {c}!', '¡Nos vemos!', 'Venga, ¡que vaya bien, {c}!'];
 
 const CATEGORY: Record<string, 'fruta' | 'conchas' | 'flores' | 'madera'> = {
@@ -412,6 +418,23 @@ export interface DialogContext {
   decor?: DecorActions;
   /** Ayuntamiento, alcalde y urbanista (v4.13). */
   town?: TownActions;
+  /** El astillero de Bartolo (v4.21). */
+  shipyard?: ShipyardActions;
+}
+
+export interface ShipyardActions {
+  /** Etapa del astillero (0: ruinas). */
+  stage(): number;
+  /** Tu barco, si ya tienes. */
+  boat(): { kind: BoatKind; upgrades: Partial<Record<UpgradeId, number>> } | null;
+  /** Arreglar y construir solo se hace en tu isla. */
+  manage(): boolean;
+  /** Lo que cuesta, en palabras ("20 × tablones, 5.000 bayas"). */
+  costText(c: { bayas?: number; items?: Record<string, number> }): string;
+  /** Pagan y se hace; devuelven null si ha ido bien o lo que falta. */
+  repair(): string | null;
+  build(kind: BoatKind): string | null;
+  upgrade(id: UpgradeId): string | null;
 }
 
 export interface TravelActions {
@@ -471,7 +494,8 @@ export class Dialog {
     else if (first && this.ctx.holiday && !v.isCurator) this.say(this.ctx.holiday.greeting);
     else if (v.isPilot) this.pilot();
     else if (v.visitor && first) this.say(pick(VISITOR_GREETINGS));
-    else if (v.isShopkeeper) this.say(pick(merchantOf(v.profile.shop ?? '')?.greetings ?? SHOP_GREETINGS));
+    else if (v.isShopkeeper) this.say(pick(v.profile.shop === 'pesca' ? KIOSK_GREETINGS : merchantOf(v.profile.shop ?? '')?.greetings ?? SHOP_GREETINGS));
+    else if (v.isShipwright) this.say(pick(SHIPWRIGHT_GREETINGS));
     else if (v.isCurator) this.say(pick(MUSEUM_GREETINGS));
     else if (v.isMayor) this.say(pick(MAYOR_GREETINGS));
     else if (v.isPlanner) this.say(pick(PLANNER_GREETINGS));
@@ -567,6 +591,11 @@ export class Dialog {
       add('Obras públicas', () => this.worksMenu());
       add('El ayuntamiento', () => this.hallMenu());
       if (t.level() >= 3) add('Nombre y bandera', () => this.nameMenu());
+    } else if (v.isShipwright && this.ctx.shipyard) {
+      const y = this.ctx.shipyard;
+      add('El astillero', () => this.shipyardMenu());
+      if (y.stage() >= 2) add('Barcos', () => this.boatsMenu());
+      if (y.stage() >= 3 && y.boat()) add('Mejoras', () => this.upgradesMenu());
     } else if (v.isPlanner && this.ctx.town) {
       add('Plano de casa', () => this.blueprint());
       if (this.ctx.parcel) add(this.ctx.parcel.mine() ? 'Tu parcela' : 'Tienda de campaña', () => this.parcelMenu());
@@ -872,6 +901,71 @@ export class Dialog {
   }
 
   /** Tu parcela: ampliar, mudar y mejoras; o el permiso de tienda si eres invitado (v4.14). */
+  /** Bartolo cuenta cómo va el astillero y qué hace falta para la siguiente etapa. */
+  private shipyardMenu() {
+    const y = this.ctx.shipyard!;
+    const stage = y.stage();
+    const now = STAGES[stage];
+    if (stage >= MAX_STAGE) {
+      this.say(`El astillero está entero: ${now.name.toLowerCase()} y todo. ${now.text} Bfff, qué orgullo, {c}.`, [['Volver', this.back]]);
+      return;
+    }
+    const next = STAGES[stage + 1];
+    const cost = y.costText(STAGE_COSTS[stage]);
+    const intro = stage === 0
+      ? 'Aquí se hacían los mejores barcos del archipiélago. Ahora mira: escombros. Si me ayudas, lo arreglamos en cuatro etapas.'
+      : `Ahora mismo: ${now.name.toLowerCase()}. ${now.text}`;
+    if (!y.manage()) {
+      this.say(`${intro} Pero eso lo decide quien vive en esta isla, {c}.`, [['Volver', this.back]]);
+      return;
+    }
+    this.say(`${intro} Siguiente etapa: ${next.name.toLowerCase()} (${next.text.toLowerCase()}). Necesito ${cost}. ¿Lo traes, {c}?`, [
+      ['Dar los materiales', () => {
+        const problem = y.repair();
+        this.say(problem ? `${problem}. Bfff… vuelve cuando lo tengas todo, {c}.` : `¡Hecho! El astillero ya tiene ${next.name.toLowerCase()}. ${next.text} ¡Qué buen trabajo, {c}!`, [['Volver', this.back]]);
+      }],
+      ['Ahora no', this.back],
+    ]);
+  }
+
+  /** Los barcos que Bartolo puede construir con las etapas que hay. */
+  private boatsMenu() {
+    const y = this.ctx.shipyard!;
+    const mine = y.boat();
+    const options: Option[] = BOATS.filter((b) => b.stage <= y.stage() && b.kind !== mine?.kind).map((b) => [b.name, () => {
+      this.say(`${b.name}: ${b.text} Necesito ${y.costText(b.cost)}.${mine ? ' Lo que lleves en la bodega pasa al barco nuevo, y las mejoras también.' : ''} ¿Lo construyo, {c}?`, [
+        ['¡Constrúyelo!', () => {
+          const problem = y.build(b.kind);
+          this.say(problem ? `${problem}, {c}.` : `¡Listo! Tu ${b.name.toLowerCase()} está amarrado junto a la grada. Súbete con clic derecho y llévalo con las teclas de andar. Para bajar, salta cerca de la orilla, {c}.`, [['Volver', this.back]]);
+        }],
+        ['Ahora no', this.back],
+      ]);
+    }]);
+    if (!y.manage()) {
+      this.say('Los barcos se encargan en tu propia isla, {c}.', [['Volver', this.back]]);
+      return;
+    }
+    const have = mine ? `Ahora tienes ${boatModel(mine.kind).name.toLowerCase()}. ` : '';
+    const more = y.stage() < 4 ? ' Con más etapas del astillero puedo hacer barcos más grandes.' : '';
+    this.say(options.length ? `${have}¿Qué barco te hago, {c}?${more}` : `${have}No puedo hacerte otro mejor todavía.${more}`, [...options, ['Volver', this.back]]);
+  }
+
+  /** Mejoras para el barco: vela, bodega, casco, farol y litera. */
+  private upgradesMenu() {
+    const y = this.ctx.shipyard!;
+    const mine = y.boat()!;
+    const options: Option[] = UPGRADES.filter((u) => u.stage <= y.stage() && (mine.upgrades[u.id] ?? 0) < u.max).map((u) => [u.name, () => {
+      this.say(`${u.name}: ${u.text} Necesito ${y.costText(u.cost)}. ¿Se la pongo, {c}?`, [
+        ['¡Pónsela!', () => {
+          const problem = y.upgrade(u.id);
+          this.say(problem ? `${problem}, {c}.` : `¡Puesta! ${upgradeOf(u.id).name} en tu barco. Bfff, ha quedado precioso, {c}.`, [['Volver', this.back]]);
+        }],
+        ['Ahora no', this.back],
+      ]);
+    }]);
+    this.say(options.length ? '¿Qué le ponemos a tu barco, {c}?' : 'Tu barco ya lleva todo lo que sé poner. Bfff, {c}.', [...options, ['Volver', this.back]]);
+  }
+
   private parcelMenu() {
     const a = this.ctx.parcel!;
     const mine = a.mine();

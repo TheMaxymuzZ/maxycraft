@@ -59,6 +59,8 @@ import { Wardrobe, isWardrobeSave } from './wardrobe';
 import { CLOTHES, clothOf } from './clothes';
 import { MERCHANTS, repairCost } from './commerce';
 import { ShopFront } from './game/shopFront';
+import { ShipyardGame } from './game/shipyard';
+import { BRUJULA, shipyardCenter } from './shipyard';
 import { PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, findTerminalSite, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
 import { WEATHER_TEXT, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
@@ -477,6 +479,17 @@ for (const v of villagers) {
   scene.add(v.group, v.extras);
   if (v.isBirthday(startDate)) v.addPartyHat();
 }
+/** El astillero y tu barco (v4.21): en tu isla aparecen unas ruinas en la playa del otro lado de la isla. */
+const shipyardBeaches = trip || joined ? [] : [Math.PI, Math.PI / 2, -Math.PI / 2]
+  .map((turn) => world.findAirport((shopPlot ? Math.atan2(shopPlot.z, shopPlot.x) : 0) + turn))
+  .filter((b): b is NonNullable<typeof b> => !!b && (!airport || Math.hypot(b.x - airport.x, b.z - airport.z) > 30));
+const shipyard = new ShipyardGame({
+  world, villagers, scene, memories: save?.villagers ?? {}, host: !joined && !trip,
+  get inventory() { return inventory; },
+  put: (x, y, z, b) => sync.setBlock(x, y, z, b),
+  wallet: () => wallet,
+  pay: (n) => setWallet(wallet - n),
+}, trip ? null : joined ? joined.snapshot.shipyard : save?.shipyard, trip ? null : joined ? joined.snapshot.boat : save?.boat, shipyardBeaches);
 // Camas (v4.11), muebles regalados y jardines (v4.12) de las casas de los vecinos.
 const villagerHomes = new VillagerHomes(world, villagers, lampHook);
 scene.add(villagerHomes.furniture.group);
@@ -613,6 +626,7 @@ function persist(urgent = false) {
     parcels: parcels.list,
     mail: mailDay,
     terminal: terminalSite ?? undefined,
+    ...shipyard.save(),
     wardrobe: wardrobe.serialize(),
     missions: missions.serialize(),
     clock: clock.serialize(),
@@ -704,6 +718,8 @@ islandInfo.textContent = `Fruta de la isla: ${BLOCKS[world.fruit].name.toLowerCa
 /** Aplica las opciones al momento, sin recargar. */
 /** Avisa de que han cambiado las teclas (el tutorial, que se crea más abajo, se apunta aquí). */
 let keysChanged = () => {};
+/** El campo de visión de las opciones (el catalejo lo cierra un rato). */
+let baseFov = settings.fov;
 function applySettings(s: Settings) {
   sound.setVolumes(s.music / 100, s.sfx / 100);
   player.sensitivity = s.sensitivity;
@@ -713,7 +729,7 @@ function applySettings(s: Settings) {
   document.documentElement.classList.toggle('texto-grande', s.bigText);
   applyUiScale();
   document.documentElement.classList.toggle('daltonico', s.colorblind);
-  camera.fov = s.fov;
+  camera.fov = baseFov = s.fov;
   camera.updateProjectionMatrix();
   renderRadius = s.viewDistance;
   shadows.setQuality(s.quality);
@@ -920,7 +936,7 @@ document.querySelector('#workbench-close')!.addEventListener('click', closeWorkb
 const VOICES: Record<string, number> = {
   gato: 760, oso: 260, conejo: 900, rana: 380, perro: 560, pato: 820, ardilla: 1050, tortuga: 220,
   oveja: 680, cerdo: 420, 'pingüino': 940, koala: 330, zorro: 720, elefante: 180, 'búho': 300, castor: 480,
-  cabra: 640, caballo: 340, topo: 520, alpaca: 860, mapache: 600, jirafa: 400,
+  cabra: 640, caballo: 340, topo: 520, alpaca: 860, mapache: 600, jirafa: 400, morsa: 260, nutria: 760,
 };
 
 /** Despega la avioneta, funde la pantalla y recarga en la otra isla. */
@@ -1051,6 +1067,10 @@ function parcelObstacles(): Obstacle[] {
   if (terminalSite) {
     const [tx, tz] = terminalPoint(terminalSite, 4.5, 7);
     out.push({ x: Math.round(tx), z: Math.round(tz), r: 8, what: 'la terminal de la avioneta' });
+  }
+  if (shipyard.site) {
+    const [sx, sz] = shipyardCenter(shipyard.site);
+    out.push({ x: Math.round(sx), z: Math.round(sz), r: 10, what: 'el astillero' });
   }
   const [px, pz] = world.findSpawn(0, 0);
   out.push({ x: px, z: pz, r: 3, what: 'la plaza' });
@@ -1351,6 +1371,36 @@ const dialog = new Dialog({
   },
   gifted: () => record('regalar'),
   town: town.actions(),
+  shipyard: {
+    stage: () => shipyard.stage,
+    boat: () => (shipyard.boat ? { kind: shipyard.boat.kind, upgrades: { ...shipyard.boat.upgrades } } : null),
+    manage: () => !joined && !trip,
+    costText: (c) => shipyard.costText(c),
+    repair: () => {
+      const problem = shipyard.repair();
+      if (!problem) {
+        sound.fanfare();
+        persist();
+      }
+      return problem;
+    },
+    build: (kind) => {
+      const problem = shipyard.build(kind);
+      if (!problem) {
+        sound.fanfare();
+        persist();
+      }
+      return problem;
+    },
+    upgrade: (id) => {
+      const problem = shipyard.upgrade(id);
+      if (!problem) {
+        sound.coin();
+        persist();
+      }
+      return problem;
+    },
+  },
   decor: {
     available: (v) => !trip && hasDecorableHome(v),
     slots: (v) => villagerHomes.slots(v).length,
@@ -1488,6 +1538,8 @@ function shopContext(): ShopContext {
 const shop = new Shop(Object.assign(shopContext(), { levelUp: () => refreshShopFront() }));
 /** Las tiendas de Espiga, Heno y Grava (v4.17). */
 const merchantShops = new Map(MERCHANTS.map((m) => [m.shop.id, new Shop(shopContext(), m.shop)]));
+// El puesto de Brújula en el muelle del astillero (v4.21).
+merchantShops.set(BRUJULA.id, new Shop(shopContext(), BRUJULA));
 /** La tienda de quien atiende. */
 function shopOf(v: Villager): Shop {
   return merchantShops.get(v.profile.shop ?? '') ?? shop;
@@ -2028,8 +2080,74 @@ function villagerInSight(blockDistance: number): Villager | null {
   return best;
 }
 
+/** En el barco (v4.21): clic derecho abre la bodega, o de noche te echas en la litera si la tiene. */
+function useAboard() {
+  const b = shipyard.boat!;
+  if (b.upgrades.cama && (currentHour >= 20 || currentHour < 6)) {
+    useBed();
+    return;
+  }
+  panel = 'storage';
+  breaker.active = false;
+  storagePanel.open('Bodega', b.hold);
+  sound.place();
+  unlockInput();
+}
+
+/** Subirse al barco que tienes delante. */
+function boardBoat() {
+  if (joined || trip) {
+    hud.toast('Este barco es de quien vive en la isla');
+    return;
+  }
+  const seat = shipyard.board();
+  if (!seat) return;
+  player.mounted = seat;
+  sound.place();
+  hud.toast(touch ? 'Palanca para llevar el barco. Botón de saltar para bajar en la orilla' : 'Adelante y atrás para navegar, izquierda y derecha para girar. Salta cerca de la orilla para bajar');
+}
+
+/** Bajarse del barco en la orilla más cercana (o en el muelle). */
+function leaveBoat() {
+  const spot = shipyard.leave();
+  if (!spot) {
+    hud.toast('Acércate a la orilla o al muelle para bajar');
+    return;
+  }
+  player.mounted = null;
+  player.position.set(...spot);
+  player.velocity.set(0, 0, 0);
+  player.forgetFall();
+  persist();
+}
+
+/** El catalejo acerca la vista mientras lo llevas en la mano (v4.21). */
+let spyglass = false;
+
+/** La brújula dice hacia dónde miras y hacia dónde queda el astillero. */
+function readCompass() {
+  const dir = (dx: number, dz: number) => {
+    const names = ['norte', 'noreste', 'este', 'sureste', 'sur', 'suroeste', 'oeste', 'noroeste'];
+    // El norte es -z, como en el mapa.
+    const a = Math.atan2(dx, -dz);
+    return names[(Math.round(a / (Math.PI / 4)) + 8) % 8];
+  };
+  const facing = dir(-Math.sin(player.yaw), -Math.cos(player.yaw));
+  let text = `Miras hacia el ${facing}`;
+  if (shipyard.site) {
+    const [sx, sz] = shipyardCenter(shipyard.site);
+    const d = Math.hypot(sx - player.position.x, sz - player.position.z);
+    text += d > 12 ? `. El astillero queda al ${dir(sx - player.position.x, sz - player.position.z)}, a ${Math.round(d)} pasos` : '. Estás en el astillero';
+  }
+  hud.toast(text);
+}
+
 function useItem() {
   held.use();
+  if (shipyard.sailing && shipyard.boat) {
+    useAboard();
+    return;
+  }
   const hit = currentHit();
   const blockDist = hit ? camera.position.distanceTo(new THREE.Vector3(hit.block[0] + 0.5, hit.block[1] + 0.5, hit.block[2] + 0.5)) : Infinity;
   const villager = villagerInSight(blockDist);
@@ -2040,6 +2158,11 @@ function useItem() {
   // A otro jugador se le da lo que tienes en la mano.
   const friend = remotes.pick(aimRay(), Math.min(blockDist, REACH));
   if (friend && giveTo(friend)) return;
+  // Tu barco (v4.21): clic derecho para subir.
+  if (shipyard.aimed(aimRay(), Math.min(blockDist, REACH + 2))) {
+    boardBoat();
+    return;
+  }
   // La avioneta: se habla con el piloto.
   if (pilot && aimRay().intersectBox(plane.bounds(planeBox), rayHit) && rayHit.distanceTo(camera.position) < Math.min(blockDist, REACH + 3)) {
     talkTo(pilot);
@@ -2111,6 +2234,18 @@ function useItem() {
     return;
   }
 
+  if (def?.id === 'brujula') {
+    readCompass();
+    return;
+  }
+  if (def?.id === 'catalejo') {
+    spyglass = !spyglass;
+    return;
+  }
+  if (def?.id === 'carta_nautica') {
+    openMap();
+    return;
+  }
   if (def?.tool === 'rod') {
     useRod(blockDist);
     return;
@@ -2363,7 +2498,8 @@ scene.add(horizon.group);
 
 /** El mapa funciona si lo llevas en los bolsillos o en la otra mano. */
 function hasMap(): boolean {
-  return inventory.countOf('mapa') > 0 || inventory.offhand?.id === 'mapa';
+  // La carta náutica de Brújula (v4.21) también sirve de mapa.
+  return inventory.countOf('mapa') > 0 || inventory.offhand?.id === 'mapa' || inventory.countOf('carta_nautica') > 0;
 }
 
 /** Lo que sale en el mapa: casas, tienda, museo, avioneta, cuevas, casas de amigos y amigos. */
@@ -2377,7 +2513,7 @@ function mapMarkers(): MapMarker[] {
   for (const v of villagers) if (!v.profile.role && !v.visitor) out.push({ x: v.home.x, z: v.home.z, icon: '🏠', label: v.name, kind: 'vecinos' });
   const me = myUid();
   for (const h of friendHomes) out.push({ x: h.x, z: h.z, icon: '⛺', label: h.uid === me ? 'Tu casa' : `Casa de ${h.name}`, kind: 'casas' });
-  out.push(...town.markers(), ...commerce.markers());
+  out.push(...town.markers(), ...commerce.markers(), ...shipyard.markers());
   if (airport) out.push({ x: airport.x, z: airport.z, icon: '✈️', label: 'Avioneta', kind: 'edificios' });
   for (const e of world.caveEntrances) out.push({ x: e.x, z: e.z, icon: '⛏️', label: 'Cueva', kind: 'cuevas' });
   for (const r of remotes.players.values()) {
@@ -2730,6 +2866,11 @@ function useRod(blockDist: number) {
   if (r.kind === 'no-water') hud.toast('Apunta al agua para pescar');
   else if (r.kind === 'too-early') hud.toast('Has tirado demasiado pronto…');
   else if (r.kind === 'caught') keepCreature(r.creature.id, 'Has pescado:', 'cana');
+  // Con cebo en los bolsillos (v4.21) pican antes.
+  if (r.kind === 'cast' && inventory.countOf('cebo') > 0) {
+    inventory.remove('cebo', 1);
+    fishing.hurry();
+  }
 }
 
 function useNet() {
@@ -2979,6 +3120,7 @@ function islandSnapshot(): Snapshot {
     town: trip ? undefined : town.state ?? undefined,
     parcels: trip ? [] : parcels.list,
     terminal: terminalSite ?? undefined,
+    ...(trip ? {} : shipyard.save()),
   };
 }
 
@@ -3282,6 +3424,32 @@ function checkBiome(dt: number) {
 }
 
 let lotTimer = 0;
+/** El barco (v4.21): avanza con lo que pulsas, te lleva sentado y se mece en las olas. */
+const boatSeat = new THREE.Vector3();
+function updateBoat(dt: number, seconds: number) {
+  if (shipyard.sailing && !isPlaying()) player.drive.throttle = player.drive.turn = 0;
+  const drive = shipyard.sailing ? player.drive : null;
+  if (shipyard.update(dt, seconds, sky.night, dayKey(gameDate()), drive)) {
+    sound.place();
+    hud.toast('¡Pum! Has chocado con la orilla');
+  }
+  if (shipyard.sailing && shipyard.seatNow(boatSeat)) {
+    player.mounted = boatSeat;
+    player.sitAt(boatSeat);
+    if (player.drive.jump && isPlaying()) {
+      player.drive.jump = false;
+      leaveBoat();
+    }
+  }
+  // El catalejo acerca la vista poco a poco; al cambiar de mano se suelta.
+  if (spyglass && hud.selectedStack?.id !== 'catalejo') spyglass = false;
+  const fov = spyglass ? baseFov / 3.5 : baseFov;
+  if (Math.abs(camera.fov - fov) > 0.05) {
+    camera.fov += (fov - camera.fov) * Math.min(1, dt * 8);
+    camera.updateProjectionMatrix();
+  }
+}
+
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
@@ -3297,6 +3465,7 @@ function frame(now: number) {
     spawned = true;
   }
   player.update(spawned && world.isReady(player.position.x, player.position.z) ? dt : 0, isPlaying());
+  updateBoat(dt, now / 1000);
   if (spawned) checkBiome(dt);
   updateVitals(dt);
   updateMap(dt);
@@ -3484,6 +3653,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { shipyard, boardBoat, leaveBoat, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

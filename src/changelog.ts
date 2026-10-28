@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.21',
+    title: 'Astillero y barco propio',
+    items: [
+      'En la playa del otro lado de la isla hay unas ruinas de astillero. Bartolo, una morsa carpintera de ribera, lo arregla en cuatro etapas si le llevas materiales: escombros limpios, grada de madera, taller y grúa.',
+      'Tu propio barco: balsa, velero o barco de expedición. Súbete con clic derecho, llévalo con las teclas de andar (o la palanca en el móvil) y bájate saltando cerca de la orilla.',
+      'El viento cambia cada día: a favor el velero corre más. El barco tiene bodega para guardar cosas, y Bartolo le pone mejoras: vela grande, bodega más grande, casco reforzado, farol y litera para dormir a bordo.',
+      'Brújula, una nutria, abre un puesto en el muelle con cañas, redes, cebos (los peces pican antes), brújula, catalejo y carta náutica.',
+      'El astillero y tu barco salen en el mapa.',
+    ],
+  },
+  {
     version: '4.20',
     title: 'Biomas extraños y lava',
     items: [

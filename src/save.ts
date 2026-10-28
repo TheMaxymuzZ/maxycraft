@@ -2,6 +2,7 @@ import type { Climate } from './world';
 import type { WardrobeSave } from './wardrobe';
 import type { Parcel } from './parcels';
 import type { TerminalSite } from './terminal';
+import type { BoatSave, ShipyardSite } from './shipyard';
 import type { TownSave } from './townhall';
 import type { EconomySave } from './economy';
 import type { ClockSave } from './clock';
@@ -80,6 +81,9 @@ export interface SaveData {
   mail?: string;
   /** Desde la v4.16: dónde está la terminal de la avioneta (se construye una vez). */
   terminal?: TerminalSite;
+  /** Desde la v4.21: el astillero (dónde está y su etapa) y tu barco. */
+  shipyard?: ShipyardSite;
+  boat?: BoatSave;
   /** Desde la v4.18: la ropa puesta y los conjuntos guardados. */
   wardrobe?: WardrobeSave;
   furniture?: PlacedFurniture[];
