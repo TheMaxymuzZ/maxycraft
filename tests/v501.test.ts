@@ -131,3 +131,13 @@ describe('v5.0.1: antorchas, tenderos y tiempo', () => {
     expect(fx.points.visible).toBe(false);
   });
 });
+
+describe('v5.0.2: viajar en avioneta', () => {
+  it('la marca de «llegada de un viaje» no pisa el viaje guardado', async () => {
+    const { default: main } = await import('../src/main.ts?raw');
+    const { default: travel } = await import('../src/travel.ts?raw');
+    const arrival = /const TRAVEL_KEY = '([^']+)'/.exec(main)![1];
+    const trip = /const KEY = '([^']+)'/.exec(travel)![1];
+    expect(arrival).not.toBe(trip);
+  });
+});

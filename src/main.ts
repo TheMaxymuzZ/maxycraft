@@ -472,7 +472,8 @@ if (terminalSite) {
 // Al llegar de un viaje la avioneta amariza (v4.16).
 const LANDING_KEY = 'maxycraft.amarizaje';
 /** Se llega de un viaje (en avioneta o en barco): se sigue jugando sin pasar por la portada (v5.0.1). */
-const TRAVEL_KEY = 'maxycraft.viaje';
+// Ojo: 'maxycraft.viaje' ya es el viaje en curso (travel.ts); esta marca necesita su propio nombre.
+const TRAVEL_KEY = 'maxycraft.llegada';
 try {
   if (sessionStorage.getItem(LANDING_KEY)) {
     sessionStorage.removeItem(LANDING_KEY);

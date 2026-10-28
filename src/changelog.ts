@@ -23,6 +23,11 @@ export const CHANGELOG: Release[] = [
     ],
   },
   {
+    version: '5.0.2',
+    title: 'Arreglo de los viajes',
+    items: ['Se vuelve a poder viajar en avioneta y en barco: con la 5.0.1 al despegar te quedabas en tu isla.'],
+  },
+  {
     version: '5.0.1',
     title: 'Primeros arreglos de Maxycraft 5',
     items: [
