@@ -1,6 +1,7 @@
 import { HOTBAR_SIZE, INVENTORY_SIZE, type Inventory } from './inventory';
 import { type ItemStack, RECIPES, type Recipe, TOOL_USE, itemDef } from './items';
 import { RecipeBrowser } from './recipeBrowser';
+import { clickStack } from './storage';
 import { itemIcon } from './icons';
 import { Notices } from './notices';
 import { type ItemFilter, itemCard, matchesFilter, rarityFor, renderFilters } from './itemCard';
@@ -15,6 +16,11 @@ export class Hud {
   private offhandEl = document.createElement('div');
   private invSlots: HTMLDivElement[] = [];
   private nameTimer = 0;
+  /** Casilla de la que se ha empezado a arrastrar (v5.0.1) y la que tiene el ratón encima. */
+  private dragFrom: number | null = null;
+  private hovered: number | null = null;
+  /** Tira un montón al suelo (lo pone main, que sabe dónde está el jugador). */
+  onThrow: ((s: ItemStack) => void) | null = null;
 
   private hotbarEl = document.querySelector<HTMLDivElement>('#hotbar')!;
   private nameEl = document.querySelector<HTMLDivElement>('#block-name')!;
@@ -56,7 +62,15 @@ export class Hud {
       if (i === HOTBAR_SIZE) this.gridEl.appendChild(Object.assign(document.createElement('div'), { className: 'inv-gap' }));
       el.addEventListener('mousedown', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        const had = !!this.cursor;
         this.clickSlot(i, e.button === 2);
+        // Si se cogió algo con el clic izquierdo, se puede arrastrar y soltar en otra casilla o fuera.
+        this.dragFrom = !had && this.cursor && e.button === 0 ? i : null;
+      });
+      el.addEventListener('mouseenter', () => (this.hovered = i));
+      el.addEventListener('mouseleave', () => {
+        if (this.hovered === i) this.hovered = null;
       });
       el.addEventListener('contextmenu', (e) => e.preventDefault());
       itemCard().attach(el, () => this.inv.slots[i]?.id ?? null);
@@ -65,6 +79,23 @@ export class Hud {
     }
     this.inventoryEl.addEventListener('mousemove', (e) => {
       this.cursorEl.style.transform = `translate(${e.clientX - 22}px, ${e.clientY - 22}px)`;
+    });
+    // Clic fuera de la ventana con algo en la mano: se tira al suelo (izquierdo todo, derecho uno).
+    this.inventoryEl.addEventListener('mousedown', (e) => {
+      if (!this.cursor || this.insidePanel(e.target)) return;
+      e.preventDefault();
+      this.throwCursor(e.button === 2 ? 1 : this.cursor.count);
+    });
+    this.inventoryEl.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Soltar lo arrastrado: en otra casilla lo deja ahí; fuera de la ventana lo tira.
+    window.addEventListener('mouseup', (e) => {
+      const from = this.dragFrom;
+      this.dragFrom = null;
+      if (from === null || !this.cursor || this.inventoryEl.hidden || e.button !== 0) return;
+      const over = document.elementFromPoint(e.clientX, e.clientY);
+      const to = this.invSlots.findIndex((el) => el === over || el.contains(over));
+      if (to >= 0 && to !== from) this.clickSlot(to, false);
+      else if (to < 0 && !this.insidePanel(over)) this.throwCursor(this.cursor.count);
     });
     inv.onChange(() => this.render());
     this.render();
@@ -187,39 +218,41 @@ export class Hud {
     itemCard().hide();
   }
 
+  private insidePanel(t: EventTarget | null): boolean {
+    return t instanceof Element && !!t.closest('.inv-panel');
+  }
+
+  /** Tira `n` de lo que se lleva con el ratón. */
+  private throwCursor(n: number) {
+    const c = this.cursor;
+    if (!c || !this.onThrow) return;
+    const k = Math.min(n, c.count);
+    this.onThrow({ ...c, count: k });
+    c.count -= k;
+    if (c.count <= 0) this.cursor = null;
+    this.render();
+  }
+
+  /**
+   * La tecla de tirar (v5.0.1): con los bolsillos abiertos tira lo que hay bajo el ratón; jugando, lo de la mano.
+   * `all` tira el montón entero (con Ctrl), si no, de uno en uno. Devuelve false si no había nada.
+   */
+  throwKey(all: boolean): boolean {
+    const i = this.inventoryEl.hidden ? this.selected : this.hovered;
+    if (i === null || !this.onThrow) return false;
+    const s = this.inv.slots[i];
+    if (!s) return false;
+    const n = all ? s.count : 1;
+    this.onThrow({ ...s, count: n });
+    s.count -= n;
+    if (s.count <= 0) this.inv.slots[i] = null;
+    this.inv.changed();
+    return true;
+  }
+
   /** Clic izquierdo coge o suelta el montón; clic derecho coge la mitad o suelta uno. */
   private clickSlot(i: number, half: boolean) {
-    const slots = this.inv.slots;
-    const s = slots[i];
-    const c = this.cursor;
-    if (!c) {
-      if (!s) return;
-      if (half && s.count > 1) {
-        const n = Math.ceil(s.count / 2);
-        this.cursor = { ...s, count: n };
-        s.count -= n;
-      } else {
-        this.cursor = s;
-        slots[i] = null;
-      }
-    } else if (!s) {
-      if (half && c.count > 1) {
-        slots[i] = { ...c, count: 1 };
-        c.count--;
-      } else {
-        slots[i] = c;
-        this.cursor = null;
-      }
-    } else if (s.id === c.id && !itemDef(s.id).durability) {
-      const max = itemDef(s.id).maxStack;
-      const n = Math.min(max - s.count, half ? 1 : c.count);
-      s.count += n;
-      c.count -= n;
-      if (c.count === 0) this.cursor = null;
-    } else {
-      slots[i] = c;
-      this.cursor = s;
-    }
+    this.cursor = clickStack(this.inv.slots, i, this.cursor, half);
     this.inv.changed();
   }
 

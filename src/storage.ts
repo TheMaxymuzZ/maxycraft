@@ -93,20 +93,87 @@ export class Storage {
   }
 }
 
-/** Ventana de un cofre: sus casillas arriba y los bolsillos abajo. Clic mueve el montón de un lado a otro. */
+/**
+ * Coge o suelta en una casilla, como en los bolsillos (v5.0.1): clic izquierdo el montón entero, derecho la mitad o uno.
+ * Devuelve lo que queda en la mano.
+ */
+export function clickStack(slots: Slots, i: number, cursor: ItemStack | null, half: boolean): ItemStack | null {
+  const s = slots[i];
+  const c = cursor;
+  if (!c) {
+    if (!s) return null;
+    if (half && s.count > 1) {
+      const n = Math.ceil(s.count / 2);
+      s.count -= n;
+      return { ...s, count: n };
+    }
+    slots[i] = null;
+    return s;
+  }
+  if (!s) {
+    if (half && c.count > 1) {
+      slots[i] = { ...c, count: 1 };
+      c.count--;
+      return c;
+    }
+    slots[i] = c;
+    return null;
+  }
+  if (s.id === c.id && !itemDef(s.id).durability) {
+    const n = Math.min(itemDef(s.id).maxStack - s.count, half ? 1 : c.count);
+    s.count += n;
+    c.count -= n;
+    return c.count > 0 ? c : null;
+  }
+  slots[i] = c;
+  return s;
+}
+
+/**
+ * Ventana de un cofre: sus casillas arriba y los bolsillos abajo.
+ * v5.0.1: clic (o arrastrar) coge el montón y se suelta en la casilla que quieras; Mayús + clic lo pasa al otro lado de golpe.
+ * En pantallas táctiles, tocar sigue pasándolo de golpe.
+ */
 export class StoragePanel {
   readonly el = document.querySelector<HTMLDivElement>('#storage')!;
   private titleEl = document.querySelector<HTMLHeadingElement>('#storage-title')!;
   private boxEl = document.querySelector<HTMLDivElement>('#storage-box')!;
   private pocketsEl = document.querySelector<HTMLDivElement>('#storage-pockets')!;
+  private cursorEl = document.querySelector<HTMLDivElement>('#storage-cursor');
   private slots: Slots = [];
   private icons = new Map<string, string>();
+  /** Lo que se lleva con el ratón y de dónde se empezó a arrastrar. */
+  private cursor: ItemStack | null = null;
+  private dragFrom: { box: boolean; i: number } | null = null;
+  /** Tira al suelo lo que se suelta fuera de la ventana. */
+  onThrow: ((s: ItemStack) => void) | null = null;
+  private readonly touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
   constructor(private inv: Inventory, private atlas: HTMLCanvasElement, private toast: (t: string) => void) {
     document.querySelector('#storage-put-all')!.addEventListener('click', () => this.putAll());
     document.querySelector('#storage-take-all')!.addEventListener('click', () => this.takeAll());
     inv.onChange(() => {
       if (!this.el.hidden) this.render();
+    });
+    this.el.addEventListener('mousemove', (e) => this.moveCursor(e.clientX, e.clientY));
+    this.el.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Clic fuera de la ventana con algo en la mano: se tira al suelo.
+    this.el.addEventListener('mousedown', (e) => {
+      if (!this.cursor || this.inside(e.target)) return;
+      e.preventDefault();
+      this.throwCursor(e.button === 2 ? 1 : this.cursor.count);
+    });
+    window.addEventListener('mouseup', (e) => {
+      const from = this.dragFrom;
+      this.dragFrom = null;
+      if (!from || !this.cursor || this.el.hidden || e.button !== 0) return;
+      const over = document.elementFromPoint(e.clientX, e.clientY);
+      const slot = over instanceof Element ? over.closest<HTMLElement>('.storage-grid .slot') : null;
+      if (slot) {
+        const box = slot.parentElement === this.boxEl;
+        const i = Number(slot.dataset.i);
+        if (box !== from.box || i !== from.i) this.clickAt(box, i, false);
+      } else if (!this.inside(over)) this.throwCursor(this.cursor.count);
     });
   }
 
@@ -118,8 +185,40 @@ export class StoragePanel {
   }
 
   close() {
+    // Lo que se llevaba en la mano vuelve a los bolsillos, o al cofre, o al suelo: nunca se pierde.
+    if (this.cursor) {
+      let left: ItemStack | null = putStack(this.inv.slots, this.cursor);
+      if (left) left = putStack(this.slots, left);
+      if (left) this.onThrow?.(left);
+      this.cursor = null;
+      this.inv.changed();
+    }
     this.el.hidden = true;
     itemCard().hide();
+  }
+
+  private inside(t: EventTarget | null): boolean {
+    return t instanceof Element && !!t.closest('.storage-panel');
+  }
+
+  private moveCursor(x: number, y: number) {
+    if (this.cursorEl) this.cursorEl.style.transform = `translate(${x - 22}px, ${y - 22}px)`;
+  }
+
+  private throwCursor(n: number) {
+    const c = this.cursor;
+    if (!c || !this.onThrow) return;
+    const k = Math.min(n, c.count);
+    this.onThrow({ ...c, count: k });
+    c.count -= k;
+    if (c.count <= 0) this.cursor = null;
+    this.render();
+  }
+
+  private clickAt(box: boolean, i: number, half: boolean) {
+    this.cursor = clickStack(box ? this.slots : this.inv.slots, i, this.cursor, half);
+    this.inv.changed();
+    this.render();
   }
 
   /** Del cofre a los bolsillos. */
@@ -157,21 +256,43 @@ export class StoragePanel {
     return url;
   }
 
-  private grid(el: HTMLElement, slots: Slots, onClick: (i: number) => void, gapAfter?: number) {
+  private slotHtml(s: ItemStack): string {
+    return `<img alt="" src="${this.icon(s.id)}">${s.count > 1 ? `<span class="count">${s.count}</span>` : ''}`;
+  }
+
+  private grid(el: HTMLElement, slots: Slots, box: boolean, gapAfter?: number) {
     el.innerHTML = '';
     slots.forEach((s, i) => {
       if (gapAfter !== undefined && i === gapAfter) el.appendChild(Object.assign(document.createElement('div'), { className: 'inv-gap' }));
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'slot';
+      b.dataset.i = String(i);
       if (s) {
         const def = itemDef(s.id);
-        b.innerHTML = `<img alt="" src="${this.icon(s.id)}">${s.count > 1 ? `<span class="count">${s.count}</span>` : ''}`;
+        b.innerHTML = this.slotHtml(s);
         const rarity = rarityFor(s.id, itemCard().islandFruit);
         if (rarity !== 'comun') b.classList.add(`rar-${rarity}`);
         b.setAttribute('aria-label', `${def.name}${s.count > 1 ? `, ${s.count}` : ''}`);
       } else b.setAttribute('aria-label', 'Casilla vacía');
-      b.addEventListener('click', () => onClick(i));
+      b.addEventListener('mousedown', (e) => {
+        if (this.touch && !this.cursor) return; // en táctil, tocar lo pasa de golpe (click)
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey && !this.cursor) {
+          if (box) this.take(i);
+          else this.put(i);
+          return;
+        }
+        const had = !!this.cursor;
+        this.clickAt(box, i, e.button === 2);
+        this.dragFrom = !had && this.cursor && e.button === 0 ? { box, i } : null;
+      });
+      b.addEventListener('click', () => {
+        if (!this.touch || this.cursor) return;
+        if (box) this.take(i);
+        else this.put(i);
+      });
       itemCard().attach(b, () => s?.id ?? null);
       el.appendChild(b);
     });
@@ -179,7 +300,11 @@ export class StoragePanel {
 
   render() {
     itemCard().hide();
-    this.grid(this.boxEl, this.slots, (i) => this.take(i));
-    this.grid(this.pocketsEl, this.inv.slots, (i) => this.put(i), HOTBAR_SIZE);
+    this.grid(this.boxEl, this.slots, true);
+    this.grid(this.pocketsEl, this.inv.slots, false, HOTBAR_SIZE);
+    if (this.cursorEl) {
+      this.cursorEl.innerHTML = this.cursor ? this.slotHtml(this.cursor) : '';
+      this.cursorEl.hidden = !this.cursor;
+    }
   }
 }

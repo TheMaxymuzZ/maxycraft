@@ -93,7 +93,7 @@ describe('v4.13: ayuntamiento', () => {
     expect(HALL_LEVELS).toHaveLength(4);
   });
 
-  it('aparece la caseta de obras con el alcalde; se mejora pagando, llega el urbanista y se encarga un puente', () => {
+  it('aparece la caseta de obras con el alcalde; se mejora pagando, llega el urbanista y se encarga una obra', () => {
     const world = new World(20261025, material, {}, { terrain: 1 });
     const villagers = createVillagers(world, {});
     const { town, inventory, wallet } = makeTown(world, villagers);
@@ -123,12 +123,13 @@ describe('v4.13: ayuntamiento', () => {
     expect(town.mayor!.home.door[2]).toBe(door2[2]);
     // La puerta de la caseta ya no está (quedó dentro).
     expect(isSolid(world.getBlock(door[0], door[1], door[2] - 1)) && world.getBlock(door[0], door[1], door[2] - 1) === Block.Door).toBe(false);
-    // Obra pública: el puente.
-    const bridge = a.works().find((w) => w.id.startsWith('puente-'))!;
-    expect(bridge).toBeTruthy();
-    expect(a.order(bridge.id)).toBe('ok');
-    expect(town.state!.works).toContain(bridge.id);
-    expect(a.works().some((w) => w.id === bridge.id)).toBe(false);
+    // Obra pública: la fuente. Los puentes a los islotes ya no se encargan (v5.0.1): se hacen a mano.
+    expect(a.works().some((w) => w.id.startsWith('puente-'))).toBe(false);
+    const fountain = a.works().find((w) => w.id === 'fuente')!;
+    expect(fountain).toBeTruthy();
+    expect(a.order(fountain.id)).toBe('ok');
+    expect(town.state!.works).toContain(fountain.id);
+    expect(a.works().some((w) => w.id === fountain.id)).toBe(false);
     // El urbanista vende planos.
     expect(a.buyBlueprint()).toBe('ok');
     expect(inventory.countOf('plano_casa')).toBe(1);

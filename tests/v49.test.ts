@@ -18,8 +18,10 @@ function oldStock(today: string, holiday: string | null): string[] {
   const seasonal = SOLD.filter((id) => itemDef(id).holiday && itemDef(id).holiday === holiday);
   const furniture = daily(SOLD.filter((id) => itemDef(id).furniture && !itemDef(id).holiday));
   const always = SOLD.filter((id) => itemDef(id).always);
-  const rest = daily(SOLD.filter((id) => !itemDef(id).tool && !itemDef(id).furniture && !itemDef(id).always));
-  return [...seasonal, ...tools, ...always, ...furniture.slice(0, 3), ...rest.slice(0, 5)];
+  // Las piezas de puente (v5.0.1) se venden siempre, al final.
+  const bridge = ['tablones_puente', 'barandilla', 'pilar'];
+  const rest = daily(SOLD.filter((id) => !itemDef(id).tool && !itemDef(id).furniture && !itemDef(id).always && !bridge.includes(id)));
+  return [...seasonal, ...tools, ...always, ...furniture.slice(0, 3), ...rest.slice(0, 5), ...bridge];
 }
 
 /** Una tienda de prueba: crearla es solo escribir su ficha. */

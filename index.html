@@ -35,6 +35,7 @@
       <p id="splash-text">Cargando…</p>
     </div>
     <canvas id="game"></canvas>
+    <div id="resume-hint" hidden><span>Haz clic para seguir jugando</span><small><kbd>Esc</kbd> para el menú</small></div>
     <div id="crosshair" aria-hidden="true"></div>
     <div id="block-name"></div>
     <div id="hotbar"></div>
@@ -58,7 +59,7 @@
       <div class="inv-panel">
         <section class="inv-pockets">
           <h2>Bolsillos <button type="button" id="inv-sort" class="inv-sort">Ordenar</button></h2>
-          <p class="inv-help">Clic para coger y soltar. Clic derecho coge la mitad. La fila de arriba es tu barra rápida. Pasa el ratón (o mantén pulsado) para ver la ficha.</p>
+          <p class="inv-help">Clic o arrastra para coger y soltar. Clic derecho coge la mitad. Suéltalo fuera de la ventana para tirarlo al suelo, o pulsa <kbd data-key="drop">X</kbd> encima (con Ctrl, el montón). La fila de arriba es tu barra rápida. Pasa el ratón (o mantén pulsado) para ver la ficha.</p>
           <div id="inv-filters" class="shop-filters" aria-label="Resaltar por tipo o rareza"></div>
           <div id="inv-grid"></div>
         </section>
@@ -199,7 +200,7 @@
       <div class="shop-panel storage-panel">
         <header>
           <h2 id="storage-title">Cofre</h2>
-          <p>Clic en un objeto para pasarlo de un lado a otro</p>
+          <p>Clic o arrastra para llevar un objeto a la casilla que quieras. <kbd>Mayús</kbd> + clic lo pasa de golpe al otro lado. Suéltalo fuera para tirarlo</p>
         </header>
         <div id="storage-box" class="storage-grid"></div>
         <h3>Bolsillos</h3>
@@ -209,6 +210,7 @@
           <span><button type="button" id="storage-close">Cerrar</button> <kbd>Esc</kbd> para volver</span>
         </footer>
       </div>
+      <div id="storage-cursor" class="slot cursor-stack" hidden></div>
     </div>
     <div id="missions" hidden>
       <div class="shop-panel missions-panel">

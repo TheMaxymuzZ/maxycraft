@@ -2,7 +2,7 @@
 
 export type Action =
   | 'forward' | 'back' | 'left' | 'right' | 'jump' | 'sprint'
-  | 'inventory' | 'offhand' | 'collection' | 'missions' | 'rotate' | 'sound' | 'help' | 'debug' | 'chat' | 'gesture' | 'map';
+  | 'inventory' | 'offhand' | 'drop' | 'collection' | 'missions' | 'rotate' | 'sound' | 'help' | 'debug' | 'chat' | 'gesture' | 'map';
 
 export type KeyMap = Record<Action, string>;
 
@@ -15,6 +15,7 @@ export const ACTIONS: { id: Action; name: string; key: string }[] = [
   { id: 'sprint', name: 'Correr', key: 'ShiftLeft' },
   { id: 'inventory', name: 'Bolsillos', key: 'KeyE' },
   { id: 'offhand', name: 'Cambiar de mano', key: 'KeyQ' },
+  { id: 'drop', name: 'Tirar un objeto (con Ctrl, el montón)', key: 'KeyX' },
   { id: 'collection', name: 'Enciclopedia', key: 'KeyC' },
   { id: 'missions', name: 'Tareas', key: 'KeyT' },
   { id: 'rotate', name: 'Girar un mueble', key: 'KeyR' },
@@ -28,6 +29,9 @@ export const ACTIONS: { id: Action; name: string; key: string }[] = [
 
 /** Teclas que no se pueden usar: la pausa y elegir casilla. */
 const RESERVED = /^(Escape|Digit[0-9]|Tab|MetaLeft|MetaRight|OSLeft|OSRight)$/;
+
+/** Teclas de repuesto para acciones nuevas (v5.0.1). */
+const SPARE = ['KeyX', 'KeyZ', 'KeyV', 'KeyB', 'KeyY', 'KeyU', 'KeyI', 'KeyO', 'KeyP', 'KeyJ', 'KeyK', 'KeyL'];
 
 export function defaultKeys(): KeyMap {
   return Object.fromEntries(ACTIONS.map((a) => [a.id, a.key])) as KeyMap;
@@ -47,6 +51,11 @@ export function normalizeKeys(raw: unknown): KeyMap {
   for (const a of ACTIONS) {
     const k = (raw as Record<string, unknown>)[a.id];
     if (typeof k === 'string' && canBind(k) && !used.has(k)) out[a.id] = k;
+    else if (k === undefined && (used.has(out[a.id]) || Object.values(raw as Record<string, unknown>).includes(out[a.id]))) {
+      // Una acción nueva cuya tecla ya usaba el jugador para otra cosa: se le busca una libre.
+      const free = SPARE.find((c) => !used.has(c) && !Object.values(raw as Record<string, unknown>).includes(c));
+      if (free) out[a.id] = free;
+    }
     used.add(out[a.id]);
   }
   // Si al corregir quedó alguna repetida, se devuelve todo a lo de siempre.

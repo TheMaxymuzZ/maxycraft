@@ -21,7 +21,7 @@ describe('calles y decoración', () => {
       expect(STARTER_DIY).toContain(id);
       expect(DIY_RECIPES.some((r) => r.result === id)).toBe(true);
     }
-    expect(itemDef('farola').maxStack).toBe(10);
+    expect(itemDef('farola').maxStack).toBe(64);
   });
 
   it('una farola alumbra el suelo de alrededor y deja de hacerlo al quitarla', () => {

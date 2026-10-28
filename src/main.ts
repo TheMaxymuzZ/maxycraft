@@ -5,6 +5,7 @@ import '@fontsource/nunito/latin-800.css';
 import '@fontsource/pixelify-sans/latin-500.css';
 import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
+import cifrasUrl from '@fontsource/press-start-2p/files/press-start-2p-latin-400-normal.woff2?url';
 import { Sound, materialOf } from './audio';
 import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isLeaves, isPath, isSolid, isStairs, isLava, isLavaSource, isTargetable, isWater, isWaterSource, stairsFacing, toggled } from './blocks';
 import { Fluids } from './fluids';
@@ -50,7 +51,7 @@ import { hasUnseenNews, markNewsSeen } from './changelog';
 import { type MissionEvent, Missions } from './missions';
 import { MissionsPanel } from './missionsPanel';
 import { type Rating, countPlaced, rateIsland } from './rating';
-import { LEAF_BRANCH_CHANCE, SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
+import { type ItemStack, LEAF_BRANCH_CHANCE, SHELLS, dropFor, fruitItemFor, hasItem, itemDef } from './items';
 import { Player } from './player';
 import { raycast } from './raycast';
 import { SAVE_VERSION, type SaveData, activeSlot, flushSaves, loadGame, openSaves, saveGame, saveGameNow, setActiveSlot } from './save';
@@ -68,7 +69,7 @@ import { ShipyardGame } from './game/shipyard';
 import { type SeaSave, RING_BOAT, archipelago, canReach, dayNumber, genericVillagers, islandAhead, islandSeed, isSeaSave } from './archipelago';
 import { chartList, chartSvg } from './seaChart';
 import { BRUJULA, boatModel, shipyardCell, shipyardCenter } from './shipyard';
-import { PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, findTerminalSite, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
+import { DECK_Y, PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, clearTerminalSurroundings, eraseTerminal, findTerminalSite, terminalDeckFor, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
 import { WEATHER_TEXT, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
@@ -107,6 +108,10 @@ import { BiomeAir, biomeLook, biomeWeather } from './biomeFx';
 import { BIOME_NAMES, type Biome, CLIMATE_KEY, HEIGHT, SEA_LEVEL, TERRAIN_VERSION, World, isClimate } from './world';
 
 /** Pantalla táctil (móvil o tableta): se juega con botones en vez de ratón. Para probar: ?tactil */
+// v5.0.1: los números de la letra pixelada se confundían (3 y 8, 5 y 8...). Solo las cifras usan otra letra pixelada más clara.
+document.head.append(Object.assign(document.createElement('style'), {
+  textContent: `@font-face { font-family: 'Maxy Cifras'; src: url(${cifrasUrl}) format('woff2'); unicode-range: U+30-39; size-adjust: 66%; ascent-override: 95%; descent-override: 8%; font-display: swap; }`,
+}));
 const touchMode = matchMedia('(pointer: coarse)').matches || new URLSearchParams(location.search).has('tactil');
 // Los estilos del mando y de la interfaz para el móvil van con esta clase (también al probar con ?tactil).
 document.documentElement.classList.toggle('tactil', touchMode);
@@ -418,7 +423,20 @@ const terminalWorld = {
 let terminalSite: TerminalSite | null = [trip ? null : joined ? joined.snapshot.terminal : save?.terminal].find(isTerminalSite) ?? null;
 if (!terminalSite && airport && !joined && !trip) {
   terminalSite = findTerminalSite(terminalWorld, airport);
+  terminalSite.y = terminalDeckFor(terminalWorld, terminalSite);
   buildTerminal(terminalWorld, terminalSite);
+}
+// v5.0.1: la terminal ya no queda hundida. Las de antes se levantan a ras de la playa y se rebaja la tierra de alrededor.
+if (terminalSite && !joined && !trip) {
+  if (terminalSite.y === undefined) {
+    const y = terminalDeckFor(terminalWorld, terminalSite);
+    if (y !== DECK_Y) {
+      eraseTerminal(terminalWorld, terminalSite);
+      terminalSite = { ...terminalSite, y };
+      buildTerminal(terminalWorld, terminalSite);
+    } else terminalSite = { ...terminalSite, y };
+  }
+  clearTerminalSurroundings(terminalWorld, terminalSite);
 }
 if (terminalSite) {
   // Amarrada junto al final del muelle, con el morro hacia el mar.
@@ -867,6 +885,7 @@ applySettings(settings);
 // Fichas de objetos (v4.10): la fruta de otras islas es rara aquí.
 itemCard().islandFruit = fruitItemFor(world.fruit) ?? undefined;
 const hud = new Hud(inventory, atlas);
+hud.onThrow = (st) => throwStack(st);
 hud.select(0);
 const held = new HeldItem(itemModels);
 setupInstall((t) => hud.toast(t));
@@ -889,13 +908,38 @@ updateButton.addEventListener('click', async () => {
 
 /** Mete un objeto en los bolsillos y lo anuncia. Devuelve false si no cabe. */
 function take(id: string): boolean {
-  if (inventory.add(id) > 0) {
+  return pickUp(id, 1) === 0;
+}
+
+/** Recoge un montón del suelo (v5.0.1: lo tirado vuelve entero, con lo gastada que estaba la herramienta). Devuelve lo que no cupo. */
+function pickUp(id: string, count: number, wear?: number): number {
+  let left: number;
+  if (wear !== undefined && itemDef(id).durability) {
+    const gap = inventory.slots.indexOf(null);
+    if (gap >= 0) {
+      inventory.slots[gap] = { id, count: 1, wear };
+      inventory.changed();
+    }
+    left = gap >= 0 ? 0 : 1;
+  } else left = inventory.add(id, count);
+  if (left === count) {
     hud.toast('No te caben más cosas en los bolsillos');
-    return false;
+    return left;
   }
-  hud.toast(`Has conseguido: ${itemDef(id).name.toLowerCase()}`);
+  const n = count - left;
+  hud.toast(`Has conseguido: ${itemDef(id).name.toLowerCase()}${n > 1 ? ` ×${n}` : ''}`);
   sound.pickup();
-  return true;
+  return left;
+}
+
+/** Tira un montón al suelo delante del jugador (v5.0.1): desde los bolsillos arrastrándolo fuera, o con la tecla de tirar. */
+function throwStack(s: ItemStack) {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const eye = player.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+  const toss = new THREE.Vector3(dir.x * 4, Math.max(1.5, dir.y * 4 + 2), dir.z * 4);
+  drops.spawn(s.id, eye.x + dir.x * 0.4, eye.y, eye.z + dir.z * 0.4, { count: s.count, wear: s.wear, toss });
+  sound.pickup();
 }
 
 // --- Bolsillos, conversaciones y bloqueo del puntero ---
@@ -906,6 +950,11 @@ function isPlaying(): boolean {
   return touchMode ? touchPlaying : document.pointerLockElement === canvas;
 }
 let welcomed = !!save;
+const resumeHint = document.querySelector<HTMLDivElement>('#resume-hint')!;
+resumeHint.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  lockInput();
+});
 function lockInput() {
   sound.start();
   if (!welcomed) {
@@ -913,7 +962,9 @@ function lockInput() {
     hud.toast('¡Bienvenida, bienvenido a tu isla! Sigue los primeros pasos de la izquierda');
   }
   if (!touchMode) {
-    canvas.requestPointerLock();
+    // Tras cerrar una ventana con Esc el navegador no siempre deja bloquear el ratón (Esc no cuenta como gesto).
+    resumeHint.hidden = true;
+    (canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(() => {});
     return;
   }
   if (touchPlaying) return;
@@ -980,6 +1031,7 @@ const workbench = new Workbench({ inventory, atlas, toast: (t) => hud.toast(t) }
 // Cofres, baúles y cajas: lo guardado vive en la partida (en un viaje no se ve lo de casa).
 const storage = new Storage(trip ? {} : save?.storage);
 const storagePanel = new StoragePanel(inventory, atlas, (t) => hud.toast(t));
+storagePanel.onThrow = (st) => throwStack(st);
 
 function openStorage(x: number, y: number, z: number, b: number) {
   const c = CONTAINERS[b as Block]!;
@@ -1739,6 +1791,15 @@ window.addEventListener('keydown', (e) => {
     if (e.code === keys.sound) toggleSound();
     return;
   }
+  if (!resumeHint.hidden && !panel) {
+    if (e.code === 'Escape') {
+      resumeHint.hidden = true;
+      menu.open();
+      persist();
+      playButton.textContent = 'Volver a la isla';
+    }
+    return;
+  }
   if (panel === 'dialog') {
     if (e.code === 'Escape') dialog.finish();
     return;
@@ -1825,6 +1886,10 @@ window.addEventListener('keydown', (e) => {
     closeInventory();
     return;
   }
+  if (e.code === keys.drop && (isPlaying() || panel === 'inventory')) {
+    hud.throwKey(e.ctrlKey || e.metaKey);
+    return;
+  }
   if (e.code === keys.offhand && isPlaying()) {
     hud.swapHands();
     return;
@@ -1905,6 +1970,7 @@ function onInputChange() {
   const locked = isPlaying();
   touch?.show(locked);
   if (locked) {
+    resumeHint.hidden = true;
     menu.close();
     if (trip && !arrived) {
       arrived = true;
@@ -1924,8 +1990,11 @@ function onInputChange() {
 }
 document.addEventListener('pointerlockchange', onInputChange);
 // Si el navegador no deja volver a bloquear el ratón enseguida, se muestra el menú.
+// v5.0.1: si es al salir de una ventana (tienda, bolsillos...), no se pasa por el menú: basta un clic para seguir.
 document.addEventListener('pointerlockerror', () => {
-  if (!panel) menu.open();
+  if (panel) return;
+  if (menu.hidden) resumeHint.hidden = false;
+  else menu.open();
 });
 document.addEventListener('mousemove', (e) => {
   if (isPlaying()) player.look(e.movementX, e.movementY);
@@ -3980,7 +4049,7 @@ function frame(now: number) {
   const daylight = 1 - sky.night * 0.5;
   // Lo que cae al suelo se ve tan iluminado como el sitio donde está: oscuro en una cueva, claro junto a una antorcha.
   // La hora ya la ponen las luces de la escena, que también lo alumbran.
-  drops.update(dt, player.position, take, (p) => brightnessAt(p, 1));
+  drops.update(dt, player.position, pickUp, (p) => brightnessAt(p, 1));
   bugs.update(dt, hour, player.position, daylight);
   museumHall.update(dt, sky.night);
   furniture.setNight(sky.night);

@@ -6,6 +6,9 @@ import type { World } from './world';
 
 interface Drop {
   id: string;
+  /** Cuántos hay en el montón (1 si no se dice) y lo gastada que está una herramienta tirada (v5.0.1). */
+  count: number;
+  wear?: number;
   /** El objeto en 3D (gira) y su sombrita redonda en el suelo, dentro de un grupo que se mueve. */
   obj: THREE.Group;
   model: THREE.Mesh<THREE.BufferGeometry, THREE.MeshLambertMaterial>;
@@ -58,7 +61,7 @@ export class Drops {
     });
   }
 
-  spawn(id: string, x: number, y: number, z: number, opts: { burst?: boolean; onPickup?: () => void; tag?: string } = {}) {
+  spawn(id: string, x: number, y: number, z: number, opts: { burst?: boolean; onPickup?: () => void; tag?: string; count?: number; wear?: number; toss?: THREE.Vector3 } = {}) {
     // Cada objeto tiene su material, para oscurecerlo si está en una cueva.
     const cube = this.models.isCube(id);
     const base = cube ? this.models.blockMaterial : this.models.voxelMaterial;
@@ -72,14 +75,16 @@ export class Drops {
     const obj = new THREE.Group().add(model, shadow);
     obj.position.set(x, y, z);
     this.group.add(obj);
-    const velocity = opts.burst
-      ? new THREE.Vector3((Math.random() - 0.5) * 2.5, 3 + Math.random() * 1.5, (Math.random() - 0.5) * 2.5)
-      : new THREE.Vector3();
-    this.drops.push({ id, obj, model, shadow, velocity, age: 0, resting: false, onPickup: opts.onPickup, tag: opts.tag });
+    const velocity = opts.toss
+      ? opts.toss.clone()
+      : opts.burst
+        ? new THREE.Vector3((Math.random() - 0.5) * 2.5, 3 + Math.random() * 1.5, (Math.random() - 0.5) * 2.5)
+        : new THREE.Vector3();
+    this.drops.push({ id, count: Math.max(1, opts.count ?? 1), wear: opts.wear, obj, model, shadow, velocity, age: opts.toss ? -1 : 0, resting: false, onPickup: opts.onPickup, tag: opts.tag });
   }
 
-  /** Mueve los objetos y entrega los que el jugador toca. `take` devuelve false si no caben. */
-  update(dt: number, player: THREE.Vector3, take: (id: string) => boolean, light: (p: THREE.Vector3) => number) {
+  /** Mueve los objetos y entrega los que el jugador toca. `take` devuelve cuántos no cupieron (0: todos). */
+  update(dt: number, player: THREE.Vector3, take: (id: string, count: number, wear?: number) => number, light: (p: THREE.Vector3) => number) {
     for (let i = this.drops.length - 1; i >= 0; i--) {
       const d = this.drops[i];
       d.age += dt;
@@ -139,10 +144,12 @@ export class Drops {
       const dist = Math.hypot(dx, dy, dz);
       if (d.age < 0.5 || dist > MAGNET_RADIUS || d.full) continue;
       if (dist < PICKUP_RADIUS) {
-        if (take(d.id)) {
+        const left = take(d.id, d.count, d.wear);
+        if (left === 0) {
           d.onPickup?.();
           this.remove(i);
         } else {
+          d.count = left;
           d.full = true; // no cabe: se queda en el suelo hasta que haya sitio
           d.retry = 2;
         }

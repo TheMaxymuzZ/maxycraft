@@ -18,6 +18,9 @@ export const WATER_SURFACE = SEA_LEVEL + 0.85;
 export const ISLAND_RADIUS = 72;
 /** Radio de las islas nuevas, con biomas (terreno 2). */
 export const BIG_ISLAND_RADIUS = 112;
+/** Radio de los islotes (v5.0.1: de 12 a 17) y hasta dónde pueden llegar, en radios de la isla. */
+export const ISLET_MIN_R = 12;
+export const ISLET_REACH = 1.7;
 /** Versión del terreno de las islas nuevas. Las guardadas siguen con el suyo para que no se mueva nada. */
 export const TERRAIN_VERSION = 2;
 
@@ -597,7 +600,7 @@ export class World {
 
   /**
    * De 2 a 4 islotes pequeños en el mar, alrededor de la isla (también en las partidas de antes: solo cambia
-   * mar abierto). Se llega a ellos con un puente, que encarga el alcalde o se hace a mano.
+   * mar abierto). Se llega a ellos con un puente hecho a mano (v5.0.1: el alcalde ya no los encarga) o en barco.
    */
   get islets(): Islet[] {
     if (this.mystery) return [];
@@ -611,18 +614,19 @@ export class World {
     const turn = rnd(1) * Math.PI * 2;
     const out: Islet[] = [];
     for (let k = 0; k < count; k++) {
-      const r = 5 + Math.floor(rnd(10 + k) * 4);
+      // v5.0.1: bastante más grandes (antes de 5 a 8 de radio), para poder construir en ellos.
+      const r = ISLET_MIN_R + Math.floor(rnd(10 + k) * 6);
       // Si en ese lado la costa sale mucho, se prueba un poco más a un lado.
       for (const shift of [0, 0.35, -0.35, 0.7, -0.7]) {
         const a = turn + (k * Math.PI * 2) / count + (rnd(20 + k) - 0.5) * 0.5 + shift;
         let found: Islet | null = null;
-        for (let d = this.radius * 0.95; d + r < this.radius * 1.4 && !found; d += 2) {
+        for (let d = this.radius * 0.95; d + r < this.radius * ISLET_REACH && !found; d += 2) {
           const x = Math.round(Math.cos(a) * d);
           const z = Math.round(Math.sin(a) * d);
           let clear = this.landMaskRaw(x, z) < 0;
-          for (let i = 0; i < 16 && clear; i++) {
-            const t = (i / 16) * Math.PI * 2;
-            clear = this.landMaskRaw(x + Math.cos(t) * (r + 6), z + Math.sin(t) * (r + 6)) < 0;
+          for (let i = 0; i < 24 && clear; i++) {
+            const t = (i / 24) * Math.PI * 2;
+            clear = this.landMaskRaw(x + Math.cos(t) * (r + 5), z + Math.sin(t) * (r + 5)) < 0;
           }
           if (clear && out.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + r + 10)) found = { x, z, r };
         }
@@ -641,9 +645,10 @@ export class World {
       const dx = x - i.x;
       const dz = z - i.z;
       if (Math.abs(dx) > i.r * 1.5 || Math.abs(dz) > i.r * 1.5) continue;
-      const wobble = fbm(x / 6, z / 6, this.seed + 72, 2) - 0.5;
-      const d = Math.hypot(dx, dz) / (i.r * (1 + wobble * 0.4));
-      if (d < 0.55) return SEA_LEVEL + 2;
+      const wobble = fbm(x / 9, z / 9, this.seed + 72, 2) - 0.5;
+      const d = Math.hypot(dx, dz) / (i.r * (1 + wobble * 0.3));
+      // Una meseta llana y ancha para construir, con su playa alrededor.
+      if (d < 0.8) return SEA_LEVEL + 2;
       if (d < 1) return SEA_LEVEL + 1;
       if (d < 1.3) return SEA_LEVEL - 1;
     }
@@ -657,7 +662,7 @@ export class World {
 
   /** Lo lejos que llega lo que hay que dibujar en el horizonte y en el mapa: la isla y sus islotes. */
   get outerRadius(): number {
-    return this.mystery ? this.radius : Math.ceil(this.radius * 1.4);
+    return this.mystery ? this.radius : Math.ceil(this.radius * ISLET_REACH);
   }
 
   /** Medio lado de la isla en bloques, para saber cuánto ocupa el mapa (v4.4). */
