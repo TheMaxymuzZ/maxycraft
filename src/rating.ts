@@ -1,4 +1,4 @@
-import { Block } from './blocks';
+import { Block, isTorch } from './blocks';
 
 /** Lo que cuenta para la valoración de la isla. */
 export interface IslandStats {
@@ -36,7 +36,7 @@ export function countPlaced(edits: Record<string, Record<number, number>>): Pick
     for (const b of Object.values(chunk)) {
       if (FLOWERS.has(b)) out.flowers++;
       else if (FENCES.has(b)) out.fences++;
-      else if (b === Block.Torch) out.lights++;
+      else if (isTorch(b)) out.lights++;
     }
   }
   return out;

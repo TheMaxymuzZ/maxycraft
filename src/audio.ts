@@ -79,6 +79,10 @@ export class Sound {
   private music!: GainNode;
   private sfx!: GainNode;
   private rain: GainNode | null = null;
+  /** Filtros de la lluvia (v5.0.1): se cierran bajo techo para que suene amortiguada, como desde dentro de casa. */
+  private rainLow: BiquadFilterNode | null = null;
+  private rainHigh: BiquadFilterNode | null = null;
+  private rainIndoors = false;
   private noise!: AudioBuffer;
   private song: ReturnType<typeof compose> | null = null;
   private songHour = -1;
@@ -162,6 +166,7 @@ export class Sound {
   private schedule() {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
+    this.raindrops(ctx.currentTime);
     // Si la pestaña estuvo parada, no se intenta recuperar lo perdido.
     if (this.stepTime < ctx.currentTime - 0.5) this.stepTime = ctx.currentTime + 0.05;
     while (this.stepTime < ctx.currentTime + 0.35) {
@@ -343,26 +348,47 @@ export class Sound {
     this.tone(pitch * (0.85 + Math.random() * 0.3), t, 0.05, 'square', 0.06, this.sfx);
   }
 
-  /** Lluvia de fondo: ruido suave que entra y sale con el tiempo. */
-  setRain(amount: number) {
+  /**
+   * Lluvia de fondo: un rumor grave y suave (v5.0.1: antes era un siseo fuerte) con gotas sueltas por encima.
+   * Bajo techo suena amortiguada y se oye el golpeteo en el tejado.
+   */
+  setRain(amount: number, indoors = false) {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
     if (!this.rain) {
       const src = ctx.createBufferSource();
       src.buffer = this.noise;
       src.loop = true;
-      const f = ctx.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.value = 1800;
+      this.rainHigh = ctx.createBiquadFilter();
+      this.rainHigh.type = 'highpass';
+      this.rainHigh.frequency.value = 250;
+      this.rainLow = ctx.createBiquadFilter();
+      this.rainLow.type = 'lowpass';
+      this.rainLow.frequency.value = 1100;
+      this.rainLow.Q.value = 0.4;
       this.rain = ctx.createGain();
       this.rain.gain.value = 0;
-      src.connect(f).connect(this.rain).connect(this.sfx);
+      src.connect(this.rainHigh).connect(this.rainLow).connect(this.rain).connect(this.sfx);
       src.start();
     }
     this.rainAmount = amount;
+    this.rainIndoors = indoors;
     // La lluvia va con los efectos, que ya llevan su volumen (0,5).
-    this.rain.gain.setTargetAtTime(amount * 0.24, ctx.currentTime, 0.5);
+    this.rain.gain.setTargetAtTime(amount * (indoors ? 0.11 : 0.13), ctx.currentTime, 0.6);
+    this.rainLow!.frequency.setTargetAtTime(indoors ? 380 : 1100, ctx.currentTime, 0.4);
+    this.rainHigh!.frequency.setTargetAtTime(indoors ? 60 : 250, ctx.currentTime, 0.4);
     this.music.gain.setTargetAtTime(this.musicGain, ctx.currentTime, 0.5);
+  }
+
+  /** Gotas sueltas: chasquidos cortos y agudos fuera; bajo techo, golpecitos sordos en el tejado. */
+  private raindrops(now: number) {
+    if (this.rainAmount < 0.05) return;
+    const n = Math.round(this.rainAmount * (this.rainIndoors ? 3 : 4) * Math.random() * 2);
+    for (let i = 0; i < n; i++) {
+      const t = now + 0.05 + Math.random() * 0.1;
+      if (this.rainIndoors) this.hiss(t, 0.05, 0.05 * this.rainAmount, 180 + Math.random() * 220, this.sfx, 'lowpass');
+      else this.hiss(t, 0.025, 0.035 * this.rainAmount, 2500 + Math.random() * 3000, this.sfx, 'bandpass');
+    }
   }
 }
 

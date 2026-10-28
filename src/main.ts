@@ -7,7 +7,7 @@ import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import cifrasUrl from '@fontsource/press-start-2p/files/press-start-2p-latin-400-normal.woff2?url';
 import { Sound, materialOf } from './audio';
-import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isLeaves, isPath, isSolid, isStairs, isLava, isLavaSource, isTargetable, isWater, isWaterSource, stairsFacing, toggled } from './blocks';
+import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isLeaves, isPath, isSolid, isStairs, isLava, isLavaSource, isTargetable, isWater, isWaterSource, stairsFacing, toggled, wallTorchFor } from './blocks';
 import { Fluids } from './fluids';
 import { Breaker } from './breaking';
 import { Birds } from './birds';
@@ -83,6 +83,7 @@ import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel'
 import { LotGhosts, type Lot, describeMissing, inLot, lotFrom, lotPlot, lotProblem, lotProgress } from './lots';
 import { type Guest, PILOT, Villager, createVillagers, createVisitor, knockReply, pickVisitor, villagerWeather } from './villagers';
 import { WeatherFx } from './weather';
+import { EntityLight } from './entityLight';
 import { Workbench } from './workbench';
 import { Water } from './water';
 import { Portraits } from './portraits';
@@ -450,6 +451,8 @@ if (terminalSite) {
 }
 // Al llegar de un viaje la avioneta amariza (v4.16).
 const LANDING_KEY = 'maxycraft.amarizaje';
+/** Se llega de un viaje (en avioneta o en barco): se sigue jugando sin pasar por la portada (v5.0.1). */
+const TRAVEL_KEY = 'maxycraft.viaje';
 try {
   if (sessionStorage.getItem(LANDING_KEY)) {
     sessionStorage.removeItem(LANDING_KEY);
@@ -795,11 +798,21 @@ scene.add(highlight);
 // --- Objetos por el suelo ---
 
 const weather = new WeatherFx(world);
-scene.add(weather.points);
+scene.add(weather.group);
 
 const itemModels = new ItemModels(atlas, atlasTexture);
 const drops = new Drops(world, itemModels);
 scene.add(drops.group);
+// Luz de los seres y las cosas (v5.0.1).
+const entityLight = new EntityLight(
+  (p) => world.lightAt(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)),
+  (p) => {
+    const reach = carriedLight();
+    return reach ? Math.max(0, 1 - p.distanceTo(camera.position) / reach) : 0;
+  },
+);
+let furnitureLightTimer = 0;
+
 const bugs = new Bugs(world, atlas);
 scene.add(bugs.group);
 const fishing = new Fishing(world);
@@ -964,6 +977,7 @@ function lockInput() {
   if (!touchMode) {
     // Tras cerrar una ventana con Esc el navegador no siempre deja bloquear el ratón (Esc no cuenta como gesto).
     resumeHint.hidden = true;
+    resumeHint.querySelector('span')!.textContent = 'Haz clic para seguir jugando';
     (canvas.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(() => {});
     return;
   }
@@ -1117,6 +1131,7 @@ function takeOff(text: string, next: () => void) {
   plane.fly();
   try {
     sessionStorage.setItem(LANDING_KEY, '1');
+    sessionStorage.setItem(TRAVEL_KEY, '1');
   } catch {
     // sin almacenamiento, se aparece ya en el agua
   }
@@ -1946,6 +1961,26 @@ menu.onView = (v) => {
 };
 
 playButton.addEventListener('click', () => lockInput());
+// v5.0.1: al llegar de un viaje, tras la pantalla de carga ya se está en la isla, sin el menú de la portada.
+// Con ratón el navegador pide un clic antes de bloquearlo, así que solo se ve el aviso pequeño para seguir.
+{
+  let travelled = false;
+  try {
+    travelled = !!sessionStorage.getItem(TRAVEL_KEY);
+    sessionStorage.removeItem(TRAVEL_KEY);
+  } catch {
+    // sin almacenamiento, sale la portada como siempre
+  }
+  if (travelled && !joined) {
+    menu.close();
+    playButton.textContent = 'Volver a la isla';
+    if (touchMode) lockInput();
+    else {
+      resumeHint.querySelector('span')!.textContent = '¡Has llegado! Haz clic para jugar';
+      resumeHint.hidden = false;
+    }
+  }
+}
 /** Cierra la ventana que haya abierta encima del juego (al volver a jugar, o al desmayarse). */
 function closeAnyPanel() {
   if (panel === 'inventory') hud.inventoryEl.hidden = true;
@@ -2587,7 +2622,11 @@ function useItem() {
     const fx = -Math.sin(player.yaw);
     const fz = -Math.cos(player.yaw);
     const facing = Math.abs(fz) > Math.abs(fx) ? (fz < 0 ? 0 : 2) : fx > 0 ? 1 : 3;
-    sync.setBlock(x, y, z, isStairs(def.block) ? stairsFacing(def.block, facing) : def.block);
+    // Las antorchas puestas en el lado de un bloque se clavan en la pared, en diagonal (v5.0.1).
+    const wallTorch = def.block === Block.Torch && !replace && hit.place[1] === hit.block[1]
+      ? wallTorchFor(hit.block[0] - hit.place[0], hit.block[2] - hit.place[2])
+      : null;
+    sync.setBlock(x, y, z, wallTorch ?? (isStairs(def.block) ? stairsFacing(def.block, facing) : def.block));
     delete harvested[posKey(x, y, z)];
     inventory.consume(hud.selected);
     sound.place();
@@ -3872,6 +3911,11 @@ function sailAway(text: string, next: () => void) {
   }
   persist(true);
   saving = false;
+  try {
+    sessionStorage.setItem(TRAVEL_KEY, '1');
+  } catch {
+    // sin almacenamiento, al llegar sale la portada
+  }
   sound.fanfare();
   document.querySelector('#travel-text')!.textContent = text;
   document.querySelector<HTMLDivElement>('#travel-fade')!.hidden = false;
@@ -4047,9 +4091,17 @@ function frame(now: number) {
   nameTags.update(camera, player.position);
   updateClock(date);
   const daylight = 1 - sky.night * 0.5;
-  // Lo que cae al suelo se ve tan iluminado como el sitio donde está: oscuro en una cueva, claro junto a una antorcha.
-  // La hora ya la ponen las luces de la escena, que también lo alumbran.
-  drops.update(dt, player.position, pickUp, (p) => brightnessAt(p, 1));
+  drops.update(dt, player.position, pickUp);
+  // Los seres y las cosas se ven tan iluminados como el sitio donde están (v5.0.1): oscuros en una cueva o en una
+  // habitación sin luz, y alumbrados por las antorchas (o la que llevas en la mano) también de noche.
+  for (const g of [drops.group, animals.group, wildlife.group, hostiles.group, bugs.group, remotes.group]) entityLight.applyAll(g);
+  for (const v of villagers) entityLight.apply(v.group);
+  if (pilot) entityLight.apply(pilot.group);
+  furnitureLightTimer -= dt;
+  if (furnitureLightTimer <= 0) {
+    furnitureLightTimer = 0.5;
+    for (const g of [furniture.group, decor.group, terminalFixtures.group, villagerHomes.furniture.group, birds.group]) entityLight.applyAll(g);
+  }
   bugs.update(dt, hour, player.position, daylight);
   museumHall.update(dt, sky.night);
   furniture.setNight(sky.night);
@@ -4057,7 +4109,9 @@ function frame(now: number) {
   rainTimer -= dt;
   if (rainTimer <= 0) {
     rainTimer = 0.5;
-    sound.setRain(weather.raining ? weather.gloom : 0);
+    // Bajo techo la lluvia se oye amortiguada (v5.0.1).
+    const roof = world.skyHeight(Math.floor(player.position.x), Math.floor(player.position.z)) > player.position.y + 1.8;
+    sound.setRain(weather.raining ? weather.gloom : 0, roof);
   }
   const rodInHand = hud.selectedStack ? itemDef(hud.selectedStack.id).tool === 'rod' : false;
   if (fishing.active && !rodInHand) fishing.stop();

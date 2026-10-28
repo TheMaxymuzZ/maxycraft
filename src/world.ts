@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { waterFlow } from './fluids';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, isCross, isDoor, isDoorTop, isFence, isFullBlock, isGate, isLava, isOpaque, isOpen, isSolid, isWater, lavaHeight, waterHeight, waterLevel as fluidLevel } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, WALL_TORCH_DIRS, isCross, isTorch, isDoor, isDoorTop, isFence, isFullBlock, isGate, isLava, isOpaque, isOpen, isSolid, isWater, lavaHeight, waterHeight, waterLevel as fluidLevel } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 import { acaciaShape, blossomShape, ceibaShape, firShape, glowShape, fruitTreeShape, palmShape, pineShape, willowShape } from './trees';
 import { type BuildingTemplate, templateCells } from './buildings';
@@ -2221,17 +2221,26 @@ export class World {
             const sky = skyLight(x, y, z);
             const glow = LIGHT_RADIUS[b as Block] ? 1 : blockLight(wx, y, wz);
             const tint = tintAt(b, wx, y, wz);
+            // Antorcha de pared (v5.0.1): la misma figura, más baja y con el pie metido hacia la pared, en diagonal.
+            const wall = def.facing !== undefined && isTorch(b) ? WALL_TORCH_DIRS[def.facing] : null;
             for (const quad of CROSS_QUADS) {
               const start = positions.length / 3;
-              for (const [cx, cy, cz, cu, cv] of quad) {
+              for (const [qx, qy, qz, cu, cv] of quad) {
+                let [cx, cy, cz] = [qx, qy, qz];
+                if (wall) {
+                  const lean = qy === 0 ? 0.42 : 0.02;
+                  cx += wall[0] * lean;
+                  cz += wall[1] * lean;
+                  cy = 0.22 + qy * 0.78;
+                }
                 positions.push(x + cx, y + cy, z + cz);
                 normals.push(0, 1, 0);
                 uvs.push(u0 + inset + cu * (tileSize - 2 * inset), v0 + inset + cv * (tileSize - 2 * inset));
-                const shade = cy === 0 ? 0.8 : 1;
+                const shade = qy === 0 ? 0.8 : 1;
                 colors.push(shade, shade, shade);
                 lights.push(sky, glow);
                 tints.push(...tint);
-                if (cy === 1 && SWAYING.has(b)) swaying.push(positions.length / 3 - 1);
+                if (qy === 1 && SWAYING.has(b)) swaying.push(positions.length / 3 - 1);
               }
               indices.push(start, start + 1, start + 2, start + 2, start + 1, start + 3);
             }

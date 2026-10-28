@@ -434,6 +434,11 @@ export function dropFor(b: Block): string | null {
     case Block.Gate:
     case Block.GateOpen:
       return 'puerta_valla';
+    case Block.WallTorch:
+    case Block.WallTorch1:
+    case Block.WallTorch2:
+    case Block.WallTorch3:
+      return 'antorcha';
     case Block.Door:
     case Block.DoorOpen:
       return 'puerta';

@@ -92,6 +92,8 @@ export class Commerce {
       const cell = (c: Cell): Cell => [ox + c[0], oy + c[1], oz + c[2]];
       const plot = { kind: 'shop' as const, x: ox + 3, z: oz + 3, y: oy, roof: 0 as Block, door: cell(m.counter) };
       const owner = new Villager(m.profile, plot, this.deps.world, this.deps.memories[m.profile.name] ?? { friendship: 0 });
+      owner.rest = cell(m.bed);
+      this.fixtures.place('cama', ...cell(m.bed), 0);
       this.deps.villagers.push(owner);
       this.deps.scene.add(owner.group, owner.extras);
       for (const [id, x, y, z, rot] of m.fixtures) this.fixtures.place(id, ox + x, oy + y, oz + z, rot);

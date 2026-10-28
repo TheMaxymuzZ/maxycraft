@@ -19,6 +19,8 @@ interface Drop {
   /** No cupo en los bolsillos; se vuelve a intentar pasado `retry`. */
   full?: boolean;
   retry?: number;
+  /** Lo ha tirado el jugador (v5.0.1): no vuelve solo a sus bolsillos hasta que se aleja, o si lo pisa. */
+  thrown?: boolean;
   onPickup?: () => void;
   tag?: string;
 }
@@ -62,7 +64,7 @@ export class Drops {
   }
 
   spawn(id: string, x: number, y: number, z: number, opts: { burst?: boolean; onPickup?: () => void; tag?: string; count?: number; wear?: number; toss?: THREE.Vector3 } = {}) {
-    // Cada objeto tiene su material, para oscurecerlo si está en una cueva.
+    // Cada objeto tiene su material, para que tenga la luz del sitio donde está (EntityLight, v5.0.1).
     const cube = this.models.isCube(id);
     const base = cube ? this.models.blockMaterial : this.models.voxelMaterial;
     const model = this.models.mesh(id, base.clone()) as Drop['model'];
@@ -80,11 +82,11 @@ export class Drops {
       : opts.burst
         ? new THREE.Vector3((Math.random() - 0.5) * 2.5, 3 + Math.random() * 1.5, (Math.random() - 0.5) * 2.5)
         : new THREE.Vector3();
-    this.drops.push({ id, count: Math.max(1, opts.count ?? 1), wear: opts.wear, obj, model, shadow, velocity, age: opts.toss ? -1 : 0, resting: false, onPickup: opts.onPickup, tag: opts.tag });
+    this.drops.push({ id, count: Math.max(1, opts.count ?? 1), wear: opts.wear, obj, model, shadow, velocity, age: 0, thrown: !!opts.toss, resting: false, onPickup: opts.onPickup, tag: opts.tag });
   }
 
   /** Mueve los objetos y entrega los que el jugador toca. `take` devuelve cuántos no cupieron (0: todos). */
-  update(dt: number, player: THREE.Vector3, take: (id: string, count: number, wear?: number) => number, light: (p: THREE.Vector3) => number) {
+  update(dt: number, player: THREE.Vector3, take: (id: string, count: number, wear?: number) => number) {
     for (let i = this.drops.length - 1; i >= 0; i--) {
       const d = this.drops[i];
       d.age += dt;
@@ -130,7 +132,6 @@ export class Drops {
         // Si quitan el bloque de debajo, vuelve a caer.
         if (!isSolid(this.world.getBlock(Math.floor(p.x), Math.floor(p.y - 0.4), Math.floor(p.z)))) d.resting = false;
       }
-      d.model.material.color.setScalar(light(p));
       d.model.rotation.y += dt * 1.6;
       // La sombrita se queda en el suelo que hay debajo, también mientras cae.
       let ground = Math.floor(p.y - 0.3);
@@ -142,6 +143,10 @@ export class Drops {
       const dy = player.y + 0.9 - p.y;
       const dz = player.z - p.z;
       const dist = Math.hypot(dx, dy, dz);
+      if (d.thrown) {
+        if (dist > MAGNET_RADIUS + 0.5) d.thrown = false;
+        else if (d.age < 2 || dist > PICKUP_RADIUS) continue;
+      }
       if (d.age < 0.5 || dist > MAGNET_RADIUS || d.full) continue;
       if (dist < PICKUP_RADIUS) {
         const left = take(d.id, d.count, d.wear);
