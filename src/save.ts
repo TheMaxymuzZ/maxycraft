@@ -100,6 +100,8 @@ export interface SaveData {
   /** Desde la v1.0: pasos del tutorial hechos y si ya se terminó. */
   tutorial?: StepId[];
   tutorialDone?: boolean;
+  /** Desde la v5.0: la guía del pueblo y del mar terminada. */
+  guideDone?: boolean;
   /** Desde la v1.3: cuándo se guardó por última vez (milisegundos). */
   savedAt?: number;
   /** Desde la v1.8: el huerto (cultivos y días regados) y los animales de la granja. */

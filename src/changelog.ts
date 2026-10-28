@@ -7,6 +7,16 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.0',
+    title: 'Maxycraft 5: la gran actualización del archipiélago',
+    items: [
+      'Todo lo de la 4.5 a la 4.26 junto: astillero y barco, archipiélago de nueve islas, biomas y climas, lava, comercios, parcelas, fauna, armas, mazmorras y una economía equilibrada.',
+      'Guía del pueblo y del mar: al terminar los primeros pasos, una segunda lista te enseña el ayuntamiento, la parcela, el astillero, a navegar, el mercado de las aldeas y las mazmorras. Al completarla, Bartolo te regala 5.000 bayas.',
+      'Pruebas largas de juego en ordenador y móvil, midiendo los fotogramas y la memoria, y repaso del multijugador con cuatro jugadores: el astillero, el barco, los comercios y las parcelas se ven igual para todos.',
+      'Web del proyecto renovada: portada con vídeo del barco y el archipiélago, capturas nuevas y la wiki completa.',
+    ],
+  },
+  {
     version: '4.26',
     title: 'Balance económico global',
     items: [
