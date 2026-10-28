@@ -10,6 +10,7 @@ const HURT_TEXT: Record<HurtCause, string> = {
   lava: 'Te has metido en la lava',
   hambre: 'Tenías mucha hambre',
   criatura: 'Te han vencido las criaturas',
+  trampa: 'Te han pillado las trampas de la mazmorra',
 };
 
 export interface FaintLoss {

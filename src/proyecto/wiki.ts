@@ -8,7 +8,8 @@ import { CREATURES, type Creature, HABITAT_TEXT, fightOf, hoursText, monthsText,
 import { sizeText } from '../collection';
 import { RODS } from '../fishing';
 import { WILDLIFE, WILD_KINDS } from '../wildlife';
-import { HOSTILES, HOSTILE_KINDS } from '../hostiles';
+import { BOSS_TELLS, HOSTILES, HOSTILE_KINDS } from '../hostiles';
+import { KIND_THEME, THEMES, type DungeonTheme } from '../dungeon';
 import { FURNITURE, paintFurnitureIcons } from '../furniture';
 import { itemIcon } from '../icons';
 import { DIY_RECIPES, ITEMS, ITEM_KINDS, RARITIES, RECIPES, type Recipe, STARTER_DIY, breakInfo, itemDef, toolNameFor } from '../items';
@@ -190,6 +191,16 @@ fill('tabla-hostiles', HOSTILE_KINDS.map((k) => {
   const h = HOSTILES[k];
   const where = `${h.places.map((p) => HOSTILE_PLACE[p]).join(', ')}${h.night ? ' (de noche, fuera de las cuevas)' : ''}`;
   return `<td><b>${esc(h.name)}</b><br><small class="muted">${esc(h.text)}</small></td><td>${where}</td><td class="num">${h.hp}</td><td class="num">${h.damage}</td><td>${h.loot.map((id) => item(id, 1, false)).join(' ')}</td>`;
+}));
+
+// --- Mazmorras (v4.25) ---
+const ATTACK_NAMES = { rafaga: 'Ráfaga de flechas', pisoton: 'Pisotón', llamada: 'Llama ayudantes', anillo: 'Anillo' };
+fill('tabla-mazmorras', (Object.keys(THEMES) as DungeonTheme[]).map((id) => {
+  const t = THEMES[id];
+  const boss = HOSTILES[t.boss];
+  const islands = (Object.keys(KIND_THEME) as (keyof typeof KIND_THEME)[]).filter((k) => KIND_THEME[k] === id).map((k) => esc(MYSTERY_NAMES[k].replace(/^Isla /, ''))).join(', ');
+  const attacks = boss.boss!.attacks.map((a) => `<b>${ATTACK_NAMES[a]}</b>: avisa que ${esc(BOSS_TELLS[a].replace(/:.*/, ''))}`).join('<br>');
+  return `<td><b>${esc(t.name)}</b><br><small class="muted">${esc(t.text)}</small></td><td>${islands}</td><td>${esc(boss.name)}</td><td class="num">${boss.hp}</td><td>${attacks}</td>`;
 }));
 
 const WILD_PLACE = { tierra: 'En tierra', orilla: 'En la orilla', mar: 'En el mar' };

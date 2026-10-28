@@ -212,6 +212,9 @@ export const XTile = {
   SlimeCrown: EXTRA_TILE_START + 175,
   VolcanoHeart: EXTRA_TILE_START + 176,
   StarTear: EXTRA_TILE_START + 177,
+  // Mazmorras (v4.25): armas legendarias del tesoro.
+  StarSword: EXTRA_TILE_START + 178,
+  MoonBow: EXTRA_TILE_START + 179,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -784,10 +787,15 @@ function paintCombatTiles(ctx: CanvasRenderingContext2D) {
   sword(XTile.IronSword, [200, 206, 218], [252, 252, 255]);
   sword(XTile.CrystalSword, [150, 120, 230], [226, 210, 255]);
   sword(XTile.ObsidianSword, [50, 34, 80], [140, 100, 200]);
+  sword(XTile.StarSword, [250, 210, 80], [255, 250, 210]);
   toolSprite(ctx, XTile.Bow, [
     '................', '.........ss.....', '........s..l....', '.......s...l....', '......s....l....', '.....s.....l....', '.....s.....l....', '....s......l....',
     '....s......l....', '.....s.....l....', '.....s.....l....', '......s....l....', '.......s...l....', '........s..l....', '.........ss.....', '................',
   ], { s: [150, 100, 56], l: [236, 236, 236] });
+  toolSprite(ctx, XTile.MoonBow, [
+    '................', '.........ss.....', '........s..l....', '.......s...l....', '......s....l....', '.....s.....l....', '.....s.....l....', '....s......l....',
+    '....s......l....', '.....s.....l....', '.....s.....l....', '......s....l....', '.......s...l....', '........s..l....', '.........ss.....', '................',
+  ], { s: [180, 200, 255], l: [255, 250, 200] });
   toolSprite(ctx, XTile.Arrow, [
     '................', '............kk..', '...........kkk..', '..........ks....', '.........s......', '........s.......', '.......s........', '......s.........',
     '.....s..........', '....s...........', '..fs............', '.ff.............', '.f..............', '................', '................', '................',

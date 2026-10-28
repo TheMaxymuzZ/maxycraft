@@ -286,6 +286,8 @@ add({ id: 'arco', kind: 'arma', rarity: 'raro', name: 'Arco', tile: XTile.Bow, m
 add({ id: 'flecha', kind: 'arma', name: 'Flecha', tile: XTile.Arrow, maxStack: 64, sell: 5 });
 add({ id: 'escudo', kind: 'arma', name: 'Escudo de madera', tile: XTile.Shield, maxStack: 1, weapon: 'escudo', durability: 100, sell: 80 });
 add({ id: 'escudo_hierro', kind: 'arma', rarity: 'raro', name: 'Escudo de hierro', tile: XTile.IronShield, maxStack: 1, weapon: 'escudo', durability: 300, sell: 400 });
+add({ id: 'espada_estelar', kind: 'arma', rarity: 'legendario', name: 'Espada estelar', tile: XTile.StarSword, maxStack: 1, weapon: 'espada', damage: 9, cooldown: 0.45, durability: 1500, sell: 6000 });
+add({ id: 'arco_lunar', kind: 'arma', rarity: 'legendario', name: 'Arco lunar', tile: XTile.MoonBow, maxStack: 1, weapon: 'arco', damage: 8, durability: 1000, sell: 6000 });
 add({ id: 'baba_limo', name: 'Baba de limo', tile: XTile.SlimeBall, maxStack: 30, sell: 40, rarity: 'comun' });
 add({ id: 'ala_murcielago', name: 'Ala de murciélago', tile: XTile.BatWing, maxStack: 30, sell: 50, rarity: 'comun' });
 add({ id: 'hueso', name: 'Hueso', tile: XTile.Bone, maxStack: 30, sell: 40, rarity: 'comun' });

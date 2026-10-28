@@ -70,6 +70,8 @@ export interface SaveData {
   learned?: Record<string, number>;
   /** Récords de tamaño de cada pez, en centímetros (v4.23). */
   records?: Record<string, number>;
+  /** Lo legendario que ya ha salido en los tesoros de las mazmorras (v4.25). */
+  legends?: string[];
   /** Desde la v4.3: casas de los amigos que han jugado en tu isla. */
   homes?: PlayerHome[];
   /** Desde la v4.1: vida y hambre. */

@@ -15,6 +15,8 @@ import { GameClock, dailyRandom, dayKey, timeOverrides } from './clock';
 import { Clouds, cloudCover } from './clouds';
 import { Collection, sizeText } from './collection';
 import { Wildlife } from './wildlife';
+import { DUNGEON_LEGENDS, type DungeonTheme, KIND_THEME, THEMES, planDungeon, ruinLoot, treasure } from './dungeon';
+import { DungeonGame, type DungeonUse } from './game/dungeon';
 import { HOSTILES, HOSTILE_KINDS, type HostilePlace, Hostiles } from './hostiles';
 import { CHARGE_TIME, DODGE_COOLDOWN, DODGE_SPEED, DODGE_TIME, FISTS, arrowDamage, hitDamage, rollLoot, shieldBlock, weaponStats } from './combat';
 import { calendar, creature, pickCreature } from './creatures';
@@ -565,6 +567,17 @@ if (trip?.sea && airport) {
 const villagerHomes = new VillagerHomes(world, villagers, lampHook);
 scene.add(villagerHomes.furniture.group);
 
+// --- Mazmorras y ruinas (v4.25) ---
+// En las islas de recursos y en las misteriosas del archipiélago hay una mazmorra, distinta en cada visita.
+// Con ?mazmorra=tema se puede probar una en cualquier isla.
+const dungeonParam = params.get('mazmorra') as DungeonTheme | null;
+const dungeonTheme: DungeonTheme | null = dungeonParam && dungeonParam in THEMES ? dungeonParam
+  : trip?.sea && (trip.sea.type === 'recursos' || trip.sea.type === 'misteriosa') ? KIND_THEME[trip.kind] : null;
+const dungeon = dungeonTheme ? new DungeonGame({ world, hostiles }, planDungeon(dungeonTheme, world, Math.random)) : null;
+if (dungeon) scene.add(dungeon.group);
+/** Lo legendario que ya te ha salido en los tesoros: no se repite hasta tenerlo todo. */
+const legends = new Set<string>(pockets?.legends ?? []);
+
 const inventory = new Inventory();
 if (pockets?.inventory) inventory.load(pockets.inventory);
 else starterKit(inventory);
@@ -637,6 +650,7 @@ function persist(urgent = false) {
     met: [...collection.met],
     learned: { ...collection.learned },
     records: { ...collection.records },
+    legends: [...legends],
     vitals: vitals.serialize(),
     donated: [...collection.donated],
     recipes: [...workbench.known],
@@ -652,6 +666,7 @@ function persist(urgent = false) {
     met: [...collection.met],
     learned: { ...collection.learned },
     records: { ...collection.records },
+    legends: [...legends],
     vitals: vitals.serialize(),
     donated: [...collection.donated],
     tutorial: tutorial.serialize(),
@@ -684,6 +699,7 @@ function persist(urgent = false) {
     met: [...collection.met],
     learned: { ...collection.learned },
     records: { ...collection.records },
+    legends: [...legends],
     vitals: vitals.serialize(),
     donated: [...collection.donated],
     home,
@@ -2237,6 +2253,11 @@ function readCompass() {
 
 function useItem() {
   held.use();
+  const inDungeon = dungeon?.use(aimRay(), REACH + 0.5);
+  if (inDungeon) {
+    useDungeon(inDungeon);
+    return;
+  }
   if (shipyard.sailing && shipyard.boat) {
     useAboard();
     return;
@@ -2552,7 +2573,7 @@ function faint(cause: HurtCause) {
     panel = 'faint';
   }
   // Si te vencen las criaturas (v4.24) no pierdes nada: vuelves a la entrada con tu equipo.
-  const loss = cause === 'criatura' ? { berries: 0, items: [] } : faintLoss(wallet, inventory.slots, (id) => !!itemDef(id).tool || id === 'mapa');
+  const loss = cause === 'criatura' || cause === 'trampa' ? { berries: 0, items: [] } : faintLoss(wallet, inventory.slots, (id) => !!itemDef(id).tool || id === 'mapa');
   hostiles.clear();
   for (const l of loss.items) {
     const s = inventory.slots[l.slot];
@@ -2613,7 +2634,7 @@ function mapMarkers(): MapMarker[] {
   for (const v of villagers) if (!v.profile.role && !v.visitor) out.push({ x: v.home.x, z: v.home.z, icon: '🏠', label: v.name, kind: 'vecinos' });
   const me = myUid();
   for (const h of friendHomes) out.push({ x: h.x, z: h.z, icon: '⛺', label: h.uid === me ? 'Tu casa' : `Casa de ${h.name}`, kind: 'casas' });
-  out.push(...town.markers(), ...commerce.markers(), ...shipyard.markers());
+  out.push(...town.markers(), ...commerce.markers(), ...shipyard.markers(), ...(dungeon?.markers() ?? []));
   if (airport) out.push({ x: airport.x, z: airport.z, icon: '✈️', label: 'Avioneta', kind: 'edificios' });
   for (const e of world.caveEntrances) out.push({ x: e.x, z: e.z, icon: '⛏️', label: 'Cueva', kind: 'cuevas' });
   for (const r of remotes.players.values()) {
@@ -2959,8 +2980,9 @@ function useBucket(full: 'agua' | 'lava' | null) {
 }
 
 /** Un fotograma del combate: las criaturas se mueven y te atacan, y lo que sueltan al vencerlas. */
+const bossBar = document.querySelector<HTMLDivElement>('#boss-bar')!;
 function updateCombat(dt: number, seconds: number) {
-  hostiles.enabled = (arena.on || hostileIsland()) && !settings.calm && spawned && !vitals.fainted;
+  hostiles.enabled = (arena.on || !!dungeonParam || hostileIsland()) && !settings.calm && spawned && !vitals.fainted;
   if (arena.on && !arena.ready && hostiles.enabled) {
     arena.ready = true;
     for (const id of ['espada_madera', 'espada_piedra', 'espada_hierro', 'espada_cristal', 'espada_obsidiana', 'arco', 'escudo_hierro']) inventory.add(id);
@@ -2981,9 +3003,26 @@ function updateCombat(dt: number, seconds: number) {
   if (fight.blocking && fight.blockUntil && seconds * 1000 > fight.blockUntil) fight.blocking = false;
   const events = hostiles.update(dt, seconds, player.position, sky.night, hostileWorld);
   for (const hit of events.hits) takeHit(hit.damage, hit.from);
+  for (const a of events.announce) hud.toast(a);
   for (const d of hostiles.defeated.splice(0)) {
+    const won = dungeon?.defeated(d.kind);
+    if (won) {
+      hud.toast(won);
+      sound.fanfare();
+    }
     for (const l of rollLoot(HOSTILES[d.kind].loot)) for (let i = 0; i < l.count; i++) drops.spawn(l.id, d.pos.x, d.pos.y + 0.5, d.pos.z, { burst: true });
     record('vencer');
+  }
+  if (dungeon && spawned && !vitals.fainted) {
+    const d = dungeon.update(dt, player.position, settings.calm);
+    for (const t of d.toasts) hud.toast(t);
+    if (d.hurt) vitals.hurt(d.hurt, 'trampa');
+    const bar = dungeon.bossBar();
+    bossBar.hidden = !bar;
+    if (bar) {
+      bossBar.querySelector('b')!.textContent = bar.name;
+      bossBar.querySelector<HTMLElement>('i')!.style.width = `${Math.round(bar.frac * 100)}%`;
+    }
   }
 }
 
@@ -3073,6 +3112,35 @@ function defend() {
   player.velocity.y = 3;
   fight.dodge = DODGE_TIME;
   fight.dodgeWait = DODGE_COOLDOWN;
+}
+
+/** Palancas, cofres y carteles de la mazmorra. */
+function useDungeon(r: DungeonUse) {
+  if (r.kind === 'sign' || r.kind === 'lever' || r.kind === 'locked') {
+    hud.toast(r.text);
+    if (r.kind === 'lever') sound.click();
+    return;
+  }
+  const at = r.kind === 'treasure' ? dungeon!.plan.chest : dungeon!.plan.ruinChest;
+  const give = (id: string, count: number) => {
+    for (let i = 0; i < count; i++) drops.spawn(id, at[0] + 0.5, at[1] + 1, at[2] + 0.5, { burst: true });
+  };
+  if (r.kind === 'ruin') {
+    for (const l of ruinLoot()) give(l.id, l.count);
+    hud.toast('Un cofre viejo con cosas para la mazmorra');
+    sound.coin();
+    return;
+  }
+  const pool = [...DUNGEON_LEGENDS, ...LEGENDARY_CLOTHES.map((c) => c.id)];
+  const t = treasure(pool, [...legends]);
+  for (const l of t.items) give(l.id, l.count);
+  give(t.legend, 1);
+  // Cuando ya los tienes todos, se empieza otra vez.
+  if (pool.every((id) => legends.has(id))) legends.clear();
+  legends.add(t.legend);
+  hud.toast(`¡El tesoro de la mazmorra! Y algo legendario: ${itemDef(t.legend).name.toLowerCase()}`);
+  sound.fanfare();
+  persist();
 }
 
 function useRod(blockDist: number) {
@@ -4004,6 +4072,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { hostiles, fight, attackStart, attackRelease, defend, wildlife, shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { dungeon, legends, hostiles, fight, attackStart, attackRelease, defend, wildlife, shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.25',
+    title: 'Mazmorras y ruinas',
+    items: [
+      'Bajo las islas de recursos y las misteriosas hay una mazmorra, distinta en cada visita: entrada, pasillo, sala de trampas, sala del puzle, sala del jefe y tesoro.',
+      'Cuatro temas: catacumbas de piedra, templo de arenisca, cueva helada y fragua volcánica, cada uno con su jefe (rey esqueleto, gran limo dorado, gólem de hielo y gólem de magma). Los jefes avisan antes de cada ataque.',
+      'Trampas de pinchos, placas que disparan flechas y suelo que se hunde; puzle de palancas de colores con una pista en un cartel.',
+      'Ruinas en la superficie: un templo con la escalera de caracol que baja a la mazmorra y una torre caída con un cofre y una pista.',
+      'El tesoro trae materiales valiosos, fósiles y siempre algo legendario que aún no tengas, como la espada estelar o el arco lunar.',
+    ],
+  },
+  {
     version: '4.24',
     title: 'Armas y criaturas hostiles',
     items: [
