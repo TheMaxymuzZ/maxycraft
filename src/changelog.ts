@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.22',
+    title: 'Archipiélago navegable',
+    items: [
+      'Alrededor de tu isla hay nueve islas a las que se llega navegando: pon rumbo hacia una y, al alejarte de casa, llegas a su playa en tu barco.',
+      'Tres tipos de isla: aldeas con vecinos que charlan y alguien a quien invitar, islas de recursos que cambian cada tres días y una sola isla misteriosa, muy lejos.',
+      'Las islas lejanas piden un barco mejor: la balsa llega a las cercanas, el velero a las lejanas y el barco de expedición a todas.',
+      'La carta náutica enseña el mar: las islas visitadas con su nombre y las demás tapadas por la niebla.',
+      'Para volver, navega lejos de la isla. A veces Plumas está de paso y te lleva en avioneta: el barco vuelve solo al muelle con su bodega.',
+    ],
+  },
+  {
     version: '4.21',
     title: 'Astillero y barco propio',
     items: [

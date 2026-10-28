@@ -285,5 +285,5 @@ Object.assign(LORE, {
   cebo: 'Lombrices y migas de pan. Con un cebo en los bolsillos, los peces pican mucho antes.',
   brujula: 'La aguja siempre señala al norte. Úsala para saber hacia dónde vas y dónde queda el astillero.',
   catalejo: 'Úsalo para ver de cerca lo que está muy lejos. Muy útil para buscar islas desde el barco.',
-  carta_nautica: 'Un mapa de las aguas de alrededor de la isla, con el astillero y el muelle marcados.',
+  carta_nautica: 'El mar alrededor de tu isla, con las islas que ya has visitado. Lo que no has explorado sale tapado por la niebla.',
 });

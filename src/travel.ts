@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FRUITS, type Block } from './blocks';
+import type { SeaIslandType } from './archipelago';
 import { MYSTERY_KINDS, type MysteryKind } from './world';
 
 /** Un viaje a una isla misteriosa. Dura hasta volver a casa o cerrar el juego. */
@@ -13,6 +14,16 @@ export interface Trip {
   visitor: string | null;
   /** Cuántas casas construidas y libres había en casa al salir. */
   room: number;
+  /** Viaje en barco a una isla del archipiélago (v4.22). Sin esto, es un viaje en avioneta. */
+  sea?: SeaTrip;
+}
+
+export interface SeaTrip {
+  island: string;
+  name: string;
+  type: SeaIslandType;
+  /** Plumas está de paso en la isla y te puede llevar a casa en avioneta. */
+  plumas: boolean;
 }
 
 const KEY = 'maxycraft.viaje';

@@ -408,5 +408,5 @@ export const BRUJULA: ShopDef = {
 export const KIOSK_GREETINGS = [
   '¡{saludo}! El mar está precioso hoy. ¿Cebos, una caña nueva, un catalejo, {c}?',
   'Con cebo pican antes. ¡Palabra de nutria, {c}!',
-  'La carta náutica enseña dónde hay islas. Bueno… pronto, {c}.',
+  'La carta náutica enseña las islas del mar. ¡Hay nueve ahí fuera, {c}!',
 ];

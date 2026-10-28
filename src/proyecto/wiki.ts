@@ -19,6 +19,8 @@ import { MERCHANTS } from '../commerce';
 import { catalogOf } from '../economy';
 import { CLOTHES, GARMENTS, SLOT_NAMES } from '../clothes';
 import { BIOME_ATLAS } from '../biomeFx';
+import { RING_BOAT, RING_NAMES, SEA_TYPES } from '../archipelago';
+import { MYSTERY_NAMES } from '../travel';
 import { BOATS, BRUJULA, KIOSK_KEEPER, SHIPWRIGHT, STAGES, STAGE_COSTS, UPGRADES, type Cost } from '../shipyard';
 import { BIOME_NAMES, CLIMATE_NAMES } from '../world';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
@@ -193,6 +195,11 @@ fill('tabla-astillero', STAGES.slice(1).map((st, i) => `<td><b>${i + 1}. ${esc(s
 fill('tabla-barcos', BOATS.map((b) => `<td><b>${esc(b.name)}</b></td><td>${esc(b.text)}</td><td class="num">${b.speed}</td><td class="num">${b.hold}</td><td>Etapa ${b.stage}</td><td>${costCells(b.cost)}</td>`));
 fill('tabla-mejoras-barco', UPGRADES.map((u) => `<td><b>${esc(u.name)}</b></td><td>${esc(u.text)}${u.max > 1 ? ` (hasta ${u.max} veces)` : ''}</td><td>${costCells(u.cost)}</td>`));
 fill('tabla-brujula', [`<td>${catalogOf(BRUJULA).map((id) => item(id)).join(' ')}</td>`]);
+fill('tabla-islas-mar', (Object.keys(SEA_TYPES) as (keyof typeof SEA_TYPES)[]).map((t) => {
+  const kinds = { misteriosa: ['cristal', 'volcan', 'setas'], recursos: ['minerales', 'bambu', 'nieve', 'flores'], aldea: ['frutas', 'flores'] }[t] as (keyof typeof MYSTERY_NAMES)[];
+  return `<td>${SEA_TYPES[t].icon} <b>${esc(SEA_TYPES[t].name)}</b></td><td>${esc(SEA_TYPES[t].text)}</td><td>${kinds.map((k) => esc(MYSTERY_NAMES[k].replace(/^Isla /, ''))).join(', ')}</td>`;
+}));
+fill('tabla-distancias', ([1, 2, 3] as const).map((r) => `<td><b>${RING_NAMES[r]}</b></td><td>${esc(BOATS.find((b) => b.kind === RING_BOAT[r])!.name)} o mejor</td>`));
 fill('tabla-biomas', BIOME_ATLAS.map((b) => `<td><b>${esc(BIOME_NAMES[b.biome])}</b></td><td>${CLIMATE_NAMES[b.climate]}</td><td>${esc(b.text)}</td><td>${b.finds.map((id) => item(id, 1, false)).join(' ')}</td><td>${esc(b.weather)}</td>`));
 
 // --- Tareas, premios y logros ---
