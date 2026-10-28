@@ -602,6 +602,17 @@ button.fav:focus-visible { outline: 2px solid var(--dirt); }
 .sign-panel footer button { font: 700 14px var(--display); padding: 8px 14px; border: 0; cursor: pointer; background: var(--grass); color: #fff; border-radius: 6px; }
 #sign-cancel { background: #8b5a35; }
 
+/* Carta náutica (v4.22). */
+#sea-chart { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(20, 40, 60, 0.55); z-index: 5; }
+#sea-chart[hidden] { display: none; }
+.shop-panel.chart-panel { grid-template-columns: 1fr; width: min(560px, 100%); gap: 10px; }
+.chart-panel h2, .chart-hint { margin: 0; }
+#sea-chart-map svg { display: block; width: 100%; height: auto; border-radius: 10px; }
+#sea-chart-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+#sea-chart-list li { display: flex; gap: 8px; align-items: baseline; }
+#sea-chart-list small { opacity: .75; }
+.chart-panel footer button { font: 700 14px var(--display); padding: 8px 14px; border: 0; cursor: pointer; background: #8b5a35; color: #fff; border-radius: 6px; }
+
 /* --- v2.10: casas para vecinos nuevos --- */
 #lot-status {
   padding: 6px 14px; background: var(--paper); color: var(--ink); border: 3px solid var(--grass-deep); border-radius: 14px;

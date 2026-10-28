@@ -174,6 +174,15 @@ export class ShipyardGame {
     return null;
   }
 
+  /** Deja el barco en el agua en (x, z) mirando hacia (dx, dz): al llegar navegando a otra isla (v4.22). */
+  anchorAt(x: number, z: number, dx: number, dz: number) {
+    if (!this.boat) return;
+    this.boat.x = x;
+    this.boat.z = z;
+    this.boat.yaw = Math.atan2(-dx, -dz);
+    this.boat.speed = 0;
+  }
+
   /** Vuelve a dejar el barco amarrado junto a la grada. */
   moor() {
     const s = this.site;

@@ -60,7 +60,9 @@ import { CLOTHES, clothOf } from './clothes';
 import { MERCHANTS, repairCost } from './commerce';
 import { ShopFront } from './game/shopFront';
 import { ShipyardGame } from './game/shipyard';
-import { BRUJULA, shipyardCenter } from './shipyard';
+import { type SeaSave, RING_BOAT, archipelago, canReach, dayNumber, genericVillagers, islandAhead, islandSeed, isSeaSave } from './archipelago';
+import { chartList, chartSvg } from './seaChart';
+import { BRUJULA, boatModel, shipyardCell, shipyardCenter } from './shipyard';
 import { PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, findTerminalSite, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
 import { WEATHER_TEXT, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
@@ -73,7 +75,7 @@ import { Orchard, TREE_KINDS, canPlantOn, isSapling, treeKindOfFruit, treeKindOf
 import { TUTORIAL_REWARD, Tutorial } from './tutorial';
 import { MYSTERY_NAMES, Seaplane, loadTrip, planTrip, saveTrip } from './travel';
 import { LotGhosts, type Lot, describeMissing, inLot, lotFrom, lotPlot, lotProblem, lotProgress } from './lots';
-import { type Guest, PILOT, type Villager, createVillagers, createVisitor, knockReply, pickVisitor, villagerWeather } from './villagers';
+import { type Guest, PILOT, Villager, createVillagers, createVisitor, knockReply, pickVisitor, villagerWeather } from './villagers';
 import { WeatherFx } from './weather';
 import { Workbench } from './workbench';
 import { Water } from './water';
@@ -225,6 +227,12 @@ const climate = save ? save.climate : (() => {
 })();
 // De viaje en una isla misteriosa: se juega en otra isla, pero los bolsillos y las bayas son los de casa.
 const trip = save ? loadTrip(activeSlot()) : null;
+/** Las islas del mar de tu isla (v4.22) y las que ya has visitado. */
+const seaIslands = archipelago(seed);
+const seaSave: SeaSave = { discovered: isSeaSave(save?.sea) ? [...save!.sea.discovered] : [] };
+if (trip?.sea && !seaSave.discovered.includes(trip.sea.island)) seaSave.discovered.push(trip.sea.island);
+/** En un viaje en barco, Plumas solo está si ha venido de paso (v4.22). */
+const plumasHere = !trip?.sea || trip.sea.plumas;
 /** Vecinos invitados desde las islas misteriosas, que viven (o vivirán) en la isla de casa. */
 const guests: Guest[] = (joined?.snapshot.guests ?? save?.guests ?? []).map((g) => ({ ...g }));
 /** Casas que construye el jugador para vecinos nuevos (v2.10). */
@@ -374,7 +382,7 @@ if (terminalSite) {
   const [sx, sz] = seaward(terminalSite);
   plane.place(px, SEA_LEVEL + 0.7, pz, sx, sz);
   scene.add(plane.group);
-} else if (airport) {
+} else if (airport && plumasHere) {
   plane.place(airport.x + 0.5 + airport.dx * 5, SEA_LEVEL + 0.7, airport.z + 0.5 + airport.dz * 5, airport.dx, airport.dz);
   scene.add(plane.group);
 }
@@ -453,7 +461,7 @@ const paths = pathsFor(world);
 const villagers = createVillagers(world, save?.villagers ?? {}, guests, trip ? [] : lots.map(lotPlot));
 // El piloto espera en la playa junto a la avioneta; en las islas misteriosas hay alguien de vacaciones.
 let pilot: Villager | null = null;
-if (airport) {
+if (airport && plumasHere) {
   pilot = createVisitor(world, PILOT.name, pilotSpot![0], airport.y, pilotSpot![1], save?.villagers?.[PILOT.name] ?? { friendship: 0 });
   if (pilot) villagers.push(pilot);
   // En la terminal, Plumas mira desde el mostrador hacia la sala de espera.
@@ -479,6 +487,22 @@ for (const v of villagers) {
   scene.add(v.group, v.extras);
   if (v.isBirthday(startDate)) v.addPartyHat();
 }
+/** Los vecinos sin nombre de las islas aldea (v4.22): charlan contigo pero no se mudan. */
+const genericNames = new Set<string>();
+if (trip?.sea?.type === 'aldea') {
+  const spots = [[10, 6], [-8, 9], [6, -10], [-11, -5]];
+  for (const [i, profile] of genericVillagers(trip.seed, spots.length).entries()) {
+    const [x, z] = world.findSpawn(spots[i][0], spots[i][1]);
+    const y = world.heightAt(x, z);
+    const v = new Villager(profile, { kind: 'house', x, z: z - 3, y, roof: Block.RoofRed, door: [x, y + 1, z] }, world, { friendship: 0 });
+    villagers.push(v);
+    scene.add(v.group, v.extras);
+    genericNames.add(profile.name);
+    // Una farola y un banco junto a cada uno: el pueblecito.
+    if (world.getBlock(x + 1, y + 1, z) === Block.Air) decor.place('farola', x + 1, y + 1, z, 0);
+    if (world.getBlock(x - 1, y + 1, z) === Block.Air) decor.place('banco', x - 1, y + 1, z, 1);
+  }
+}
 /** El astillero y tu barco (v4.21): en tu isla aparecen unas ruinas en la playa del otro lado de la isla. */
 const shipyardBeaches = trip || joined ? [] : [Math.PI, Math.PI / 2, -Math.PI / 2]
   .map((turn) => world.findAirport((shopPlot ? Math.atan2(shopPlot.z, shopPlot.x) : 0) + turn))
@@ -489,7 +513,12 @@ const shipyard = new ShipyardGame({
   put: (x, y, z, b) => sync.setBlock(x, y, z, b),
   wallet: () => wallet,
   pay: (n) => setWallet(wallet - n),
-}, trip ? null : joined ? joined.snapshot.shipyard : save?.shipyard, trip ? null : joined ? joined.snapshot.boat : save?.boat, shipyardBeaches);
+}, trip ? null : joined ? joined.snapshot.shipyard : save?.shipyard, trip && !trip.sea ? null : joined ? joined.snapshot.boat : save?.boat, shipyardBeaches);
+// Llegando en barco a otra isla (v4.22), el barco queda en el agua frente a la playa, a un lado de la avioneta.
+if (trip?.sea && airport) {
+  const [dx, dz] = [airport.dx, airport.dz];
+  shipyard.anchorAt(airport.x + 0.5 + dx * 5 - dz * 6, airport.z + 0.5 + dz * 5 + dx * 6, dx, dz);
+}
 // Camas (v4.11), muebles regalados y jardines (v4.12) de las casas de los vecinos.
 const villagerHomes = new VillagerHomes(world, villagers, lampHook);
 scene.add(villagerHomes.furniture.group);
@@ -550,7 +579,7 @@ function showSaveIndicator(text: string, error = false) {
 function persist(urgent = false) {
   if (!saving || netTest === 'invitado') return;
   const p = player.position;
-  const memories = Object.fromEntries(villagers.map((v) => [v.name, v.memory]));
+  const memories = Object.fromEntries(villagers.filter((v) => !genericNames.has(v.name)).map((v) => [v.name, v.memory]));
   // De visita en la isla de un amigo solo se guarda lo tuyo: bolsillos, bayas, enciclopedia y recetas.
   const own = joined ? loadGame() : null;
   if (joined && !own) return;
@@ -587,6 +616,9 @@ function persist(urgent = false) {
     guests,
     missions: missions.serialize(),
     clock: clock.serialize(),
+    sea: { discovered: [...seaSave.discovered] },
+    // El barco vuelve solo a su sitio en el muelle de casa, con lo que lleve en la bodega (v4.22).
+    boat: shipyard.boat && homeSave.boat ? { ...shipyard.boat.save(), x: homeSave.boat.x, z: homeSave.boat.z, yaw: homeSave.boat.yaw } : homeSave.boat,
     savedAt: 0,
   } : {
     version: SAVE_VERSION,
@@ -627,6 +659,7 @@ function persist(urgent = false) {
     mail: mailDay,
     terminal: terminalSite ?? undefined,
     ...shipyard.save(),
+    sea: { discovered: [...seaSave.discovered] },
     wardrobe: wardrobe.serialize(),
     missions: missions.serialize(),
     clock: clock.serialize(),
@@ -823,7 +856,7 @@ function unlockInput() {
 }
 
 /** Ventana abierta encima del juego (con el ratón libre), o null si se está jugando. */
-let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | 'sleep' | 'sleeping' | 'map' | 'wardrobe' | null = null;
+let panel: 'inventory' | 'dialog' | 'shop' | 'collection' | 'workbench' | 'missions' | 'storage' | 'sign' | 'chat' | 'gestures' | 'faint' | 'sleep' | 'sleeping' | 'map' | 'wardrobe' | 'carta' | null = null;
 let currentHour = 12;
 
 function openInventory() {
@@ -1321,12 +1354,14 @@ const dialog = new Dialog({
     return holiday;
   },
   isBirthday: (v) => v.isBirthday(gameDate()),
-  known: (v) => (collection.met.has(v.name) ? collection.learned[v.name] ?? KNOW.met : 0),
+  // Los vecinos sin nombre de las aldeas (v4.22) no van al álbum: siempre se les conoce de sobra.
+  known: (v) => (genericNames.has(v.name) ? KNOW.birthday : collection.met.has(v.name) ? collection.learned[v.name] ?? KNOW.met : 0),
   learn: (v, step) => {
+    if (genericNames.has(v.name)) return;
     collection.learned[v.name] = Math.max(collection.learned[v.name] ?? 0, step);
   },
   met: (v) => {
-    if (collection.met.has(v.name)) return;
+    if (collection.met.has(v.name) || genericNames.has(v.name)) return;
     collection.met.add(v.name);
     hud.toast(`${v.name} se ha añadido a tu álbum de vecinos (C)`);
   },
@@ -1660,6 +1695,10 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === keys.map) closeMap();
     return;
   }
+  if (panel === 'carta') {
+    if (e.code === 'Escape') closeChart();
+    return;
+  }
   if (e.code === keys.map && isPlaying()) {
     openMap();
     return;
@@ -1769,6 +1808,7 @@ function closeAnyPanel() {
   if (panel === 'faint') wakeUpAtHome();
   if (panel === 'sleep' || panel === 'sleeping') leaveBed();
   if (panel === 'map') mapScreen.hide();
+  if (panel === 'carta') chartEl.hidden = true;
   panel = null;
 }
 let arrived = false;
@@ -1779,7 +1819,9 @@ function onInputChange() {
     menu.close();
     if (trip && !arrived) {
       arrived = true;
-      hud.toast(`¡Bienvenida, bienvenido a la ${MYSTERY_NAMES[trip.kind]}! Habla con Plumas para volver a casa`);
+      hud.toast(trip.sea
+        ? `¡Has llegado a ${trip.sea.name}! ${trip.sea.plumas ? 'Plumas está de paso: te puede llevar a casa. ' : ''}Para volver navegando, aléjate de la isla en tu barco`
+        : `¡Bienvenida, bienvenido a la ${MYSTERY_NAMES[trip.kind]}! Habla con Plumas para volver a casa`);
     }
     closeAnyPanel();
     return;
@@ -2096,7 +2138,7 @@ function useAboard() {
 
 /** Subirse al barco que tienes delante. */
 function boardBoat() {
-  if (joined || trip) {
+  if (joined || (trip && !trip.sea)) {
     hud.toast('Este barco es de quien vive en la isla');
     return;
   }
@@ -2243,7 +2285,7 @@ function useItem() {
     return;
   }
   if (def?.id === 'carta_nautica') {
-    openMap();
+    openChart();
     return;
   }
   if (def?.tool === 'rod') {
@@ -2529,7 +2571,7 @@ function openMap() {
   }
   breaker.active = false;
   panel = 'map';
-  const title = trip ? `Mapa de la ${MYSTERY_NAMES[trip.kind]}` : joined ? `Mapa de la isla de ${net?.hostPeer?.name ?? 'tu amigo'}` : 'Mapa de tu isla';
+  const title = trip?.sea ? `Mapa de ${trip.sea.name}` : trip ? `Mapa de la ${MYSTERY_NAMES[trip.kind]}` : joined ? `Mapa de la isla de ${net?.hostPeer?.name ?? 'tu amigo'}` : 'Mapa de tu isla';
   mapScreen.show(title, player.position.x, player.position.z, player.yaw);
   unlockInput();
 }
@@ -3424,9 +3466,108 @@ function checkBiome(dt: number) {
 }
 
 let lotTimer = 0;
+// --- La carta náutica y navegar a otras islas (v4.22) ---
+const chartEl = document.querySelector<HTMLDivElement>('#sea-chart')!;
+document.querySelector('#sea-chart-close')!.addEventListener('click', () => closeChart());
+
+function openChart() {
+  const discovered = new Set(seaSave.discovered);
+  const boat = shipyard.boat?.kind ?? null;
+  const p = shipyard.sailing && shipyard.boat ? shipyard.boat : player.position;
+  const you = trip ? null : { x: p.x, z: p.z, yaw: shipyard.sailing && shipyard.boat ? shipyard.boat.yaw : player.yaw };
+  document.querySelector('#sea-chart-map')!.innerHTML = chartSvg(seaIslands, discovered, boat, you, world.outerRadius);
+  document.querySelector('#sea-chart-list')!.innerHTML = chartList(seaIslands, discovered, boat);
+  breaker.active = false;
+  panel = 'carta';
+  chartEl.hidden = false;
+  sound.place();
+  unlockInput();
+}
+
+function closeChart() {
+  chartEl.hidden = true;
+  panel = null;
+  lockInput();
+}
+
+/** Se ha salido del mar de casa: ya se navega hacia otra isla (o de vuelta). */
+let leavingByBoat = false;
+/** Último aviso de mar abierto, para no repetirlo en cada fotograma. */
+let openSeaWarned = 0;
+
+/** Funde la pantalla y recarga en la otra isla, como la avioneta pero sin ella. */
+function sailAway(text: string, next: () => void) {
+  leavingByBoat = true;
+  // En casa el barco y tú os quedáis en el muelle: si se cierra el juego a mitad de viaje, se vuelve ahí.
+  if (!trip) {
+    shipyard.sailing = false;
+    player.mounted = null;
+    shipyard.moor();
+    if (shipyard.site) {
+      const [x, y, z] = shipyardCell(shipyard.site, 2, 1, 12);
+      player.position.set(x + 0.5, y, z + 0.5);
+    }
+  }
+  persist(true);
+  saving = false;
+  sound.fanfare();
+  document.querySelector('#travel-text')!.textContent = text;
+  document.querySelector<HTMLDivElement>('#travel-fade')!.hidden = false;
+  window.setTimeout(() => {
+    next();
+    reloadTo();
+  }, 2200);
+}
+
+/** El barco da media vuelta con un aviso (mar abierto o isla demasiado lejos para tu barco). */
+function turnBack(text: string) {
+  const b = shipyard.boat!;
+  b.yaw += Math.PI;
+  b.speed = 0;
+  hud.toast(text);
+}
+
+function checkOpenSea(seconds: number) {
+  const b = shipyard.boat;
+  if (!shipyard.sailing || !b || leavingByBoat || joined) return;
+  const d = Math.hypot(b.x, b.z);
+  const edge = world.outerRadius + 36;
+  if (d < edge) return;
+  if (trip?.sea) {
+    sailAway('Volviendo a casa navegando…', () => saveTrip(null));
+    return;
+  }
+  if (trip) return;
+  const island = islandAhead(seaIslands, b.x, b.z);
+  if (!island) {
+    if (d > edge + 24) turnBack('Aquí solo hay mar abierto. Mira la carta náutica para saber hacia dónde quedan las islas');
+    else if (seconds - openSeaWarned > 8) {
+      openSeaWarned = seconds;
+      hud.toast('Mar abierto: por aquí no se ve ninguna isla');
+    }
+    return;
+  }
+  if (!canReach(b.kind, island)) {
+    turnBack(`Esa isla queda muy lejos para tu ${boatModel(b.kind).name.toLowerCase()}: hace falta ${boatModel(RING_BOAT[island.ring]).name.toLowerCase()} o mejor`);
+    return;
+  }
+  const residents = [...villagers.filter((v) => !v.profile.role).map((v) => v.name), ...guests.map((g) => g.name)];
+  checkLots();
+  const t = planTrip(activeSlot(), world.fruit, null, freeLots().length);
+  t.seed = islandSeed(island, dayNumber(dayKey(gameDate())));
+  t.kind = island.kind;
+  t.visitor = pickVisitor(residents, Math.random, t.kind);
+  t.sea = { island: island.id, name: island.name, type: island.type, plumas: Math.random() < 0.4 };
+  saveTrip(t);
+  record('viajar');
+  const known = seaSave.discovered.includes(island.id);
+  sailAway(known ? `Navegando hacia ${island.name}…` : 'Navegando hacia una isla sin explorar…', () => {});
+}
+
 /** El barco (v4.21): avanza con lo que pulsas, te lleva sentado y se mece en las olas. */
 const boatSeat = new THREE.Vector3();
 function updateBoat(dt: number, seconds: number) {
+  checkOpenSea(seconds);
   if (shipyard.sailing && !isPlaying()) player.drive.throttle = player.drive.turn = 0;
   const drive = shipyard.sailing ? player.drive : null;
   if (shipyard.update(dt, seconds, sky.night, dayKey(gameDate()), drive)) {
@@ -3653,6 +3794,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { shipyard, boardBoat, leaveBoat, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }
