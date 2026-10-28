@@ -15,6 +15,8 @@ import { GameClock, dailyRandom, dayKey, timeOverrides } from './clock';
 import { Clouds, cloudCover } from './clouds';
 import { Collection, sizeText } from './collection';
 import { Wildlife } from './wildlife';
+import { HOSTILES, HOSTILE_KINDS, type HostilePlace, Hostiles } from './hostiles';
+import { CHARGE_TIME, DODGE_COOLDOWN, DODGE_SPEED, DODGE_TIME, FISTS, arrowDamage, hitDamage, rollLoot, shieldBlock, weaponStats } from './combat';
 import { calendar, creature, pickCreature } from './creatures';
 import { Dialog, KNOW } from './dialog';
 import { Drops } from './drops';
@@ -341,6 +343,30 @@ const wildWorld = {
 };
 const boatSpot = new THREE.Vector3();
 scene.add(wildlife.group);
+
+// --- Combate y criaturas hostiles (v4.24) ---
+// Solo lejos de casa: en tu isla y en las islas aldea no sale ninguna, ni con el modo tranquilo.
+const hostiles = new Hostiles();
+scene.add(hostiles.group);
+const STRANGE: Partial<Record<string, HostilePlace>> = { luminoso: 'luminoso', volcanico: 'volcanico', setas: 'setas' };
+const MYSTERY_PLACE: Partial<Record<string, HostilePlace>> = { volcan: 'volcanico', setas: 'setas', cristal: 'luminoso' };
+const hostileWorld = {
+  solid: (x: number, y: number, z: number) => isSolid(world.getBlock(x, y, z)),
+  placeAt(x: number, y: number, z: number): HostilePlace | null {
+    // En una cueva: bien por debajo del suelo de esa columna.
+    if (y < world.heightAt(x, z) - 4) return 'cueva';
+    const b = world.biomeAt(x, z);
+    return (b && STRANGE[b]) || (world.mystery ? MYSTERY_PLACE[world.mystery.kind] ?? null : null);
+  },
+};
+/** Si aquí puede haber criaturas hostiles. */
+function hostileIsland(): boolean {
+  return !!trip && trip.sea?.type !== 'aldea' && !joined;
+}
+/** Combate: golpe cargado, esquiva y bloqueo con escudo. */
+const fight = { charging: 0, cooldown: 0, dodge: 0, dodgeWait: 0, blocking: false, blockUntil: 0 };
+/** Zona de pruebas (?pruebas): todas las armas en los bolsillos y una criatura de cada alrededor, también en casa. */
+const arena = { on: params.has('pruebas'), ready: false };
 
 let today = dayKey(startDate);
 
@@ -1632,6 +1658,8 @@ const touch = touchMode
       use: () => useItem(),
       setBreaking: (on) => {
         if (on && pickUpFurniture()) return;
+        if (on && attackStart()) return;
+        if (!on) attackRelease();
         breaker.active = on;
       },
       inventory: () => openInventory(),
@@ -1889,11 +1917,15 @@ const breaker = new Breaker({
 canvas.addEventListener('mousedown', (e) => {
   if (!isPlaying()) return;
   if (e.button === 0) {
-    if (!pickUpFurniture()) breaker.active = true;
+    if (!pickUpFurniture() && !attackStart()) breaker.active = true;
   } else if (e.button === 2) useItem();
 });
 window.addEventListener('mouseup', (e) => {
-  if (e.button === 0) breaker.active = false;
+  if (e.button === 0) {
+    breaker.active = false;
+    attackRelease();
+  }
+  if (e.button === 2) fight.blocking = false;
 });
 
 /** Bloques donde se puede encontrar un fósil al cavar (v4.15). */
@@ -2295,6 +2327,11 @@ function useItem() {
     return;
   }
 
+  if (def?.weapon) {
+    defend();
+    return;
+  }
+
   if (def?.id === 'brujula') {
     readCompass();
     return;
@@ -2514,7 +2551,9 @@ function faint(cause: HurtCause) {
     closeAnyPanel();
     panel = 'faint';
   }
-  const loss = faintLoss(wallet, inventory.slots, (id) => !!itemDef(id).tool || id === 'mapa');
+  // Si te vencen las criaturas (v4.24) no pierdes nada: vuelves a la entrada con tu equipo.
+  const loss = cause === 'criatura' ? { berries: 0, items: [] } : faintLoss(wallet, inventory.slots, (id) => !!itemDef(id).tool || id === 'mapa');
+  hostiles.clear();
   for (const l of loss.items) {
     const s = inventory.slots[l.slot];
     if (!s) continue;
@@ -2917,6 +2956,123 @@ function useBucket(full: 'agua' | 'lava' | null) {
   if (full === 'lava') sync.setBlock(x, y, z, isWater(here) ? Block.Obsidian : Block.Lava);
   else sync.setBlock(x, y, z, isLava(here) ? (isLavaSource(here) ? Block.Obsidian : Block.PetrifiedLava) : Block.Water);
   swap('cubo');
+}
+
+/** Un fotograma del combate: las criaturas se mueven y te atacan, y lo que sueltan al vencerlas. */
+function updateCombat(dt: number, seconds: number) {
+  hostiles.enabled = (arena.on || hostileIsland()) && !settings.calm && spawned && !vitals.fainted;
+  if (arena.on && !arena.ready && hostiles.enabled) {
+    arena.ready = true;
+    for (const id of ['espada_madera', 'espada_piedra', 'espada_hierro', 'espada_cristal', 'espada_obsidiana', 'arco', 'escudo_hierro']) inventory.add(id);
+    inventory.add('flecha', 64);
+    const p = player.position;
+    HOSTILE_KINDS.forEach((k, i) => {
+      const a = (i / HOSTILE_KINDS.length) * Math.PI * 2;
+      const x = Math.floor(p.x + Math.cos(a) * 7);
+      const z = Math.floor(p.z + Math.sin(a) * 7);
+      const fly = HOSTILES[k].move === 'vuela' || HOSTILES[k].move === 'flota';
+      hostiles.spawn(k, x + 0.5, world.heightAt(x, z) + 1 + (fly ? 1.5 : 0), z + 0.5).pinned = true;
+    });
+    hud.toast('Zona de pruebas: una criatura de cada y todas las armas');
+  }
+  fight.cooldown = Math.max(0, fight.cooldown - dt);
+  fight.dodge = Math.max(0, fight.dodge - dt);
+  fight.dodgeWait = Math.max(0, fight.dodgeWait - dt);
+  if (fight.blocking && fight.blockUntil && seconds * 1000 > fight.blockUntil) fight.blocking = false;
+  const events = hostiles.update(dt, seconds, player.position, sky.night, hostileWorld);
+  for (const hit of events.hits) takeHit(hit.damage, hit.from);
+  for (const d of hostiles.defeated.splice(0)) {
+    for (const l of rollLoot(HOSTILES[d.kind].loot)) for (let i = 0; i < l.count; i++) drops.spawn(l.id, d.pos.x, d.pos.y + 0.5, d.pos.z, { burst: true });
+    record('vencer');
+  }
+}
+
+/** Te da una criatura: la esquiva te libra y el escudo, si miras hacia el golpe, para casi todo. */
+function takeHit(damage: number, from: THREE.Vector3) {
+  if (fight.dodge > 0 || vitals.fainted) return;
+  const shield = hud.selectedStack && itemDef(hud.selectedStack.id).weapon === 'escudo' ? hud.selectedStack.id : inventory.offhand?.id;
+  if (fight.blocking && shield) {
+    camera.getWorldDirection(dir);
+    const to = from.clone().sub(player.position).setY(0).normalize();
+    if (dir.x * to.x + dir.z * to.z > 0.35) {
+      damage = Math.round(damage * shieldBlock(shield));
+      sound.swing(true);
+      if (inventory.offhand?.id === shield) inventory.wearOffhand();
+      else inventory.wearTool(hud.selected);
+    }
+  }
+  // Te empuja un poco hacia atrás.
+  const push = player.position.clone().sub(from).setY(0).normalize().multiplyScalar(5);
+  player.velocity.x += push.x;
+  player.velocity.z += push.z;
+  if (damage > 0) vitals.hurt(damage, 'criatura');
+}
+
+/** Clic izquierdo pulsado: con espada o arco empieza a cargar; con la mano, si hay una criatura delante, golpea. */
+function attackStart(): boolean {
+  const def = hud.selectedStack ? itemDef(hud.selectedStack.id) : null;
+  if (def?.weapon === 'espada' || def?.weapon === 'arco') {
+    fight.charging = performance.now();
+    return true;
+  }
+  const target = hostiles.aimed(aimRay(), FISTS.reach);
+  if (!target) return false;
+  strike(0);
+  return true;
+}
+
+/** Clic izquierdo soltado: golpe (cargado si lo has mantenido) o flecha. */
+function attackRelease() {
+  if (!fight.charging) return;
+  const secs = (performance.now() - fight.charging) / 1000;
+  fight.charging = 0;
+  const stack = hud.selectedStack;
+  if (stack && itemDef(stack.id).weapon === 'arco') {
+    if (!inventory.remove('flecha', 1)) {
+      hud.toast('No te quedan flechas: se fabrican con una rama y una piedra');
+      return;
+    }
+    camera.getWorldDirection(dir);
+    const draw = Math.min(1, secs / CHARGE_TIME);
+    hostiles.shoot(camera.position.clone().addScaledVector(dir, 0.6), dir.clone().multiplyScalar(10 + draw * 18), arrowDamage(stack.id, draw), true);
+    sound.swing(false);
+    if (inventory.wearTool(hud.selected)) hud.toast('¡Tu arco se ha roto!');
+    return;
+  }
+  strike(secs);
+}
+
+function strike(secs: number) {
+  const stack = hud.selectedStack;
+  const stats = weaponStats(stack?.id);
+  if (fight.cooldown > 0) return;
+  fight.cooldown = stats.cooldown;
+  held.use();
+  const target = hostiles.aimed(aimRay(), stats.reach);
+  sound.swing(!!target);
+  if (!target) return;
+  camera.getWorldDirection(dir);
+  hostiles.damage(target, hitDamage(stats, secs), dir.clone());
+  if (stack && itemDef(stack.id).weapon === 'espada' && inventory.wearTool(hud.selected)) hud.toast(`¡Tu ${itemDef(stack.id).name.toLowerCase()} se ha roto!`);
+}
+
+/** Clic derecho con un arma: con escudo te cubres; sin escudo, esquivas hacia atrás. */
+function defend() {
+  const shield = (hud.selectedStack && itemDef(hud.selectedStack.id).weapon === 'escudo') || itemDef(inventory.offhand?.id ?? '')?.weapon === 'escudo';
+  if (shield) {
+    fight.blocking = true;
+    // En el móvil no hay «soltar»: el escudo se baja solo al segundo.
+    fight.blockUntil = touchMode ? performance.now() + 1000 : 0;
+    return;
+  }
+  if (fight.dodgeWait > 0 || !player.onGround) return;
+  camera.getWorldDirection(dir);
+  const back = dir.clone().setY(0).normalize().multiplyScalar(-DODGE_SPEED);
+  player.velocity.x = back.x;
+  player.velocity.z = back.z;
+  player.velocity.y = 3;
+  fight.dodge = DODGE_TIME;
+  fight.dodgeWait = DODGE_COOLDOWN;
 }
 
 function useRod(blockDist: number) {
@@ -3695,6 +3851,7 @@ function frame(now: number) {
   birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), birdWorld, livingBeings());
   const sailingBoat = shipyard.sailing && shipyard.boat ? boatSpot.set(shipyard.boat.x, SEA_LEVEL, shipyard.boat.z) : null;
   wildlife.update(dt, now / 1000, player.position, sky.night, wildWorld, sailingBoat);
+  updateCombat(dt, now / 1000);
   paths.update();
   for (const v of villagers) v.update(dt, hour, player.position, date.getDay());
   plane.update(dt, now / 1000);
@@ -3847,6 +4004,6 @@ function brightnessAt(p: THREE.Vector3, daylight: number): number {
 // Acceso desde la consola del navegador mientras se desarrolla.
 if (import.meta.env.DEV) {
   Object.assign(window, {
-    game: { wildlife, shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
+    game: { hostiles, fight, attackStart, attackRelease, defend, wildlife, shipyard, boardBoat, leaveBoat, openChart, seaIslands, seaSave, mesher, villagerHomes, town, parcels, museumHall, shopFront, commerce, merchantShops, checkCommerce, wardrobe, openWardrobe, get terminalSite() { return terminalSite; }, horizon, islandMap: mapScreen.map, openMap, friendHomes, vitals, useBed, goToBed, world, fluids, shadows, renderer, sunLight, lots, useBlueprint, checkLots, lighting, sync, get net() { return net; }, hostIsland, leaveFriends, friends, giveTo, remotes, orchard, removeBlock, player, farm, animals, useItem, missions, openMissions, record, trip, plane, get pilot() { return pilot; }, guests, takeOff, birds, held, sound, tutorial, touch, lockInput, unlockInput, isPlaying, weather, decor, get season() { return season; }, get holiday() { return holiday; }, clock, newDay, openStorage, workbench, openWorkbench, readBottle, furniture, home, setWallet, placeFurniture, pickUpFurniture, furnitureInSight, camera, villagers, bugs, fishing, collection, useRod, useNet, talkTo, dialog, shop, get wallet() { return wallet; }, persist, inventory, hud, drops, shakeTree, openInventory, closeInventory, currentHit, breaker, get breaking() { return breaker.active; }, get breakProgress() { return breaker.progress; } },
   });
 }

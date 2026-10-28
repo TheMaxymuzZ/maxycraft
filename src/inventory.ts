@@ -95,6 +95,19 @@ export class Inventory {
     return broke;
   }
 
+  /** Desgasta lo que llevas en la otra mano (el escudo, v4.24). Devuelve true si se ha roto. */
+  wearOffhand(): boolean {
+    const s = this.offhand;
+    if (!s) return false;
+    const def = itemDef(s.id);
+    if (!def.durability) return false;
+    s.wear = (s.wear ?? 0) + 1;
+    const broke = s.wear >= def.durability;
+    if (broke) this.offhand = null;
+    this.changed();
+    return broke;
+  }
+
   canCraft(r: Recipe): boolean {
     return r.needs.every(([id, n]) => this.countOf(id) >= n) && this.canFit(r.result, r.count);
   }

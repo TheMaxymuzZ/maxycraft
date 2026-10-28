@@ -315,6 +315,14 @@ export class Sound {
     this.tone(330, t, 0.16, 'square', 0.12, this.sfx, 180);
   }
 
+  /** Golpe con un arma (v4.24): un zas y, si da, un toc. */
+  swing(hit: boolean) {
+    const t = this.now;
+    if (t < 0) return;
+    this.hiss(t, 0.08, 0.3, 1200, this.sfx, 'bandpass');
+    if (hit) this.tone(180, t + 0.03, 0.1, 'square', 0.14, this.sfx, 90);
+  }
+
   /** Comer: tres mordiscos. */
   eat() {
     const t = this.now;

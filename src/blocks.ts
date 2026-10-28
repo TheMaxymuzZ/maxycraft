@@ -193,6 +193,25 @@ export const XTile = {
   CrystalRod: EXTRA_TILE_START + 121,
   LegendRod: EXTRA_TILE_START + 122,
   Lure: EXTRA_TILE_START + 123,
+  // Armas y botín (v4.24), después de las casillas de las criaturas.
+  WoodSword: EXTRA_TILE_START + 160,
+  StoneSword: EXTRA_TILE_START + 161,
+  IronSword: EXTRA_TILE_START + 162,
+  CrystalSword: EXTRA_TILE_START + 163,
+  ObsidianSword: EXTRA_TILE_START + 164,
+  Bow: EXTRA_TILE_START + 165,
+  Arrow: EXTRA_TILE_START + 166,
+  Shield: EXTRA_TILE_START + 167,
+  IronShield: EXTRA_TILE_START + 168,
+  SlimeBall: EXTRA_TILE_START + 169,
+  BatWing: EXTRA_TILE_START + 170,
+  Bone: EXTRA_TILE_START + 171,
+  LavaCore: EXTRA_TILE_START + 172,
+  SpiritDust: EXTRA_TILE_START + 173,
+  BlackPearl: EXTRA_TILE_START + 174,
+  SlimeCrown: EXTRA_TILE_START + 175,
+  VolcanoHeart: EXTRA_TILE_START + 176,
+  StarTear: EXTRA_TILE_START + 177,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -745,6 +764,58 @@ function paintClimateTiles(ctx: CanvasRenderingContext2D) {
   sapling(XTile.GlowSapling, [90, 200, 240], [70, 60, 110]);
   paintStrangeTiles(ctx);
   paintSeaTiles(ctx);
+  paintCombatTiles(ctx);
+}
+
+const SWORD = [
+  '................', '.............hH.', '............hHh.', '...........hHh..', '..........hHh...', '.........hHh....', '........hHh.....', '...gg..hHh......',
+  '....gghHh.......', '.....ggh........', '.....sgg........', '....s..gg.......', '...s............', '..ss............', '................', '................',
+];
+const GEM: (c: RGB, d: RGB, h: RGB) => [string[], Record<string, RGB>] = (c, d, h) => [[
+  '................', '................', '................', '.....dddddd.....', '....dcchcccd....', '...dcchhccccd...', '...dccccccccd...', '...dccccccccd...',
+  '...dccccccccd...', '....dccccccd....', '.....dccccd.....', '......dccd......', '.......dd.......', '................', '................', '................',
+], { c, d, h }];
+
+/** Espadas, arco, flechas, escudos y lo que sueltan las criaturas (v4.24). */
+function paintCombatTiles(ctx: CanvasRenderingContext2D) {
+  const sword = (tile: number, h: RGB, H: RGB) => toolSprite(ctx, tile, SWORD, { h, H, g: [120, 90, 50], s: [150, 108, 62] });
+  sword(XTile.WoodSword, [170, 124, 72], [210, 168, 110]);
+  sword(XTile.StoneSword, [140, 140, 136], [196, 196, 190]);
+  sword(XTile.IronSword, [200, 206, 218], [252, 252, 255]);
+  sword(XTile.CrystalSword, [150, 120, 230], [226, 210, 255]);
+  sword(XTile.ObsidianSword, [50, 34, 80], [140, 100, 200]);
+  toolSprite(ctx, XTile.Bow, [
+    '................', '.........ss.....', '........s..l....', '.......s...l....', '......s....l....', '.....s.....l....', '.....s.....l....', '....s......l....',
+    '....s......l....', '.....s.....l....', '.....s.....l....', '......s....l....', '.......s...l....', '........s..l....', '.........ss.....', '................',
+  ], { s: [150, 100, 56], l: [236, 236, 236] });
+  toolSprite(ctx, XTile.Arrow, [
+    '................', '............kk..', '...........kkk..', '..........ks....', '.........s......', '........s.......', '.......s........', '......s.........',
+    '.....s..........', '....s...........', '..fs............', '.ff.............', '.f..............', '................', '................', '................',
+  ], { k: [150, 150, 150], s: [150, 108, 62], f: [240, 240, 240] });
+  const shield = (tile: number, a: RGB, b: RGB, m: RGB) => toolSprite(ctx, tile, [
+    '................', '...mmmmmmmmmm...', '...maaaabbbbm...', '...maaaabbbbm...', '...maaaabbbbm...', '...maaaabbbbm...', '...mmmmmmmmmm...', '...mbbbbaaaam...',
+    '...mbbbbaaaam...', '....mbbbaaam....', '....mbbbaaam....', '.....mbbaam.....', '......mmmm......', '................', '................', '................',
+  ], { a, b, m });
+  shield(XTile.Shield, [170, 124, 72], [140, 98, 56], [120, 120, 126]);
+  shield(XTile.IronShield, [210, 214, 224], [170, 176, 190], [100, 104, 114]);
+  paintSprite(ctx, XTile.SlimeBall, ...GEM([110, 200, 90], [60, 130, 50], [200, 255, 180]));
+  paintSprite(ctx, XTile.BatWing, [
+    '................', '................', '.k..............', '.kk.......k.....', '.kkk.....kk.....', '.kkkk...kkk.....', '.kkkkkkkkkk.....', '.kkkkkkkkkkk....',
+    '..kkkkkkkkkkk...', '...kk.kk.kkkk...', '..........kkk...', '...........kk...', '................', '................', '................', '................',
+  ], { k: [70, 56, 70] });
+  toolSprite(ctx, XTile.Bone, [
+    '................', '.............ww.', '............wwww', '...........wwww.', '..........ww....', '.........ww.....', '........ww......', '.......ww.......',
+    '......ww........', '.....ww.........', '....ww..........', '.wwww...........', 'wwww............', '.ww.............', '................', '................',
+  ], { w: [236, 230, 210] });
+  paintSprite(ctx, XTile.LavaCore, ...GEM([250, 120, 30], [140, 40, 20], [255, 230, 120]));
+  paintSprite(ctx, XTile.SpiritDust, ...GEM([150, 240, 255], [70, 140, 200], [255, 255, 255]));
+  paintSprite(ctx, XTile.BlackPearl, ...GEM([50, 44, 60], [20, 16, 26], [180, 170, 200]));
+  paintSprite(ctx, XTile.SlimeCrown, [
+    '................', '................', '................', '...g...g...g....', '...gg.ggg.gg....', '...ggggggggg....', '...gyggrggyg....', '...ggggggggg....',
+    '...ggggggggg....', '................', '................', '................', '................', '................', '................', '................',
+  ], { g: [110, 210, 90], y: [250, 220, 60], r: [230, 60, 80] });
+  paintSprite(ctx, XTile.VolcanoHeart, ...GEM([220, 40, 40], [120, 20, 20], [255, 170, 80]));
+  paintSprite(ctx, XTile.StarTear, ...GEM([255, 240, 150], [200, 160, 40], [255, 255, 255]));
 }
 
 /** Lo que vende Brújula en el muelle (v4.21). */

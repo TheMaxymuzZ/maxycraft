@@ -15,6 +15,7 @@ export class Menu {
   private dayInputs: HTMLInputElement[] = [];
   private bigText = document.querySelector<HTMLInputElement>('#opt-bigtext')!;
   private colorblind = document.querySelector<HTMLInputElement>('#opt-colorblind')!;
+  private calm = document.querySelector<HTMLInputElement>('#opt-calm');
   private keysList = document.querySelector<HTMLUListElement>('#keys-list')!;
   private controlsList = document.querySelector<HTMLUListElement>('#controls-list')!;
   /** Acción esperando a que se pulse su tecla nueva. */
@@ -93,6 +94,10 @@ export class Menu {
     });
     this.colorblind.addEventListener('change', () => {
       this.settings.colorblind = this.colorblind.checked;
+      this.changed();
+    });
+    this.calm?.addEventListener('change', () => {
+      this.settings.calm = this.calm!.checked;
       this.changed();
     });
     document.querySelector('#keys-reset')!.addEventListener('click', () => {
@@ -178,6 +183,7 @@ export class Menu {
     this.qualityHint.textContent = QUALITIES.find((q) => q.id === this.settings.quality)!.hint;
     this.bigText.checked = this.settings.bigText;
     this.colorblind.checked = this.settings.colorblind;
+    if (this.calm) this.calm.checked = this.settings.calm;
     this.renderKeys();
     this.renderControls();
   }

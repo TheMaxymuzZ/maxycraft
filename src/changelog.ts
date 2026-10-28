@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.24',
+    title: 'Armas y criaturas hostiles',
+    items: [
+      'Espadas de madera, piedra, hierro, cristal y obsidiana, arco con flechas y escudos de madera y de hierro, con su daño y sus usos en la ficha.',
+      'Combate sencillo: golpe, golpe cargado (mantén el clic), esquiva hacia atrás y bloqueo con el escudo en la otra mano.',
+      'Criaturas hostiles lejos de casa: limos que se parten en dos, murciélagos de cueva, esqueletos que disparan flechas, gólems de lava y espíritus brillantes del bosque bioluminiscente.',
+      'Al vencerlas sueltan botín según su rareza, desde baba de limo hasta la corona de limo legendaria. Si te vencen, despiertas en la entrada sin perder nada.',
+      'Tu isla y las islas aldea siguen siendo pacíficas, y con el nuevo modo tranquilo (Opciones) no sale ninguna criatura hostil.',
+    ],
+  },
+  {
     version: '4.23',
     title: 'Fauna, mar y pesca',
     items: [
