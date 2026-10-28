@@ -122,8 +122,12 @@ function rarityOf(d: NewItem): Rarity {
   return 'comun';
 }
 
+/** Objetos cuya rareza sale del precio (no está dicha a mano): si el precio cambia, cambia con él (v4.26). */
+const PRICED_RARITY = new Set<string>();
+
 function add(item: NewItem) {
   const def: ItemDef = { ...item, kind: item.kind ?? kindOf(item), rarity: item.rarity ?? rarityOf(item) };
+  if (!item.rarity) PRICED_RARITY.add(def.id);
   defs.push(def);
   byId.set(def.id, def);
   if (def.block !== undefined) byBlock.set(def.block, def);
@@ -188,7 +192,8 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.MushroomStem, 'tallo_seta', 15],
   [Block.MushroomCap, 'sombrero_seta', 25],
   [Block.SmallMushroom, 'seta', 150],
-  [Block.Amethyst, 'bloque_amatista', 200],
+  // Épico: paga como tal desde la 4.26 (antes, 200, menos que una amatista suelta).
+  [Block.Amethyst, 'bloque_amatista', 1000],
   // Climas (v4.19): lo que se encuentra en cada uno.
   [Block.RedSand, 'arena_roja', 4, 15],
   [Block.Sandstone, 'arenisca', 12, 40],
@@ -275,7 +280,7 @@ add({ id: 'catalejo', kind: 'herramienta', rarity: 'raro', name: 'Catalejo', til
 add({ id: 'cana_hierro', rarity: 'raro', name: 'Caña de hierro', tile: XTile.IronRod, maxStack: 1, tool: 'rod', durability: 80, sell: 300 });
 add({ id: 'cana_cristal', rarity: 'epico', name: 'Caña de cristal', tile: XTile.CrystalRod, maxStack: 1, tool: 'rod', durability: 200, sell: 1200, buy: 8000, seller: 'pesca' });
 add({ id: 'cana_legendaria', rarity: 'legendario', name: 'Caña legendaria', tile: XTile.LegendRod, maxStack: 1, tool: 'rod', durability: 500, sell: 5000 });
-add({ id: 'senuelo', kind: 'consumible', rarity: 'raro', name: 'Señuelo', tile: XTile.Lure, maxStack: 30, sell: 60, buy: 300, seller: 'pesca' });
+add({ id: 'senuelo', kind: 'consumible', rarity: 'raro', name: 'Señuelo', tile: XTile.Lure, maxStack: 30, sell: 100, buy: 300, seller: 'pesca' });
 // Armas y botín (v4.24).
 add({ id: 'espada_madera', kind: 'arma', name: 'Espada de madera', tile: XTile.WoodSword, maxStack: 1, weapon: 'espada', damage: 2, cooldown: 0.5, durability: 60, sell: 40 });
 add({ id: 'espada_piedra', kind: 'arma', name: 'Espada de piedra', tile: XTile.StoneSword, maxStack: 1, weapon: 'espada', damage: 3, cooldown: 0.55, durability: 120, sell: 80 });
@@ -310,9 +315,10 @@ add({ id: 'abono', name: 'Abono', tile: XTile.Fertilizer, maxStack: 30, sell: 30
 add({ id: 'semillas_trigo', name: 'Semillas de trigo', tile: Tile.Seeds, maxStack: 30, sell: 10, buy: 40, always: true });
 add({ id: 'semillas_zanahoria', name: 'Semillas de zanahoria', tile: Tile.SeedsCarrot, maxStack: 30, sell: 10, buy: 50, always: true });
 add({ id: 'semillas_tomate', name: 'Semillas de tomate', tile: Tile.SeedsTomato, maxStack: 30, sell: 10, buy: 60, always: true });
-add({ id: 'trigo', name: 'Trigo', tile: Tile.WheatItem, maxStack: 30, sell: 60 });
-add({ id: 'zanahoria', name: 'Zanahoria', tile: Tile.CarrotItem, maxStack: 30, sell: 80 });
-add({ id: 'tomate', name: 'Tomate', tile: Tile.TomatoItem, maxStack: 30, sell: 90 });
+// Lo del huerto paga algo más desde la 4.26: tarda días en crecer y hay que regarlo.
+add({ id: 'trigo', name: 'Trigo', tile: Tile.WheatItem, maxStack: 30, sell: 75 });
+add({ id: 'zanahoria', name: 'Zanahoria', tile: Tile.CarrotItem, maxStack: 30, sell: 100 });
+add({ id: 'tomate', name: 'Tomate', tile: Tile.TomatoItem, maxStack: 30, sell: 110 });
 add({ id: 'huevo', name: 'Huevo', tile: Tile.Egg, maxStack: 30, sell: 50 });
 add({ id: 'leche', name: 'Leche', tile: Tile.Milk, maxStack: 10, sell: 70 });
 add({ id: 'gallina', name: 'Gallina', tile: Tile.ChickenIcon, maxStack: 1, sell: 500, buy: 2000, always: true });
@@ -712,7 +718,7 @@ export const DIY_RECIPES: Recipe[] = [
   { result: 'tablones_puente', count: 6, needs: [['tablones', 4], ['rama', 1]] },
   { result: 'barandilla', count: 4, needs: [['tablones', 2], ['rama', 2]] },
   { result: 'pilar', count: 4, needs: [['adoquin', 4]] },
-  { result: 'reloj', count: 1, needs: [['pepita_oro', 2], ['cristal', 1], ['ladrillo', 2]] },
+  { result: 'reloj', count: 1, needs: [['pepita_oro', 1], ['cristal', 1], ['ladrillo', 2]] },
 ];
 
 /** Recetas de construcción que se saben sin aprenderlas. */
@@ -720,3 +726,79 @@ const BUILDING_DIY = ['camino_tierra', 'camino_losas', 'calle', 'baldosas', 'far
 
 /** Las que ya se saben al empezar. */
 export const STARTER_DIY = ['valla', 'silla', 'banco', 'pico_hierro', 'hacha_hierro', 'pala_hierro', 'cana_hierro', 'cana_legendaria', 'espada_hierro', 'espada_obsidiana', 'escudo_hierro', 'puerta', 'puerta_valla', ...BUILDING_DIY];
+
+// --- Precios según el esfuerzo (v4.26) ---
+// Lo fabricado vale al menos lo que sus materiales y un poco más (el trabajo de hacerlo), y nunca más de lo que
+// costaría comprar los materiales en la tienda: así fabricar compensa, pero no se puede comprar, fabricar y vender
+// para hacerse rico sin salir de casa.
+
+/** Lo que cuesta en la tienda algo sin precio de compra: lo que paga por ello por esto (según lo raro que es). */
+export const BUY_FACTOR: Record<Rarity, number> = { comun: 4, raro: 4.5, epico: 5, legendario: 6 };
+/** Lo fabricado paga sus materiales y un 10 % más. */
+export const CRAFT_BONUS = 1.1;
+/** Y como mucho el 90 % de lo que costaría comprar sus materiales. */
+export const CRAFT_CAP = 0.9;
+/** Los brotes son baratos a propósito: lo que vale es plantarlos. */
+const CRAFT_EXEMPT = (id: string) => id.startsWith('brote_') && id !== 'brote_acacia';
+/** Lo que venden los comercios sin estar en el catálogo (las vallas de Heno y lo de Baldosa, ver economy.ts). */
+const SOLD_ELSEWHERE = new Set(['valla', 'puerta_valla', 'farola', 'papelera', 'cartel', 'macetero', 'buzon', 'fuente']);
+
+/** Precio de compra base de un objeto (el mismo que usa la tabla de precios). */
+export function baseBuy(def: ItemDef): number {
+  return def.buy ?? Math.max(1, Math.round(def.sell * BUY_FACTOR[def.rarity]));
+}
+
+export interface PriceChange {
+  id: string;
+  from: number;
+  to: number;
+  /** 'esfuerzo': valía menos que sus materiales; 'reventa': valía más que comprarlos; 'rareza': no pagaba lo que es. */
+  why: 'esfuerzo' | 'reventa' | 'rareza';
+}
+
+/** Los precios que ha cambiado el repaso de la 4.26, para la wiki. */
+export const PRICE_CHANGES: PriceChange[] = [
+  { id: 'bloque_amatista', from: 200, to: 1000, why: 'rareza' },
+  { id: 'senuelo', from: 60, to: 100, why: 'rareza' },
+  { id: 'trigo', from: 60, to: 75, why: 'esfuerzo' },
+  { id: 'zanahoria', from: 80, to: 100, why: 'esfuerzo' },
+  { id: 'tomate', from: 90, to: 110, why: 'esfuerzo' },
+];
+
+/** Lo que valen los materiales de la receta más barata de un objeto, vendidos y comprados (null: no se fabrica). */
+export function materialsValue(id: string): { sell: number; buy: number } | null {
+  let best: { sell: number; buy: number } | null = null;
+  for (const r of [...RECIPES, ...DIY_RECIPES]) {
+    if (r.result !== id) continue;
+    const sell = r.needs.reduce((n, [m, c]) => n + itemDef(m).sell * c, 0) / r.count;
+    const buy = r.needs.reduce((n, [m, c]) => n + baseBuy(itemDef(m)) * c, 0) / r.count;
+    if (!best || sell < best.sell) best = { sell, buy };
+  }
+  return best;
+}
+
+function balanceCrafted() {
+  const done = new Set<string>();
+  const visit = (id: string, path: Set<string>) => {
+    if (done.has(id) || path.has(id)) return;
+    path.add(id);
+    // Primero los materiales, que también pueden ser fabricados.
+    for (const r of [...RECIPES, ...DIY_RECIPES]) if (r.result === id) for (const [m] of r.needs) visit(m, path);
+    path.delete(id);
+    done.add(id);
+    const v = materialsValue(id);
+    if (!v || CRAFT_EXEMPT(id)) return;
+    const def = byId.get(id)!;
+    const floor = Math.ceil(v.sell * CRAFT_BONUS);
+    const cap = Math.floor(v.buy * CRAFT_CAP);
+    // Lo que se vende en una tienda conserva su precio de siempre (es la referencia), salvo para bajar.
+    const sold = def.buy !== undefined || SOLD_ELSEWHERE.has(id);
+    const to = def.sell < floor && !sold ? floor : def.sell > cap ? cap : def.sell;
+    if (to === def.sell) return;
+    PRICE_CHANGES.push({ id, from: def.sell, to, why: to > def.sell ? 'esfuerzo' : 'reventa' });
+    def.sell = to;
+    if (PRICED_RARITY.has(id)) def.rarity = rarityOf(def);
+  }
+  for (const r of [...RECIPES, ...DIY_RECIPES]) visit(r.result, new Set());
+}
+balanceCrafted();

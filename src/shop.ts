@@ -2,7 +2,8 @@ import type { Inventory } from './inventory';
 import { ITEM_KINDS, type ItemKind, itemDef } from './items';
 import { itemIcon } from './icons';
 import { itemCard } from './itemCard';
-import { AVELLANA, type Economy, FILTER_KINDS, OFFER_DISCOUNT, type ShopDef, buyPrice, closedText, offerOf, sellPrice, shopBuys, stockFor, weekdayOf } from './economy';
+import { AVELLANA, type Economy, FILTER_KINDS, HOME_MARKET, OFFER_DISCOUNT, type ShopDef, buyPrice, closedText, isImport, offerOf, sellPrice, shopBuys, stockFor, weekdayOf } from './economy';
+import type { Climate } from './world';
 import type { Season } from './seasons';
 import { SHOP_LEVELS, shopLevel } from './shopBuilding';
 
@@ -24,6 +25,10 @@ export interface ShopContext {
   hour?: number;
   /** Registro de lo que se compra y se vende (v4.9). */
   economy?: Economy;
+  /** Mercado donde está el comercio: tu isla (sin decir) u otra isla (v4.26). */
+  market?: string;
+  /** Clima de tu isla, para pagar más lo que traes de fuera (v4.26). */
+  homeClimate?: Climate | null;
   getWallet: () => number;
   setWallet: (n: number) => void;
   toast: (text: string) => void;
@@ -86,7 +91,8 @@ export class Shop {
 
   /** Precio de venta de hoy (ver sellPrice en economy.ts). */
   sellPrice(id: string): number {
-    return sellPrice(this.def, id, { today: this.ctx.today, islandFruit: this.ctx.islandFruit, economy: this.ctx.economy });
+    const { today, islandFruit, economy, market, homeClimate } = this.ctx;
+    return sellPrice(this.def, id, { today, islandFruit, economy, market, homeClimate });
   }
 
   /** Lo que queda hoy de algo (Infinity si no se acaba). */
@@ -207,8 +213,9 @@ export class Shop {
       const count = this.ctx.inventory.countOf(id);
       const price = this.sellPrice(id);
       const base = itemDef(id).sell;
-      const tired = (this.ctx.economy?.saturation(id) ?? 1) < 1;
-      const trend = tired ? ' · ya has vendido mucho, se paga menos unos días' : price > base ? ' · hoy se paga más' : price < base ? ' · hoy se paga menos' : '';
+      const tired = (this.ctx.economy?.saturation(id, this.ctx.market) ?? 1) < 1;
+      const imported = (this.ctx.market ?? HOME_MARKET) === HOME_MARKET && this.ctx.homeClimate !== undefined && isImport(id, this.ctx.homeClimate);
+      const trend = tired ? ' · ya has vendido mucho, se paga menos unos días' : imported ? ' · traído de fuera, se paga más' : price > base ? ' · hoy se paga más' : price < base ? ' · hoy se paga menos' : '';
       const li = this.row(id, `${formatBerries(price)} bayas cada uno · tienes ${count}${trend}`);
       this.button(li, 'Vender 1', true, () => this.sell(id, 1));
       if (count > 1) this.button(li, `Vender ${count}`, true, () => this.sell(id, count));
@@ -250,7 +257,7 @@ export class Shop {
     for (let i = 0; i < count; i++) {
       const price = this.sellPrice(id);
       total += price;
-      this.ctx.economy?.recordSale(id, 1, price);
+      this.ctx.economy?.recordSale(id, 1, price, this.ctx.market);
     }
     this.ctx.inventory.remove(id, count);
     this.ctx.setWallet(this.ctx.getWallet() + total);

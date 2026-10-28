@@ -56,7 +56,7 @@ import { raycast } from './raycast';
 import { SAVE_VERSION, type SaveData, activeSlot, flushSaves, loadGame, openSaves, saveGame, saveGameNow, setActiveSlot } from './save';
 import { onStoreError } from './store';
 import { Shop, type ShopContext, formatBerries } from './shop';
-import { Economy } from './economy';
+import { Economy, HOME_MARKET, villageShop } from './economy';
 import { itemCard } from './itemCard';
 import { MuseumHall } from './game/museum';
 import { Commerce } from './game/commerce';
@@ -535,13 +535,22 @@ for (const v of villagers) {
 const genericNames = new Set<string>();
 if (trip?.sea?.type === 'aldea') {
   const spots = [[10, 6], [-8, 9], [6, -10], [-11, -5]];
-  for (const [i, profile] of genericVillagers(trip.seed, spots.length).entries()) {
+  for (const [i, generic] of genericVillagers(trip.seed, spots.length).entries()) {
     const [x, z] = world.findSpawn(spots[i][0], spots[i][1]);
     const y = world.heightAt(x, z);
+    // El primero atiende el puesto del mercado (v4.26): vende lo de allí y compra caro lo que no tienen.
+    const market = i === 0;
+    const profile = market ? { ...generic, role: 'shop' as const, shop: villageShop(trip.sea, generic.name).id, stationary: true } : generic;
     const v = new Villager(profile, { kind: 'house', x, z: z - 3, y, roof: Block.RoofRed, door: [x, y + 1, z] }, world, { friendship: 0 });
     villagers.push(v);
     scene.add(v.group, v.extras);
     genericNames.add(profile.name);
+    if (market) {
+      // El puesto: dos cajas de mostrador y un toldo encima.
+      for (const dx of [-1, 1]) if (world.getBlock(x + dx, y + 1, z) === Block.Air) world.setBlock(x + dx, y + 1, z, Block.Crate);
+      for (let dx = -1; dx <= 1; dx++) if (world.getBlock(x + dx, y + 4, z) === Block.Air) world.setBlock(x + dx, y + 4, z, Block.Awning);
+      continue;
+    }
     // Una farola y un banco junto a cada uno: el pueblecito.
     if (world.getBlock(x + 1, y + 1, z) === Block.Air) decor.place('farola', x + 1, y + 1, z, 0);
     if (world.getBlock(x - 1, y + 1, z) === Block.Air) decor.place('banco', x - 1, y + 1, z, 1);
@@ -556,7 +565,7 @@ const shipyard = new ShipyardGame({
   get inventory() { return inventory; },
   put: (x, y, z, b) => sync.setBlock(x, y, z, b),
   wallet: () => wallet,
-  pay: (n) => setWallet(wallet - n),
+  pay: (n) => setWallet(wallet - n, 'barco'),
 }, trip ? null : joined ? joined.snapshot.shipyard : save?.shipyard, trip && !trip.sea ? null : joined ? joined.snapshot.boat : save?.boat, shipyardBeaches);
 // Llegando en barco a otra isla (v4.22), el barco queda en el agua frente a la playa, a un lado de la avioneta.
 if (trip?.sea && airport) {
@@ -605,8 +614,10 @@ const economy = new Economy(today, pockets?.economy);
 /** Vida y hambre (v4.1). Son tuyas: también cuando juegas en la isla de un amigo. */
 const vitals = new Vitals(pockets?.vitals);
 const walletEl = document.querySelector<HTMLSpanElement>('#wallet-amount')!;
-function setWallet(n: number) {
+/** Cambia las bayas. Si no es en un comercio (que lo apunta él), `why` dice el motivo para el registro (v4.26). */
+function setWallet(n: number, why?: string) {
   if (n !== wallet) sound.coin();
+  if (why) economy.recordFlow(n - wallet, why);
   // Vender en la tienda cuenta para el tutorial.
   if (n > wallet && panel === 'shop') {
     tutorial.complete('vender');
@@ -934,7 +945,7 @@ function closeInventory() {
 }
 
 const tutorial = new Tutorial(pockets?.tutorial, pockets ? (pockets.tutorialDone ?? pockets.tutorial === undefined) : false, touchMode, () => {
-  setWallet(wallet + TUTORIAL_REWARD);
+  setWallet(wallet + TUTORIAL_REWARD, 'regalo');
   hud.toast(`¡Primeros pasos completados! Avellana te regala ${formatBerries(TUTORIAL_REWARD)} bayas`);
   persist();
 });
@@ -1070,7 +1081,7 @@ const town = new Town({
   placeFurniture: (id, x, y, z, rot) => sync.placeFurniture(id, x, y, z, rot),
   inventory,
   wallet: () => wallet,
-  pay: (n) => setWallet(wallet - n),
+  pay: (n) => setWallet(wallet - n, 'ayuntamiento'),
   memories: save?.villagers ?? {},
   rating: () => islandRating(),
   notices: () => townNotices(),
@@ -1226,7 +1237,7 @@ function parcelActions() {
       if (wallet < price) return 'No llevas bayas suficientes';
       const problem = joined ? await askHost('ampliar') : parcels.grow(HOST);
       if (!problem) {
-        setWallet(wallet - price);
+        setWallet(wallet - price, 'parcela');
         sound.coin();
         persist();
       }
@@ -1236,7 +1247,7 @@ function parcelActions() {
       if (wallet < MOVE_PRICE) return 'No llevas bayas suficientes. ¡Vuelve cuando tengas!';
       if (inventory.countOf('permiso_mudanza')) return 'Ya llevas un permiso de mudanza en los bolsillos. ¡Úsalo primero!';
       if (inventory.add('permiso_mudanza', 1) > 0) return 'No te cabe en los bolsillos. Haz sitio y vuelve';
-      setWallet(wallet - MOVE_PRICE);
+      setWallet(wallet - MOVE_PRICE, 'parcela');
       persist();
       return null;
     },
@@ -1244,7 +1255,7 @@ function parcelActions() {
       const perk = PERKS.find((k) => k.id === id);
       if (!perk || !mineNow()) return 'Esa mejora no existe';
       if (wallet < perk.cost) return 'No llevas bayas suficientes. ¡Vuelve cuando tengas!';
-      setWallet(wallet - perk.cost);
+      setWallet(wallet - perk.cost, 'parcela');
       parcels.addPerk(HOST, id);
       sound.coin();
       return null;
@@ -1253,7 +1264,7 @@ function parcelActions() {
       if (wallet < TENT_PERMIT) return 'No llevas bayas suficientes';
       const problem = await askHost('tienda');
       if (!problem) {
-        setWallet(wallet - TENT_PERMIT);
+        setWallet(wallet - TENT_PERMIT, 'parcela');
         sound.fanfare();
         persist();
       }
@@ -1451,7 +1462,7 @@ const dialog = new Dialog({
       const { tools, cost } = repairQuote();
       if (!tools) return 'none';
       if (wallet < cost) return 'money';
-      setWallet(wallet - cost);
+      setWallet(wallet - cost, 'arreglos');
       for (const s of inventory.slots) if (s?.wear) s.wear = 0;
       inventory.changed();
       sound.coin();
@@ -1623,6 +1634,9 @@ function shopContext(): ShopContext {
     return currentHour;
   },
   economy,
+  // Fuera de casa se vende en el mercado de esa isla, y en casa lo de fuera se paga más (v4.26).
+  market: trip ? trip.sea?.island ?? 'viaje' : HOME_MARKET,
+  homeClimate: pockets ? pockets.climate ?? null : climate,
   get planner() {
     return !!town.planner;
   },
@@ -1636,6 +1650,10 @@ const shop = new Shop(Object.assign(shopContext(), { levelUp: () => refreshShopF
 const merchantShops = new Map(MERCHANTS.map((m) => [m.shop.id, new Shop(shopContext(), m.shop)]));
 // El puesto de Brújula en el muelle del astillero (v4.21).
 merchantShops.set(BRUJULA.id, new Shop(shopContext(), BRUJULA));
+// El puesto del mercado de las islas aldea (v4.26).
+for (const v of villagers) {
+  if (trip?.sea && v.profile.shop?.startsWith('aldea:')) merchantShops.set(v.profile.shop, new Shop(shopContext(), villageShop(trip.sea, v.name)));
+}
 /** La tienda de quien atiende. */
 function shopOf(v: Villager): Shop {
   return merchantShops.get(v.profile.shop ?? '') ?? shop;
@@ -2582,7 +2600,7 @@ function faint(cause: HurtCause) {
     if (s.count <= 0) inventory.slots[l.slot] = null;
   }
   inventory.changed();
-  if (loss.berries) setWallet(wallet - loss.berries);
+  if (loss.berries) setWallet(wallet - loss.berries, 'desmayo');
   unlockInput();
   faintScreen.show(cause, loss, !!trip);
   persist();

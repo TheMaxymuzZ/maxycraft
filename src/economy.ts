@@ -4,8 +4,9 @@
 // (Economy) recuerda lo que se ha vendido y comprado, para que los precios bajen si vendes mucho de lo mismo
 // y para poder equilibrar las cuentas después. Crear un comercio nuevo es solo escribir su ficha.
 
-import { CATALOG, type ItemDef, type ItemKind, type Rarity, isTreeFruit, itemDef } from './items';
+import { CATALOG, type ItemDef, type ItemKind, baseBuy, isTreeFruit, itemDef } from './items';
 import type { Season } from './seasons';
+import type { Climate } from './world';
 
 /** Número estable entre 0 y 1 para un texto, para que los precios del día sean los mismos todo el día. */
 export function hash01(text: string): number {
@@ -16,13 +17,10 @@ export function hash01(text: string): number {
 
 // --- Tabla de precios ---
 
-/** Si un objeto no tiene precio de compra, cuesta lo que paga la tienda por él por esto (según lo raro que es). */
-const BUY_FACTOR: Record<Rarity, number> = { comun: 4, raro: 4.5, epico: 5, legendario: 6 };
-
 /** Precio base de un objeto: lo que cuesta comprarlo y lo que se paga al venderlo (antes del precio del día). */
 export function priceOf(id: string): { buy: number; sell: number } {
   const def = itemDef(id);
-  return { buy: def.buy ?? Math.max(1, Math.round(def.sell * BUY_FACTOR[def.rarity])), sell: def.sell };
+  return { buy: baseBuy(def), sell: def.sell };
 }
 
 // --- Fichas de comercio ---
@@ -282,6 +280,14 @@ export interface EconomySave {
   spent?: Record<string, number>;
 }
 
+/** El mercado de tu isla. Los de las demás se llaman como la isla ("isla-3"). */
+export const HOME_MARKET = 'casa';
+
+/** Clave de la saturación: en casa, el objeto (como antes de la 4.26); fuera, la isla y el objeto. */
+function pressureKey(id: string, market: string): string {
+  return market === HOME_MARKET ? id : `${market}:${id}`;
+}
+
 function daysBetween(a: string, b: string): number {
   const t = (s: string) => Date.parse(`${s}T00:00:00Z`);
   const d = Math.round((t(b) - t(a)) / 86_400_000);
@@ -325,15 +331,19 @@ export class Economy {
     return Math.max(0, units - (this.data.bought[shop.id]?.[id] ?? 0));
   }
 
-  /** Cuánto baja el precio de venta de un objeto por haber vendido mucho (1 = nada). */
-  saturation(id: string): number {
-    const extra = (this.data.pressure[id] ?? 0) - FREE_UNITS;
+  /**
+   * Cuánto baja el precio de venta de un objeto por haber vendido mucho (1 = nada). Cada isla tiene su mercado
+   * (v4.26): inundar el de casa no baja lo que pagan en una aldea, y al revés.
+   */
+  saturation(id: string, market = HOME_MARKET): number {
+    const extra = (this.data.pressure[pressureKey(id, market)] ?? 0) - FREE_UNITS;
     return extra <= 0 ? 1 : Math.max(MIN_FACTOR, 1 - extra * DROP_PER_UNIT);
   }
 
-  /** El jugador ha vendido `count` unidades por `total` bayas. */
-  recordSale(id: string, count: number, total: number) {
-    this.data.pressure[id] = (this.data.pressure[id] ?? 0) + count;
+  /** El jugador ha vendido `count` unidades por `total` bayas (en casa o en el mercado de otra isla). */
+  recordSale(id: string, count: number, total: number, market = HOME_MARKET) {
+    const key = pressureKey(id, market);
+    this.data.pressure[key] = (this.data.pressure[key] ?? 0) + count;
     this.log(+total, `venta:${itemDef(id).kind}`);
   }
 
@@ -343,6 +353,14 @@ export class Economy {
     b[id] = (b[id] ?? 0) + count;
     this.data.spent![shop.id] = (this.data.spent![shop.id] ?? 0) + total;
     this.log(-total, `compra:${itemDef(id).kind}`);
+  }
+
+  /**
+   * Bayas que entran o salen sin pasar por un comercio (v4.26): parcela, barco, ayuntamiento, arreglos, regalos…
+   * Así el registro sabe de dónde sale cada baya y a dónde va.
+   */
+  recordFlow(amount: number, what: string) {
+    if (amount) this.log(amount, `${amount > 0 ? 'entrada' : 'gasto'}:${what}`);
   }
 
   /** Bayas gastadas en un comercio desde siempre. */
@@ -371,6 +389,18 @@ export class Economy {
   }
 }
 
+/** Lo que ha entrado y salido en los últimos días del registro, por motivo, de más a menos. */
+export function ledgerTotals(ledger: readonly LedgerDay[], days = ledger.length): { in: number; out: number; by: [string, number][] } {
+  const recent = ledger.slice(-days);
+  const by: Record<string, number> = {};
+  for (const d of recent) for (const [k, v] of Object.entries(d.by)) by[k] = (by[k] ?? 0) + v;
+  return {
+    in: recent.reduce((n, d) => n + d.in, 0),
+    out: recent.reduce((n, d) => n + d.out, 0),
+    by: Object.entries(by).sort((a, b) => b[1] - a[1]),
+  };
+}
+
 // --- Precios de un comercio ---
 
 export interface PriceContext {
@@ -378,6 +408,10 @@ export interface PriceContext {
   /** La fruta de la isla: siempre vale lo mismo. */
   islandFruit: string;
   economy?: Economy;
+  /** Dónde se vende: en casa (sin decir) o en el mercado de otra isla (v4.26). */
+  market?: string;
+  /** Clima de tu isla: lo de otros climas se paga más en casa (v4.26). null: isla de antes, templada; sin decir: no se mira. */
+  homeClimate?: Climate | null;
 }
 
 /** Lo que cuesta comprarle algo. */
@@ -404,9 +438,64 @@ export function sellPrice(shop: ShopDef, id: string, ctx: PriceContext): number 
   else if (isTreeFruit(id)) price = base * 5;
   else price = base * (0.7 + Math.round(hash01(`${ctx.today}:${id}`) * 14) * 0.05);
   if (shop.specialty?.pick(def)) price *= shop.specialty.bonus;
-  price *= ctx.economy?.saturation(id) ?? 1;
+  const market = ctx.market ?? HOME_MARKET;
+  if (market === HOME_MARKET && ctx.homeClimate !== undefined && isImport(id, ctx.homeClimate)) price *= IMPORT_BONUS;
+  price *= ctx.economy?.saturation(id, market) ?? 1;
   return Math.max(1, Math.round(price));
 }
 
 /** Tipos de objeto que aparecen en los filtros de la tienda, en este orden. */
 export const FILTER_KINDS: ItemKind[] = ['herramienta', 'mueble', 'bloque', 'recurso', 'consumible', 'criatura', 'tesoro', 'ropa', 'arma', 'especial'];
+
+// --- Lo que traes de fuera y el comercio entre islas (v4.26) ---
+
+/**
+ * Lo propio de cada clima: lo que solo sale en las islas de ese clima. En casa, lo de otros climas se paga más;
+ * 'mar' es lo que no sale en ninguna isla de casa (solo en las del archipiélago).
+ */
+export const CLIMATE_GOODS: Record<Climate | 'mar', string[]> = {
+  templado: ['bambu', 'flores_cerezo', 'musgo', 'nenufar', 'barro'],
+  calido: ['arena_roja', 'arenisca', 'arenisca_tallada', 'cactus', 'terracota_naranja', 'terracota_amarilla', 'terracota_blanca', 'hojas_acacia'],
+  frio: ['hielo', 'hielo_compacto', 'hielo_azul', 'nieve', 'flor_nieve'],
+  extrano: ['basalto', 'roca_magma', 'obsidiana', 'lava_petrificada', 'ceniza', 'roca_negra', 'pizarra', 'hierba_azul', 'flor_luminosa', 'seta_luminosa', 'hojas_luminosas', 'micelio', 'tallo_seta', 'seta'],
+  mar: ['cristal_brillante', 'bloque_amatista', 'nucleo_lava', 'polvo_espiritu'],
+};
+
+/** Lo que traes de fuera vale esto más en casa (antes de que baje si vendes mucho). */
+export const IMPORT_BONUS = 1.3;
+
+/** Si en tu isla eso es "de fuera": de otro clima, o de las islas del mar. */
+export function isImport(id: string, homeClimate: Climate | null): boolean {
+  const home = homeClimate ?? 'templado';
+  return (Object.keys(CLIMATE_GOODS) as (Climate | 'mar')[]).some((c) => c !== home && CLIMATE_GOODS[c].includes(id));
+}
+
+/** Clima de los alrededores de una isla aldea: de ahí salen las cosas de su puesto. */
+export function villageClimate(islandId: string): Climate {
+  const climates: Climate[] = ['templado', 'calido', 'frio', 'extrano'];
+  return climates[Math.floor(hash01(`clima:${islandId}`) * climates.length)];
+}
+
+/** Recargo del puesto de una aldea al venderte lo suyo: barato, porque allí sobra (pero no tanto como para revenderlo en casa). */
+export const VILLAGE_MARGIN = 0.75;
+/** Lo que no tienen allí lo pagan esto más. */
+export const VILLAGE_WANTS = 1.4;
+
+/**
+ * El puesto del mercado de una isla aldea (v4.26): vende barato lo de su clima y compra caro lo que allí no hay
+ * (lo de otros climas, minerales, fruta de fuera, tesoros). Abre de día, todos los días.
+ */
+export function villageShop(island: { island: string; name: string }, owner: string): ShopDef {
+  const local = new Set(CLIMATE_GOODS[villageClimate(island.island)]);
+  const wanted = (d: ItemDef) => !local.has(d.id) && (d.kind === 'bloque' || d.kind === 'recurso' || d.kind === 'tesoro' || isTreeFruit(d.id));
+  return {
+    id: `aldea:${island.island}`,
+    name: `Mercado de ${island.name}`,
+    owner,
+    hours: Array.from({ length: 7 }, () => [8, 20] as [number, number]),
+    stock: [{ ids: [...local], pick: () => true, daily: 4, units: 20 }],
+    buys: (d) => d.kind !== 'herramienta' && d.kind !== 'especial',
+    specialty: { pick: wanted, bonus: VILLAGE_WANTS },
+    margin: VILLAGE_MARGIN,
+  };
+}

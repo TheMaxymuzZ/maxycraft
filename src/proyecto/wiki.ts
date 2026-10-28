@@ -12,7 +12,7 @@ import { BOSS_TELLS, HOSTILES, HOSTILE_KINDS } from '../hostiles';
 import { KIND_THEME, THEMES, type DungeonTheme } from '../dungeon';
 import { FURNITURE, paintFurnitureIcons } from '../furniture';
 import { itemIcon } from '../icons';
-import { DIY_RECIPES, ITEMS, ITEM_KINDS, RARITIES, RECIPES, type Recipe, STARTER_DIY, breakInfo, itemDef, toolNameFor } from '../items';
+import { DIY_RECIPES, ITEMS, ITEM_KINDS, PRICE_CHANGES, RARITIES, RARITY_ORDER, RECIPES, type Recipe, STARTER_DIY, breakInfo, itemDef, toolNameFor } from '../items';
 import { ACHIEVEMENTS, PRIZES, TASKS } from '../missions';
 import { Portraits } from '../portraits';
 import { formatBerries } from '../shop';
@@ -21,7 +21,8 @@ import { HALL_LEVELS, PUBLIC_WORKS } from '../townhall';
 import { WINGS } from '../museum';
 import { SHOP_LEVELS } from '../shopBuilding';
 import { MERCHANTS } from '../commerce';
-import { catalogOf } from '../economy';
+import { CLIMATE_GOODS, IMPORT_BONUS, catalogOf, ledgerTotals } from '../economy';
+import { GOALS, PLAY_STYLES, STYLE_INFO, simulateStyle } from '../economySim';
 import { CLOTHES, GARMENTS, SLOT_NAMES } from '../clothes';
 import { BIOME_ATLAS } from '../biomeFx';
 import { RING_BOAT, RING_NAMES, SEA_TYPES } from '../archipelago';
@@ -202,6 +203,29 @@ fill('tabla-mazmorras', (Object.keys(THEMES) as DungeonTheme[]).map((id) => {
   const attacks = boss.boss!.attacks.map((a) => `<b>${ATTACK_NAMES[a]}</b>: avisa que ${esc(BOSS_TELLS[a].replace(/:.*/, ''))}`).join('<br>');
   return `<td><b>${esc(t.name)}</b><br><small class="muted">${esc(t.text)}</small></td><td>${islands}</td><td>${esc(boss.name)}</td><td class="num">${boss.hp}</td><td>${attacks}</td>`;
 }));
+
+// --- Economía (v4.26) ---
+fill('tabla-rarezas-precio', RARITY_ORDER.map((r) => {
+  const sells = ITEMS.filter((d) => d.rarity === r).map((d) => d.sell).sort((a, b) => a - b);
+  const mid = sells[Math.floor(sells.length / 2)];
+  const examples = ITEMS.filter((d) => d.rarity === r && d.sell === mid).slice(0, 2).map((d) => item(d.id, 1, false)).join(' ');
+  return `<td><span class="rareza ${r}">${RARITIES[r]}</span></td><td class="num">${formatBerries(sells[0])}–${formatBerries(sells.at(-1)!)}</td><td class="num">${formatBerries(mid)}</td><td>${examples}</td>`;
+}));
+const GOODS_NAMES = { ...CLIMATE_NAMES, mar: 'Islas del mar' };
+fill('tabla-importaciones', (Object.keys(CLIMATE_GOODS) as (keyof typeof CLIMATE_GOODS)[]).map((c) =>
+  `<td><b>${GOODS_NAMES[c]}</b>${c === 'mar' ? '<br><small class="muted">siempre de fuera</small>' : ''}</td><td>${CLIMATE_GOODS[c].map((id) => item(id, 1, false)).join(' ')}</td>`));
+document.getElementById('bono-importacion')?.replaceChildren(`${Math.round((IMPORT_BONUS - 1) * 100)} %`);
+const styleRuns = PLAY_STYLES.map((s) => simulateStyle(s, { seed: 3 }));
+fill('tabla-metas', GOALS.map((g) => `<td><b>${esc(g.name)}</b></td><td class="num">${formatBerries(g.cost)}</td><td class="num">día ${g.target}</td>${styleRuns.map((r) => `<td class="num">${r.reached[g.id] ? `día ${r.reached[g.id]}` : '—'}</td>`).join('')}`));
+const SOURCE_NAMES: Record<string, string> = { criatura: 'peces, bichos y fósiles', tesoro: 'tesoros y minerales', recurso: 'materiales', bloque: 'bloques', consumible: 'fruta, comida y cosechas', mueble: 'muebles', ropa: 'ropa' };
+fill('tabla-estilos-juego', styleRuns.map((r) => {
+  const sales = ledgerTotals(r.economy.ledger.slice(0, 40)).by.filter(([k]) => k.startsWith('venta:'));
+  const total = sales.reduce((n, [, v]) => n + v, 0);
+  const top = sales.slice(0, 3).map(([k, v]) => `${esc(SOURCE_NAMES[k.slice(6)] ?? k.slice(6))} (${Math.round((v / total) * 100)} %)`).join(', ');
+  return `<td><b>${STYLE_INFO[r.style].name}</b></td><td>${esc(STYLE_INFO[r.style].text)}</td><td>${top}</td>`;
+}));
+const WHY = { esfuerzo: 'Valía menos que sus materiales', reventa: 'Se podía comprar, fabricar y vender ganando', rareza: 'No pagaba lo que es de raro' };
+fill('tabla-precios-revisados', PRICE_CHANGES.filter((c) => Math.abs(c.to - c.from) >= 5).map((c) => `<td>${item(c.id)}</td><td class="num">${formatBerries(c.from)}</td><td class="num">${formatBerries(c.to)}</td><td>${WHY[c.why]}</td>`));
 
 const WILD_PLACE = { tierra: 'En tierra', orilla: 'En la orilla', mar: 'En el mar' };
 fill('tabla-fauna', WILD_KINDS.map((k) => {

@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '4.26',
+    title: 'Balance económico global',
+    items: [
+      'Precios repasados objeto a objeto: lo fabricado vale al menos sus materiales (las herramientas de hierro, el reloj o la farola pagan ahora lo que cuestan), pero no se puede comprar, fabricar y vender ganando.',
+      'Lo que traes de islas de otro clima, o de las islas del mar, se paga un 30 % más en las tiendas de tu isla.',
+      'Cada isla tiene su propio mercado: si vendes mucho de lo mismo baja su precio solo allí, y se recupera con los días.',
+      'En las islas aldea hay un mercado: vende barato lo de su clima y compra caro lo que allí no tienen.',
+      'El trigo, la zanahoria, el tomate y el señuelo pagan más; el bloque de amatista paga como el objeto épico que es. El velero cuesta 15.000 bayas.',
+      'Simulador de 60 días con cuatro formas de jugar (pescador, minero, granjero y explorador): todas llegan a la parcela grande, al velero y al ayuntamiento en tiempos parecidos. Lo tienes en la wiki, en «Economía».',
+    ],
+  },
+  {
     version: '4.25',
     title: 'Mazmorras y ruinas',
     items: [
