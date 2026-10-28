@@ -6,6 +6,7 @@ import type { Guest, VillagerState } from '../villagers';
 import type { Edits, WorldOptions } from '../world';
 import { type Parcel, isParcelList } from '../parcels';
 import { type TerminalSite, isTerminalSite } from '../terminal';
+import { type BoatSave, type ShipyardSite, isBoatSave, isShipyardSite } from '../shipyard';
 import { type TownSave, isTownSave } from '../townhall';
 import { type PlacedThing, type WorldAction, isWorldAction } from './actions';
 
@@ -66,6 +67,9 @@ export interface Snapshot {
   parcels?: Parcel[];
   /** La terminal de la avioneta (v4.16). */
   terminal?: TerminalSite;
+  /** El astillero y el barco de quien invita (v4.21). */
+  shipyard?: ShipyardSite;
+  boat?: BoatSave;
 }
 
 /** Lo que un amigo pide al anfitrión sobre las parcelas (v4.14). */
@@ -129,6 +133,10 @@ function isSnapshot(v: unknown): v is Snapshot {
   if (parcels !== undefined && !isParcelList(parcels)) return false;
   const terminal = v && (v as Record<string, unknown>).terminal;
   if (terminal !== undefined && !isTerminalSite(terminal)) return false;
+  const shipyard = v && (v as Record<string, unknown>).shipyard;
+  if (shipyard !== undefined && !isShipyardSite(shipyard)) return false;
+  const boat = v && (v as Record<string, unknown>).boat;
+  if (boat !== undefined && !isBoatSave(boat)) return false;
   return isObj(v) && isNum(v.seed) && isObj(v.edits) && isObj(v.options) && list(v.furniture) && list(v.guests) && list(v.lots) && spot(v.spawn) && (homes === undefined || (Array.isArray(homes) && homes.every(isPlayerHome)));
 }
 

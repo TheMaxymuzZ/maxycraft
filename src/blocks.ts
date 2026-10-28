@@ -178,6 +178,11 @@ export const XTile = {
   MushroomLamp: EXTRA_TILE_START + 113,
   LavaBucket: EXTRA_TILE_START + 114,
   GlowSapling: EXTRA_TILE_START + 115,
+  // Astillero y muelle (v4.21).
+  Bait: EXTRA_TILE_START + 116,
+  Compass: EXTRA_TILE_START + 117,
+  Spyglass: EXTRA_TILE_START + 118,
+  SeaChart: EXTRA_TILE_START + 119,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -729,6 +734,27 @@ function paintClimateTiles(ctx: CanvasRenderingContext2D) {
   sapling(XTile.FirSapling, [46, 112, 74], [102, 72, 44]);
   sapling(XTile.GlowSapling, [90, 200, 240], [70, 60, 110]);
   paintStrangeTiles(ctx);
+  paintSeaTiles(ctx);
+}
+
+/** Lo que vende Brújula en el muelle (v4.21). */
+function paintSeaTiles(ctx: CanvasRenderingContext2D) {
+  paintSprite(ctx, XTile.Bait, [
+    '................', '................', '................', '.....bbbbbb.....', '....bwwwwwwb....', '...bwppwwppwb...', '...bwwppppwwb...', '...bwwwppwwwb...',
+    '...bbbbbbbbbb...', '....bBBBBBBb....', '....bBBBBBBb....', '.....bBBBBb.....', '.....bbbbbb.....', '................', '................', '................',
+  ], { b: [110, 80, 52], B: [160, 120, 80], w: [120, 86, 60], p: [232, 130, 150] });
+  toolSprite(ctx, XTile.Compass, [
+    '................', '.....gggggg.....', '....gwwwwwwg....', '...gwwwrwwwwg...', '..gwwwwrrwwwwg..', '..gwwwwrrwwwwg..', '..gwwwwrrwwwwg..', '..gwwwwkkwwwwg..',
+    '..gwwwwbbwwwwg..', '..gwwwwbbwwwwg..', '..gwwwwbbwwwwg..', '...gwwwwbwwwg...', '....gwwwwwwg....', '.....gggggg.....', '................', '................',
+  ], { g: [200, 160, 60], w: [240, 236, 220], r: [220, 50, 50], b: [60, 80, 140], k: [40, 40, 40] });
+  toolSprite(ctx, XTile.Spyglass, [
+    '................', '................', '.............gg.', '............gGGg', '...........gGGGg', '..........bbGGg.', '.........bBBbg..', '........bBBb....',
+    '.......bBBb.....', '......kKKk......', '.....kKKk.......', '....kKKk........', '...kKKk.........', '...kkk..........', '................', '................',
+  ], { g: [200, 160, 60], G: [236, 200, 100], b: [120, 80, 50], B: [160, 110, 70], k: [60, 50, 50], K: [100, 90, 90] });
+  paintSprite(ctx, XTile.SeaChart, [
+    '................', '..pppppppppppp..', '..pbbbbbbbbbbp..', '..pbbbbsssbbbp..', '..pbbbsgggsbbp..', '..pbbsggggsbbp..', '..pbbsgggsbbbp..', '..pbbbsssbbrbp..',
+    '..pbbbbbbbrrbp..', '..pbsbbbbbbbbp..', '..psgsbbbbbbbp..', '..pbsbbbbbbbbp..', '..pbbbbbbbbbbp..', '..pppppppppppp..', '................', '................',
+  ], { p: [220, 196, 150], b: [120, 176, 220], s: [236, 214, 160], g: [96, 160, 80], r: [210, 60, 60] });
 }
 
 /** Dibujos de la lava y de los biomas extraños (v4.20). */

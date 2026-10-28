@@ -264,6 +264,11 @@ add({ id: 'carbon', name: 'Carbón', tile: Tile.Coal, maxStack: 30, sell: 50 });
 add({ id: 'cubo', name: 'Cubo', tile: Tile.Bucket, maxStack: 1, tool: 'bucket', sell: 150, buy: 600 });
 add({ id: 'cubo_agua', kind: 'herramienta', name: 'Cubo de agua', tile: Tile.WaterBucket, maxStack: 1, tool: 'bucket', sell: 150 });
 add({ id: 'cubo_lava', kind: 'herramienta', name: 'Cubo de lava', tile: XTile.LavaBucket, maxStack: 1, tool: 'bucket', sell: 300 });
+// Astillero y muelle (v4.21): lo que vende Brújula.
+add({ id: 'cebo', kind: 'consumible', name: 'Cebo', tile: XTile.Bait, maxStack: 30, sell: 15, buy: 60, seller: 'pesca' });
+add({ id: 'brujula', kind: 'herramienta', rarity: 'raro', name: 'Brújula', tile: XTile.Compass, maxStack: 1, sell: 300, buy: 1500, seller: 'pesca' });
+add({ id: 'catalejo', kind: 'herramienta', rarity: 'raro', name: 'Catalejo', tile: XTile.Spyglass, maxStack: 1, sell: 600, buy: 3000, seller: 'pesca' });
+add({ id: 'carta_nautica', kind: 'especial', rarity: 'raro', name: 'Carta náutica', tile: XTile.SeaChart, maxStack: 1, sell: 500, buy: 2500, seller: 'pesca' });
 add({ id: 'pepita_hierro', name: 'Pepita de hierro', tile: Tile.IronNugget, maxStack: 30, sell: 375 });
 add({ id: 'pepita_oro', name: 'Pepita de oro', tile: Tile.GoldNugget, maxStack: 30, sell: 1500 });
 add({ id: 'amatista', rarity: 'epico', name: 'Amatista', tile: Tile.Gem, maxStack: 30, sell: 800 });

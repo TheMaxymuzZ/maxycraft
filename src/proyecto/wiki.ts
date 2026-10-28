@@ -19,6 +19,7 @@ import { MERCHANTS } from '../commerce';
 import { catalogOf } from '../economy';
 import { CLOTHES, GARMENTS, SLOT_NAMES } from '../clothes';
 import { BIOME_ATLAS } from '../biomeFx';
+import { BOATS, BRUJULA, KIOSK_KEEPER, SHIPWRIGHT, STAGES, STAGE_COSTS, UPGRADES, type Cost } from '../shipyard';
 import { BIOME_NAMES, CLIMATE_NAMES } from '../world';
 import { FRIEND_LEVELS, FURNITURE_STYLE, STYLE_NAMES, decorTaste } from '../decor';
 import { ALL_PROFILES, PERSONALITY_NAMES, PILOT, SLEEP, SPECIES_NAMES, VISITOR_NAMES } from '../villagers';
@@ -186,6 +187,12 @@ fill('tabla-ropa', GARMENTS.map((g) => {
 fill('tabla-muebles-nuevos', FURNITURE.filter((f) => (f.seller === 'muebles' || f.seller === 'urbano') && f.buy).map((f) => `<td>${item(f.id, 1, false)}</td><td>${(FURNITURE_STYLE[f.id] ?? []).map((st) => STYLE_NAMES[st]).join(', ')}</td><td>${SELLER_NAMES[f.seller!]}</td><td class="num">${formatBerries(f.buy!)}</td>`));
 
 // --- Atlas de biomas (v4.19) ---
+/** Lo que cuesta algo del astillero: los materiales con su dibujo y las bayas. */
+const costCells = (c: Cost) => `<div class="needs">${Object.entries(c.items ?? {}).map(([id, n]) => item(id, n, false)).join('')}</div>${c.bayas ? ` <b>${formatBerries(c.bayas)}</b> bayas` : ''}`;
+fill('tabla-astillero', STAGES.slice(1).map((st, i) => `<td><b>${i + 1}. ${esc(st.name)}</b></td><td>${esc(st.text)}</td><td>${costCells(STAGE_COSTS[i])}</td>`));
+fill('tabla-barcos', BOATS.map((b) => `<td><b>${esc(b.name)}</b></td><td>${esc(b.text)}</td><td class="num">${b.speed}</td><td class="num">${b.hold}</td><td>Etapa ${b.stage}</td><td>${costCells(b.cost)}</td>`));
+fill('tabla-mejoras-barco', UPGRADES.map((u) => `<td><b>${esc(u.name)}</b></td><td>${esc(u.text)}${u.max > 1 ? ` (hasta ${u.max} veces)` : ''}</td><td>${costCells(u.cost)}</td>`));
+fill('tabla-brujula', [`<td>${catalogOf(BRUJULA).map((id) => item(id)).join(' ')}</td>`]);
 fill('tabla-biomas', BIOME_ATLAS.map((b) => `<td><b>${esc(BIOME_NAMES[b.biome])}</b></td><td>${CLIMATE_NAMES[b.climate]}</td><td>${esc(b.text)}</td><td>${b.finds.map((id) => item(id, 1, false)).join(' ')}</td><td>${esc(b.weather)}</td>`));
 
 // --- Tareas, premios y logros ---
@@ -209,7 +216,7 @@ document.querySelector<HTMLInputElement>('#buscar-objeto')!.addEventListener('in
 // --- Vecinos, con su retrato ---
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const LIKES: Record<string, string> = { fruta: 'le gusta la fruta', conchas: 'le gustan las conchas', flores: 'le gustan las flores', madera: 'le gusta la madera' };
-const ROLE: Record<string, string> = { shop: 'La dependienta de la tienda', museum: 'La conservadora del museo', pilot: 'El piloto de la avioneta', mayor: 'El alcalde, en el ayuntamiento', planner: 'El urbanista, en el ayuntamiento' };
+const ROLE: Record<string, string> = { shop: 'La dependienta de la tienda', museum: 'La conservadora del museo', pilot: 'El piloto de la avioneta', mayor: 'El alcalde, en el ayuntamiento', planner: 'El urbanista, en el ayuntamiento', shipwright: 'El carpintero de ribera, en el astillero' };
 let portraits: Portraits | null = null;
 try {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
@@ -220,7 +227,7 @@ try {
 }
 const villagersEl = document.getElementById('vecinos-lista')!;
 villagersEl.innerHTML = '';
-for (const p of ALL_PROFILES) {
+for (const p of [...ALL_PROFILES, SHIPWRIGHT, KIOSK_KEEPER]) {
   let img = '';
   try {
     if (portraits) img = `<img alt="" src="${portraits.get(p.name, p)}">`;
@@ -228,7 +235,7 @@ for (const p of ALL_PROFILES) {
     img = '';
   }
   const [m, d] = p.birthday;
-  const where = p.role ? ROLE[p.role] : VISITOR_NAMES.has(p.name) ? 'Se encuentra de vacaciones' : 'Puede vivir en tu isla desde el principio';
+  const where = p === KIOSK_KEEPER ? 'Atiende el puesto del muelle del astillero' : p.role ? ROLE[p.role] : VISITOR_NAMES.has(p.name) ? 'Se encuentra de vacaciones' : 'Puede vivir en tu isla desde el principio';
   const card = document.createElement('div');
   card.className = 'villager';
   card.innerHTML = `<div class="portrait">${img}</div><div><b>${esc(p.name)}</b>

@@ -46,6 +46,10 @@ export class Player {
   bindings: KeyMap = defaultKeys();
   /** Mando táctil: palanca (-1 a 1 en cada eje) y botón de saltar. */
   readonly touch = { forward: 0, strafe: 0, jump: false };
+  /** Va en barco (v4.21): no anda, se queda en el asiento y lo que pulsa lleva el barco. */
+  mounted: THREE.Vector3 | null = null;
+  /** Lo que se pulsa yendo en barco: adelante o atrás, izquierda o derecha, y saltar (para bajarse). */
+  readonly drive = { throttle: 0, turn: 0, jump: false };
 
   constructor(private world: World, readonly camera: THREE.PerspectiveCamera) {
     window.addEventListener('keydown', (e) => {
@@ -86,6 +90,20 @@ export class Player {
     const jump = controls && (this.keys.has(keys.jump) || this.touch.jump);
     // Con la palanca táctil casi al tope también se corre.
     const pushed = Math.hypot(stick.forward, stick.strafe) > 0.92;
+    if (this.mounted) {
+      this.drive.throttle = Math.max(-1, Math.min(1, forward));
+      this.drive.turn = Math.max(-1, Math.min(1, strafe));
+      this.drive.jump = jump;
+      this.position.copy(this.mounted);
+      this.velocity.set(0, 0, 0);
+      this.onGround = true;
+      this.inWater = false;
+      this.sprinting = false;
+      this.forgetFall();
+      this.camera.position.set(this.position.x, this.position.y + EYE, this.position.z);
+      this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+      return;
+    }
     // Se nada con el agua por la cintura (v3.8: el agua son bloques, también la que corre o la que echas con un cubo).
     const p = this.position;
     this.inWater = this.world.inWater(p.x, p.y + 0.8, p.z);
@@ -158,6 +176,12 @@ export class Player {
 
     this.camera.position.set(this.position.x, this.position.y + EYE, this.position.z);
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+  }
+
+  /** Sentado (en el barco): pone el cuerpo y la cámara en ese sitio. */
+  sitAt(p: THREE.Vector3) {
+    this.position.copy(p);
+    this.camera.position.set(p.x, p.y + EYE, p.z);
   }
 
   spawnAt(x: number, z: number) {

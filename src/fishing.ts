@@ -77,6 +77,11 @@ export class Fishing {
     return { kind: 'cast' };
   }
 
+  /** Con cebo (v4.21): pica mucho antes. */
+  hurry() {
+    if (this.phase === 'waiting') this.timer = Math.min(this.timer, 1 + Math.random() * 1.5);
+  }
+
   /** Devuelve 'bite' cuando pica y 'escaped' si no se tira a tiempo. */
   update(dt: number, player: THREE.Vector3): 'bite' | 'escaped' | 'cancelled' | null {
     if (this.phase === 'idle') return null;
