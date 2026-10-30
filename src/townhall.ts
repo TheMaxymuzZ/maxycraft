@@ -3,7 +3,7 @@
 // primera, un puente hasta uno de los islotes que hay alrededor de la isla. Aquí también están las rampas que
 // se hacen solas para que los vecinos lleguen a la tienda y al museo en las islas de antes.
 
-import { Block, isSolid, isWater } from './blocks';
+import { Block, ROOF_SLABS, ROOF_STAIRS, isSolid, isWater, roofColorOf, stairsFacing } from './blocks';
 import { type BuildWorld, type BuildingTemplate, canPlace, findSpot, placeTemplate } from './buildings';
 import { type Cell, type PathWorld, findPath } from './pathfind';
 import type { Islet } from './world';
@@ -77,10 +77,16 @@ export function hallHalf(level: number): number {
 
 const wallHeight = (level: number) => (level >= 3 ? 4 : 3);
 
-/** La plantilla del ayuntamiento de un nivel. Fuera del edificio deja lo que haya (salvo la plaza del nivel 4). */
+/**
+ * La plantilla del ayuntamiento de un nivel. Fuera del edificio deja lo que haya (salvo la plaza del nivel 4).
+ * v5.2: pilastras en las esquinas y junto a la puerta, ventanales y tejado a dos aguas de teja en pendiente con el
+ * hastial mirando a la plaza (en el nivel 4, con el reloj). Ocupa lo mismo que antes, así se amplía igual.
+ */
 export function hallTemplate(level: number): BuildingTemplate {
   const half = hallHalf(level);
   const wallH = wallHeight(level);
+  const roof = level === 1 ? Block.RoofYellow : level === 2 ? Block.RoofRed : Block.RoofBlue;
+  const color = Math.max(0, roofColorOf(roof));
   const legend: Record<string, Block> = {
     F: level >= 3 ? Block.PolishedStone : Block.Planks,
     W: level === 1 ? Block.ShopWall : level === 2 ? Block.Brick : Block.MuseumWall,
@@ -88,7 +94,10 @@ export function hallTemplate(level: number): BuildingTemplate {
     G: Block.Glass,
     D: Block.Door,
     T: Block.DoorTop,
-    R: level === 1 ? Block.RoofYellow : level === 2 ? Block.RoofRed : Block.RoofBlue,
+    R: roof,
+    a: stairsFacing(ROOF_STAIRS[color], 1),
+    c: stairsFacing(ROOF_STAIRS[color], 3),
+    s: ROOF_SLABS[color],
     P: Block.Tiles,
     K: Block.ClockFace,
     V: Block.Fence,
@@ -112,12 +121,13 @@ export function hallTemplate(level: number): BuildingTemplate {
           continue;
         }
         const corner = Math.abs(x - C) === half && Math.abs(z - C) === half;
-        let ch = corner ? 'L' : 'W';
         const front = z === C + half;
+        // Pilastras en las esquinas y a los lados de la puerta; ventanales de dos alturas entre medias.
+        const pillar = corner || (front && Math.abs(x - C) === 1);
+        let ch = pillar ? 'L' : 'W';
         if (front && x === C && h <= 2) ch = h === 1 ? 'D' : 'T';
-        else if (h === 2 && !corner && (x - C) % 2 === 0 && !front) ch = 'G';
-        else if (h === 2 && front && Math.abs(x - C) === 2) ch = 'G';
-        else if (level >= 4 && front && x === C && h === wallH) ch = 'K';
+        else if (!pillar && h >= 2 && h <= Math.min(3, wallH - 1) && (Math.abs(x - C) + Math.abs(z - C)) % 2 === 0 && !(front && Math.abs(x - C) <= 1)) ch = 'G';
+        else if (!pillar && h === 2 && level === 1 && (x - C) % 2 === 0) ch = 'G';
         g[z][x] = ch;
       }
     }
@@ -125,15 +135,24 @@ export function hallTemplate(level: number): BuildingTemplate {
     if (level >= 4 && h <= 2) for (const [x, z] of [[0, 0], [10, 0], [0, 10], [10, 10]]) g[z][x] = h === 1 ? 'V' : 'X';
     layers.push(g);
   }
-  // Tejado a cuatro aguas, como las casas: capas que se van cerrando, huecas por dentro.
-  for (let i = 0; half + 1 - i >= 0; i++) {
-    const r = half + 1 - i;
+  // Tejado a dos aguas con la cumbrera de delante atrás: cada capa sube uno y se mete uno; aleros de uno.
+  for (let k = 0; k <= half + 1; k++) {
+    const off = half + 1 - k;
     const g = grid();
-    for (let z = 0; z < SITE; z++) {
-      for (let x = 0; x < SITE; x++) {
-        const d = ring(x, z);
-        if (d > r) continue;
-        g[z][x] = d >= r - 1 || r <= 1 ? 'R' : '.';
+    // Encima de las paredes de los lados, un bloque más de pared hasta el tejado.
+    if (k === 0) for (let z = C - half; z <= C + half; z++) for (const x of [C - half, C + half]) g[z][x] = 'W';
+    for (let z = C - half - 1; z <= C + half + 1; z++) {
+      if (off === 0) {
+        g[z][C] = 's';
+        continue;
+      }
+      g[z][C - off] = 'a';
+      g[z][C + off] = 'c';
+      // Por dentro, aire; delante y detrás, el hastial (en el nivel 4, con el reloj en el de delante).
+      for (let x = C - off + 1; x <= C + off - 1; x++) {
+        if (g[z][x] !== ' ') continue;
+        const gable = Math.abs(z - C) === half;
+        g[z][x] = !gable ? (Math.abs(z - C) < half ? '.' : ' ') : level >= 4 && z === C + half && x === C && k === 1 ? 'K' : 'W';
       }
     }
     layers.push(g);
@@ -147,6 +166,21 @@ export function hallTemplate(level: number): BuildingTemplate {
     rooms: [{ name: 'Recepción', floor: 1, area: [C - half + 1, C - half + 1, C + half - 1, C + half - 1] }],
     slots: [{ kind: 'mostrador', at: [C, 1, C - half + 1] }],
   };
+}
+
+/** Los muebles de dentro de cada nivel (v5.2): [mueble, x, z en el solar, giro]. */
+export function hallFixtures(level: number): [string, number, number, number][] {
+  const half = hallHalf(level);
+  const back = C - half + 1;
+  const out: [string, number, number, number][] = [['escritorio', C, back + (level >= 3 ? 1 : 0), 0], ['tablon', C - half + 1, C, 1], ['lampara', C + half - 1, C + half - 1, 0]];
+  if (level >= 2) out.push(['silla', C, back + (level >= 3 ? 0 : 1), 2], ['planta', C + half - 1, back, 0], ['estanteria', C + half - 1, C, 3], ['lampara', C - half + 1, C + half - 1, 0]);
+  if (level >= 3) {
+    out.push(
+      ['bandera_pie', C - 2, back, 0], ['bandera_pie', C + 2, back, 0], ['atril', C, C + 1, 0], ['alfombra', C, C, 0],
+      ['banco', C - half + 1, C + 2, 1], ['banco', C + half - 1, C + 2, 3], ['planta', C - half + 1, back, 0], ['cuadro', C - half + 1, C - 2, 1],
+    );
+  }
+  return out;
 }
 
 /** Busca solar para el ayuntamiento cerca de la plaza (cabe ya el del nivel 4, para poder ampliarlo sin mover nada). */

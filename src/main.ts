@@ -25,7 +25,7 @@ import { calendar, creature, pickCreature } from './creatures';
 import { Dialog, KNOW } from './dialog';
 import { Drops } from './drops';
 import { Fishing } from './fishing';
-import { Furniture, type PlacedFurniture, paintFurnitureIcons } from './furniture';
+import { Furniture, type PlacedFurniture, furnitureDef, paintFurnitureIcons } from './furniture';
 import { HeldItem } from './held';
 import { ItemModels } from './itemModels';
 import { Hud } from './hud';
@@ -1254,6 +1254,7 @@ const museumHall = new MuseumHall({
   host: !joined && !trip,
   put: (x, y, z, b) => sync.setBlock(x, y, z, b),
   toast: (t) => hud.toast(t),
+  lampHook,
 });
 
 /** Los comercios del campo y la mina (v4.17): Espiga, Heno y Grava, cada uno en su edificio. */
@@ -2523,6 +2524,16 @@ function useItem() {
     }
     return;
   }
+  // Sillas, sofás y bancos (v5.2): clic derecho para sentarse, también en casa de los vecinos y en los edificios.
+  if (seated) {
+    standUp();
+    return;
+  }
+  const seat = seatInSight(blockDist);
+  if (seat) {
+    sitOn(seat);
+    return;
+  }
   // Los carteles se escriben con clic derecho.
   const aimed = furnitureInSight();
   if (aimed?.furniture.id === 'cama') {
@@ -2982,6 +2993,45 @@ function wakeUp() {
   sleepScreen.showMorning(`¡Buenos días! Son las ${hourText(clock.minute)}`);
   sound.fanfare();
   persist();
+}
+
+/** El asiento en el que estás sentado (v5.2). */
+let seated: PlacedFurniture | null = null;
+const seatSpot = new THREE.Vector3();
+
+/** Silla, sofá o banco al que apunta la mira: los tuyos, los de los vecinos y los de los edificios. */
+function seatInSight(blockDist: number): PlacedFurniture | null {
+  const groups = [furniture, villagerHomes.furniture, museumHall.fixtures, shopFront.fixtures, commerce.fixtures, town.fixtures];
+  let best: { furniture: PlacedFurniture; dist: number } | null = null;
+  for (const g of groups) {
+    const hit = g.pick(aimRay(), Math.min(blockDist, REACH));
+    if (hit && furnitureDef(hit.furniture.id)?.seat !== undefined && (!best || hit.dist < best.dist)) best = hit;
+  }
+  return best?.furniture ?? null;
+}
+
+function sitOn(f: PlacedFurniture) {
+  const def = furnitureDef(f.id)!;
+  if (shipyard.sailing) return;
+  seated = f;
+  // El cuerpo baja hasta el asiento y la cara mira hacia donde mira el mueble.
+  seatSpot.set(f.x + 0.5, f.y + (def.seat ?? 0.5) - 0.45, f.z + 0.5);
+  player.mounted = seatSpot;
+  player.yaw = (f.rot * Math.PI) / 2 + Math.PI;
+  player.sitAt(seatSpot);
+  sound.place();
+  hud.toast(touch ? 'Botón de saltar para levantarte' : 'Salta o haz clic derecho para levantarte');
+}
+
+function standUp() {
+  if (!seated) return;
+  const f = seated;
+  seated = null;
+  player.mounted = null;
+  player.drive.jump = false;
+  player.position.set(f.x + 0.5, f.y + 0.05, f.z + 0.5);
+  player.velocity.set(0, 0, 0);
+  player.forgetFall();
 }
 
 /** Mueble al que apunta la mira, si está más cerca que el bloque apuntado. */
@@ -4205,6 +4255,10 @@ function updateBoat(dt: number, seconds: number) {
     sound.place();
     hud.toast('¡Pum! Has chocado con la orilla');
   }
+  if (seated) {
+    player.mounted = seatSpot;
+    if (player.drive.jump && isPlaying()) standUp();
+  }
   if (shipyard.sailing && shipyard.seatNow(boatSeat)) {
     player.mounted = boatSeat;
     player.sitAt(boatSeat);
@@ -4325,7 +4379,7 @@ function frame(now: number) {
   furnitureLightTimer -= dt;
   if (furnitureLightTimer <= 0) {
     furnitureLightTimer = 0.5;
-    for (const g of [furniture.group, decor.group, terminalFixtures.group, villagerHomes.furniture.group, birds.group]) entityLight.applyAll(g);
+    for (const g of [furniture.group, decor.group, terminalFixtures.group, villagerHomes.furniture.group, birds.group, museumHall.fixtures.group, shopFront.fixtures.group, commerce.fixtures.group, town.fixtures.group]) entityLight.applyAll(g);
   }
   bugs.update(dt, hour, player.position, daylight);
   museumHall.update(dt, sky.night);

@@ -2,7 +2,7 @@
 // dueño, su edificio, su horario (en economy.ts) y su condición para abrir. Aquí está lo que no depende de la
 // partida; game/commerce.ts los construye y pone a sus dueños.
 
-import { Block } from './blocks';
+import { Block, ROOFS, ROOF_SLABS, ROOF_STAIRS, stairsFacing } from './blocks';
 import type { BuildingTemplate } from './buildings';
 import { BALDOSA, ESPIGA, GRAVA, HENO, SEDA, SERRIN, type ShopDef } from './economy';
 import type { Cell } from './pathfind';
@@ -36,6 +36,21 @@ export interface Merchant {
   unlockText: string;
   greetings: string[];
   icon: string;
+  /** El comercio nuevo (v5.2), más amplio y con sus muebles de oficio, para las islas nuevas (terreno 3). */
+  hall: MerchantHall;
+}
+
+/** Edificio, muebles, mostrador y cama de un comercio: los de antes o los nuevos. */
+export interface MerchantHall {
+  building: BuildingTemplate;
+  fixtures: Fixture[];
+  counter: Cell;
+  bed: Cell;
+}
+
+/** El edificio que le toca a un comercio según la isla. */
+export function hallOf(m: Merchant, newBuildings: boolean): MerchantHall {
+  return newBuildings ? m.hall : m;
 }
 
 /** Plantilla de 7×8: la caseta en z = 0..6 y una franja delante (z = 7) con la casilla de la puerta. */
@@ -137,6 +152,103 @@ const WORKSHOP = building('taller', 'Taller', {
 
 const COUNTER: Fixture[] = [['mostrador', 2, 1, 3, 0], ['caja_registradora', 3, 1, 3, 0], ['mostrador', 4, 1, 3, 0]];
 
+// --- Comercios nuevos (v5.2) ---
+
+/** Cómo es cada comercio nuevo: materiales y lo que tiene de especial. */
+interface HallStyle {
+  floor: Block;
+  wall: Block;
+  corner: Block;
+  /** Índice de ROOFS. */
+  roof: number;
+  /** Paredes de cristal (invernadero). */
+  glass?: boolean;
+  /** Escaparate grande delante (boutique, nave de muebles). */
+  shopWindow?: boolean;
+  /** Toldo sobre la puerta. */
+  awning?: boolean;
+  /** Bancales de flores a los lados (invernadero). */
+  beds?: boolean;
+}
+
+/**
+ * Comercio de 9×9 por fuera (antes 7×7) con tejado a dos aguas de teja en pendiente que da a la calle, ventanales
+ * y el techo abierto hasta la cumbrera. Plantilla de 11×12: aleros alrededor y la casilla de la puerta en z = 11.
+ * Dentro: el mostrador bajo con la caja en z = 4, el dueño detrás, la cama al fondo a la derecha y sitio para los
+ * muebles de su oficio.
+ */
+function tradeHall(id: string, name: string, st: HallStyle): BuildingTemplate {
+  const W = 11;
+  const D = 12;
+  const [x0, x1, z0, z1] = [1, 9, 1, 9];
+  const top = 4;
+  const H = top + 7;
+  const grid = Array.from({ length: H }, () => Array.from({ length: D }, () => Array<string>(W).fill(' ')));
+  const set = (x: number, y: number, z: number, c: string) => {
+    if (y >= 0 && y < H && x >= 0 && x < W && z >= 0 && z < D) grid[y][z][x] = c;
+  };
+  const onWall = (x: number, z: number) => ((x === x0 || x === x1) && z >= z0 && z <= z1) || ((z === z0 || z === z1) && x >= x0 && x <= x1);
+  const corner = (x: number, z: number) => (x === x0 || x === x1) && (z === z0 || z === z1);
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) set(x, 0, z, 'F');
+  for (let x = 0; x < W; x++) set(x, 0, 10, 'p');
+  for (let y = 1; y <= top; y++) {
+    for (let z = z0; z <= z1; z++) {
+      for (let x = x0; x <= x1; x++) {
+        if (!onWall(x, z)) set(x, y, z, '.');
+        else if (corner(x, z) || (z === z1 && Math.abs(x - 5) === 1) || y === top) set(x, y, z, 'L');
+        else if (st.glass && y < top) set(x, y, z, 'G');
+        else if ((y === 2 || y === 3) && (x === x0 || x === x1 ? z % 2 === 0 : x % 2 === 1)) set(x, y, z, 'G');
+        else set(x, y, z, 'W');
+      }
+    }
+  }
+  if (st.shopWindow) for (const x of [2, 3, 7, 8]) for (let y = 1; y <= 3; y++) set(x, y, z1, 'G');
+  set(5, 1, z1, 'D');
+  set(5, 2, z1, 'T');
+  set(5, 3, z1, 'L');
+  if (st.awning) for (let x = 2; x <= 8; x++) set(x, 3, z1 + 1, 'A');
+  if (st.beds) {
+    for (const x of [x0 + 1, x1 - 1]) {
+      for (let z = 5; z <= 8; z++) {
+        set(x, 0, z, 'g');
+        set(x, 1, z, ['r', 'y', 'b', 'h'][(x + z) % 4]);
+      }
+    }
+  }
+  // Tejado a dos aguas: la cumbrera de delante atrás, aleros de uno por cada lado.
+  for (let k = 0; k <= 5; k++) {
+    const off = 5 - k;
+    const y = top + 1 + k;
+    for (let z = z0 - 1; z <= z1 + 1; z++) {
+      if (off === 0) {
+        set(5, y, z, 's');
+        continue;
+      }
+      set(5 - off, y, z, 'a');
+      set(5 + off, y, z, 'c');
+      for (let x = 5 - off + 1; x <= 5 + off - 1; x++) {
+        if (z === z0 || z === z1) set(x, y, z, st.glass ? 'G' : z === z1 && k === 2 && x === 5 ? 'G' : 'W');
+        else if (z > z0 && z < z1) set(x, y, z, '.');
+      }
+    }
+  }
+  // Las paredes de los lados suben hasta el alero.
+  for (let z = z0 + 1; z < z1; z++) for (const x of [x0, x1]) set(x, top + 1, z, st.glass ? 'G' : 'W');
+  const legend: Record<string, Block> = {
+    F: st.floor, W: st.wall, L: st.corner, G: Block.Glass, D: Block.Door, T: Block.DoorTop, I: Block.LightBlock, A: Block.Awning,
+    p: Block.StonePath, g: Block.Grass, r: Block.FlowerRed, y: Block.FlowerYellow, b: Block.FlowerBlue, h: Block.TallGrass,
+    a: stairsFacing(ROOF_STAIRS[st.roof], 1), c: stairsFacing(ROOF_STAIRS[st.roof], 3), s: ROOF_SLABS[st.roof], R: ROOFS[st.roof],
+  };
+  return { id: `${id}-2`, name, legend, layers: grid.map((l) => l.map((r) => r.join(''))), door: [5, 1, 11], rooms: [{ name, floor: 1, area: [2, 2, 8, 8] }], slots: [] };
+}
+
+/** Mostrador bajo con la caja: así se ve bien al dueño. */
+const HALL_COUNTER: Fixture[] = [['mostrador_bajo', 4, 1, 4, 0], ['caja_mostrador', 5, 1, 4, 0], ['mostrador_bajo', 6, 1, 4, 0]];
+const hall = (building: BuildingTemplate, fixtures: Fixture[]): MerchantHall => ({
+  building, fixtures: [...HALL_COUNTER, ['mesita', 7, 1, 2, 0], ['lampara_techo', 3, 7, 4, 0], ['lampara_techo', 7, 7, 4, 0], ['lampara_techo', 3, 7, 7, 0], ['lampara_techo', 7, 7, 7, 0], ...fixtures],
+  counter: [5, 1, 3], bed: [8, 1, 2],
+});
+
 export const MERCHANTS: Merchant[] = [
   {
     shop: ESPIGA,
@@ -156,6 +268,9 @@ export const MERCHANTS: Merchant[] = [
       '¡Hola! Si traes trigo, zanahorias o tomates te los pago mejor que nadie, {c}.',
     ],
     icon: '🌱',
+    hall: hall(tradeHall('invernadero', 'Invernadero', { floor: Block.Planks, wall: Block.Glass, corner: Block.Log, roof: 2, glass: true, beds: true }), [
+      ['sacos', 2, 1, 2, 0], ['macetero', 3, 1, 2, 0], ['planta', 8, 1, 4, 0], ['espantapajaros', 8, 1, 11, 0], ['banco', 5, 1, 8, 2],
+    ]),
   },
   {
     shop: HENO,
@@ -175,6 +290,9 @@ export const MERCHANTS: Merchant[] = [
       'Las ovejas dan lana cada día. Yo te la compro bien pagada, {c}.',
     ],
     icon: '🐄',
+    hall: hall(tradeHall('granero', 'Granero', { floor: Block.Planks, wall: Block.Brick, corner: Block.Log, roof: 0 }), [
+      ['bala_paja', 2, 1, 2, 0], ['bala_paja', 2, 1, 3, 0], ['bala_paja', 2, 2, 2, 0], ['barril', 8, 1, 6, 0], ['sacos', 2, 1, 7, 1], ['banco', 8, 1, 8, 3],
+    ]),
   },
   {
     shop: GRAVA,
@@ -194,6 +312,10 @@ export const MERCHANTS: Merchant[] = [
       'Las herramientas de cristal son las mejores. Casi no se rompen, {c}.',
     ],
     icon: '⛏️',
+    hall: hall(tradeHall('caseta-mina', 'Caseta de la mina', { floor: Block.Cobble, wall: Block.Cobble, corner: Block.Log, roof: 3 }), [
+      ['yunque', 2, 1, 6, 1], ['barril', 2, 1, 2, 0], ['farol', 3, 1, 2, 0], ['estanteria', 8, 1, 6, 3],
+      ['railes', 3, 1, 11, 0], ['vagoneta', 2, 1, 11, 0], ['railes', 1, 1, 11, 0],
+    ]),
   },
   {
     shop: SEDA,
@@ -213,6 +335,9 @@ export const MERCHANTS: Merchant[] = [
       'Cada día cuelgo prendas nuevas. Si ves algo que te gusta, no lo pienses, {c}.',
     ],
     icon: '👗',
+    hall: hall(tradeHall('boutique', 'Boutique', { floor: Block.Planks, wall: Block.Wall, corner: Block.Wall, roof: 0, shopWindow: true, awning: true }), [
+      ['maniqui', 2, 1, 8, 0], ['maniqui', 8, 1, 8, 0], ['perchero', 2, 1, 5, 1], ['perchero', 8, 1, 5, 3], ['espejo', 2, 1, 3, 1], ['maquina_coser', 3, 1, 2, 0], ['alfombra', 5, 1, 6, 0],
+    ]),
   },
   {
     shop: SERRIN,
@@ -232,6 +357,9 @@ export const MERCHANTS: Merchant[] = [
       'Si regalas a un vecino un mueble de su estilo, le harás muy feliz, {c}.',
     ],
     icon: '🛋️',
+    hall: hall(tradeHall('nave-muebles', 'Nave de muebles', { floor: Block.Planks, wall: Block.ShopWall, corner: Block.Log, roof: 2, shopWindow: true }), [
+      ['banco_carpintero', 2, 1, 2, 0], ['sofa', 2, 1, 7, 1], ['mesa', 8, 1, 7, 0], ['silla', 8, 1, 8, 2], ['lampara', 2, 1, 8, 0], ['estanteria', 8, 1, 5, 3], ['alfombra', 5, 1, 7, 0],
+    ]),
   },
   {
     shop: BALDOSA,
@@ -251,6 +379,10 @@ export const MERCHANTS: Merchant[] = [
       'Los domingos descanso. Hay que estirar el cuello de vez en cuando, {c}.',
     ],
     icon: '🏮',
+    hall: hall(tradeHall('taller', 'Taller', { floor: Block.Tiles, wall: Block.Brick, corner: Block.PolishedStone, roof: 3, awning: true }), [
+      ['muestrario', 2, 1, 5, 1], ['muestrario', 8, 1, 5, 3], ['jardinera', 2, 1, 8, 0], ['barril', 2, 1, 2, 0],
+      ['farola_hierro', 0, 1, 11, 0], ['banco_parque', 2, 1, 11, 0], ['senal_calle', 9, 1, 11, 0],
+    ]),
   },
 ];
 

@@ -7,6 +7,20 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.2',
+    title: 'Edificios nuevos por dentro y por fuera',
+    items: [
+      'Las casas de los vecinos son más grandes (7×7), con tejado a dos aguas y amuebladas: cocina, fregadero, nevera, mesa con sillas, estantería, cuadro y su cama con mesita. Siguen quedando huecos para los muebles que les regales.',
+      'Te puedes sentar en sillas, sofás, bancos, tumbonas y mecedoras con clic derecho. Para levantarte, salta o vuelve a hacer clic derecho.',
+      'Museo nuevo de dos plantas: entrada con columnas, escalera principal, sala de fósiles, insectario con terrarios, acuario con paredes de peceras y una terraza arriba con catalejo. Cada pez va en su pecera y cada bicho en su terrario, sin montar bloques.',
+      'Tienda nueva: mostrador bajo con caja registradora (ahora se ve a Avellana), mesas expositoras, cestas, escaparate y un altillo bajo el tejado a dos aguas donde duerme.',
+      'El ayuntamiento y los comercios tienen tejados a dos aguas, lámparas colgantes y muebles propios de cada oficio (sacos, yunque, máquina de coser, banco de carpintero…).',
+      'Muebles nuevos: pecera, terrario, vitrina, pedestal, panel informativo, cordón, lámpara de techo, cocina, fregadero, nevera, mesita, cuadro, escritorio, atril, tablón y más.',
+      'Bloques nuevos: escaleras y losas de teja en los cuatro colores y escalera de piedra pulida.',
+      'La isla es más grande y los islotes, el doble. Todo esto sale en las islas nuevas (Mis islas → isla nueva); las islas que ya tenías se quedan como estaban.',
+    ],
+  },
+  {
     version: '5.1',
     title: 'Navegar sin pantallas de carga y aldeas de verdad',
     items: [

@@ -7,6 +7,9 @@ import { type Activity, type AgendaItem, type Errand, activityAt, agendaFor } fr
 import { type Species, buildVillagerModel } from './villagerModel';
 import { type MysteryKind, type Plot, type World } from './world';
 import { SHOPKEEPER_BED, SHOPKEEPER_SPOT, shopOrigin } from './shopBuilding';
+import { BIG_BED, insideBigHouse, isBigHouse } from './villagerHouse';
+import { HALL_KEEPER_BED, HALL_KEEPER_SPOT, shopHallOrigin } from './shopHall';
+import { CURATOR_SPOT, museumHallOrigin } from './museumHall';
 
 export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido' | 'deportista' | 'dulce';
 export type { Species };
@@ -407,13 +410,15 @@ export class Villager {
   /** Donde está la cama: en la esquina del fondo a la izquierda (si cabe; si no, en medio). */
   get bedCell(): Cell {
     const [x, y, z] = this.home.door;
-    const bed: Cell = [x - 1, y, z - 4];
+    // v5.2: en la casa grande, en su rincón junto a la mesita.
+    const bed: Cell = isBigHouse(this.home) ? [x + BIG_BED[0], y, z + BIG_BED[1]] : [x - 1, y, z - 4];
     return standable(this.world, ...bed) ? bed : this.insideCell;
   }
 
   /** Si el jugador está dentro de esta casa. */
   private playerInside(player: THREE.Vector3): boolean {
     const [x, y, z] = this.home.door;
+    if (isBigHouse(this.home)) return insideBigHouse(this.home.door, player.x, player.y, player.z);
     return Math.abs(player.x - (x + 0.5)) < 2 && player.z < z - 0.5 && player.z > z - 5 && player.y >= y - 0.5 && player.y < y + 3;
   }
 
@@ -925,7 +930,7 @@ export interface Guest {
 
 /** Casilla de la tienda en el mundo. */
 function atShop(shop: Plot, [x, y, z]: Cell): Cell {
-  const [ox, oy, oz] = shopOrigin(shop);
+  const [ox, oy, oz] = isBigHouse(shop) ? shopHallOrigin(shop) : shopOrigin(shop);
   return [ox + x, oy + y, oz + z];
 }
 
@@ -938,11 +943,17 @@ export function createVillagers(world: World, memories: Record<string, VillagerM
   const pool = [...PROFILES];
   const shop = world.plots.find((p) => p.kind === 'shop');
   // Desde la v4.16 Avellana atiende detrás del mostrador y por la noche sube a dormir a su casa, encima de la tienda.
-  const keeper = shop ? [new Villager(SHOPKEEPER, { ...shop, door: atShop(shop, SHOPKEEPER_SPOT) }, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
-  if (shop) keeper[0].rest = atShop(shop, SHOPKEEPER_BED);
+  const big = isBigHouse(shop);
+  const keeper = shop ? [new Villager(SHOPKEEPER, { ...shop, door: atShop(shop, big ? HALL_KEEPER_SPOT : SHOPKEEPER_SPOT) }, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
+  if (shop) keeper[0].rest = atShop(shop, big ? HALL_KEEPER_BED : SHOPKEEPER_BED);
   const museum = world.plots.find((p) => p.kind === 'museum');
   // Desde la v4.15 Matilde espera dentro del museo, en la recepción, mirando a la puerta.
-  const curator = museum ? [new Villager(CURATOR, { ...museum, door: [museum.x + 2, museum.y + 1, museum.z + 2] }, world, memories[CURATOR.name] ?? { friendship: 0 })] : [];
+  const curatorAt = (m: Plot): Cell => {
+    if (!isBigHouse(m)) return [m.x + 2, m.y + 1, m.z + 2];
+    const [ox, oy, oz] = museumHallOrigin(m);
+    return [ox + CURATOR_SPOT[0], oy + CURATOR_SPOT[1], oz + CURATOR_SPOT[2]];
+  };
+  const curator = museum ? [new Villager(CURATOR, { ...museum, door: curatorAt(museum) }, world, memories[CURATOR.name] ?? { friendship: 0 })] : [];
   const locals = world.plots.filter((p) => p.kind === 'house' && !p.guest).map((plot, i) => {
     const pick = Math.floor(columnRandom(i, 99, world.seed) * pool.length);
     const profile = pool.splice(pick, 1)[0];
