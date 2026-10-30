@@ -7,6 +7,7 @@ import '@fontsource/pixelify-sans/latin-700.css';
 import './style.css';
 import cifrasUrl from '@fontsource/press-start-2p/files/press-start-2p-latin-400-normal.woff2?url';
 import { Sound, materialOf } from './audio';
+import { buildHiAtlas, loadSpritePack, paintPackSmall } from './spritePack';
 import { BLOCKS, Block, FRUITS, ROOFS, SWAYING, applySeason, createAtlasCanvas, createAtlasTexture, isCross, isDoor, isDoorTop, isGround, isLeaves, isPath, isSolid, isStairs, isLava, isLavaSource, isTargetable, isWater, isWaterSource, stairsFacing, toggled, wallTorchFor } from './blocks';
 import { Fluids } from './fluids';
 import { Breaker } from './breaking';
@@ -158,9 +159,18 @@ scene.add(hemi, sunLight);
 const sky = new Sky(scene, hemi, sunLight);
 const shadows = new SunShadows(renderer, sunLight, scene);
 
+// Dibujos nuevos de prueba (v5.2): si está el archivo, el mundo usa un atlas grande con más detalle.
+const spritePack = await loadSpritePack();
 const atlas = createAtlasCanvas();
 paintFurnitureIcons(atlas);
-const atlasTexture = createAtlasTexture(atlas);
+if (spritePack) paintPackSmall(atlas, spritePack);
+const hiAtlas = spritePack ? buildHiAtlas(atlas, spritePack, 'verano') : null;
+const atlasTexture = createAtlasTexture(hiAtlas ?? atlas);
+/** Rehace el atlas grande después de recolorear el normal (cambio de estación). */
+const refreshHiAtlas = () => {
+  if (hiAtlas && spritePack) buildHiAtlas(atlas, spritePack, season, hiAtlas);
+  atlasTexture.needsUpdate = true;
+};
 const material = new THREE.MeshLambertMaterial({
   map: atlasTexture,
   vertexColors: true,
@@ -261,6 +271,7 @@ let season = seasonOf(startDate);
 let holiday = holidayOf(startDate);
 calendar.month = startDate.getMonth() + 1;
 applySeason(atlas, season);
+refreshHiAtlas();
 
 const sound = new Sound(seed);
 sound.season = season;
@@ -4007,11 +4018,12 @@ function newDay() {
     // Se repinta el atlas desde cero con los colores de la estación nueva.
     const fresh = createAtlasCanvas();
     paintFurnitureIcons(fresh);
+    if (spritePack) paintPackSmall(fresh, spritePack);
     applySeason(fresh, season);
     const ctx = atlas.getContext('2d')!;
     ctx.clearRect(0, 0, atlas.width, atlas.height);
     ctx.drawImage(fresh, 0, 0);
-    atlasTexture.needsUpdate = true;
+    refreshHiAtlas();
     mapScreen.map.repaint();
     horizon.recolor();
     hud.toast(`¡Ha llegado ${season === 'otoño' ? 'el otoño' : season === 'invierno' ? 'el invierno' : season === 'verano' ? 'el verano' : 'la primavera'}!`);
