@@ -52,6 +52,13 @@ export const LORE: Record<string, string> = {
   bala_paja: 'Paja bien prensada. A las ovejas de Heno les encanta dormir la siesta encima.',
   yunque: 'Donde Grava arregla las herramientas. Suena «clinc, clinc» hasta muy tarde.',
   maquina_coser: 'La máquina de Seda. Con ella cose una prenda nueva cada día.',
+  maletas: 'Maletas de todos los colores esperando el próximo vuelo. Nadie sabe de quién es la roja.',
+  salvavidas: 'Un aro rojo y blanco en su poste, por si alguien se cae del muelle.',
+  manga_viento: 'Dice a los pilotos de dónde sopla el viento: se infla y apunta hacia donde va.',
+  rollo_cuerda: 'Cuerda de cáñamo bien enrollada, como le gusta a Bartolo.',
+  ancla: 'Un ancla de hierro de verdad. Pesa muchísimo; mejor de adorno.',
+  timon: 'Un timón de barco para colgar en la pared. Dan ganas de girarlo.',
+  puesto_pesca: 'El puesto de Brújula: mostrador azul con toldo, cebos y cañas.',
   banco_carpintero: 'El banco de trabajo de Serrín, lleno de serrín, claro.',
   muestrario: 'Las baldosas que hace Baldosa, para elegir antes de empedrar una calle.',
   // Bloques de construir

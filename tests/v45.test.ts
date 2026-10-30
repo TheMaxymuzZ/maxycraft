@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { ATLAS_TILES, BLOCKS, Block, CREATURE_TILE_START, EXTRA_TILE_START, FURNITURE_TILE_START, Tile, allBlocks, blockByKey, blockKey, isKnownBlock } from '../src/blocks';
-import { FURNITURE } from '../src/furniture';
+import { FURNITURE, FURNITURE_TILE, FURNITURE_TILE_START_2 } from '../src/furniture';
 import { ITEMS, ITEM_KINDS, RARITIES, itemDef } from '../src/items';
 import { isWorldAction } from '../src/net/actions';
 import { PROTOCOL } from '../src/net/protocol';
@@ -76,7 +76,11 @@ describe('v4.5: registro de bloques', () => {
     expect(ATLAS_TILES * ATLAS_TILES).toBeGreaterThanOrEqual(1024);
     // Las casillas de siempre no se mueven: el mapa (v4.4) sigue justo antes de los peces.
     expect(Tile.Map).toBeLessThan(CREATURE_TILE_START);
-    expect(FURNITURE_TILE_START + FURNITURE.length).toBeLessThanOrEqual(EXTRA_TILE_START);
+    // v5.3: los muebles que no caben antes de los dibujos extra van más adelante, sin pisar nada.
+    const tiles = FURNITURE.map((f) => FURNITURE_TILE(f.id));
+    expect(new Set(tiles).size).toBe(FURNITURE.length);
+    for (const t of tiles) expect(t < EXTRA_TILE_START || (t >= FURNITURE_TILE_START_2 && t < ATLAS_TILES * ATLAS_TILES)).toBe(true);
+    expect(Math.min(...tiles)).toBe(FURNITURE_TILE_START);
     for (const b of allBlocks()) for (const t of BLOCKS[b].tiles) expect(t).toBeLessThan(ATLAS_TILES * ATLAS_TILES);
   });
 
