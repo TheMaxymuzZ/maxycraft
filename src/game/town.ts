@@ -2,6 +2,7 @@
 // las obras públicas y las rampas de las islas de antes. Lo que no depende de la partida está en townhall.ts.
 import type * as THREE from 'three';
 import type { Block } from '../blocks';
+import { Furniture } from '../furniture';
 import type { BuildWorld } from '../buildings';
 import type { TownActions } from '../dialog';
 import type { Inventory } from '../inventory';
@@ -9,7 +10,7 @@ import { itemDef } from '../items';
 import type { MapMarker } from '../map';
 import type { Rating } from '../rating';
 import {
-  FLAG_COLORS, HALL_LEVELS, PUBLIC_WORKS, type TownSave, buildHall, buildRamp, findHallSite, hallDoor, placeFlag, planBridge,
+  FLAG_COLORS, HALL_LEVELS, PUBLIC_WORKS, type TownSave, buildHall, buildRamp, findHallSite, hallDoor, hallFixtures, placeFlag, planBridge,
 } from '../townhall';
 import { MAYOR, PLANNER, Villager, type VillagerMemory, errandPlaces } from '../villagers';
 import type { Plot, World } from '../world';
@@ -48,9 +49,12 @@ export class Town {
   mayor: Villager | null = null;
   planner: Villager | null = null;
   private build: BuildWorld & { islets: World['islets']; waterKind: World['waterKind'] };
+  /** Muebles de dentro (v5.2): escritorio, tablón, banderas, bancos… Se ponen al cargar, no se guardan. */
+  readonly fixtures = new Furniture([]);
 
   constructor(private deps: TownDeps, saved?: TownSave | null) {
     const { world } = deps;
+    deps.scene.add(this.fixtures.group);
     this.state = saved ? { ...saved, works: [...saved.works] } : null;
     this.build = {
       getBlock: (x, y, z) => world.getBlock(x, y, z),
@@ -70,6 +74,15 @@ export class Town {
       }
     }
     this.spawnStaff();
+    this.furnish();
+  }
+
+  /** Pone los muebles del nivel de ahora. */
+  private furnish() {
+    this.fixtures.clear();
+    const s = this.state;
+    if (!s) return;
+    for (const [id, x, z, rot] of hallFixtures(s.level)) this.fixtures.place(id, s.x + x, s.y + 1, s.z + z, rot);
   }
 
   /** Coloca la caseta de obras cerca de la plaza (en las islas nuevas y en las de antes). */
@@ -265,6 +278,7 @@ export class Town {
     buildHall(this.build, s, s.level, previous);
     if (s.flag !== undefined && s.level >= 3) placeFlag(this.build, s, s.level, s.flag);
     this.moveStaff();
+    this.furnish();
     this.deps.changed();
     this.deps.persist();
   }

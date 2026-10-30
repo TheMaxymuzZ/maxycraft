@@ -96,6 +96,13 @@ export enum Block {
   // Antorchas en la pared (v5.0.1), clavadas en diagonal. El número de más dice hacia dónde está la pared:
   // 0 hacia -z, 1 hacia +x, 2 hacia +z, 3 hacia -x.
   WallTorch = 166, WallTorch1 = 167, WallTorch2 = 168, WallTorch3 = 169,
+  // Edificios nuevos (v5.2): tejados con pendiente de verdad (escaleras y losas de teja) y escalera de piedra pulida.
+  RoofRedStairs = 170, RoofRedStairs1 = 171, RoofRedStairs2 = 172, RoofRedStairs3 = 173,
+  RoofBlueStairs = 174, RoofBlueStairs1 = 175, RoofBlueStairs2 = 176, RoofBlueStairs3 = 177,
+  RoofGreenStairs = 178, RoofGreenStairs1 = 179, RoofGreenStairs2 = 180, RoofGreenStairs3 = 181,
+  RoofYellowStairs = 182, RoofYellowStairs1 = 183, RoofYellowStairs2 = 184, RoofYellowStairs3 = 185,
+  PolishedStairs = 186, PolishedStairs1 = 187, PolishedStairs2 = 188, PolishedStairs3 = 189,
+  RoofRedSlab = 190, RoofBlueSlab = 191, RoofGreenSlab = 192, RoofYellowSlab = 193,
 }
 
 export const TILE = 16;
@@ -366,6 +373,10 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.CobbleSlab]: slab('Losa de adoquín', Tile.Cobble),
   [Block.BrickSlab]: slab('Losa de ladrillo', Tile.Brick),
   [Block.PolishedSlab]: slab('Losa de piedra pulida', Tile.PolishedStone),
+  [Block.RoofRedSlab]: slab('Losa de teja roja', Tile.RoofRed),
+  [Block.RoofBlueSlab]: slab('Losa de teja azul', Tile.RoofBlue),
+  [Block.RoofGreenSlab]: slab('Losa de teja verde', Tile.RoofGreen),
+  [Block.RoofYellowSlab]: slab('Losa de teja amarilla', Tile.RoofYellow),
   [Block.Chest]: cube('Cofre', Tile.ChestFront, Tile.ChestTop),
   [Block.Trunk]: cube('Baúl', Tile.TrunkFront, Tile.TrunkTop),
   [Block.Crate]: cube('Caja', Tile.CrateSide),
@@ -443,6 +454,12 @@ export const STAIRS: [Block, string, Tile][] = [
   [Block.PlanksStairs, 'Escalera de madera', Tile.Planks],
   [Block.CobbleStairs, 'Escalera de adoquín', Tile.Cobble],
   [Block.BrickStairs, 'Escalera de ladrillo', Tile.Brick],
+  // v5.2: para los tejados a dos aguas y las escalinatas.
+  [Block.RoofRedStairs, 'Teja roja en pendiente', Tile.RoofRed],
+  [Block.RoofBlueStairs, 'Teja azul en pendiente', Tile.RoofBlue],
+  [Block.RoofGreenStairs, 'Teja verde en pendiente', Tile.RoofGreen],
+  [Block.RoofYellowStairs, 'Teja amarilla en pendiente', Tile.RoofYellow],
+  [Block.PolishedStairs, 'Escalera de piedra pulida', Tile.PolishedStone],
 ];
 for (const [first, name, tile] of STAIRS) for (let f = 0; f < 4; f++) BLOCKS[first + f] = stairs(name, tile, f);
 for (let f = 0; f < 4; f++) BLOCKS[Block.WallTorch + f] = { ...cross('Antorcha', Tile.Torch), facing: f };
@@ -568,8 +585,31 @@ export function isGround(b: number): boolean {
 /** Bloques de construcción: dentro de las parcelas de vecinos y tienda no se pueden romper. */
 export const HOUSE_BLOCKS: readonly Block[] = [
   Block.Wall, Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow, Block.Window, Block.ShopWall, Block.MuseumWall, Block.Planks, Block.Canvas,
+  // v5.2: tejados en pendiente.
+  ...Array.from({ length: 16 }, (_, i) => (Block.RoofRedStairs + i) as Block),
+  Block.RoofRedSlab, Block.RoofBlueSlab, Block.RoofGreenSlab, Block.RoofYellowSlab,
 ];
 export const ROOFS = [Block.RoofRed, Block.RoofBlue, Block.RoofGreen, Block.RoofYellow] as const;
+/** Las escaleras (primer bloque) y las losas de teja de cada color de ROOFS, en el mismo orden (v5.2). */
+export const ROOF_STAIRS = [Block.RoofRedStairs, Block.RoofBlueStairs, Block.RoofGreenStairs, Block.RoofYellowStairs] as const;
+export const ROOF_SLABS = [Block.RoofRedSlab, Block.RoofBlueSlab, Block.RoofGreenSlab, Block.RoofYellowSlab] as const;
+
+/** Color (índice de ROOFS) de un bloque de tejado, de su escalera o de su losa; -1 si no es de tejado. */
+export function roofColorOf(b: number): number {
+  const plain = (ROOFS as readonly number[]).indexOf(b);
+  if (plain >= 0) return plain;
+  const slab = (ROOF_SLABS as readonly number[]).indexOf(b);
+  if (slab >= 0) return slab;
+  return ROOF_STAIRS.findIndex((s) => b >= s && b < s + 4);
+}
+
+/** El mismo bloque de tejado (normal, escalera con su giro o losa) pero del color `color`. */
+export function recolorRoof(b: number, color: number): Block {
+  if ((ROOFS as readonly number[]).includes(b)) return ROOFS[color];
+  if ((ROOF_SLABS as readonly number[]).includes(b)) return ROOF_SLABS[color];
+  const s = ROOF_STAIRS.find((first) => b >= first && b < first + 4);
+  return s === undefined ? (b as Block) : ((ROOF_STAIRS[color] + (b - s)) as Block);
+}
 
 export const FRUITS = [Block.Apple, Block.Orange, Block.Pear, Block.Peach, Block.Cherry] as const;
 

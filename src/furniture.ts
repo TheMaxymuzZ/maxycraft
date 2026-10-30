@@ -9,8 +9,11 @@ export interface FurnitureDef {
   sell: number;
   /** Si no tiene precio de compra, solo se consigue fabricándolo. */
   buy?: number;
-  /** Las piezas: [ancho, alto, fondo, color, x, y, z] con (x, z) en el centro y y en la base. */
-  parts: [number, number, number, number, number, number, number][];
+  /**
+   * Las piezas: [ancho, alto, fondo, color, x, y, z] con (x, z) en el centro y y en la base. Una octava cifra
+   * (v5.2) hace la pieza transparente con esa opacidad: el cristal y el agua de las peceras y las vitrinas.
+   */
+  parts: Part[];
   /** Si brilla de noche (las lámparas). */
   glow?: number;
   /** Solo se vende en esa fiesta. */
@@ -22,10 +25,24 @@ export interface FurnitureDef {
   stack?: number;
   /** Solo lo vende ese comercio (v4.17). */
   seller?: string;
+  /** Altura del asiento si es para sentarse (v5.2): sillas, sofás, bancos… */
+  seat?: number;
 }
+
+export type Part = [number, number, number, number, number, number, number, number?];
 
 const WOOD = 0xb9824f;
 const DARK = 0x7a5233;
+// Museo y edificios (v5.2).
+const FRAME = 0x3a4148;
+const BRASS = 0xc9a24a;
+const MARBLE = 0xeceae2;
+const MARBLE_DARK = 0xc8c4b8;
+
+/** Cuatro postes finos en las esquinas (el marco de una pecera o una vitrina). */
+function POSTS(w: number, h: number, color: number, at = 0.47, y = 0.06): Part[] {
+  return [[-at, -at], [at, -at], [-at, at], [at, at]].map(([x, z]): Part => [w, h, w, color, x, y, z]);
+}
 
 export const FURNITURE: FurnitureDef[] = [
   {
@@ -49,7 +66,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'silla', name: 'Silla', sell: 100, buy: 400,
+    id: 'silla', name: 'Silla', sell: 100, buy: 400, seat: 0.5,
     parts: [
       [0.6, 0.08, 0.6, WOOD, 0, 0.42, 0.04],
       [0.6, 0.5, 0.08, WOOD, 0, 0.5, -0.24],
@@ -82,7 +99,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'sofa', name: 'Sofá', sell: 400, buy: 1600,
+    id: 'sofa', name: 'Sofá', sell: 400, buy: 1600, seat: 0.42,
     parts: [
       [0.96, 0.4, 0.8, 0xc8553d, 0, 0, 0.06],
       [0.96, 0.4, 0.2, 0xb04632, 0, 0.4, -0.24],
@@ -127,7 +144,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'banco', name: 'Banco', sell: 180,
+    id: 'banco', name: 'Banco', sell: 180, seat: 0.48,
     parts: [
       [0.96, 0.08, 0.4, WOOD, 0, 0.4, 0.1],
       [0.96, 0.3, 0.08, WOOD, 0, 0.56, -0.12],
@@ -342,7 +359,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'tumbona', name: 'Tumbona', sell: 300, buy: 1200, seller: 'muebles',
+    id: 'tumbona', name: 'Tumbona', sell: 300, buy: 1200, seller: 'muebles', seat: 0.36,
     parts: [
       [0.06, 0.24, 0.06, 0xf4f0e6, -0.3, 0, -0.4], [0.06, 0.24, 0.06, 0xf4f0e6, 0.3, 0, -0.4],
       [0.06, 0.24, 0.06, 0xf4f0e6, -0.3, 0, 0.4], [0.06, 0.24, 0.06, 0xf4f0e6, 0.3, 0, 0.4],
@@ -362,7 +379,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'sillon_moderno', name: 'Sillón moderno', sell: 400, buy: 1600, seller: 'muebles',
+    id: 'sillon_moderno', name: 'Sillón moderno', sell: 400, buy: 1600, seller: 'muebles', seat: 0.44,
     parts: [
       [0.84, 0.3, 0.8, 0x50a0a0, 0, 0.1, 0.04],
       [0.84, 0.5, 0.16, 0x50a0a0, 0, 0.3, -0.34],
@@ -412,14 +429,14 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'puf', name: 'Puf', sell: 180, buy: 700, seller: 'muebles',
+    id: 'puf', name: 'Puf', sell: 180, buy: 700, seller: 'muebles', seat: 0.4,
     parts: [
       [0.7, 0.36, 0.7, 0xee8fb2, 0, 0, 0],
       [0.56, 0.06, 0.56, 0xf6b0c8, 0, 0.36, 0],
     ],
   },
   {
-    id: 'mecedora', name: 'Mecedora', sell: 350, buy: 1400, seller: 'muebles',
+    id: 'mecedora', name: 'Mecedora', sell: 350, buy: 1400, seller: 'muebles', seat: 0.5,
     parts: [
       [0.08, 0.06, 0.96, DARK, -0.28, 0, 0], [0.08, 0.06, 0.96, DARK, 0.28, 0, 0],
       [0.06, 0.38, 0.06, DARK, -0.28, 0.06, 0.24], [0.06, 0.38, 0.06, DARK, 0.28, 0.06, 0.24],
@@ -468,7 +485,7 @@ export const FURNITURE: FurnitureDef[] = [
     ],
   },
   {
-    id: 'banco_parque', name: 'Banco de parque', sell: 300, buy: 1200, seller: 'urbano', stack: 10,
+    id: 'banco_parque', name: 'Banco de parque', sell: 300, buy: 1200, seller: 'urbano', stack: 10, seat: 0.45,
     parts: [
       [0.08, 0.44, 0.44, 0x2a2e34, -0.42, 0, 0], [0.08, 0.44, 0.44, 0x2a2e34, 0.42, 0, 0],
       [0.96, 0.05, 0.12, 0x3f7a4a, 0, 0.4, 0.12], [0.96, 0.05, 0.12, 0x3f7a4a, 0, 0.4, -0.04],
@@ -491,7 +508,7 @@ export const FURNITURE: FurnitureDef[] = [
       [0.1, 2.2, 0.1, WOOD, -0.44, 0, -0.44], [0.1, 2.2, 0.1, WOOD, 0.44, 0, -0.44],
       [0.1, 2.2, 0.1, WOOD, -0.44, 0, 0.44], [0.1, 2.2, 0.1, WOOD, 0.44, 0, 0.44],
       [1.1, 0.08, 0.1, DARK, 0, 2.2, -0.44], [1.1, 0.08, 0.1, DARK, 0, 2.2, 0.44],
-      ...[-0.3, -0.1, 0.1, 0.3].map((z): [number, number, number, number, number, number, number] => [1.1, 0.06, 0.08, DARK, 0, 2.28, z]),
+      ...[-0.3, -0.1, 0.1, 0.3].map((z): Part => [1.1, 0.06, 0.08, DARK, 0, 2.28, z]),
       [1.0, 0.1, 1.0, 0x5aa04a, 0, 2.36, 0],
     ],
   },
@@ -504,8 +521,276 @@ export const FURNITURE: FurnitureDef[] = [
       [0.2, 0.2, 0.04, 0xd64541, -0.14, 1.16, 0.02],
     ],
   },
+  // --- Edificios nuevos (v5.2): muebles de un bloque hechos para cada edificio. Los usan el museo, la tienda, el
+  // ayuntamiento, los comercios y las casas de los vecinos; los de casa también los vende Serrín. ---
+  // Museo: cada pecera, terrario o vitrina es un solo bloque, con su pieza dentro.
+  {
+    id: 'pecera', name: 'Pecera', sell: 600, seller: 'museo',
+    parts: [
+      [1, 0.06, 1, FRAME, 0, 0, 0],
+      [0.9, 0.08, 0.9, 0xe8d6a0, 0, 0.06, 0],
+      [0.08, 0.22, 0.08, 0x3f9a4a, -0.28, 0.14, -0.26], [0.06, 0.32, 0.06, 0x56b24e, -0.2, 0.14, -0.3],
+      [0.16, 0.1, 0.12, 0x8a8a84, 0.26, 0.14, -0.22],
+      ...POSTS(0.06, 0.88, FRAME),
+      [1, 0.05, 1, FRAME, 0, 0.94, 0],
+      [0.92, 0.8, 0.92, 0x3d9fd8, 0, 0.12, 0, 0.32],
+    ],
+  },
+  {
+    id: 'terrario', name: 'Terrario', sell: 600, seller: 'museo',
+    parts: [
+      [1, 0.06, 1, FRAME, 0, 0, 0],
+      [0.9, 0.14, 0.9, 0x6b4a2e, 0, 0.06, 0],
+      [0.9, 0.04, 0.9, 0x5aa04a, 0, 0.2, 0],
+      [0.08, 0.4, 0.08, 0x7a5233, 0.22, 0.24, -0.2], [0.3, 0.06, 0.06, 0x7a5233, 0.1, 0.5, -0.2],
+      [0.22, 0.2, 0.22, 0x67b54a, -0.24, 0.24, 0.18], [0.1, 0.1, 0.1, 0xe84a6a, -0.24, 0.44, 0.18],
+      ...POSTS(0.06, 0.88, FRAME),
+      [1, 0.05, 1, FRAME, 0, 0.94, 0],
+      [0.92, 0.74, 0.92, 0xdff2ea, 0, 0.2, 0, 0.2],
+    ],
+  },
+  {
+    id: 'vitrina', name: 'Vitrina', sell: 700, seller: 'museo',
+    parts: [
+      [0.9, 0.62, 0.9, MARBLE, 0, 0, 0],
+      [0.96, 0.06, 0.96, FRAME, 0, 0.62, 0],
+      [0.6, 0.04, 0.6, 0x8a2a3a, 0, 0.68, 0],
+      ...POSTS(0.04, 0.5, FRAME, 0.44, 0.68),
+      [0.96, 0.04, 0.96, FRAME, 0, 1.18, 0],
+      [0.9, 0.5, 0.9, 0xe4f4f8, 0, 0.68, 0, 0.18],
+    ],
+  },
+  {
+    id: 'pedestal', name: 'Pedestal', sell: 300, seller: 'museo',
+    parts: [
+      [0.8, 0.08, 0.8, MARBLE_DARK, 0, 0, 0],
+      [0.6, 0.5, 0.6, MARBLE, 0, 0.08, 0],
+      [0.8, 0.08, 0.8, MARBLE_DARK, 0, 0.58, 0],
+    ],
+  },
+  {
+    id: 'panel_info', name: 'Panel informativo', sell: 200, seller: 'museo',
+    parts: [
+      [0.5, 0.06, 0.3, FRAME, 0, 0, 0],
+      [0.06, 0.9, 0.06, FRAME, 0, 0.06, 0],
+      [0.8, 0.5, 0.06, 0x24466e, 0, 0.84, 0],
+      [0.6, 0.04, 0.02, 0xf4f1e8, 0, 1.22, 0.04], [0.5, 0.03, 0.02, 0xc8d4e4, -0.05, 1.12, 0.04],
+      [0.5, 0.03, 0.02, 0xc8d4e4, -0.05, 1.04, 0.04], [0.3, 0.03, 0.02, 0xc8d4e4, -0.15, 0.96, 0.04],
+      [0.18, 0.18, 0.02, 0xd8b45a, 0.24, 0.92, 0.04],
+    ],
+  },
+  {
+    id: 'cordon', name: 'Poste con cordón', sell: 150, seller: 'museo', stack: 10,
+    parts: [
+      [0.3, 0.06, 0.3, BRASS, -0.4, 0, 0], [0.06, 0.8, 0.06, BRASS, -0.4, 0.06, 0], [0.12, 0.1, 0.12, BRASS, -0.4, 0.86, 0],
+      [0.3, 0.06, 0.3, BRASS, 0.4, 0, 0], [0.06, 0.8, 0.06, BRASS, 0.4, 0.06, 0], [0.12, 0.1, 0.12, BRASS, 0.4, 0.86, 0],
+      [0.8, 0.05, 0.05, 0xb8202e, 0, 0.66, 0], [0.5, 0.05, 0.05, 0xb8202e, 0, 0.6, 0],
+    ],
+  },
+  {
+    id: 'mostrador_museo', name: 'Mostrador del museo', sell: 500, seller: 'museo',
+    parts: [
+      [1, 0.7, 0.56, MARBLE, 0, 0, 0.1],
+      [1, 0.06, 0.66, 0x24466e, 0, 0.7, 0.08],
+      [0.3, 0.2, 0.04, 0xd8b45a, 0, 0.34, 0.4],
+      [0.24, 0.16, 0.1, 0xf4f1e8, -0.26, 0.76, 0.1], [0.12, 0.2, 0.08, 0x5a8fd6, 0.28, 0.76, 0.12],
+    ],
+  },
+  {
+    id: 'catalejo_pie', name: 'Catalejo de mirador', sell: 800, seller: 'museo',
+    parts: [
+      [0.06, 1.0, 0.06, FRAME, -0.18, 0, -0.1], [0.06, 1.0, 0.06, FRAME, 0.18, 0, -0.1], [0.06, 1.0, 0.06, FRAME, 0, 0, 0.2],
+      [0.18, 0.14, 0.18, FRAME, 0, 1.0, 0],
+      [0.16, 0.16, 0.7, BRASS, 0, 1.12, 0.12], [0.22, 0.22, 0.12, BRASS, 0, 1.09, 0.46],
+    ],
+  },
+  {
+    id: 'lampara_techo', name: 'Lámpara de techo', sell: 300, buy: 1200, seller: 'muebles', glow: 0xffe4a0, light: 13, lightHeight: 0,
+    parts: [
+      [0.04, 0.42, 0.04, FRAME, 0, 0.58, 0],
+      [0.16, 0.04, 0.16, FRAME, 0, 0.96, 0],
+      [0.46, 0.16, 0.46, 0x3f6f5a, 0, 0.42, 0],
+      [0.3, 0.1, 0.3, 0xfff0c4, 0, 0.34, 0],
+    ],
+  },
+  // Tienda: un mostrador bajo para que se vea bien a Avellana, la caja encima y mesas para enseñar lo del día.
+  {
+    id: 'mostrador_bajo', name: 'Mostrador bajo', sell: 350, seller: 'muebles', buy: 1400,
+    parts: [
+      [1, 0.56, 0.5, WOOD, 0, 0, 0.12],
+      [1, 0.05, 0.62, DARK, 0, 0.56, 0.1],
+      [0.92, 0.3, 0.03, 0xd8c19a, 0, 0.14, 0.38],
+    ],
+  },
+  {
+    id: 'caja_mostrador', name: 'Mostrador con caja', sell: 600, seller: 'tienda',
+    parts: [
+      [1, 0.56, 0.5, WOOD, 0, 0, 0.12],
+      [1, 0.05, 0.62, DARK, 0, 0.56, 0.1],
+      [0.92, 0.3, 0.03, 0xd8c19a, 0, 0.14, 0.38],
+      [0.44, 0.2, 0.34, 0x5f6670, 0.16, 0.61, 0.06], [0.38, 0.07, 0.16, 0x3a3f46, 0.16, 0.81, -0.02],
+      [0.26, 0.05, 0.1, 0xf2c230, 0.16, 0.62, 0.26], [0.2, 0.12, 0.16, 0xf4f1e8, -0.26, 0.61, 0.08],
+    ],
+  },
+  {
+    id: 'mesa_expositor', name: 'Mesa expositora', sell: 300, seller: 'muebles', buy: 1200,
+    parts: [
+      [0.08, 0.5, 0.08, DARK, -0.4, 0, -0.4], [0.08, 0.5, 0.08, DARK, 0.4, 0, -0.4],
+      [0.08, 0.5, 0.08, DARK, -0.4, 0, 0.4], [0.08, 0.5, 0.08, DARK, 0.4, 0, 0.4],
+      [0.98, 0.06, 0.98, WOOD, 0, 0.5, 0],
+      [0.8, 0.02, 0.8, 0xc8553d, 0, 0.56, 0],
+    ],
+  },
+  {
+    id: 'cesta', name: 'Cesta de mimbre', sell: 120, seller: 'muebles', buy: 480, stack: 10,
+    parts: [
+      [0.6, 0.3, 0.5, 0xc8a060, 0, 0, 0],
+      [0.64, 0.04, 0.54, 0xa07a40, 0, 0.3, 0],
+      [0.16, 0.14, 0.16, 0xd84a3a, -0.14, 0.26, -0.06], [0.16, 0.14, 0.16, 0xf0a030, 0.08, 0.26, 0.08], [0.14, 0.12, 0.14, 0x8ac04a, 0.16, 0.26, -0.1],
+      [0.04, 0.3, 0.04, 0xa07a40, -0.28, 0.32, 0], [0.04, 0.3, 0.04, 0xa07a40, 0.28, 0.32, 0], [0.6, 0.04, 0.04, 0xa07a40, 0, 0.6, 0],
+    ],
+  },
+  // Casas de los vecinos: cocina, fregadero, nevera, mesita y cuadro.
+  {
+    id: 'cocina', name: 'Cocina', sell: 600, buy: 2400, seller: 'muebles',
+    parts: [
+      [0.96, 0.84, 0.6, 0xf2efe6, 0, 0, -0.18],
+      [0.98, 0.06, 0.66, 0x5a5e66, 0, 0.84, -0.16],
+      [0.66, 0.4, 0.03, 0x2a2e34, 0, 0.24, 0.13], [0.5, 0.04, 0.05, 0xb8bcc4, 0, 0.66, 0.14],
+      [0.26, 0.02, 0.26, 0x1e1e22, -0.22, 0.9, -0.2], [0.26, 0.02, 0.26, 0x1e1e22, 0.22, 0.9, -0.2],
+      [0.24, 0.14, 0.24, 0xc0392b, 0.22, 0.92, -0.2], [0.1, 0.03, 0.1, 0xf04020, -0.22, 0.91, -0.2],
+    ],
+  },
+  {
+    id: 'fregadero', name: 'Fregadero', sell: 450, buy: 1800, seller: 'muebles',
+    parts: [
+      [0.96, 0.84, 0.6, 0xa8c8d8, 0, 0, -0.18],
+      [0.98, 0.06, 0.66, 0xe8e8e4, 0, 0.84, -0.16],
+      [0.5, 0.03, 0.36, 0x9aa4ac, 0, 0.88, -0.16],
+      [0.05, 0.22, 0.05, 0xc0c4cc, 0, 0.9, -0.42], [0.05, 0.05, 0.18, 0xc0c4cc, 0, 1.1, -0.34],
+      [0.02, 0.3, 0.3, 0xb8a888, -0.08, 0.42, 0.13], [0.02, 0.3, 0.3, 0xb8a888, 0.08, 0.42, 0.13],
+    ],
+  },
+  {
+    id: 'nevera', name: 'Nevera', sell: 700, buy: 2800, seller: 'muebles',
+    parts: [
+      [0.8, 1.7, 0.7, 0xf4f4f0, 0, 0, -0.12],
+      [0.8, 0.02, 0.02, 0xc8ccd0, 0, 1.1, 0.24],
+      [0.04, 0.4, 0.04, 0xa8acb0, 0.3, 1.2, 0.26], [0.04, 0.3, 0.04, 0xa8acb0, 0.3, 0.6, 0.26],
+      [0.1, 0.1, 0.02, 0xe84a6a, -0.2, 1.4, 0.24], [0.08, 0.08, 0.02, 0x4a8ae8, -0.1, 1.28, 0.24],
+    ],
+  },
+  {
+    id: 'mesita', name: 'Mesita de noche', sell: 250, buy: 1000, seller: 'muebles', glow: 0xffd98a, light: 9, lightHeight: 1,
+    parts: [
+      [0.56, 0.5, 0.5, WOOD, 0, 0, -0.1],
+      [0.6, 0.04, 0.54, DARK, 0, 0.5, -0.1],
+      [0.4, 0.03, 0.02, DARK, 0, 0.32, 0.16],
+      [0.12, 0.04, 0.12, 0x50504a, 0.1, 0.54, -0.12], [0.04, 0.22, 0.04, 0x50504a, 0.1, 0.58, -0.12],
+      [0.24, 0.18, 0.24, 0xfff0c4, 0.1, 0.78, -0.12],
+    ],
+  },
+  {
+    id: 'cuadro', name: 'Cuadro', sell: 300, buy: 1200, seller: 'muebles',
+    parts: [
+      [0.8, 0.6, 0.06, DARK, 0, 1.1, -0.46],
+      [0.68, 0.48, 0.02, 0x8fc8e8, 0, 1.16, -0.42],
+      [0.68, 0.16, 0.02, 0x5aa04a, 0, 1.16, -0.41], [0.18, 0.18, 0.02, 0xffd84a, 0.18, 1.42, -0.41], [0.2, 0.14, 0.02, 0x3f7f9f, -0.16, 1.3, -0.41],
+    ],
+  },
+  // Ayuntamiento.
+  {
+    id: 'escritorio', name: 'Escritorio', sell: 500, buy: 2000, seller: 'muebles',
+    parts: [
+      [1, 0.06, 0.66, DARK, 0, 0.72, 0],
+      [0.3, 0.72, 0.6, WOOD, -0.33, 0, 0], [0.3, 0.72, 0.6, WOOD, 0.33, 0, 0],
+      [0.28, 0.03, 0.02, BRASS, -0.33, 0.5, 0.31], [0.28, 0.03, 0.02, BRASS, 0.33, 0.5, 0.31],
+      [0.3, 0.02, 0.22, 0xf4f1e8, -0.1, 0.78, 0.04], [0.06, 0.12, 0.06, 0x2a2e34, 0.18, 0.78, -0.1],
+      [0.16, 0.08, 0.04, 0xc0392b, -0.3, 0.78, -0.16],
+    ],
+  },
+  {
+    id: 'atril', name: 'Atril', sell: 300, seller: 'ayuntamiento',
+    parts: [
+      [0.5, 0.06, 0.4, DARK, 0, 0, 0],
+      [0.14, 0.9, 0.14, WOOD, 0, 0.06, 0],
+      [0.6, 0.06, 0.42, DARK, 0, 0.98, -0.02],
+      [0.5, 0.02, 0.3, 0xf4f1e8, 0, 1.04, -0.02],
+      [0.12, 0.12, 0.02, 0xd8b45a, 0, 0.6, 0.08],
+    ],
+  },
+  {
+    id: 'tablon', name: 'Tablón de anuncios', sell: 250, seller: 'ayuntamiento',
+    parts: [
+      [0.06, 1.6, 0.06, DARK, -0.42, 0, 0], [0.06, 1.6, 0.06, DARK, 0.42, 0, 0],
+      [0.9, 0.7, 0.06, 0xb8865a, 0, 0.8, 0],
+      [0.22, 0.26, 0.02, 0xf4f1e8, -0.24, 1.1, 0.04], [0.2, 0.18, 0.02, 0xfff2a0, 0.02, 1.22, 0.04],
+      [0.24, 0.22, 0.02, 0xa8d8f0, 0.24, 0.98, 0.04], [0.18, 0.2, 0.02, 0xf8c8d8, -0.02, 0.92, 0.04],
+      [0.94, 0.06, 0.1, DARK, 0, 1.5, 0],
+    ],
+  },
+  {
+    id: 'bandera_pie', name: 'Bandera de interior', sell: 300, seller: 'ayuntamiento',
+    parts: [
+      [0.36, 0.08, 0.36, BRASS, 0, 0, 0],
+      [0.05, 1.9, 0.05, BRASS, 0, 0.08, 0],
+      [0.1, 0.1, 0.1, BRASS, 0, 1.98, 0],
+      [0.02, 0.5, 0.62, 0x3f6fc4, 0, 1.4, 0.32], [0.02, 0.16, 0.62, 0xf2c94c, 0, 1.57, 0.32],
+    ],
+  },
+  // Comercios.
+  {
+    id: 'sacos', name: 'Sacos de semillas', sell: 200, seller: 'agricola',
+    parts: [
+      [0.42, 0.5, 0.36, 0xd8c08a, -0.22, 0, -0.1], [0.38, 0.06, 0.32, 0xc8a85a, -0.22, 0.5, -0.1],
+      [0.4, 0.44, 0.34, 0xccb47e, 0.22, 0, 0.12], [0.36, 0.06, 0.3, 0x8ac04a, 0.22, 0.44, 0.12],
+      [0.2, 0.14, 0.02, 0x5a8a3a, -0.22, 0.22, 0.09],
+    ],
+  },
+  {
+    id: 'bala_paja', name: 'Bala de paja', sell: 150, seller: 'granja', stack: 10,
+    parts: [
+      [0.96, 0.6, 0.62, 0xe8c860, 0, 0, 0],
+      [0.98, 0.04, 0.64, 0xb8a040, 0, 0.18, 0], [0.98, 0.04, 0.64, 0xb8a040, 0, 0.42, 0],
+    ],
+  },
+  {
+    id: 'yunque', name: 'Yunque', sell: 500, seller: 'mina',
+    parts: [
+      [0.5, 0.36, 0.4, 0x7a5233, 0, 0, 0],
+      [0.3, 0.16, 0.24, 0x3a3e44, 0, 0.36, 0],
+      [0.74, 0.18, 0.3, 0x50555c, 0.04, 0.52, 0], [0.2, 0.1, 0.16, 0x50555c, -0.4, 0.58, 0],
+      [0.06, 0.06, 0.4, 0x7a5233, 0.2, 0.7, 0.1], [0.12, 0.1, 0.1, 0x3a3e44, 0.2, 0.7, -0.1],
+    ],
+  },
+  {
+    id: 'maquina_coser', name: 'Máquina de coser', sell: 600, seller: 'ropa',
+    parts: [
+      [0.96, 0.06, 0.6, WOOD, 0, 0.7, 0],
+      [0.06, 0.7, 0.5, 0x2a2e34, -0.42, 0, 0], [0.06, 0.7, 0.5, 0x2a2e34, 0.42, 0, 0],
+      [0.5, 0.12, 0.2, 0x2a2e34, 0, 0.76, -0.06], [0.12, 0.3, 0.2, 0x2a2e34, 0.2, 0.76, -0.06], [0.42, 0.1, 0.18, 0x2a2e34, 0, 0.98, -0.06],
+      [0.04, 0.12, 0.04, 0xc0c4cc, -0.16, 0.88, -0.06], [0.08, 0.1, 0.08, 0xee8fb2, 0.1, 1.08, -0.06],
+    ],
+  },
+  {
+    id: 'banco_carpintero', name: 'Banco de carpintero', sell: 500, seller: 'muebles', buy: 2000,
+    parts: [
+      [1, 0.12, 0.62, 0xc89a64, 0, 0.7, 0],
+      [0.1, 0.7, 0.1, DARK, -0.42, 0, -0.24], [0.1, 0.7, 0.1, DARK, 0.42, 0, -0.24], [0.1, 0.7, 0.1, DARK, -0.42, 0, 0.24], [0.1, 0.7, 0.1, DARK, 0.42, 0, 0.24],
+      [0.9, 0.06, 0.5, DARK, 0, 0.2, 0],
+      [0.36, 0.06, 0.08, 0x8a8e94, -0.2, 0.82, 0.1], [0.08, 0.08, 0.2, 0xc0392b, 0.24, 0.82, -0.08], [0.3, 0.1, 0.12, 0xe8d0a0, 0.26, 0.22, 0],
+    ],
+  },
+  {
+    id: 'muestrario', name: 'Muestrario de baldosas', sell: 300, seller: 'urbano',
+    parts: [
+      [0.06, 1.2, 0.3, DARK, -0.44, 0, 0], [0.06, 1.2, 0.3, DARK, 0.44, 0, 0],
+      [0.86, 0.9, 0.04, 0xe8e2d0, 0, 0.26, -0.04],
+      [0.24, 0.24, 0.02, 0xb85a3a, -0.26, 0.86, 0], [0.24, 0.24, 0.02, 0x3a6a9a, 0, 0.86, 0], [0.24, 0.24, 0.02, 0x8a8a84, 0.26, 0.86, 0],
+      [0.24, 0.24, 0.02, 0xd8c08a, -0.26, 0.56, 0], [0.24, 0.24, 0.02, 0x4a8a5a, 0, 0.56, 0], [0.24, 0.24, 0.02, 0xf4f1e8, 0.26, 0.56, 0],
+    ],
+  },
 ];
-
 export const FURNITURE_TILE = (id: string) => FURNITURE_TILE_START + FURNITURE.findIndex((f) => f.id === id);
 
 export function furnitureDef(id: string): FurnitureDef | undefined {
@@ -515,8 +800,19 @@ export function furnitureDef(id: string): FurnitureDef | undefined {
 const box = new THREE.BoxGeometry(1, 1, 1);
 const materials = new Map<number, THREE.MeshLambertMaterial>();
 const glowMaterials = new Map<number, THREE.MeshLambertMaterial>();
+const clearMaterials = new Map<string, THREE.MeshLambertMaterial>();
 
-function material(color: number, glow?: number): THREE.MeshLambertMaterial {
+function material(color: number, glow?: number, opacity?: number): THREE.MeshLambertMaterial {
+  // Cristal y agua (v5.2): transparentes y sin escribir en la profundidad, para que se vea lo que hay dentro.
+  if (opacity !== undefined && opacity < 1) {
+    const k = `${color}:${opacity}`;
+    let c = clearMaterials.get(k);
+    if (!c) {
+      c = new THREE.MeshLambertMaterial({ color, transparent: true, opacity, depthWrite: false });
+      clearMaterials.set(k, c);
+    }
+    return c;
+  }
   const cache = glow ? glowMaterials : materials;
   let m = cache.get(color);
   if (!m) {
@@ -528,10 +824,11 @@ function material(color: number, glow?: number): THREE.MeshLambertMaterial {
 
 function buildModel(def: FurnitureDef): THREE.Group {
   const g = new THREE.Group();
-  def.parts.forEach(([w, h, d, color, x, y, z], i) => {
+  def.parts.forEach(([w, h, d, color, x, y, z, opacity], i) => {
     // La pantalla de la lámpara (la última pieza) es la que brilla.
     const glows = def.glow !== undefined && i === def.parts.length - 1;
-    const mesh = new THREE.Mesh(box, material(color, glows ? def.glow : undefined));
+    const mesh = new THREE.Mesh(box, material(color, glows ? def.glow : undefined, opacity));
+    if (opacity !== undefined && opacity < 1) mesh.renderOrder = 2;
     mesh.scale.set(w, h, d);
     mesh.position.set(x, y + h / 2, z);
     g.add(mesh);

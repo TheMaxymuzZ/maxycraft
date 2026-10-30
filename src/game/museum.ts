@@ -4,7 +4,11 @@
 import * as THREE from 'three';
 import { Block, creatureTile, tileCanvas } from '../blocks';
 import { CREATURES, type Creature, DINO_PIECES } from '../creatures';
-import { WINGS, barrierCell, exhibitSpot, museumOrigin, openWings } from '../museum';
+import { Furniture } from '../furniture';
+import { type ExhibitSpot, WINGS, barrierCell, exhibitSpot, museumOrigin, openWings } from '../museum';
+import { HALL_FIXTURES, hallBarrierCells, hallExhibitSpot, museumHallOrigin } from '../museumHall';
+import type { Cell } from '../pathfind';
+import { BIG_HOUSE } from '../villagerHouse';
 import type { World } from '../world';
 
 export interface MuseumHallDeps {
@@ -18,6 +22,8 @@ export interface MuseumHallDeps {
   /** Pone un bloque para todos los jugadores. */
   put(x: number, y: number, z: number, b: Block): void;
   toast(text: string): void;
+  /** Luces de los muebles del museo nuevo. */
+  lampHook?: (x: number, y: number, z: number, level: number) => void;
 }
 
 interface Exhibit {
@@ -35,12 +41,22 @@ export class MuseumHall {
   private seen = -1;
   /** Última planta abierta (índice de WINGS). */
   private wing = 0;
+  /** El museo nuevo (v5.2): peceras, terrarios, vitrinas, bancos… Muebles que no se guardan: salen al cargar. */
+  readonly fixtures: Furniture;
+  private v2 = false;
 
   constructor(private deps: MuseumHallDeps) {
     const plot = deps.world.plots.find((p) => p.kind === 'museum');
-    if (plot) this.origin = museumOrigin(plot);
+    this.v2 = plot?.style === BIG_HOUSE;
+    if (plot) this.origin = this.v2 ? museumHallOrigin(plot) : museumOrigin(plot);
     this.group.name = 'museo';
+    this.fixtures = new Furniture([], deps.lampHook ?? null);
+    this.group.add(this.fixtures.group);
     deps.scene.add(this.group);
+    if (this.v2 && this.origin) {
+      const [ox, oy, oz] = this.origin;
+      for (const [id, x, y, z, rot] of HALL_FIXTURES) this.fixtures.place(id, ox + x, oy + y, oz + z, rot);
+    }
     this.wing = openWings(deps.donated().size);
     this.refresh();
   }
@@ -74,21 +90,21 @@ export class MuseumHall {
     if (!this.deps.host || !this.origin) return;
     const [ox, oy, oz] = this.origin;
     for (let w = 1; w <= this.wing; w++) {
-      const [x, y, z] = barrierCell(w);
-      if (this.deps.world.getBlock(ox + x, oy + y, oz + z) === Block.Fence) this.deps.put(ox + x, oy + y, oz + z, Block.Air);
+      const cells: Cell[] = this.v2 ? hallBarrierCells(w) : [barrierCell(w)];
+      for (const [x, y, z] of cells) if (this.deps.world.getBlock(ox + x, oy + y, oz + z) === Block.Fence) this.deps.put(ox + x, oy + y, oz + z, Block.Air);
     }
   }
 
   private add(c: Creature, index: number, dino: number) {
     const [ox, oy, oz] = this.origin!;
-    const spot = exhibitSpot(c.kind, index, dino);
+    const spot: ExhibitSpot & { size?: number } = this.v2 ? hallExhibitSpot(c.kind, index, dino) : exhibitSpot(c.kind, index, dino);
     const tex = new THREE.CanvasTexture(tileCanvas(this.deps.atlas, creatureTile(CREATURES.indexOf(c))));
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     tex.colorSpace = THREE.SRGBColorSpace;
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.5, fog: true }));
     // Las piezas del dinosaurio son grandes; los fósiles sueltos, medianos; peces e insectos, pequeños.
-    const size = dino >= 0 ? 1.3 : c.kind === 'fosil' ? 0.8 : c.kind === 'pez' ? 0.6 : 0.45;
+    const size = spot.size ?? (dino >= 0 ? 1.3 : c.kind === 'fosil' ? 0.8 : c.kind === 'pez' ? 0.6 : 0.45);
     sprite.scale.set(size, size, size);
     const base = new THREE.Vector3(ox + spot.at[0], oy + spot.at[1], oz + spot.at[2]);
     sprite.position.copy(base);

@@ -2,6 +2,7 @@
 // aparecen en su casa, en unos huecos fijos, y te dice si le gustan. Con la amistad su casa crece por niveles
 // (más huecos, jardín y tejado a elegir) y, con los mejores amigos, te propone abrir un negocio.
 
+import { BIG_SLOTS } from './villagerHouse';
 import { furnitureDef } from './furniture';
 import { type Cell, type PathWorld, standable } from './pathfind';
 import type { Personality, Profile } from './villagers';
@@ -66,6 +67,35 @@ export const FURNITURE_STYLE: Record<string, DecorStyle[]> = {
   jardinera: ['playero', 'mono'],
   pergola: ['rustico', 'playero'],
   senal_calle: ['moderno'],
+  // Edificios nuevos (v5.2).
+  pecera: ['moderno', 'playero'],
+  terrario: ['mono', 'rustico'],
+  vitrina: ['elegante'],
+  pedestal: ['elegante'],
+  panel_info: ['moderno'],
+  cordon: ['elegante'],
+  mostrador_museo: ['elegante', 'moderno'],
+  catalejo_pie: ['elegante', 'playero'],
+  mostrador_bajo: ['rustico'],
+  caja_mostrador: ['rustico', 'moderno'],
+  mesa_expositor: ['rustico', 'mono'],
+  cesta: ['rustico', 'playero'],
+  cocina: ['moderno', 'rustico'],
+  fregadero: ['moderno'],
+  nevera: ['moderno', 'mono'],
+  mesita: ['rustico', 'elegante'],
+  cuadro: ['elegante', 'rustico'],
+  lampara_techo: ['moderno', 'elegante'],
+  escritorio: ['elegante', 'rustico'],
+  atril: ['elegante'],
+  tablon: ['rustico', 'mono'],
+  bandera_pie: ['elegante'],
+  sacos: ['rustico'],
+  bala_paja: ['rustico', 'playero'],
+  yunque: ['rustico'],
+  maquina_coser: ['elegante', 'mono'],
+  banco_carpintero: ['rustico'],
+  muestrario: ['moderno'],
 };
 
 /** Estilo de cada vecino conocido; los demás (los que vienen de islas misteriosas) lo sacan de su personalidad. */
@@ -167,10 +197,11 @@ export interface DecorSlot {
 }
 
 /** Huecos de la casa que se pueden usar según su nivel (los que no tienen suelo no cuentan). */
-export function homeSlots(world: PathWorld, door: Cell, level: number): DecorSlot[] {
+export function homeSlots(world: PathWorld, door: Cell, level: number, big = false): DecorSlot[] {
   const [x, y, z] = door;
   const out: DecorSlot[] = [];
-  for (const [dx, dz, rot] of SLOTS.slice(0, HOUSE_LEVELS[level].slots)) {
+  // v5.2: la casa grande tiene sus huecos repartidos por el salón.
+  for (const [dx, dz, rot] of (big ? BIG_SLOTS : SLOTS).slice(0, HOUSE_LEVELS[level].slots)) {
     const cell: Cell = [x + dx, y, z + dz];
     if (standable(world, ...cell)) out.push({ cell, rot });
   }

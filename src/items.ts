@@ -176,6 +176,16 @@ const PLACEABLE: [Block, string, number, number?][] = [
   [Block.PlanksStairs, 'escalera_madera', 10],
   [Block.CobbleStairs, 'escalera_adoquin', 15],
   [Block.BrickStairs, 'escalera_ladrillo', 20],
+  // Tejados en pendiente y escalinatas (v5.2).
+  [Block.RoofRedStairs, 'teja_roja', 15, 50],
+  [Block.RoofBlueStairs, 'teja_azul', 15, 50],
+  [Block.RoofGreenStairs, 'teja_verde', 15, 50],
+  [Block.RoofYellowStairs, 'teja_amarilla', 15, 50],
+  [Block.RoofRedSlab, 'losa_teja_roja', 10, 35],
+  [Block.RoofBlueSlab, 'losa_teja_azul', 10, 35],
+  [Block.RoofGreenSlab, 'losa_teja_verde', 10, 35],
+  [Block.RoofYellowSlab, 'losa_teja_amarilla', 10, 35],
+  [Block.PolishedStairs, 'escalera_piedra_pulida', 20],
   // Caminos y calles (v2.8).
   [Block.DirtPath, 'camino_tierra', 4],
   [Block.StonePath, 'camino_losas', 6],
@@ -549,6 +559,10 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.CobbleSlab]: { time: 1, tool: 'pickaxe', needsTool: true },
   [Block.BrickSlab]: { time: 1, tool: 'pickaxe', needsTool: true },
   [Block.PolishedSlab]: { time: 1, tool: 'pickaxe', needsTool: true },
+  [Block.RoofRedSlab]: { time: 0.8 },
+  [Block.RoofBlueSlab]: { time: 0.8 },
+  [Block.RoofGreenSlab]: { time: 0.8 },
+  [Block.RoofYellowSlab]: { time: 0.8 },
   [Block.GateOpen]: { time: 0.8, tool: 'axe' },
   [Block.Door]: { time: 1.2, tool: 'axe' },
   [Block.DoorTop]: { time: 1.2, tool: 'axe' },
@@ -581,7 +595,8 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
 
 // Las escaleras se rompen como su material.
 for (const [first, , tile] of STAIRS) {
-  const like = tile === Tile.Planks ? HARDNESS[Block.PlanksSlab] : HARDNESS[Block.CobbleSlab];
+  const roof = [Tile.RoofRed, Tile.RoofBlue, Tile.RoofGreen, Tile.RoofYellow].includes(tile);
+  const like = tile === Tile.Planks ? HARDNESS[Block.PlanksSlab] : roof ? HARDNESS[Block.RoofRedSlab] : HARDNESS[Block.CobbleSlab];
   for (let f = 0; f < 4; f++) HARDNESS[(first + f) as Block] = like;
 }
 

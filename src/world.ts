@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { waterFlow } from './fluids';
-import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, WALL_TORCH_DIRS, isCross, isTorch, isDoor, isDoorTop, isFence, isFullBlock, isGate, isLava, isOpaque, isOpen, isSolid, isWater, lavaHeight, waterHeight, waterLevel as fluidLevel } from './blocks';
+import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, WALL_TORCH_DIRS, isCross, isTorch, isDoor, isDoorTop, isFence, isFullBlock, isGate, isLava, isOpaque, isOpen, isSolid, isWater, lavaHeight, roofColorOf, waterHeight, waterLevel as fluidLevel } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
 import { acaciaShape, blossomShape, ceibaShape, firShape, glowShape, fruitTreeShape, palmShape, pineShape, willowShape } from './trees';
 import { type BuildingTemplate, templateCells } from './buildings';
 import { SHOP_BUILDING, shopOrigin } from './shopBuilding';
 import { MUSEUM, museumOrigin } from './museum';
+import { BIG_HOUSE, DOOR_DZ, HOUSE_REACH, buildBigHouse, isBigHouse } from './villagerHouse';
+import { MUSEUM_HALL, MUSEUM_HALL_DOOR, museumHallOrigin } from './museumHall';
+import { SHOP_HALL, SHOP_HALL_DOOR, shopHallOrigin } from './shopHall';
 
 export const CHUNK = 16;
 export const HEIGHT = 64;
@@ -18,11 +21,20 @@ export const WATER_SURFACE = SEA_LEVEL + 0.85;
 export const ISLAND_RADIUS = 72;
 /** Radio de las islas nuevas, con biomas (terreno 2). */
 export const BIG_ISLAND_RADIUS = 112;
+/** Radio de las islas del terreno 3 (v5.2): más grandes, para que quepan los edificios nuevos. */
+export const HUGE_ISLAND_RADIUS = 150;
 /** Radio de los islotes (v5.0.1: de 12 a 17) y hasta dónde pueden llegar, en radios de la isla. */
 export const ISLET_MIN_R = 12;
 export const ISLET_REACH = 1.7;
 /** Versión del terreno de las islas nuevas. Las guardadas siguen con el suyo para que no se mueva nada. */
-export const TERRAIN_VERSION = 2;
+export const TERRAIN_VERSION = 3;
+/** Desde este terreno (v5.2) la isla es más grande, los islotes el doble y los edificios son los nuevos. */
+export const NEW_BUILDINGS_TERRAIN = 3;
+
+/** Radio de la isla de casa de cada versión del terreno. */
+export function homeRadius(terrain: number): number {
+  return terrain >= NEW_BUILDINGS_TERRAIN ? HUGE_ISLAND_RADIUS : terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS;
+}
 
 /** Zonas de la isla con su propio paisaje (solo en el terreno 2). */
 export type Biome =
@@ -185,6 +197,10 @@ export interface Plot {
   door: [number, number, number];
   /** Casa de un vecino que vino de una isla misteriosa. */
   guest?: boolean;
+  /** Edificio nuevo (v5.2): 2 = casa grande, museo y tienda nuevos. Sin él, los de antes. */
+  style?: number;
+  /** Medio lado de la parcela (v5.2: el museo y la tienda nuevos ocupan más). Sin él, PLOT_RADIUS. */
+  half?: number;
 }
 
 /** Tienda de campaña de lona en forma de A, cerrada por detrás y con la entrada hacia +z. */
@@ -232,10 +248,14 @@ export function buildCottage(x: number, y: number, z: number, roof: Block, put: 
 
 /** El museo y la tienda son edificios de plantilla que llenan su parcela: cuál y dónde va su esquina. */
 function bigBuilding(p: Plot): { template: BuildingTemplate; origin: [number, number, number] } | null {
-  if (p.kind === 'museum') return { template: MUSEUM, origin: museumOrigin(p) };
-  if (p.kind === 'shop') return { template: SHOP_BUILDING, origin: shopOrigin(p) };
+  const v2 = p.style === BIG_HOUSE;
+  if (p.kind === 'museum') return v2 ? { template: MUSEUM_HALL, origin: museumHallOrigin(p) } : { template: MUSEUM, origin: museumOrigin(p) };
+  if (p.kind === 'shop') return v2 ? { template: SHOP_HALL, origin: shopHallOrigin(p) } : { template: SHOP_BUILDING, origin: shopOrigin(p) };
   return null;
 }
+
+/** Medio lado de la parcela de cada edificio nuevo (v5.2). */
+const PLOT_HALF_V2: Record<Plot['kind'], number> = { museum: 9, shop: 7, house: 5, player: 5, townhall: 5 };
 
 /** Medio lado de la parcela que se allana y se deja sin árboles. */
 export const PLOT_RADIUS = 5;
@@ -273,6 +293,8 @@ export interface WorldOptions {
   sea?: SeaSpot[];
   /** Isla aldea (v5.1): casitas, plaza, caminos y farolas. Solo para las islas del archipiélago. */
   village?: boolean;
+  /** Estilo de las casas de la aldea (v5.2): las grandes si la isla de casa es del terreno 3. */
+  houses?: number;
 }
 
 /** Una isla del archipiélago dentro del mundo de casa (v5.1): su terreno sale de su propia semilla, centrado en (x, z). */
@@ -299,7 +321,7 @@ const FLOWER_BEDS = [Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Blo
 
 /** Lo que ocupa el mar de una isla de casa (la isla y sus islotes), sin crear la isla. */
 export function homeOuterRadius(terrain: number): number {
-  return Math.ceil((terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS) * ISLET_REACH);
+  return Math.ceil(homeRadius(terrain) * ISLET_REACH);
 }
 
 /** Lo que hay en una isla aldea además de las casas (v5.1): caminos, plaza, farolas, flores y el puesto del mercado. */
@@ -400,8 +422,8 @@ export class World {
     this.terrain = this.mystery ? 1 : options.terrain ?? 1;
     // Las islas misteriosas miden entre 40 y 54 bloques de radio; la del volcán, algo más.
     const mysteryRadius = 40 + Math.floor(columnRandom(5, 5, seed) * 14) + (this.mystery?.kind === 'volcan' ? 6 : 0);
-    this.radius = this.mystery ? mysteryRadius : this.terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS;
-    this.spread = this.terrain >= 2 ? 1.5 : 1;
+    this.radius = this.mystery ? mysteryRadius : homeRadius(this.terrain);
+    this.spread = this.terrain >= NEW_BUILDINGS_TERRAIN ? 2 : this.terrain >= 2 ? 1.5 : 1;
     this.climate = this.terrain >= 2 && !this.mystery && isClimate(options.climate) ? options.climate : undefined;
     if (this.terrain >= 2) {
       this.biomeOrder = [...(this.climate ? CLIMATE_BIOMES[this.climate] : INLAND_BIOMES)].sort((a, b) => columnRandom(a.length, 41, seed + a.charCodeAt(1)) - columnRandom(b.length, 41, seed + b.charCodeAt(1)));
@@ -413,7 +435,7 @@ export class World {
     }
     this.plots = this.mystery ? (options.village ? this.findVillage() : []) : this.findPlots(6);
     for (const spot of options.sea ?? []) {
-      const world = new World(spot.seed, material, {}, { mystery: { kind: spot.kind, fruit: spot.fruit }, village: spot.village });
+      const world = new World(spot.seed, material, {}, { mystery: { kind: spot.kind, fruit: spot.fruit }, village: spot.village, houses: this.newBuildings ? BIG_HOUSE : undefined });
       this.seaWorlds.push({ spot, world, half: Math.ceil(world.radius * 1.45) + 4 });
     }
     this.caveEntrances = this.mystery ? [] : this.findCaveEntrances(2);
@@ -482,6 +504,7 @@ export class World {
   /** Busca sitios llanos para las casas, lejos del río, de la playa y entre sí. */
   private findPlots(count: number): Plot[] {
     const plots: Plot[] = [];
+    const v2 = this.newBuildings;
     for (let tries = 0; tries < 600 && plots.length < count; tries++) {
       const a = columnRandom(tries, 77, this.seed) * Math.PI * 2;
       const d = (12 + columnRandom(tries, 78, this.seed) * 34) * this.spread;
@@ -489,20 +512,31 @@ export class World {
       const z = Math.round(Math.sin(a) * d);
       const h = this.naturalHeight(x, z);
       if (h <= SEA_LEVEL + 1 || this.river(x, z) < 9 || this.biomeAt(x, z) === 'montaña') continue;
-      if (plots.some((p) => Math.hypot(p.x - x, p.z - z) < 16)) continue;
+      // Las dos primeras parcelas son para la tienda y el museo.
+      const kind = plots.length === 0 ? 'shop' : plots.length === 1 ? 'museum' : 'house';
+      if (v2) {
+        // v5.2: cada edificio con su tamaño y un buen trecho entre ellos para jardines y caminos.
+        const half = PLOT_HALF_V2[kind];
+        if (this.river(x, z) < half + 6) continue;
+        if (plots.some((p) => Math.max(Math.abs(p.x - x), Math.abs(p.z - z)) < (p.half ?? PLOT_RADIUS) + half + 5)) continue;
+      } else if (plots.some((p) => Math.hypot(p.x - x, p.z - z) < 16)) continue;
+      const half = v2 ? PLOT_HALF_V2[kind] : PLOT_RADIUS;
       // Con el tiempo se relaja: al principio se busca un sitio totalmente llano.
       const tolerance = tries < 300 ? 0 : 1;
       let flat = true;
-      for (let dz = -PLOT_RADIUS; dz <= PLOT_RADIUS && flat; dz++) {
-        for (let dx = -PLOT_RADIUS; dx <= PLOT_RADIUS && flat; dx++) {
+      for (let dz = -half; dz <= half && flat; dz++) {
+        for (let dx = -half; dx <= half && flat; dx++) {
           const hh = this.naturalHeight(x + dx, z + dz);
           if (Math.abs(hh - h) > tolerance || hh <= SEA_LEVEL + 1) flat = false;
         }
       }
       if (!flat) continue;
-      // Las dos primeras parcelas son para la tienda y el museo.
-      const kind = plots.length === 0 ? 'shop' : plots.length === 1 ? 'museum' : 'house';
       const roof = kind === 'shop' ? Block.RoofGreen : kind === 'museum' ? Block.RoofBlue : ROOFS[(plots.length - 2) % ROOFS.length];
+      if (v2) {
+        const door: [number, number, number] = kind === 'museum' ? MUSEUM_HALL_DOOR : kind === 'shop' ? SHOP_HALL_DOOR : [0, 1, DOOR_DZ];
+        plots.push({ kind, x, z, y: h, roof, door: [x + door[0], h + door[1], z + door[2]], style: BIG_HOUSE, half });
+        continue;
+      }
       // El museo (v4.15) y la tienda (v4.16) ocupan toda la parcela, con la puerta al fondo del porche o la acera.
       plots.push({ kind, x, z, y: h, roof, door: [x, h + 1, z + (kind === 'museum' ? 5 : kind === 'shop' ? 4 : 3)] });
     }
@@ -516,7 +550,9 @@ export class World {
     this.guestSpots.push([x, z]);
     this.mesher?.post({ t: 'guest', x, z });
     const y = this.naturalHeight(x, z);
-    this.plots.push({ kind: 'house', x, z, y, roof: ROOFS[this.plots.filter((p) => p.guest).length % ROOFS.length], door: [x, y + 1, z + 3], guest: true });
+    const roof = ROOFS[this.plots.filter((p) => p.guest).length % ROOFS.length];
+    if (this.newBuildings) this.plots.push({ kind: 'house', x, z, y, roof, door: [x, y + 1, z + DOOR_DZ], guest: true, style: BIG_HOUSE });
+    else this.plots.push({ kind: 'house', x, z, y, roof, door: [x, y + 1, z + 3], guest: true });
   }
 
   /**
@@ -584,8 +620,15 @@ export class World {
 
   /** Parcela que contiene (x, z), o undefined. */
   plotAt(x: number, z: number, margin = 0): Plot | undefined {
-    const r = PLOT_RADIUS + margin;
-    return this.plots?.find((p) => Math.abs(p.x - x) <= r && Math.abs(p.z - z) <= r);
+    return this.plots?.find((p) => {
+      const r = (p.half ?? PLOT_RADIUS) + margin;
+      return Math.abs(p.x - x) <= r && Math.abs(p.z - z) <= r;
+    });
+  }
+
+  /** Si la isla tiene los edificios nuevos (v5.2): las de casa del terreno 3 y las aldeas de su archipiélago. */
+  get newBuildings(): boolean {
+    return this.mystery ? this.options.houses === BIG_HOUSE : this.terrain >= NEW_BUILDINGS_TERRAIN;
   }
 
   /** Si el jugador (o un edificio colocado después) ha cambiado ese bloque. */
@@ -699,7 +742,8 @@ export class World {
     const out: Islet[] = [];
     for (let k = 0; k < count; k++) {
       // v5.0.1: bastante más grandes (antes de 5 a 8 de radio), para poder construir en ellos.
-      const r = ISLET_MIN_R + Math.floor(rnd(10 + k) * 6);
+      // v5.2: en las islas nuevas, el doble de grandes (de 24 a 35).
+      const r = this.terrain >= NEW_BUILDINGS_TERRAIN ? ISLET_MIN_R * 2 + Math.floor(rnd(10 + k) * 12) : ISLET_MIN_R + Math.floor(rnd(10 + k) * 6);
       // Si en ese lado la costa sale mucho, se prueba un poco más a un lado.
       for (const shift of [0, 0.35, -0.35, 0.7, -0.7]) {
         const a = turn + (k * Math.PI * 2) / count + (rnd(20 + k) - 0.5) * 0.5 + shift;
@@ -1193,6 +1237,7 @@ export class World {
     }
     const [px, py, pz] = plaza;
     const plots: Plot[] = [];
+    const big = this.options.houses === BIG_HOUSE;
     for (let tries = 0; tries < 500 && plots.length < 5; tries++) {
       const a = columnRandom(tries, 91, this.seed) * Math.PI * 2;
       const d = 11 + columnRandom(tries, 92, this.seed) * 16;
@@ -1204,15 +1249,17 @@ export class World {
       const h = this.naturalHeight(x, z);
       if (h <= SEA_LEVEL + 1) continue;
       const tolerance = tries < 250 ? 0 : 1;
+      const r = big ? HOUSE_REACH : 3;
       let flat = true;
-      for (let dz = -3; dz <= 4 && flat; dz++) {
-        for (let dx = -3; dx <= 3 && flat; dx++) {
+      for (let dz = -r; dz <= r + 1 && flat; dz++) {
+        for (let dx = -r; dx <= r && flat; dx++) {
           const hh = this.naturalHeight(x + dx, z + dz);
           flat = Math.abs(hh - h) <= tolerance && hh > SEA_LEVEL + 1;
         }
       }
       if (!flat) continue;
-      plots.push({ kind: 'house', x, z, y: h, roof: ROOFS[plots.length % ROOFS.length], door: [x, h + 1, z + 3] });
+      if (big) plots.push({ kind: 'house', x, z, y: h, roof: ROOFS[plots.length % ROOFS.length], door: [x, h + 1, z + DOOR_DZ], style: BIG_HOUSE });
+      else plots.push({ kind: 'house', x, z, y: h, roof: ROOFS[plots.length % ROOFS.length], door: [x, h + 1, z + 3] });
     }
     this.village = this.planVillage(px, py, pz, plots);
     return plots;
@@ -1227,10 +1274,11 @@ export class World {
     // Plaza de 7×7 de calle empedrada.
     for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) ground.set(k(px + dx, pz + dz), Block.Street);
     for (const [dx, dz] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) lamps.push([px + dx, pz + dz]);
-    const inHouse = (x: number, z: number) => plots.some((p) => Math.abs(p.x - x) <= 3 && Math.abs(p.z - z) <= 3);
+    const reach = (p: Plot) => (isBigHouse(p) ? HOUSE_REACH : 3);
+    const inHouse = (x: number, z: number) => plots.some((p) => Math.abs(p.x - x) <= reach(p) && Math.abs(p.z - z) <= reach(p));
     for (const p of plots) {
       // Camino en L desde la puerta hasta la plaza; se prueba primero recto hacia +z/-z y luego al revés.
-      const from: [number, number] = [p.x, p.z + 3];
+      const from: [number, number] = [p.x, p.door[2]];
       const routes: [number, number][][] = [];
       for (const zFirst of [true, false]) {
         const cells: [number, number][] = [];
@@ -1255,7 +1303,7 @@ export class World {
         }
       });
       // Flores a los dos lados de la puerta.
-      flowers.push([p.x - 2, p.z + 3, FLOWER_BEDS[(p.x & 3)]], [p.x + 2, p.z + 3, FLOWER_BEDS[(p.z & 3)]]);
+      flowers.push([p.x - 2, p.door[2], FLOWER_BEDS[(p.x & 3)]], [p.x + 2, p.door[2], FLOWER_BEDS[(p.z & 3)]]);
     }
     for (const [x, z] of [...ground.keys()].map((c) => c.split(',').map(Number))) {
       for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) clear.add(k(x + dx, z + dz));
@@ -1413,7 +1461,7 @@ export class World {
 
     // Casas de los vecinos.
     for (const plot of this.plots) {
-      const r = plot.kind === 'museum' || plot.kind === 'shop' ? PLOT_RADIUS : 3;
+      const r = plot.half ?? (plot.kind === 'museum' || plot.kind === 'shop' ? PLOT_RADIUS : isBigHouse(plot) ? HOUSE_REACH : 3);
       if (plot.x + r < ox || plot.x - r >= ox + CHUNK || plot.z + r < oz || plot.z - r >= oz + CHUNK) continue;
       this.buildHouse(plot, (x, y, z, b) => set(x - ox, y, z - oz, b, true));
     }
@@ -1523,7 +1571,9 @@ export class World {
       for (const [dx, dy, dz, b] of templateCells(big.template, 0)) if (b !== null) put(mx + dx, my + dy, mz + dz, b);
       return;
     }
-    buildCottage(x, y, z, p.roof, put, p.kind === 'shop' ? Block.ShopWall : Block.Wall);
+    // Las casas grandes alternan pared lisa y de madera según el color del tejado.
+    if (isBigHouse(p)) buildBigHouse(x, y, z, p.roof, put, roofColorOf(p.roof) % 2 ? Block.ShopWall : Block.Wall);
+    else buildCottage(x, y, z, p.roof, put, p.kind === 'shop' ? Block.ShopWall : Block.Wall);
   }
 
   /** Parcela del jugador, si la isla tiene sitio para ella. */
