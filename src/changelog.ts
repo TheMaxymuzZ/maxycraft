@@ -17,6 +17,7 @@ export const CHANGELOG: Release[] = [
       'El cangrejo tiene ocho patas que se mueven por turnos, ojos en sus palitos y pinzas que se abren y se cierran, y ahora anda de lado de verdad.',
       'La medusa es transparente, late para nadar y se le mecen los tentáculos; dentro brillan cuatro anillos y en el borde ocho puntitos de luz, que de noche se ven desde la orilla.',
       'La raya tiene manchas blancas, hocico de pato y una cola larguísima, y ondula las alas como una ola. La foca es gris con manchitas, ojos grandes y bigotes; se arrastra a saltitos y, tumbada al sol, levanta la cola y mira a su alrededor.',
+      'Cada uno a su tamaño de verdad: la ballena mide unos 14 bloques (como 8 personas tumbadas), el delfín 2,5 y la raya casi 2,5 de ala a ala. El chorro sale ahora del espiráculo de la ballena.',
       'Sin perder fluidez: cada animal se prepara una sola vez mientras arranca el juego y todas sus copias comparten la figura.',
     ],
   },

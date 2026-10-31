@@ -71,7 +71,7 @@ describe('v5.5: la fauna del mar, con detalle', () => {
 
   it('la ballena es grande y el cangrejo pequeño', () => {
     const size = (k: 'ballena' | 'cangrejo') => new THREE.Box3().setFromObject(seaModel(k)!.group).getSize(new THREE.Vector3());
-    expect(size('ballena').z).toBeGreaterThan(8);
+    expect(size('ballena').z).toBeGreaterThan(13);
     expect(size('cangrejo').x).toBeLessThan(1);
   });
 });

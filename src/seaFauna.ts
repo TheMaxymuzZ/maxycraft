@@ -567,6 +567,12 @@ const SPECS: Partial<Record<WildKind, Spec>> = { delfin, ballena, tortuga, cangr
 
 export const SEA_KINDS = Object.keys(SPECS) as WildKind[];
 
+/**
+ * Tamaño de verdad (un bloque es un metro, como tú mides casi dos): la yubarta mide unos 14 m, el delfín 2,5 m,
+ * la raya casi 2,5 m de ala a ala, la foca y la tortuga algo más de un metro.
+ */
+export const SEA_SCALE: Partial<Record<WildKind, number>> = { ballena: 1.6, delfin: 1.2, raya: 1.4 };
+
 // --- De los cubitos a las mallas ---
 
 export interface SeaGeometry {
@@ -812,6 +818,7 @@ export function seaModel(kind: WildKind): PartsModel | null {
   group.add(pose);
   // El cangrejo anda de lado: la figura va girada para que avance con un costado por delante.
   if (kind === 'cangrejo') pose.rotation.y = Math.PI / 2;
+  pose.scale.setScalar(SEA_SCALE[kind] ?? 1);
   const parts: Parts = {};
   for (const { def, geo: g } of geo.segs) {
     const node = new THREE.Group();

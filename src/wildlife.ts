@@ -488,8 +488,9 @@ export class Wildlife {
         // La ballena asoma el lomo y echa el chorro.
         y += Math.sin((w.leap / 2.5) * Math.PI) * 0.6;
         w.spout.visible = w.leap < 2;
-        w.spout.scale.set(0.4, 0.5 + (2 - w.leap) * 2, 0.4);
-        w.spout.position.set(0, 0.6 + w.spout.scale.y / 2, 2);
+        w.spout.scale.set(0.6, 1 + (2 - w.leap) * 3, 0.6);
+        // El chorro sale del espiráculo de la ballena (v5.5: ahora mide 14 bloques).
+        w.spout.position.set(0, 0.5 + w.spout.scale.y / 2, 3.2);
       }
     } else if (w.spout) w.spout.visible = false;
     if (w.kind === 'ballena') y -= 0.4;
