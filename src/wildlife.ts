@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { Population, type PopulationRule } from './population';
 import { landModel } from './landFaunaShapes';
 import { type Biome, SEA_LEVEL } from './world';
+import { seaModel } from './seaFauna';
 
 export type WildKind =
   | 'ciervo' | 'conejo' | 'zorro' | 'cabra' | 'camello' | 'suricata' | 'loro' | 'rana' | 'pinguino' | 'foca' | 'oso_polar' | 'buho'
@@ -235,7 +236,9 @@ export interface WildWorld {
 }
 
 /** Monta el modelo de cubos de un animal, mirando hacia +z. */
-export function wildModel(kind: WildKind) {
+export function wildModel(kind: WildKind): PartsModel {
+  const sea = seaModel(kind);
+  if (sea) return sea;
   const land = landModel(kind);
   if (land) return land;
   return partsModel(WILDLIFE[kind].parts, kind === 'medusa' ? 0.75 : 1);
@@ -489,8 +492,9 @@ export class Wildlife {
         // La ballena asoma el lomo y echa el chorro.
         y += Math.sin((w.leap / 2.5) * Math.PI) * 0.6;
         w.spout.visible = w.leap < 2;
-        w.spout.scale.set(0.4, 0.5 + (2 - w.leap) * 2, 0.4);
-        w.spout.position.set(0, 0.6 + w.spout.scale.y / 2, 2);
+        w.spout.scale.set(0.6, 1 + (2 - w.leap) * 3, 0.6);
+        // El chorro sale del espiráculo de la ballena (v5.5: ahora mide 14 bloques).
+        w.spout.position.set(0, 0.5 + w.spout.scale.y / 2, 3.2);
       }
     } else if (w.spout) w.spout.visible = false;
     if (w.kind === 'ballena') y -= 0.4;

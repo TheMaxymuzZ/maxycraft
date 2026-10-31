@@ -130,7 +130,10 @@ describe('v4.23 fauna, mar y pesca', () => {
       if ('animate' in m) continue;
       expect(m.group.children.length).toBe(WILDLIFE[k].parts.length);
     }
-    expect(wildModel('medusa').glow.length).toBeGreaterThan(0);
+    // La medusa (v5.5) lleva su luz en una malla aparte que no se apaga de noche.
+    let glows = 0;
+    wildModel('medusa').group.traverse((o) => { if (o.userData.noEntityLight) glows++; });
+    expect(glows).toBeGreaterThan(0);
     expect(wildModel('ciervo').legs).toHaveLength(4);
   });
 });
