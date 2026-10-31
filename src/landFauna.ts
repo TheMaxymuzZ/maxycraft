@@ -374,8 +374,10 @@ export class FaunaModel {
   private far: THREE.Mesh[] = [];
   private isFar = false;
 
-  constructor(readonly geometry: FaunaGeometry, readonly habits: FaunaHabits = {}, facing: 1 | -1 = 1) {
+  constructor(readonly geometry: FaunaGeometry, readonly habits: FaunaHabits = {}, facing: 1 | -1 = 1, scale = 1) {
     this.group.add(this.pose);
+    // Tamaño real respecto al jugador (1,8 bloques): los píxeles se encogen o se agrandan, el dibujo es el mismo.
+    this.pose.scale.setScalar(scale);
     // Los modelos miran hacia +z; los de la granja y los pájaros, hacia -z.
     if (facing < 0) this.pose.rotation.y = Math.PI;
     geometry.parts.forEach((p, i) => {

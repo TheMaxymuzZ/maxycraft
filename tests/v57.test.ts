@@ -56,4 +56,21 @@ describe('v5.7: la fauna de tierra, con detalle (parte 2: aves y rana)', () => {
     }
     expect(max).toBeGreaterThan(1.4);
   });
+
+  it('cada animal tiene un tamaño creíble al lado del jugador (1,8 bloques)', () => {
+    const tall = (k: string) => new THREE.Box3().setFromObject(landModel(k)!.group).getSize(new THREE.Vector3()).y;
+    expect(tall('gallina')).toBeLessThan(0.75);
+    expect(tall('suricata')).toBeLessThan(0.6);
+    expect(tall('conejo')).toBeLessThan(0.7);
+    expect(tall('zorro')).toBeLessThan(0.95);
+    expect(tall('gorrion')).toBeLessThan(0.35);
+    // Los grandes, más que el jugador o casi.
+    expect(tall('camello')).toBeGreaterThan(2);
+    expect(tall('ciervo')).toBeGreaterThan(2);
+    expect(new THREE.Box3().setFromObject(landModel('oso_polar')!.group).getSize(new THREE.Vector3()).z).toBeGreaterThan(2.2);
+    // Y entre ellos: gallina < oveja < vaca < camello.
+    expect(tall('gallina')).toBeLessThan(tall('oveja'));
+    expect(tall('oveja')).toBeLessThan(tall('vaca'));
+    expect(tall('vaca')).toBeLessThan(tall('camello'));
+  });
 });

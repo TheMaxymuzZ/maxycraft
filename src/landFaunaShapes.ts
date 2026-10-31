@@ -592,6 +592,29 @@ export interface FaunaShape {
   habits: FaunaHabits;
 }
 
+/**
+ * Tamaño de cada animal (v5.7.1). Un bloque es más o menos un metro y el jugador mide 1,8: así la gallina no es
+ * tan alta como una oveja ni la suricata como un ciervo. Se dibujan con sus píxeles y luego se escalan.
+ * Al lado, la altura que queda (en bloques).
+ */
+export const LAND_SCALE: Record<string, number> = {
+  vaca: 1, // 1,45: como una vaca de verdad hasta los cuernos.
+  oveja: 0.9, // 1,1
+  gallina: 0.6, // 0,65
+  ciervo: 1, // 1,6 la cabeza, 2,5 con las astas.
+  zorro: 0.7, // 0,55 el lomo, 0,85 las orejas.
+  conejo: 0.65, // 0,55 con las orejas.
+  cabra: 1, // 1,05 el lomo, 1,75 con los cuernos.
+  camello: 1.1, // 2,2 la joroba, 2,3 la cabeza.
+  oso_polar: 1.25, // 1,7 el lomo y 2,5 de largo: más grande que el jugador a lo ancho.
+  suricata: 0.5, // 0,47 de pie.
+  gorrion: 0.7, petirrojo: 0.7, mirlo: 0.75, herrerillo: 0.65, // Un palmo.
+  gaviota: 1, // 1,4 de punta a punta de las alas.
+  loro: 1, buho: 1,
+  pinguino: 1, // 0,85
+  rana: 0.8,
+};
+
 export const LAND_SHAPES: Record<string, FaunaShape> = {
   vaca: { rig: vaca, habits: { graze: 'pasta', tail: { amp: 0.35, speed: 2.2, axis: 'z' }, ears: true, look: 0.5 } },
   oveja: { rig: oveja, habits: { graze: 'pasta', tail: { amp: 0.2, speed: 6 }, ears: true, look: 0.5 } },
@@ -632,5 +655,5 @@ export function landGeometry(kind: string): FaunaGeometry | null {
 /** Un animal de tierra montado, listo para ponerlo en el mundo (null si la especie no tiene figura nueva). */
 export function landModel(kind: string, facing: 1 | -1 = 1): FaunaModel | null {
   const g = landGeometry(kind);
-  return g ? new FaunaModel(g, LAND_SHAPES[kind].habits, facing) : null;
+  return g ? new FaunaModel(g, LAND_SHAPES[kind].habits, facing, LAND_SCALE[kind] ?? 1) : null;
 }

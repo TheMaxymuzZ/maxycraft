@@ -48,12 +48,12 @@ export class Animal {
   }
 
   get height(): number {
-    return this.data.kind === 'vaca' ? 1.45 : this.data.kind === 'oveja' ? 1.2 : 0.8;
+    return this.data.kind === 'vaca' ? 1.45 : this.data.kind === 'oveja' ? 1.1 : 0.65;
   }
 
   bounds(out: THREE.Box3): THREE.Box3 {
     const p = this.position;
-    const r = this.data.kind === 'vaca' ? 0.6 : this.data.kind === 'oveja' ? 0.45 : 0.3;
+    const r = this.data.kind === 'vaca' ? 0.6 : this.data.kind === 'oveja' ? 0.45 : 0.25;
     return out.set(new THREE.Vector3(p.x - r, p.y, p.z - r), new THREE.Vector3(p.x + r, p.y + this.height, p.z + r));
   }
 
