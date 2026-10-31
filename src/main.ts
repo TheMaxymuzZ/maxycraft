@@ -329,6 +329,8 @@ if (!trip && !joined) {
   }
 }
 scene.add(world.group);
+// Solo los chunks que caen dentro del mapa de sombras dan sombra (v5.10).
+shadows.limited = world.group;
 const water = new Water();
 world.waterMaterial = water.material;
 const wind = new Wind(material);

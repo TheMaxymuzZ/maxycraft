@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.10',
+    title: 'Lo lejano, con el detalle bajando poco a poco',
+    items: [
+      'La isla a lo lejos ya no pasa de golpe a bloques grandes. Justo detrás de lo cargado se ve casi igual que de cerca (un bloque por columna), un poco más allá en bloques de 2, luego de 4 y, muy lejos, de 8. Los pueblos, los árboles y las montañas lejanas se reconocen mucho mejor.',
+      'Los animales y los enemigos se ven enteros hasta 32 bloques (antes, solo hasta 22). Después pasan a una figura intermedia y, más allá de 64, a la sencilla. Los grandes guardan el detalle aún más lejos, y ya no cambian de figura una y otra vez si se mueven justo en el límite.',
+      'Más fluido: la isla lejana y el mar ya no se dibujaban solo para la pantalla, también para calcular las sombras (sin ninguna necesidad). Ahora solo dan sombra los trozos de isla que caen cerca de ti, la isla lejana va por trozos para no dibujar lo que queda a tu espalda y se rehace poco a poco, sin tirón al caminar o navegar. En nuestras pruebas, entre un 25 % y un 35 % menos triángulos por fotograma con la misma vista.',
+    ],
+  },
+  {
     version: '5.9',
     title: 'Correcciones: árboles propios, río suave y museo abierto',
     items: [
