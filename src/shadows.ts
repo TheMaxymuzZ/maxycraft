@@ -12,9 +12,22 @@ const SHADOW: Record<Quality, { size: number; range: number } | null> = {
  * Sombras del sol y de la luna (v3.2): los árboles, las casas, los vecinos y los muebles dejan sombra en el suelo.
  * La luz sigue al jugador, y solo se calcula la sombra cerca de él para que el juego vaya fluido.
  */
+const axisX = new THREE.Vector3();
+const axisY = new THREE.Vector3();
+const axisZ = new THREE.Vector3();
+const mid = new THREE.Vector3();
+
 export class SunShadows {
   private timer = 0;
   private range = 0;
+  /**
+   * Grupo cuyos hijos (los chunks del mundo) solo dan sombra si caen dentro del mapa de sombras (v5.10). Antes, por lo
+   * grandes que son, three.js los metía casi todos en la pasada de sombras: dibujaba más triángulos para las sombras
+   * que para la pantalla.
+   */
+  limited: THREE.Object3D | null = null;
+  /** Cuántos de esos hijos dan sombra ahora (para las pruebas). */
+  casting = 0;
 
   constructor(private renderer: THREE.WebGLRenderer, private light: THREE.DirectionalLight, private scene: THREE.Scene) {
     renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -75,5 +88,39 @@ export class SunShadows {
     this.light.target.position.set(snap(center.x), snap(center.y), snap(center.z));
     this.light.position.copy(this.light.target.position).addScaledVector(dir, 120);
     this.light.target.updateMatrixWorld();
+    if (this.limited) this.limit(this.limited.children);
+  }
+
+  /**
+   * Deja dar sombra solo a lo que cae dentro del cuadrado que cubre el mapa de sombras, mirado desde el sol: la caja de
+   * cada malla se proyecta en los dos ejes de la luz y se compara con el cuadrado (con un pequeño margen).
+   */
+  private limit(list: THREE.Object3D[]) {
+    axisZ.copy(this.light.position).sub(this.light.target.position).normalize();
+    axisX.set(0, 1, 0).cross(axisZ);
+    if (axisX.lengthSq() < 1e-6) axisX.set(1, 0, 0);
+    axisX.normalize();
+    axisY.crossVectors(axisZ, axisX);
+    const t = this.light.target.position;
+    const cx = t.dot(axisX);
+    const cy = t.dot(axisY);
+    const reach = this.range + 2;
+    let n = 0;
+    for (const o of list) {
+      const geo = (o as THREE.Mesh).geometry;
+      if (!geo) continue;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      const b = geo.boundingBox!;
+      mid.addVectors(b.min, b.max).multiplyScalar(0.5).add(o.position);
+      const hx = (b.max.x - b.min.x) / 2;
+      const hy = (b.max.y - b.min.y) / 2;
+      const hz = (b.max.z - b.min.z) / 2;
+      const ex = Math.abs(axisX.x) * hx + Math.abs(axisX.y) * hy + Math.abs(axisX.z) * hz;
+      const ey = Math.abs(axisY.x) * hx + Math.abs(axisY.y) * hy + Math.abs(axisY.z) * hz;
+      const on = Math.abs(mid.dot(axisX) - cx) <= reach + ex && Math.abs(mid.dot(axisY) - cy) <= reach + ey;
+      o.castShadow = on;
+      if (on) n++;
+    }
+    this.casting = n;
   }
 }

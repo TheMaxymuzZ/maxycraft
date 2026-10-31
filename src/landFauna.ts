@@ -143,6 +143,8 @@ export interface FaunaPartGeo {
 
 export interface FaunaGeometry {
   parts: FaunaPartGeo[];
+  /** La misma figura con píxeles de 2 en 2, para media distancia (v5.10). */
+  mid?: FaunaGeometry;
   /** La misma figura con píxeles de 4 en 4, para cuando se ve de lejos (muchos menos vértices). */
   far?: FaunaGeometry;
   /** Cuántos vértices tiene en total (para las pruebas y el panel de rendimiento). */
@@ -304,14 +306,63 @@ export function buildRig(rig: Rig, cell = 1): FaunaGeometry {
     });
   }
   const out: FaunaGeometry = { parts, vertices, height: maxY * P };
-  if (cell === 1) out.far = buildRig(rig, 4);
+  if (cell === 1) {
+    out.mid = buildRig(rig, 2);
+    out.far = buildRig(rig, 4);
+  }
   return out;
 }
 
 /** Desde dónde se mira (la cámara): de lejos los animales se dibujan con menos detalle. */
 export const faunaEye = new THREE.Vector3(0, 1e6, 0);
-/** A partir de esta distancia (en bloques) se usa la figura de lejos. */
-export const FAUNA_FAR = 22;
+/**
+ * v5.10: el detalle baja en dos pasos y más lejos que antes (antes, de golpe a 22 bloques). Hasta 32 bloques, la
+ * figura entera; hasta 64, con píxeles de 2 en 2; más allá, de 4 en 4. Los animales grandes guardan el detalle más lejos.
+ */
+export const FAUNA_LOD = [32, 64] as const;
+/** Margen (en bloques) para no cambiar de figura una y otra vez si el animal se mueve justo en el límite. */
+const LOD_MARGIN = 3;
+
+/** Cuánto más lejos guarda el detalle una figura de `height` bloques de alto (los grandes, hasta el doble). */
+export function faunaReach(height: number): number {
+  return Math.max(1, Math.min(2, height / 1.5));
+}
+
+/** Qué figura toca en `p` (0 entera, 1 media, 2 de lejos) si ahora se ve la `now`. */
+export function faunaLevel(p: THREE.Vector3, now: number, reach = 1): number {
+  const d = Math.sqrt((p.x - faunaEye.x) ** 2 + (p.y - faunaEye.y) ** 2 + (p.z - faunaEye.z) ** 2) / reach;
+  const want = d > FAUNA_LOD[1] ? 2 : d > FAUNA_LOD[0] ? 1 : 0;
+  if (want === now) return now;
+  // Justo en el límite entre las dos, se queda como está.
+  if (Math.abs(d - FAUNA_LOD[Math.min(want, now)]) * reach < LOD_MARGIN) return now;
+  return want;
+}
+
+/**
+ * Las tres figuras de una pieza, colgadas del mismo sitio (así se mueven igual): solo se ve la que toca.
+ * Si a una especie le falta alguna (las de antes de la v5.10 no tienen la media), se usa la siguiente.
+ */
+export class FaunaLods {
+  readonly levels: THREE.Mesh[][] = [[], [], []];
+  level = 0;
+
+  /** Pasa a la figura `level` (si es otra). */
+  show(level: number) {
+    if (level === this.level) return;
+    this.level = level;
+    const pick = this.pick(level);
+    this.levels.forEach((list, i) => {
+      for (const m of list) m.visible = i === pick;
+    });
+  }
+
+  /** La que se ve de verdad para `level`: la más cercana que exista, hacia menos detalle. */
+  private pick(level: number): number {
+    for (let i = level; i < this.levels.length; i++) if (this.levels[i].length) return i;
+    for (let i = level; i >= 0; i--) if (this.levels[i].length) return i;
+    return 0;
+  }
+}
 
 /** El material de toda la fauna: colores en los vértices. */
 export const faunaMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -370,11 +421,11 @@ export class FaunaModel {
   private earIn = Math.random() * 4;
   private earT = 1;
   private crouchNow = 0;
-  private near: THREE.Mesh[] = [];
-  private far: THREE.Mesh[] = [];
-  private isFar = false;
+  private lods = new FaunaLods();
+  private reach: number;
 
   constructor(readonly geometry: FaunaGeometry, readonly habits: FaunaHabits = {}, facing: 1 | -1 = 1, scale = 1) {
+    this.reach = faunaReach(geometry.height * scale);
     this.group.add(this.pose);
     // Tamaño real respecto al jugador (1,8 bloques): los píxeles se encogen o se agrandan, el dibujo es el mismo.
     this.pose.scale.setScalar(scale);
@@ -388,16 +439,13 @@ export class FaunaModel {
       o.userData.rest = p.rest.clone();
       o.userData.side = p.side;
       if (p.geo) {
-        const near = new THREE.Mesh(p.geo, faunaMaterial);
-        o.add(near);
-        this.near.push(near);
-        const fg = geometry.far?.parts[i].geo;
-        if (fg) {
-          const far = new THREE.Mesh(fg, faunaMaterial);
-          far.visible = false;
-          o.add(far);
-          this.far.push(far);
-        }
+        [p.geo, geometry.mid?.parts[i].geo, geometry.far?.parts[i].geo].forEach((g, level) => {
+          if (!g) return;
+          const mesh = new THREE.Mesh(g, faunaMaterial);
+          mesh.visible = level === 0;
+          o.add(mesh);
+          this.lods.levels[level].push(mesh);
+        });
       }
       if (p.glow) {
         const g = new THREE.Mesh(p.glow, faunaGlowMaterial);
@@ -425,17 +473,16 @@ export class FaunaModel {
     if (this.habits.graze) this.grazeLeft = seconds;
   }
 
+  /** Qué figura se ve ahora: 0 entera, 1 media, 2 de lejos (para las pruebas). */
+  get lodLevel(): number {
+    return this.lods.level;
+  }
+
   /** Un fotograma de vida: llamar después de mover el grupo. */
   animate(dt: number, seconds: number, moving: boolean, _night = 0) {
     const h = this.habits;
-    // De lejos, la figura con menos detalle (no se nota y cuesta mucho menos).
-    const gp = this.group.position;
-    const farNow = this.far.length > 0 && (gp.x - faunaEye.x) ** 2 + (gp.y - faunaEye.y) ** 2 + (gp.z - faunaEye.z) ** 2 > FAUNA_FAR * FAUNA_FAR;
-    if (farNow !== this.isFar) {
-      this.isFar = farNow;
-      for (const m of this.near) m.visible = !farNow;
-      for (const m of this.far) m.visible = farNow;
-    }
+    // De lejos, la figura con menos detalle, poco a poco (no se nota y cuesta mucho menos).
+    this.lods.show(faunaLevel(this.group.position, this.lods.level, this.reach));
     // Parpadeo.
     this.blinkIn -= dt;
     if (this.blinkIn <= 0) this.blinkIn = 2 + Math.random() * 4;
