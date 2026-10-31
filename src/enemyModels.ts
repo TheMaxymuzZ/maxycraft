@@ -260,13 +260,12 @@ function esqueleto(king: boolean): Rig {
 
 // ─── Gólems ────────────────────────────────────────────────────────────────────────────────────────────────
 
-type GolemVariant = 'lava' | 'hielo' | 'magma';
+type GolemVariant = 'lava' | 'hielo';
 
 function golem(v: GolemVariant): Rig {
   const P = {
     lava: { rock: 0x3a3030, rock2: 0x2a2222, glow: 0xff7a20, eye: 0xffb040, fleck: 0x6a2a1a },
     hielo: { rock: 0x9cc8e8, rock2: 0x78a8d0, glow: 0xd8f4ff, eye: 0x40a8ff, fleck: 0xe8f8ff },
-    magma: { rock: 0x4a2219, rock2: 0x2e1410, glow: 0xffc838, eye: 0xfff070, fleck: 0x8a3018 },
   }[v];
   const rock: Paint = (x, y, z) => {
     const h = hash3(x, y, z, 11);
@@ -326,19 +325,6 @@ function golem(v: GolemVariant): Rig {
     r.box('head', 0xffffff, [-5, 40, -2.5], [5, 40.75, 6.5], { grain: 0.05 });
     for (const xx of [-3.5, -1.5, 0.5, 2.5]) r.rod('head', 0xd8f4ff, [xx, 31.5, 6.6], [xx + 0.3, 28.5 - (xx === -1.5 ? 1 : 0), 6.9], 0.8);
   }
-  if (v === 'magma') {
-    // Cuernos y fuego en la cabeza.
-    for (const s of [-1, 1]) {
-      r.rod('head', 0x2a1410, [s * 4.5, 38, 2], [s * 7.5, 41, 1], 1.6);
-      r.rod('head', 0x3a1c14, [s * 7.5, 41, 1], [s * 8, 44, 2.5], 1.2);
-      r.box('head', 0xffd060, [s * 8 - 0.45, 43.6, 2.1], [s * 8 + 0.45, 44.6, 3], { glow: true });
-    }
-    r.part('flame', 'head', [0, 40, 1.5]);
-    r.box('flame', 0xff5a18, [-3.5, 40, -1.5], [3.5, 41.5, 4.5], { glow: true });
-    r.box('flame', 0xff9a20, [-2.5, 41.5, -0.5], [2.5, 43.5, 3.5], { glow: true });
-    r.box('flame', 0xffd040, [-1.5, 43.5, 0.5], [1.5, 45.5, 2.5], { glow: true });
-    r.box('flame', 0xfff4a0, [-0.5, 45.5, 1], [0.5, 47, 2], { glow: true });
-  }
   // Brazos enormes: hombro, brazo, antebrazo y puño.
   for (const s of [-1, 1] as const) {
     const n = s < 0 ? 'armL' : 'armR';
@@ -353,12 +339,110 @@ function golem(v: GolemVariant): Rig {
     r.box(n, rock, [a, 10, -3.75], [b, 18.5, 3.75]);
     [a, b] = X(-3.5, 4);
     const fist: Paint = (xx, y, z, nn) => (nn[2] > 0.5 && Math.floor(y) % 2 === 0 && y > 6 ? P.rock2 : rock(xx, y, z, nn));
-    if (v === 'magma') {
-      r.box(n, (xx, y, z) => mix(0xff6a10, 0xffd040, (blob(xx, y, z, 2, 8) + 1) / 2), [a, 4, -4.5], [b, 10.5, 4.5], { glow: true });
-      r.box(n, 0xffb030, [x - 0.5, 2.5, -0.5], [x + 0.5, 4, 0.5], { glow: true });
-    } else r.box(n, fist, [a, 4, -4.5], [b, 10.5, 4.5]);
+    r.box(n, fist, [a, 4, -4.5], [b, 10.5, 4.5]);
     if (v === 'hielo') r.rod(n, 0xd8f4ff, [x + s * 1, 31, -2], [x + s * 4, 37, -3], 1.6);
     else crack(n, [[x + s * 3.55, 17, 0], [x + s * 3.55, 13.5, 1.5], [x + s * 3.55, 11, -0.5]], 0.6);
+  }
+  return r;
+}
+
+// ─── Gólem de magma (jefe) ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Pintura de placa: cada caja de roca con sus aristas marcadas (claras arriba y en los bordes, oscuras abajo) y unas
+ * juntas finas, para que la figura se lea nítida y no parezca un bulto, también de noche.
+ */
+function plate(base: number, from: V3, to: V3, hi = 1.35, joint = 4): Paint {
+  return (x, y, z, n) => {
+    let edges = 0;
+    if (x - from[0] < 1 || to[0] - x < 1) edges++;
+    if (y - from[1] < 1 || to[1] - y < 1) edges++;
+    if (z - from[2] < 1 || to[2] - z < 1) edges++;
+    if (n[1] > 0.5) return edges >= 2 ? tone(base, hi * 1.1) : tone(base, hi);
+    if (edges >= 2) return to[1] - y < 1 ? tone(base, hi) : tone(base, 0.7);
+    if (n[1] < -0.5) return tone(base, 0.65);
+    // Juntas: líneas finas cada `joint` píxeles, como bloques de basalto.
+    const jy = Math.abs(((y - from[1]) % joint) - joint / 2) > joint / 2 - 0.5;
+    return jy ? tone(base, 0.78) : tone(base, 1 + hash3(x, y, z, 17) * 0.04);
+  };
+}
+
+function golemMagma(): Rig {
+  const ROCK = 0x4a3430, DARK = 0x2a1c1e, OBS = 0x2a2030;
+  const MOLTEN = 0xff6a10, HOT = 0xffb428, WHITE_HOT = 0xfff0b0;
+  const r = new Rig();
+  const rock = (part: string, from: V3, to: V3, c = ROCK, hi?: number, joint?: number) => r.box(part, plate(c, from, to, hi, joint), from, to, { grain: 0.02 });
+  const glow = (part: string, c: number, from: V3, to: V3) => r.box(part, c, from, to, { glow: true });
+  // Piernas: muslo, rodillera, espinillera y pezuña, con una junta de lava en la rodilla.
+  for (const s of [-1, 1] as const) {
+    const n = s < 0 ? 'legL' : 'legR';
+    const x = s * 5;
+    r.part(n, null, [x, 15, 0], 'leg', s < 0 ? 1 : -1);
+    rock(n, [x - 3, 9, -3], [x + 3, 15, 3]);
+    glow(n, MOLTEN, [x - 2.6, 8, -2.6], [x + 2.6, 9, 2.6]);
+    rock(n, [x - 3.25, 2.5, -3.25], [x + 3.25, 8, 3.25], DARK, 1.6);
+    rock(n, [x - 2.5, 6, 3.25], [x + 2.5, 10, 4.25], OBS, 2);
+    rock(n, [x - 3.75, 0, -3.75], [x + 3.75, 2.5, 4.75], OBS, 1.8);
+  }
+  // Cadera con un cinturón de lava.
+  rock('body', [-8, 13, -5], [8, 16.5, 5], DARK, 1.5);
+  glow('body', MOLTEN, [-8.4, 16.5, -5.4], [8.4, 17.5, 5.4]);
+  // Tronco en forma de V (más ancho arriba): se lee bien de lejos.
+  rock('body', [-8, 17.5, -5.5], [8, 24, 5.5]);
+  rock('body', [-10.5, 24, -6.5], [10.5, 32, 6.5]);
+  // El horno del pecho: lava dentro y barrotes de obsidiana delante.
+  glow('body', HOT, [-4, 19, 5.5], [4, 29, 6.6]);
+  glow('body', WHITE_HOT, [-2, 22, 6.6], [2, 26, 6.8]);
+  for (const bx of [-2.75, -0.5, 1.75]) r.box('body', OBS, [bx, 18.5, 6.6], [bx + 1, 29.5, 7.6], { grain: 0 });
+  r.box('body', OBS, [-4.75, 28.75, 5.5], [4.75, 30, 7.6], { grain: 0 });
+  r.box('body', OBS, [-4.75, 18, 5.5], [4.75, 19.25, 7.6], { grain: 0 });
+  // Espalda: dos chimeneas que echan brasas.
+  for (const s of [-1, 1]) {
+    rock('body', [s * 4 - 1.75, 26, -9], [s * 4 + 1.75, 34, -6.5], OBS, 1.8);
+    glow('body', HOT, [s * 4 - 1, 33.9, -8.25], [s * 4 + 1, 34.4, -7.25]);
+  }
+  // Cabeza tipo yelmo: ceja marcada, ojos rendija al rojo blanco, rejilla en la boca y cuernos hacia delante.
+  r.part('head', 'body', [0, 31, 1.5], 'head');
+  rock('head', [-4.5, 31, -2], [4.5, 39, 6], DARK, 1.7, 3);
+  rock('head', [-5, 36.5, 5.25], [5, 38, 7.25], OBS, 2);
+  glow('head', MOLTEN, [-3.75, 34.5, 6], [3.75, 36.25, 6.4]);
+  r.pair('head', WHITE_HOT, [1, 35, 6.4], [3.25, 35.75, 6.6], { glow: true });
+  glow('head', MOLTEN, [-2.5, 32, 6], [2.5, 33.75, 6.4]);
+  for (const tx of [-2, -0.5, 1]) r.box('head', OBS, [tx, 31.75, 6.4], [tx + 1, 34, 6.9], { grain: 0 });
+  for (const s of [-1, 1]) {
+    r.rod('head', OBS, [s * 4.5, 37, 2], [s * 8, 39, 2.5], 2);
+    r.rod('head', OBS, [s * 8, 39, 2.5], [s * 9, 42.5, 5], 1.5);
+    r.rod('head', 0x4a2a2a, [s * 9, 42.5, 5], [s * 8.5, 44.5, 7], 1);
+    r.box('head', HOT, [s * 8.5 - 0.5, 44.25, 6.6], [s * 8.5 + 0.5, 45.25, 7.6], { glow: true });
+  }
+  // Fuego en la cabeza: columnas de llama de alturas distintas (se ven las puntas, no un bulto).
+  r.part('flame', 'head', [0, 39, 2]);
+  const cols: [number, number, number, number][] = [[-3, -0.5, 2.5, MOLTEN], [-1.5, 0.5, 5, HOT], [0, -0.5, 6.5, HOT], [1.5, 1, 4, MOLTEN], [-0.75, 2.5, 3.5, MOLTEN], [0.75, -1.5, 3, MOLTEN], [2.75, 0.25, 2, MOLTEN]];
+  for (const [fx, fz, h, c] of cols) {
+    r.box('flame', c, [fx - 0.75, 39, fz - 0.75 + 2], [fx + 0.75, 39 + h, fz + 0.75 + 2], { glow: true });
+    r.box('flame', h > 4 ? WHITE_HOT : HOT, [fx - 0.4, 39 + h - 1, fz - 0.4 + 2], [fx + 0.4, 39 + h + 0.6, fz + 0.4 + 2], { glow: true });
+  }
+  // Brazos: hombrera de obsidiana con pinchos, brazo, codo de lava, antebrazo blindado y puño de lava con nudillos.
+  for (const s of [-1, 1] as const) {
+    const n = s < 0 ? 'armL' : 'armR';
+    const x = s * 13;
+    r.part(n, 'body', [x, 30, 0], 'extra', s < 0 ? -1 : 1);
+    const X = (a: number, b: number): [number, number] => [Math.min(x + s * a, x + s * b), Math.max(x + s * a, x + s * b)];
+    let [a, b] = X(-3, 4);
+    rock(n, [a, 28, -4.5], [b, 34, 4.5], OBS, 1.9);
+    r.rod(n, OBS, [x + s * 1, 33.5, -1.5], [x + s * 3.5, 38, -2.5], 1.6);
+    r.rod(n, OBS, [x + s * 2.5, 33.5, 2], [x + s * 4.5, 36.5, 2.5], 1.2);
+    glow(n, MOLTEN, [Math.min(x - s * 2.5, x + s * 3.5), 27.25, -3.75], [Math.max(x - s * 2.5, x + s * 3.5), 28, 3.75]);
+    [a, b] = X(-2, 2.5);
+    rock(n, [a, 20, -2.5], [b, 27.25, 2.5]);
+    glow(n, HOT, [a + 0.25, 18.5, -2.25], [b - 0.25, 20, 2.25]);
+    [a, b] = X(-2.75, 3.25);
+    rock(n, [a, 11, -3.5], [b, 18.5, 3.5], DARK, 1.6);
+    [a, b] = X(-3.25, 3.75);
+    glow(n, HOT, [a + 0.25, 4.25, -3.75], [b - 0.25, 11, 3.75]);
+    for (const ky of [5, 7.25, 9.5]) r.box(n, OBS, [a, ky, -4.25], [b, ky + 1, 4.25], { grain: 0 });
+    r.box(n, OBS, [a, 4, 3.75], [b, 11, 4.5], { grain: 0 });
+    r.box(n, WHITE_HOT, [x - 0.5, 3, -0.5], [x + 0.5, 4.25, 0.5], { glow: true });
   }
   return r;
 }
@@ -415,6 +499,8 @@ export interface EnemyLook {
   anim: EnemyAnim;
   /** Transparencia de la gelatina de los limos (piezas «shell»). */
   shell?: number;
+  /** Brillo propio de la roca (el gólem de magma está caliente: nunca se ve negro del todo de noche). */
+  emissive?: number;
   /** Transparencia de toda la figura (el espíritu). */
   opacity?: number;
 }
@@ -423,12 +509,12 @@ export const ENEMY_LOOKS: Record<HostileKind, EnemyLook> = {
   limo: { rig: () => limo(false), anim: 'limo', shell: 0.5 },
   murcielago: { rig: murcielago, anim: 'murcielago' },
   esqueleto: { rig: () => esqueleto(false), anim: 'esqueleto' },
-  golem_lava: { rig: () => golem('lava'), anim: 'golem' },
+  golem_lava: { rig: () => golem('lava'), anim: 'golem', emissive: 0x1c0804 },
   espiritu: { rig: espiritu, anim: 'espiritu', opacity: 0.85 },
   rey_esqueleto: { rig: () => esqueleto(true), anim: 'esqueleto' },
   limo_dorado: { rig: () => limo(true), anim: 'limo', shell: 0.6 },
   golem_hielo: { rig: () => golem('hielo'), anim: 'golem' },
-  golem_magma: { rig: () => golem('magma'), anim: 'golem' },
+  golem_magma: { rig: golemMagma, anim: 'golem', emissive: 0x2a0c04 },
 };
 
 const built = new Map<HostileKind, FaunaGeometry>();
@@ -499,6 +585,7 @@ export class EnemyModel {
   private strikeKind: BossAttack | 'golpe' = 'golpe';
   private hurtT = 9;
   private baseOpacity: number;
+  private baseEmissive: number;
   private shellOpacity: number;
 
   constructor(readonly kind: HostileKind) {
@@ -506,6 +593,7 @@ export class EnemyModel {
     this.anim = look.anim;
     const geometry = enemyGeometry(kind);
     this.baseOpacity = look.opacity ?? 1;
+    this.baseEmissive = look.emissive ?? 0;
     this.shellOpacity = look.shell ?? 1;
     const solid = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: this.baseOpacity < 1, opacity: this.baseOpacity });
     this.mats.push(solid);
@@ -601,7 +689,7 @@ export class EnemyModel {
     const swing = Math.sin(this.walk) * s.moving;
     // Colores: rojo al recibir un golpe; los jefes parpadean en blanco mientras preparan un ataque.
     const blinkCast = s.casting && Math.sin(seconds * 30) > 0;
-    for (const m of this.mats) m.emissive.setHex(s.flash ? 0xaa0000 : blinkCast ? 0x444444 : 0x000000);
+    for (const m of this.mats) m.emissive.setHex(s.flash ? 0xaa0000 : blinkCast ? (this.baseEmissive ? 0x7a3010 : 0x444444) : this.baseEmissive);
     const fade = s.fade ?? 1;
     this.mats[0].opacity = this.baseOpacity * fade;
     if (this.mats[1]) this.mats[1].opacity = this.shellOpacity * fade;
