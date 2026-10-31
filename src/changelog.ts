@@ -15,6 +15,7 @@ export const CHANGELOG: Release[] = [
       'Al posarse, los pájaros recogen las alas hacia atrás y al volar esconden las patas. En el suelo miran a los lados, parpadean, mueven la cola y picotean.',
       'El loro es un guacamayo rojo con las alas amarillas, azules y verdes, la cara blanca y la cola larga. El búho tiene orejitas de plumas, la cara redonda y los ojos amarillos que brillan de noche, y gira mucho la cabeza.',
       'El pingüino tiene la tripa blanca, aletas y patas naranjas, y anda balanceándose. La rana tiene ojos saltones, manchas en la espalda y patas de atrás grandes, y infla la garganta para croar.',
+      'Cada animal tiene su tamaño de verdad al lado tuyo: la gallina, el conejo, la suricata, el zorro y los pajaritos son pequeños, la oveja te llega por la cintura y el oso polar y el camello son más grandes que tú.',
     ],
   },
   {
