@@ -11,7 +11,7 @@
 // copias comparten la figura; de lejos se dibujan con menos detalle.
 import * as THREE from 'three';
 import type { BossAttack, HostileKind } from './hostiles';
-import { FAUNA_FAR, type FaunaGeometry, type Paint, Rig, type V3, blob, buildRig, faunaEye, hash3, mix, tone } from './landFauna';
+import { type FaunaGeometry, FaunaLods, type Paint, Rig, type V3, blob, buildRig, faunaLevel, faunaReach, hash3, mix, tone } from './landFauna';
 
 const BLACK = 0x161418;
 const WHITE = 0xffffff;
@@ -569,9 +569,8 @@ export class EnemyModel {
   readonly glowMats: THREE.MeshBasicMaterial[] = [];
   readonly byName = new Map<string, THREE.Object3D>();
   readonly anim: EnemyAnim;
-  private near: THREE.Mesh[] = [];
-  private far: THREE.Mesh[] = [];
-  private isFar = false;
+  private lods = new FaunaLods();
+  private reach: number;
   private lids: THREE.Object3D[] = [];
   private seed = Math.random() * 100;
   private walk = Math.random() * 10;
@@ -592,6 +591,7 @@ export class EnemyModel {
     const look = ENEMY_LOOKS[kind];
     this.anim = look.anim;
     const geometry = enemyGeometry(kind);
+    this.reach = faunaReach(geometry.height);
     this.baseOpacity = look.opacity ?? 1;
     this.baseEmissive = look.emissive ?? 0;
     this.shellOpacity = look.shell ?? 1;
@@ -613,18 +613,19 @@ export class EnemyModel {
       o.userData.rest = p.rest.clone();
       o.userData.side = p.side;
       const mat = shell && p.name.startsWith('shell') ? shell : solid;
+      const midPart = geometry.mid?.parts[i];
       const farPart = geometry.far?.parts[i];
-      for (const [g, list, m, lit] of [
-        [p.geo, this.near, mat, true], [farPart?.geo, this.far, mat, true],
-        [p.glow, this.near, glow, false], [farPart?.glow, this.far, glow, false],
-      ] as [THREE.BufferGeometry | null | undefined, THREE.Mesh[], THREE.Material, boolean][]) {
+      for (const [g, level, m, lit] of [
+        [p.geo, 0, mat, true], [midPart?.geo, 1, mat, true], [farPart?.geo, 2, mat, true],
+        [p.glow, 0, glow, false], [midPart?.glow, 1, glow, false], [farPart?.glow, 2, glow, false],
+      ] as [THREE.BufferGeometry | null | undefined, number, THREE.Material, boolean][]) {
         if (!g) continue;
         const mesh = new THREE.Mesh(g, m);
         if (!lit) mesh.userData.noEntityLight = true;
         if (m === shell) mesh.renderOrder = 1;
-        if (list === this.far) mesh.visible = false;
+        mesh.visible = level === 0;
         o.add(mesh);
-        list.push(mesh);
+        this.lods.levels[level].push(mesh);
       }
       (p.parent ? this.byName.get(p.parent)! : this.pose).add(o);
       this.byName.set(p.name, o);
@@ -649,9 +650,14 @@ export class EnemyModel {
     this.hurtT = 0;
   }
 
-  /** Si se está dibujando la figura de lejos (para las pruebas). */
+  /** Si se está dibujando una figura con menos detalle (para las pruebas). */
   get farNow(): boolean {
-    return this.isFar;
+    return this.lods.level > 0;
+  }
+
+  /** Qué figura se ve: 0 entera, 1 media, 2 de lejos. */
+  get lodLevel(): number {
+    return this.lods.level;
   }
 
   private rot(name: string, x: number, y = 0, z = 0) {
@@ -662,14 +668,8 @@ export class EnemyModel {
   }
 
   animate(dt: number, seconds: number, s: EnemyState) {
-    // De lejos, con menos detalle.
-    const gp = this.group.position;
-    const farNow = this.far.length > 0 && (gp.x - faunaEye.x) ** 2 + (gp.y - faunaEye.y) ** 2 + (gp.z - faunaEye.z) ** 2 > FAUNA_FAR * FAUNA_FAR;
-    if (farNow !== this.isFar) {
-      this.isFar = farNow;
-      for (const m of this.near) m.visible = !farNow;
-      for (const m of this.far) m.visible = farNow;
-    }
+    // De lejos, con menos detalle, en dos pasos (v5.10).
+    this.lods.show(faunaLevel(this.group.position, this.lods.level, this.reach));
     this.strikeT += dt;
     this.hurtT += dt;
     const k = Math.min(1, this.strikeT / this.strikeLen);
