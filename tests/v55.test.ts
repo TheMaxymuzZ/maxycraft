@@ -52,10 +52,12 @@ describe('v5.5: la fauna del mar, con detalle', () => {
     };
     for (const [kind, part] of [['delfin', 'cola'], ['raya', 'alaR2'], ['cangrejo', 'pataL0'], ['medusa', 'campana'], ['tortuga', 'alL'], ['foca', 'cola'], ['ballena', 'aleta']] as const) {
       const m = seaModel(kind)!;
-      m.animate!(0.1, 1, true, 0);
-      const before = rot(m, part);
-      for (let i = 0; i < 4; i++) m.animate!(0.1, 1.1 + i * 0.1, true, 0);
-      expect(rot(m, part), `${kind} ${part}`).not.toBeCloseTo(before, 3);
+      const seen: number[] = [];
+      for (let i = 0; i < 40; i++) {
+        m.animate!(0.1, 1 + i * 0.1, true, 0);
+        seen.push(rot(m, part));
+      }
+      expect(Math.max(...seen) - Math.min(...seen), `${kind} ${part}`).toBeGreaterThan(0.05);
     }
   });
 
