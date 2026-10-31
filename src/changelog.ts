@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.6',
+    title: 'Los animales de tierra, con todo detalle (1.ª parte)',
+    items: [
+      'La vaca, la oveja y la gallina de la granja y los animales salvajes (ciervo, zorro, conejo, cabra montesa, camello, oso polar y suricata) están hechos de nuevo, cubito a cubito, como los de Minecraft: cada uno con su pelaje pintado píxel a píxel.',
+      'La vaca tiene sus manchas negras, la ubre, los cuernos, el collar con cencerro y la borla de la cola. La oveja es una bola de lana con rizos, cara negra y calcetines de lana. La gallina tiene cresta con picos, barbilla roja, alas y plumas de cola.',
+      'El ciervo lleva astas con sus puntas, motitas blancas en el lomo y la cola blanca. El zorro, el pecho y la punta de la cola blancos y las patas y las puntas de las orejas negras. La cabra montesa, cuernos con anillos curvados hacia atrás, perilla y ojos dorados. El camello, joroba, rodillas, cuello en forma de S y pestañas largas. El oso polar, hocico negro y garras. La suricata, rayas en la espalda y antifaz.',
+      'Ahora están vivos: parpadean, mueven las orejas y la cola, miran a los lados y bajan la cabeza a pastar (la gallina picotea). La suricata se pone de pie para vigilar y se agacha cuando corre.',
+      'Sin perder fluidez: todos los animales de una especie comparten la figura y, de lejos, se dibujan con menos detalle (no se nota y cuesta diez veces menos).',
+    ],
+  },
+  {
     version: '5.4',
     title: 'Cada pez y cada insecto, con su forma',
     items: [

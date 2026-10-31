@@ -126,6 +126,8 @@ describe('v4.23 fauna, mar y pesca', () => {
     expect(wildFor('orilla', 'playa', false)).toEqual(expect.arrayContaining(['cangrejo', 'tortuga']));
     for (const k of WILD_KINDS) {
       const m = wildModel(k);
+      // Desde la v5.5 (mar) y la v5.6 (tierra) muchos tienen figura nueva, con sus propias piezas.
+      if ('animate' in m) continue;
       expect(m.group.children.length).toBe(WILDLIFE[k].parts.length);
     }
     expect(wildModel('medusa').glow.length).toBeGreaterThan(0);
