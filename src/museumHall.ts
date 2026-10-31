@@ -14,21 +14,26 @@ import type { Fixture } from './shopBuilding';
 /** Ancho (x) y fondo (z) del solar: el edificio, el pórtico y un margen para los aleros. */
 export const HALL_W = 21;
 export const HALL_D = 21;
-/** Capa del suelo de cada planta. */
-export const HALL_FLOORS = [0, 6];
+/**
+ * Capa del suelo de cada planta. v5.9: la planta de abajo tiene 7 de alto (antes 5) y la de arriba es una galería
+ * alrededor de un patio de doble altura, con un lucernario encima: el museo ya no agobia.
+ */
+export const HALL_FLOORS = [0, 8];
 /** Capa donde empieza el tejado. */
-const ROOF = 11;
+const ROOF = 15;
 /** Fachada (pared de delante) y fondo del edificio, y su pared oeste y este. */
 const BACK = 1;
 const FRONT = 15;
 const WEST = 1;
 const EAST = 19;
-/** Tabiques entre la recepción y las salas. */
+/** Columnas entre la recepción y las salas (las salas quedan abiertas al patio). */
 const LEFT_WALL = 6;
 const RIGHT_WALL = 14;
-/** La escalinata: tres de ancho, sube hacia el fondo desde z = 9 hasta la planta de arriba. */
+/** El patio central, abierto hasta el lucernario: [x0, z0, x1, z1]. Alrededor, la galería de arriba. */
+const ATRIUM = [7, 5, 13, 12];
+/** La escalinata: tres de ancho, sube hacia el fondo desde z = 12 hasta la galería del fondo. */
 const STAIR_X = [9, 10, 11];
-const STAIR_FOOT = 9;
+const STAIR_FOOT = 12;
 /** Columnas del pórtico y terraza encima (z = 16 y 17). */
 const PORCH = [16, 17];
 
@@ -50,12 +55,18 @@ export function hallBarrierCells(wing: number): Cell[] {
   return [];
 }
 
+/**
+ * Cordones del museo de la v5.2 que ya no están en el mismo sitio. En las partidas de entonces el jugador los
+ * quitó (quedaron guardados como aire) y harían agujeros en el museo nuevo: se devuelven a como salen.
+ */
+export const OLD_HALL_BARRIERS: Cell[] = [[9, 1, 10], [10, 1, 10], [11, 1, 10], [10, 7, 15]];
+
 /** Columnas de peceras del acuario (dos peceras por columna, una encima de otra, sobre un zócalo). */
 const TANKS: [number, number][] = [
   ...Array.from({ length: 13 }, (_, i): [number, number] => [18, 2 + i]),
   ...Array.from({ length: 7 }, (_, i): [number, number] => [16, 5 + i]),
 ];
-/** Terrarios del insectario, sobre su zócalo, a lo largo de la pared del fondo de arriba. */
+/** Terrarios del insectario, sobre su zócalo, a lo largo de la pared del fondo de la galería. */
 const TERRARIUMS: [number, number][] = [[3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [13, 2], [14, 2], [15, 2], [16, 2], [17, 2], [2, 4], [2, 5]];
 /** Vitrinas de los fósiles sueltos. */
 const CASES: [number, number][] = [[2, 3], [2, 13], [5, 3], [5, 13]];
@@ -81,13 +92,19 @@ const LEGEND: Record<string, Block> = {
   p: Block.StonePath,
 };
 
+/** Si (x, z) cae en el patio de doble altura. */
+function inAtrium(x: number, z: number): boolean {
+  return x >= ATRIUM[0] && x <= ATRIUM[2] && z >= ATRIUM[1] && z <= ATRIUM[3];
+}
+
 /**
  * Se dibuja casilla a casilla: grid[capa][z][x]. La puerta mira a +z. Paredes de MuseumWall con pilastras de piedra
- * pulida, zócalo y cornisa; ventanales altos abajo y ventanas arriba; tejado a dos aguas suave, de media en media
- * teja, con la cumbrera de este a oeste.
+ * pulida y zócalo; ventanales de cinco de alto abajo y de cuatro arriba (casi todo cristal: entra mucha luz);
+ * dentro, un patio central de doble altura con la escalinata, una galería alrededor (el insectario) y un
+ * lucernario de cristal en la cumbrera del tejado, que es a dos aguas de media en media teja.
  */
 function build(): string[][] {
-  const H = ROOF + 6;
+  const H = ROOF + 7;
   const grid: string[][][] = Array.from({ length: H }, () => Array.from({ length: HALL_D }, () => Array(HALL_W).fill(' ')));
   const set = (x: number, y: number, z: number, c: string) => {
     if (y >= 0 && y < H && x >= 0 && x < HALL_W && z >= 0 && z < HALL_D) grid[y][z][x] = c;
@@ -95,15 +112,17 @@ function build(): string[][] {
   const inside = (x: number, z: number) => x > WEST && x < EAST && z > BACK && z < FRONT;
   const onWall = (x: number, z: number) => (x === WEST || x === EAST) && z >= BACK && z <= FRONT || (z === BACK || z === FRONT) && x >= WEST && x <= EAST;
   const corner = (x: number, z: number) => (x === WEST || x === EAST) && (z === BACK || z === FRONT);
-  // Pilastras cada cuatro bloques (y en las esquinas y junto a la puerta).
+  // Pilastras cada tres bloques en la fachada y el fondo, y cada cuatro en los lados.
   const pilaster = (x: number, z: number) => corner(x, z) || ((z === BACK || z === FRONT) ? (x - WEST) % 3 === 0 : (z - BACK) % 4 === 0);
+  const up = HALL_FLOORS[1];
   // Suelo: baldosas en la recepción, piedra pulida en las salas, y el pórtico y la acera delante.
   for (let z = BACK; z <= FRONT; z++) for (let x = WEST; x <= EAST; x++) set(x, 0, z, x > LEFT_WALL && x < RIGHT_WALL && inside(x, z) ? 't' : 'Q');
   for (const z of PORCH) for (let x = 5; x <= 15; x++) set(x, 0, z, 'Q');
   for (let x = 5; x <= 15; x++) set(x, 0, 18, 'p');
   for (const [i, y0] of HALL_FLOORS.entries()) {
-    const top = i === 0 ? HALL_FLOORS[1] - 1 : ROOF - 1;
-    if (i > 0) for (let z = BACK; z <= FRONT; z++) for (let x = WEST; x <= EAST; x++) set(x, y0, z, onWall(x, z) ? 'Q' : 'Q');
+    const top = i === 0 ? up - 1 : ROOF - 1;
+    // La galería de arriba: todo menos el patio.
+    if (i > 0) for (let z = BACK; z <= FRONT; z++) for (let x = WEST; x <= EAST; x++) if (onWall(x, z) || !inAtrium(x, z)) set(x, y0, z, 'Q');
     for (let y = y0 + 1; y <= top; y++) {
       for (let z = BACK; z <= FRONT; z++) {
         for (let x = WEST; x <= EAST; x++) {
@@ -112,30 +131,30 @@ function build(): string[][] {
             continue;
           }
           let c = pilaster(x, z) ? 'Q' : 'M';
-          // Zócalo de piedra abajo; ventanales de tres de alto abajo y de dos arriba.
+          // Zócalo de piedra abajo; ventanales de cinco de alto abajo y de cuatro arriba.
           if (i === 0 && y === 1 && c === 'M') c = 'Q';
-          const tall = i === 0 ? y >= 2 && y <= 4 : y >= y0 + 2 && y <= y0 + 3;
+          const tall = i === 0 ? y >= 2 && y <= 6 : y >= y0 + 2 && y <= y0 + 5;
           if (c === 'M' && tall) c = 'W';
           set(x, y, z, c);
         }
       }
     }
   }
-  // Tabiques de la recepción: columnas y dinteles hacia la sala de fósiles (abierta del todo) y una pared con
-  // ventanal hacia el acuario, que se abre por una arcada de tres con su cordón.
+  // Las salas de abajo se abren a la recepción: columnas finas y una viga bajo la galería. Hacia el acuario,
+  // un ventanal (los peces se ven desde la entrada) con una arcada de tres que se abre con su cordón.
   for (let z = BACK + 1; z < FRONT; z++) {
-    for (let y = 1; y < HALL_FLOORS[1]; y++) {
+    for (let y = 1; y < up; y++) {
       const column = z % 4 === 2;
-      set(LEFT_WALL, y, z, column || y === 5 ? 'Q' : '.');
-      const arch = z >= 10 && z <= 12 && y <= 3;
-      set(RIGHT_WALL, y, z, arch ? '.' : y === 1 || y === 5 || column ? 'Q' : 'W');
+      set(LEFT_WALL, y, z, column || y === up - 1 ? 'Q' : '.');
+      const arch = z >= 10 && z <= 12 && y <= 4;
+      set(RIGHT_WALL, y, z, arch ? '.' : y === 1 || y === up - 1 || column ? 'Q' : 'W');
     }
   }
-  // Puerta de entrada con su marco, y la de la terraza arriba.
+  // Puerta de entrada con su marco y una vidriera encima, y la de la terraza arriba.
   set(10, 1, FRONT, 'D');
   set(10, 2, FRONT, 'T');
   for (const x of [9, 11]) for (let y = 1; y <= 3; y++) set(x, y, FRONT, 'Q');
-  const up = HALL_FLOORS[1];
+  for (let y = 3; y <= 6; y++) set(10, y, FRONT, 'W');
   set(10, up + 1, FRONT, 'F');
   set(10, up + 2, FRONT, '.');
   // Pórtico: cuatro columnas que sujetan la terraza; la terraza con su barandilla.
@@ -145,21 +164,29 @@ function build(): string[][] {
   for (const z of PORCH) for (const x of [5, 15]) set(x, up + 1, z, 'F');
   // Cornisa: una franja de piedra pulida a la altura del suelo de arriba, por fuera.
   for (let z = BACK; z <= FRONT; z++) for (let x = WEST; x <= EAST; x++) if (onWall(x, z)) set(x, up, z, 'Q');
+  // Barandilla de la galería alrededor del patio (menos donde llega la escalinata).
+  for (let x = ATRIUM[0]; x <= ATRIUM[2]; x++) {
+    if (!STAIR_X.includes(x)) set(x, up + 1, ATRIUM[1] - 1, 'F');
+    set(x, up + 1, ATRIUM[3] + 1, 'F');
+  }
+  for (let z = ATRIUM[1] - 1; z <= ATRIUM[3] + 1; z++) for (const x of [ATRIUM[0] - 1, ATRIUM[2] + 1]) set(x, up + 1, z, 'F');
   // Acuario: zócalo oscuro bajo cada columna de peceras (las peceras son muebles, en game/museum.ts).
   for (const [x, z] of TANKS) set(x, 1, z, 'K');
   // Sala de fósiles: tarima de losas para el dinosaurio.
   for (const x of DINO_X) for (const z of DINO_Z) set(x, 1, z, 'q');
   // Insectario: zócalo bajo cada terrario.
   for (const [x, z] of TERRARIUMS) set(x, up + 1, z, 'K');
-  // Tejado a dos aguas de media en media teja: del alero (z = 0 y z = 16) a la cumbrera (z = 8).
+  // Tejado a dos aguas de media en media teja: del alero (z = 0 y z = 16) a la cumbrera (z = 8). Encima del
+  // patio, un lucernario de cristal a lo largo de la cumbrera.
   for (let z = 0; z <= FRONT + 1; z++) {
     const d = Math.min(z, FRONT + 1 - z);
     const layer = ROOF + Math.floor(d / 2);
     const half = d % 2 === 0;
     for (let x = WEST; x <= EAST; x++) {
-      set(x, layer, z, half ? 'b' : 'B');
-      // Hastiales al este y al oeste: pared hasta el tejado.
-      if (x === WEST || x === EAST) for (let y = ROOF; y < layer; y++) if (z > BACK && z < FRONT) set(x, y, z, y === ROOF + 2 && Math.abs(z - 8) <= 1 ? 'W' : 'M');
+      const skylight = x >= ATRIUM[0] + 1 && x <= ATRIUM[2] - 1 && z >= 3 && z <= FRONT - 2;
+      set(x, layer, z, skylight ? 'W' : half ? 'b' : 'B');
+      // Hastiales al este y al oeste: pared hasta el tejado, con un ventanal redondo arriba.
+      if (x === WEST || x === EAST) for (let y = ROOF; y < layer; y++) if (z > BACK && z < FRONT) set(x, y, z, y >= ROOF + 1 && y <= ROOF + 2 && Math.abs(z - 8) <= 2 ? 'W' : 'M');
     }
   }
   // La escalinata y su hueco, al final para que no la tape ningún suelo; maciza por debajo.
@@ -169,12 +196,10 @@ function build(): string[][] {
       set(x, 1 + i, z, 'S');
       for (let y = 1; y <= i; y++) set(x, y, z, 'Q');
     }
-    for (let z = STAIR_FOOT - up + 2; z <= STAIR_FOOT; z++) set(x, up, z, '.');
   }
-  // Barandillas a los lados de la escalinata (abajo) y alrededor de su hueco (arriba).
-  for (let z = STAIR_FOOT - up + 2; z <= STAIR_FOOT; z++) for (const x of [8, 12]) set(x, 1, z, 'F');
-  for (let z = STAIR_FOOT - up + 2; z <= STAIR_FOOT + 1; z++) for (const x of [8, 12]) set(x, up + 1, z, 'F');
-  for (const x of STAIR_X) set(x, up + 1, STAIR_FOOT + 1, 'F');
+  // Barandillas a los lados de la escalinata.
+  for (let i = 1; i < up; i++) for (const x of [8, 12]) set(x, 1 + i, STAIR_FOOT - i, 'F');
+  for (const x of [8, 12]) set(x, 1, STAIR_FOOT, 'F');
   // Cordones de las salas cerradas.
   for (let w = 1; w <= 3; w++) for (const [x, y, z] of hallBarrierCells(w)) set(x, y, z, 'F');
   return grid.map((layer) => layer.map((row) => row.join('')));
@@ -198,11 +223,16 @@ export const MUSEUM_HALL: BuildingTemplate = {
 /** Dónde espera la conservadora: detrás del mostrador de la entrada, mirando a la puerta. */
 export const CURATOR_SPOT: Cell = [13, 1, 11];
 
+/** Suelo de la galería de arriba, donde se pisa. */
+const UP = HALL_FLOORS[1] + 1;
+/** Capa justo debajo del tejado en la fila z (de donde cuelgan las lámparas de arriba). */
+const underRoof = (z: number) => ROOF + Math.floor(Math.min(z, FRONT + 1 - z) / 2) - 1;
+
 /** Muebles fijos del museo: mostrador, peceras, terrarios, vitrinas, bancos, paneles, cordones y la terraza. */
 export const HALL_FIXTURES: Fixture[] = [
-  // Lámparas colgadas del techo de abajo y del tejado de arriba.
-  ...[[3, 3], [3, 12], [10, 12], [16, 3], [16, 13], [15, 8], [7, 6], [13, 6], [10, 2]].map(([x, z]): Fixture => ['lampara_techo', x, HALL_FLOORS[1] - 1, z, 0]),
-  ...[[4, 4], [16, 4], [4, 12], [16, 12], [10, 12]].map(([x, z]): Fixture => ['lampara_techo', x, ROOF + 1, z, 0]),
+  // Lámparas colgadas del techo de abajo (bajo la galería) y, en el patio y la galería, del tejado.
+  ...[[3, 3], [3, 12], [16, 3], [16, 13], [15, 8], [10, 2], [10, 14], [7, 3], [13, 3]].map(([x, z]): Fixture => ['lampara_techo', x, HALL_FLOORS[1] - 1, z, 0]),
+  ...[[4, 4], [16, 4], [4, 12], [16, 12], [8, 8], [12, 8], [10, 11]].map(([x, z]): Fixture => ['lampara_techo', x, underRoof(z), z, 0]),
   ['mostrador_museo', 13, 1, 12, 0],
   ...TANKS.flatMap(([x, z]): Fixture[] => [['pecera', x, 2, z, 3], ['pecera', x, 3, z, 3]]),
   ...TERRARIUMS.map(([x, z]): Fixture => ['terrario', x, HALL_FLOORS[1] + 2, z, 0]),
@@ -215,12 +245,12 @@ export const HALL_FIXTURES: Fixture[] = [
   // Acuario: un banco para mirar los peces.
   ['banco', 15, 1, 13, 0], ['panel_info', 15, 1, 3, 1],
   // Insectario: plantas, bancos y cuadros.
-  ['planta', 2, 7, 13, 0], ['planta', 18, 7, 13, 0], ['planta', 18, 7, 3, 0], ['planta', 2, 7, 7, 0],
-  ['banco', 5, 7, 8, 1], ['banco', 15, 7, 8, 3], ['banco', 5, 7, 11, 1], ['banco', 15, 7, 11, 3],
-  ['cuadro', 18, 7, 6, 3], ['cuadro', 18, 7, 10, 3], ['cuadro', 2, 7, 10, 1],
-  ['panel_info', 10, 7, 13, 2],
+  ['planta', 2, UP, 13, 0], ['planta', 18, UP, 13, 0], ['planta', 18, UP, 3, 0], ['planta', 2, UP, 7, 0],
+  ['banco', 5, UP, 8, 1], ['banco', 15, UP, 8, 3], ['banco', 5, UP, 11, 1], ['banco', 15, UP, 11, 3],
+  ['cuadro', 18, UP, 6, 3], ['cuadro', 18, UP, 10, 3], ['cuadro', 2, UP, 10, 1],
+  ['panel_info', 10, UP, 14, 2],
   // Terraza mirador: bancos y el catalejo mirando al pueblo.
-  ['banco', 7, 7, 16, 0], ['banco', 13, 7, 16, 0], ['catalejo_pie', 10, 7, 17, 0], ['planta', 6, 7, 16, 0], ['planta', 14, 7, 16, 0],
+  ['banco', 7, UP, 16, 0], ['banco', 13, UP, 16, 0], ['catalejo_pie', 10, UP, 17, 0], ['planta', 6, UP, 16, 0], ['planta', 14, UP, 16, 0],
 ];
 
 /** El hueco de cada pez, insecto o fósil (centro con decimales y caja por la que se mueve). */

@@ -143,9 +143,31 @@ export class ShipyardGame {
     return this.site?.home ?? null;
   }
 
+  /**
+   * La casilla libre más cercana a (x, y, z) donde cabe alguien de pie (dos de alto y suelo debajo). En las
+   * ruinas de antes de la v5.9 había un montón de piedras justo donde aparece Bartolo y salía dentro.
+   */
+  private standable(x: number, y: number, z: number): Cell {
+    const { world } = this.deps;
+    const free = (cx: number, cy: number, cz: number) => !isSolid(world.getBlock(cx, cy, cz)) && !isSolid(world.getBlock(cx, cy + 1, cz));
+    const fits = (cx: number, cy: number, cz: number) => free(cx, cy, cz) && isSolid(world.getBlock(cx, cy - 1, cz));
+    if (free(x, y, z)) return [x, y, z];
+    for (let r = 1; r <= 4; r++) {
+      for (const dy of [0, 1, -1]) {
+        for (let dz = -r; dz <= r; dz++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+            if (fits(x + dx, y + dy, z + dz)) return [x + dx, y + dy, z + dz];
+          }
+        }
+      }
+    }
+    return [x, y, z];
+  }
+
   private worker(profile: Profile, at: Cell, look: [number, number]) {
     if (this.workers.has(profile.name)) return;
-    const [x, y, z] = shipyardCell(this.site!, ...at);
+    const [x, y, z] = this.standable(...shipyardCell(this.site!, ...at));
     const spot = { kind: 'house' as const, x, z: z - 3, y: y - 1, roof: Block.RoofBlue, door: [x, y, z] as Cell };
     const v = new Villager(profile, spot, this.deps.world, this.deps.memories[profile.name] ?? { friendship: 0 });
     v.lookAt = look;

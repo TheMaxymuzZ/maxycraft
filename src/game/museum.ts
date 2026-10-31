@@ -7,7 +7,7 @@ import { CREATURES, type Creature, DINO_PIECES, sizeRange } from '../creatures';
 import { CritterModel } from '../critterModels';
 import { Furniture } from '../furniture';
 import { type ExhibitSpot, WINGS, barrierCell, exhibitSpot, museumOrigin, openWings } from '../museum';
-import { HALL_FIXTURES, hallBarrierCells, hallExhibitSpot, museumHallOrigin } from '../museumHall';
+import { HALL_FIXTURES, OLD_HALL_BARRIERS, hallBarrierCells, hallExhibitSpot, museumHallOrigin } from '../museumHall';
 import type { Cell } from '../pathfind';
 import { BIG_HOUSE } from '../villagerHouse';
 import type { World } from '../world';
@@ -22,6 +22,8 @@ export interface MuseumHallDeps {
   host: boolean;
   /** Pone un bloque para todos los jugadores. */
   put(x: number, y: number, z: number, b: Block): void;
+  /** Devuelve bloques a como salen en la isla (quita lo que se cambió en ellos), para todos los jugadores. */
+  restore?(cells: Cell[]): void;
   toast(text: string): void;
   /** Luces de los muebles del museo nuevo. */
   lampHook?: (x: number, y: number, z: number, level: number) => void;
@@ -63,6 +65,11 @@ export class MuseumHall {
     if (this.v2 && this.origin) {
       const [ox, oy, oz] = this.origin;
       for (const [id, x, y, z, rot] of HALL_FIXTURES) this.fixtures.place(id, ox + x, oy + y, oz + z, rot);
+      // v5.9: los cordones quitados del museo de antes no deben dejar agujeros en el nuevo.
+      if (deps.host) {
+        const old = OLD_HALL_BARRIERS.map(([x, y, z]): Cell => [ox + x, oy + y, oz + z]).filter(([x, y, z]) => deps.world.isEdited(x, y, z));
+        if (old.length) deps.restore?.(old);
+      }
     }
     this.wing = openWings(deps.donated().size);
     this.refresh();
