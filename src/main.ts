@@ -4283,6 +4283,35 @@ function updateBoat(dt: number, seconds: number) {
   }
 }
 
+/**
+ * Vecinos de otras islas (v5.3.1): están tan lejos que la niebla los tapa del todo, pero se dibujaban igual (con su
+ * sombra) en cada fotograma. Solo para ese dibujo se esconden los que quedan detrás de la niebla y fuera del alcance de
+ * las sombras, así que se ve exactamente lo mismo.
+ */
+const beyondFog: THREE.Object3D[] = [];
+const viewDir = new THREE.Vector3();
+/** Más allá de esto ninguna cosa cae dentro del mapa de sombras (que va con el jugador; ver shadows.ts). */
+const SHADOW_REACH = 180;
+function hideBeyondFog() {
+  camera.getWorldDirection(viewDir);
+  const far = fog.far + 4;
+  const p = player.position;
+  for (const v of villagers) {
+    {
+      const o = v.group;
+      if (!o.visible) continue;
+      const dx = o.position.x - camera.position.x;
+      const dy = o.position.y - camera.position.y;
+      const dz = o.position.z - camera.position.z;
+      // La niebla va por la profundidad en la vista, no por la distancia en línea recta.
+      if (dx * viewDir.x + dy * viewDir.y + dz * viewDir.z < far) continue;
+      if (Math.hypot(o.position.x - p.x, o.position.z - p.z) < SHADOW_REACH) continue;
+      o.visible = false;
+      beyondFog.push(o);
+    }
+  }
+}
+
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
@@ -4448,7 +4477,10 @@ function frame(now: number) {
 
   // Una antorcha en cualquiera de las dos manos alumbra alrededor.
   lighting.setHand(camera.position, carriedLight());
+  hideBeyondFog();
   renderer.render(scene, camera);
+  for (const o of beyondFog) o.visible = true;
+  beyondFog.length = 0;
   // La mano va encima de todo, en otra pasada, y no se ve en la portada ni con el menú abierto.
   if (menu.hidden && !panel) {
     const walking = player.onGround ? Math.hypot(player.velocity.x, player.velocity.z) : 0;

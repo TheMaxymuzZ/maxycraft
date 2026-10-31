@@ -134,6 +134,6 @@ export class ShopFront {
 
   /** Muebles puestos (para las pruebas). */
   get fixtureCount(): number {
-    return this.fixtures.group.children.length;
+    return this.fixtures.count;
   }
 }

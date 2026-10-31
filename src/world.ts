@@ -1813,6 +1813,9 @@ export class World {
       this.chunks.set(k, c);
       this.findGeneratedLights(c);
     }
+    // Un chunk que se consulta (un vecino lejos que mira su casa, un objeto en el suelo...) sigue en memoria:
+    // antes se soltaba en el mismo fotograma y se volvía a generar en el siguiente, muchas veces por segundo.
+    c.seen = this.clock;
     return c;
   }
 
@@ -2069,6 +2072,9 @@ export class World {
     return this.getChunk(cx, cz).data.slice();
   }
 
+  /** Hora (milisegundos) de la última llamada a update, para marcar los chunks que se usan. */
+  private clock = performance.now();
+
   /** Chunks con bloques en memoria (para el panel de rendimiento). */
   get loadedChunks(): number {
     return this.chunks.size;
@@ -2085,6 +2091,7 @@ export class World {
     const pcx = Math.floor(x / CHUNK);
     const pcz = Math.floor(z / CHUNK);
     const now = performance.now();
+    this.clock = now;
 
     const wanted: [number, number, number][] = [];
     for (let dz = -radius; dz <= radius; dz++) {
