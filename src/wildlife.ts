@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { Population, type PopulationRule } from './population';
 import { type Biome, SEA_LEVEL } from './world';
+import { seaModel } from './seaFauna';
 
 export type WildKind =
   | 'ciervo' | 'conejo' | 'zorro' | 'cabra' | 'camello' | 'suricata' | 'loro' | 'rana' | 'pinguino' | 'foca' | 'oso_polar' | 'buho'
@@ -234,7 +235,8 @@ export interface WildWorld {
 }
 
 /** Monta el modelo de cubos de un animal, mirando hacia +z. */
-export function wildModel(kind: WildKind) {
+export function wildModel(kind: WildKind): PartsModel {
+  const sea = seaModel(kind); if (sea) return sea;
   return partsModel(WILDLIFE[kind].parts, kind === 'medusa' ? 0.75 : 1);
 }
 
@@ -244,6 +246,8 @@ export interface PartsModel {
   wings: THREE.Object3D[];
   glow: THREE.MeshLambertMaterial[];
   mats: THREE.MeshLambertMaterial[];
+  animate?: (dt: number, seconds: number, moving: boolean, night: number) => void;
+  dispose?: () => void;
 }
 
 /** Un modelo de cubos a partir de sus piezas (lo usan también las criaturas hostiles de la v4.24). */
@@ -499,15 +503,19 @@ export class Wildlife {
     for (const wing of w.model.wings) wing.rotation.z = flap * wing.userData.side;
     // Las medusas brillan de noche (y los ojos del búho).
     for (const m of w.model.glow) m.emissiveIntensity = 0.15 + night * 0.85;
+    w.model.animate?.(dt, seconds, moving, night);
   }
 
   private despawn(i: number) {
     const w = this.list[i];
     this.group.remove(w.model.group);
     this.population.remove(w.group, w.zone);
-    for (const o of w.model.group.children) {
-      const mesh = (o as THREE.Mesh).isMesh ? (o as THREE.Mesh) : (o.children[0] as THREE.Mesh | undefined);
-      (mesh?.material as THREE.Material | undefined)?.dispose();
+    if (w.model.dispose) w.model.dispose();
+    else {
+      for (const o of w.model.group.children) {
+        const mesh = (o as THREE.Mesh).isMesh ? (o as THREE.Mesh) : (o.children[0] as THREE.Mesh | undefined);
+        (mesh?.material as THREE.Material | undefined)?.dispose();
+      }
     }
     this.list.splice(i, 1);
   }
