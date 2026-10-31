@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ATLAS_TILES, FURNITURE_TILE_START, TILE } from './blocks';
+import { type LitHook, litBatchMaterial, syncBatch } from './entityLight';
 
 // Muebles hechos con cajas, como los de Minecraft. Ocupan una casilla y miran hacia +z.
 
@@ -891,17 +893,47 @@ function material(color: number, glow?: number, opacity?: number): THREE.MeshLam
   return m;
 }
 
-function buildModel(def: FurnitureDef): THREE.Group {
-  const g = new THREE.Group();
+/** Piezas de cada mueble ya juntas: una malla por material (se comparten entre todos los muebles iguales). */
+const merged = new Map<FurnitureDef, { material: THREE.MeshLambertMaterial; geometry: THREE.BufferGeometry; order: number }[]>();
+
+/**
+ * Pieza a pieza el mueble sería una malla por caja, y una casa llena de muebles se dibujaba en cientos de pasadas.
+ * Desde la v5.3.1 las cajas del mismo material se juntan en una sola malla: se ve igual y se dibuja de una vez.
+ */
+function mergedParts(def: FurnitureDef) {
+  let list = merged.get(def);
+  if (list) return list;
+  const byMaterial = new Map<THREE.MeshLambertMaterial, { boxes: THREE.BufferGeometry[]; order: number }>();
+  const m = new THREE.Matrix4();
   def.parts.forEach(([w, h, d, color, x, y, z, opacity], i) => {
     // La pantalla de la lámpara (la última pieza) es la que brilla.
     const glows = def.glow !== undefined && i === def.parts.length - 1;
-    const mesh = new THREE.Mesh(box, material(color, glows ? def.glow : undefined, opacity));
-    if (opacity !== undefined && opacity < 1) mesh.renderOrder = 2;
-    mesh.scale.set(w, h, d);
-    mesh.position.set(x, y + h / 2, z);
-    g.add(mesh);
+    const mat = material(color, glows ? def.glow : undefined, opacity);
+    let entry = byMaterial.get(mat);
+    if (!entry) {
+      entry = { boxes: [], order: opacity !== undefined && opacity < 1 ? 2 : 0 };
+      byMaterial.set(mat, entry);
+    }
+    m.makeScale(w, h, d).setPosition(x, y + h / 2, z);
+    entry.boxes.push(box.clone().applyMatrix4(m));
   });
+  list = [...byMaterial].map(([material, { boxes, order }]) => {
+    const geometry = boxes.length === 1 ? boxes[0] : mergeGeometries(boxes)!;
+    if (boxes.length > 1) boxes.forEach((b) => b.dispose());
+    geometry.clearGroups();
+    return { material, geometry, order };
+  });
+  merged.set(def, list);
+  return list;
+}
+
+function buildModel(def: FurnitureDef): THREE.Group {
+  const g = new THREE.Group();
+  for (const { material, geometry, order } of mergedParts(def)) {
+    const mesh = new THREE.Mesh(geometry, material);
+    if (order) mesh.renderOrder = order;
+    g.add(mesh);
+  }
   return g;
 }
 
@@ -987,6 +1019,39 @@ function signText(text: string): THREE.Mesh {
 interface Entry {
   data: PlacedFurniture;
   model: THREE.Group;
+  /** Última luz que le ha tocado (cielo y antorcha), para no perderla al rehacer las mallas juntas. */
+  lit: [number, number, number, number];
+  /** Dónde están sus vértices en las mallas juntas. */
+  ranges: { attr: THREE.BufferAttribute; start: number; count: number }[];
+}
+
+/** Sin luz calculada todavía se ve como con el material de siempre. */
+const NO_LIGHT: Entry['lit'] = [1, 0, 0, 0];
+
+/** La luz que calcula entityLight para el mueble va a sus vértices de las mallas juntas. */
+function hookLight(e: Entry) {
+  const hook: LitHook = (sky, glow) => {
+    const l = e.lit;
+    if (l[0] === sky && l[1] === glow.r && l[2] === glow.g && l[3] === glow.b) return;
+    l[0] = sky;
+    l[1] = glow.r;
+    l[2] = glow.g;
+    l[3] = glow.b;
+    for (const r of e.ranges) fillLight(r, l);
+  };
+  e.model.userData.onLit = hook;
+}
+
+/** Pone la luz de un mueble en sus vértices de las mallas juntas. */
+function fillLight(r: Entry['ranges'][number], lit: Entry['lit']) {
+  const a = r.attr.array as Float32Array;
+  for (let i = r.start * 4, end = (r.start + r.count) * 4; i < end; i += 4) {
+    a[i] = lit[0];
+    a[i + 1] = lit[1];
+    a[i + 2] = lit[2];
+    a[i + 3] = lit[3];
+  }
+  r.attr.needsUpdate = true;
 }
 
 /** Avisa de que un mueble da luz (nivel > 0) o deja de darla (0) en (x, y, z). */
@@ -997,9 +1062,65 @@ export class Furniture {
   readonly group = new THREE.Group();
   private entries: Entry[] = [];
   private bounds = new THREE.Box3();
+  /**
+   * Las piezas opacas de todos los muebles, juntas en una malla por material (v5.3.1): un museo o una aldea llena de
+   * muebles se dibuja en unas pocas pasadas en vez de en cientos. Cada mueble sigue teniendo su propia luz.
+   */
+  private batches = new THREE.Group();
+  private rebuildQueued = false;
 
   constructor(saved: PlacedFurniture[], private onLight: LightHook | null = null) {
+    this.batches.userData.noEntityLight = true;
+    this.group.add(this.batches);
     for (const f of saved) if (furnitureDef(f.id)) this.place(f.id, f.x, f.y, f.z, f.rot, f.text);
+  }
+
+  /** Muebles puestos. */
+  get count(): number {
+    return this.entries.length;
+  }
+
+  /** Hay que rehacer las mallas juntas: se hace una vez, aunque se pongan cien muebles seguidos. */
+  private changed() {
+    if (this.rebuildQueued) return;
+    this.rebuildQueued = true;
+    queueMicrotask(() => this.rebuild());
+  }
+
+  private rebuild() {
+    this.rebuildQueued = false;
+    for (const m of this.batches.children as THREE.Mesh[]) m.geometry.dispose();
+    this.batches.clear();
+    const byMaterial = new Map<THREE.MeshLambertMaterial, { geos: THREE.BufferGeometry[]; owners: Entry[] }>();
+    for (const e of this.entries) {
+      e.ranges = [];
+      e.model.updateMatrix();
+      for (const { material, geometry, order } of mergedParts(furnitureDef(e.data.id)!)) {
+        if (order) continue; // lo transparente va aparte, ordenado por distancia como siempre
+        let b = byMaterial.get(material);
+        if (!b) byMaterial.set(material, (b = { geos: [], owners: [] }));
+        b.geos.push(geometry.clone().applyMatrix4(e.model.matrix));
+        b.owners.push(e);
+      }
+    }
+    for (const [material, { geos, owners }] of byMaterial) {
+      const geometry = geos.length === 1 ? geos[0] : mergeGeometries(geos)!;
+      if (geos.length > 1) geos.forEach((g) => g.dispose());
+      const attr = new THREE.BufferAttribute(new Float32Array(geometry.getAttribute('position').count * 4), 4);
+      let start = 0;
+      owners.forEach((e, i) => {
+        const count = geos[i].getAttribute('position').count;
+        const range = { attr, start, count };
+        e.ranges.push(range);
+        fillLight(range, e.lit);
+        start += count;
+      });
+      geometry.setAttribute('aLit', attr);
+      const mat = litBatchMaterial(material);
+      const mesh = new THREE.Mesh(geometry, mat);
+      mesh.onBeforeRender = () => syncBatch(mat);
+      this.batches.add(mesh);
+    }
   }
 
   place(id: string, x: number, y: number, z: number, rot: number, text?: string) {
@@ -1008,12 +1129,25 @@ export class Furniture {
     if (text) data.text = text;
     const model = this.model(data);
     this.group.add(model);
-    this.entries.push({ data, model });
+    this.entries.push(this.entry(data, model));
+    this.changed();
     if (def.light) this.onLight?.(x, y + (def.lightHeight ?? 0), z, def.light);
+  }
+
+  private entry(data: PlacedFurniture, model: THREE.Group): Entry {
+    const e: Entry = { data, model, lit: [...NO_LIGHT], ranges: [] };
+    hookLight(e);
+    return e;
   }
 
   private model(data: PlacedFurniture): THREE.Group {
     const model = buildModel(furnitureDef(data.id)!);
+    // Las piezas opacas se dibujan en las mallas juntas; aquí se quedan (invisibles) para apuntar y medir el mueble.
+    for (const m of model.children as THREE.Mesh[]) {
+      if (m.renderOrder) continue;
+      m.visible = false;
+      m.userData.noEntityLight = m.userData.noShadow = true;
+    }
     if (data.text) model.add(signText(data.text));
     model.position.set(data.x + 0.5, data.y, data.z + 0.5);
     model.rotation.y = (data.rot * Math.PI) / 2;
@@ -1029,7 +1163,9 @@ export class Furniture {
     else delete f.text;
     this.group.remove(e.model);
     e.model = this.model(f);
+    hookLight(e);
     this.group.add(e.model);
+    this.changed();
   }
 
   private unlight(f: PlacedFurniture) {
@@ -1052,6 +1188,7 @@ export class Furniture {
       this.unlight(e.data);
     }
     this.entries = [];
+    this.changed();
   }
 
   remove(f: PlacedFurniture) {
@@ -1060,6 +1197,7 @@ export class Furniture {
     this.group.remove(this.entries[i].model);
     this.entries.splice(i, 1);
     this.unlight(f);
+    this.changed();
   }
 
   rotate(f: PlacedFurniture) {
@@ -1067,6 +1205,7 @@ export class Furniture {
     if (!e) return;
     f.rot = (f.rot + 1) % 4;
     e.model.rotation.y = (f.rot * Math.PI) / 2;
+    this.changed();
   }
 
   /** Mueble que corta el rayo antes de `maxDist`, con su distancia y su caja. */

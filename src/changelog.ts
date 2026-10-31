@@ -7,6 +7,15 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.3.1',
+    title: 'Más fluido',
+    items: [
+      'El juego va mucho más suelto desde la 5.1: los vecinos de las otras islas hacían que se volvieran a preparar trozos de isla lejanos decenas de veces por segundo. Ahora se preparan una vez y se guardan.',
+      'Los muebles se dibujan de una vez en lugar de pieza a pieza: el museo nuevo, la tienda y las casas de las aldeas cuestan una sexta parte que antes. Se ven exactamente igual, con su luz de antorchas y sus sombras.',
+      'Los vecinos que quedan tan lejos que la niebla los tapa del todo ya no se dibujan.',
+    ],
+  },
+  {
     version: '5.3',
     title: 'Terminal, astillero, barcos y avioneta nuevos',
     items: [

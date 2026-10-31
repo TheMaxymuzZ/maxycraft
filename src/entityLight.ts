@@ -50,6 +50,43 @@ reflectedLight.indirectDiffuse = vec3(0.0);`,
   return c;
 }
 
+/**
+ * Material para muchos muebles juntos en una sola malla (v5.3.1): la misma luz que `litCopy`, pero cada mueble lleva
+ * la suya en sus vértices (atributo `aLit`: cielo y el color de la antorcha) en vez de en el material.
+ */
+const batchCopies = new WeakMap<THREE.Material, Lit>();
+export function litBatchMaterial(m: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
+  let c = batchCopies.get(m) as THREE.MeshLambertMaterial | undefined;
+  if (c) return c;
+  c = m.clone();
+  c.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 aLit;\nvarying vec4 vLit;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLit = aLit;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec4 vLit;')
+      .replace(
+        '#include <aomap_fragment>',
+        `#include <aomap_fragment>
+reflectedLight.directDiffuse = max((reflectedLight.directDiffuse + reflectedLight.indirectDiffuse) * vLit.x, diffuseColor.rgb * vLit.yzw);
+reflectedLight.indirectDiffuse = vec3(0.0);`,
+      );
+  };
+  c.customProgramCacheKey = () => 'luz-seres-juntos';
+  batchCopies.set(m, c);
+  originals.set(c, m);
+  return c;
+}
+
+/** Copia en el material de muebles juntos lo que haya cambiado en el de siempre (el brillo de las lámparas de noche). */
+export function syncBatch(c: THREE.Material) {
+  const orig = originals.get(c);
+  if (orig) sync(c as Lit, orig);
+}
+
+/** Luz que le toca a una cosa: cielo (0..1) y color de la antorcha. Lo usan los muebles juntos en una malla. */
+export type LitHook = (sky: number, glow: THREE.Color) => void;
+
 function isLit(m: THREE.Material): m is Lit {
   return (m as THREE.MeshLambertMaterial).isMeshLambertMaterial || (m as THREE.MeshPhongMaterial).isMeshPhongMaterial || (m as THREE.MeshStandardMaterial).isMeshStandardMaterial;
 }
@@ -72,15 +109,19 @@ export class EntityLight {
 
   constructor(private sample: LightSample, private hand: (p: THREE.Vector3) => number) {}
 
+  private light = new THREE.Color();
+
   /** Pone a `root` (un ser o una cosa) la luz del sitio donde está. */
   apply(root: THREE.Object3D) {
-    if (!root.visible) return;
+    if (!root.visible || root.userData.noEntityLight) return;
     root.getWorldPosition(this.p);
     this.p.y += 0.6;
     const [sky, glow] = this.sample(this.p);
     const torch = Math.max(glow, this.hand(this.p));
     const skyLight = Math.max(0.02, sky * Math.sqrt(sky));
     const t2 = torch * torch;
+    const light = this.light.setRGB(TORCH.r * t2 + MIN_LIGHT.r, TORCH.g * t2 + MIN_LIGHT.g, TORCH.b * t2 + MIN_LIGHT.b);
+    (root.userData.onLit as LitHook | undefined)?.(skyLight, light);
     root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh || mesh.userData.noEntityLight) return;
@@ -94,9 +135,10 @@ export class EntityLight {
           if (Array.isArray(mesh.material)) mesh.material[i] = mat;
           else mesh.material = mat;
         } else continue;
-        const u = uniformsOf.get(mat)!;
+        const u = uniformsOf.get(mat);
+        if (!u) continue;
         u.uSky.value = skyLight;
-        u.uGlow.value.setRGB(TORCH.r * t2 + MIN_LIGHT.r, TORCH.g * t2 + MIN_LIGHT.g, TORCH.b * t2 + MIN_LIGHT.b);
+        u.uGlow.value.copy(light);
       }
     });
   }
