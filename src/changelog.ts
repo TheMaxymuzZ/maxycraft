@@ -7,6 +7,21 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.5',
+    title: 'Los animales del mar, con todo detalle',
+    items: [
+      'El delfín, la ballena, la tortuga marina, el cangrejo, la medusa, la raya y la foca ya no son cuatro cajas de colores: cada uno es una figura de cubitos hecha a mano, redondeada y con su forma de verdad.',
+      'El delfín tiene su hocico, su frente redonda, el ojo, la sonrisa, la aleta curvada de la espalda y la cola en media luna; es gris oscuro por arriba y blanco por la tripa. Al nadar sube y baja la cola.',
+      'La ballena es una yubarta: negra por arriba, con surcos blancos en la garganta, bultitos y percebes en la cabeza, una jorobita, aletas blanquísimas larguísimas y la cola dentada, blanca por debajo con manchas.',
+      'La tortuga lleva el caparazón de carey (cada escudo con su borde y el centro color ámbar), cabeza con pico y escamas, y rema por la arena con las aletas de delante.',
+      'El cangrejo tiene ocho patas que se mueven por turnos, ojos en sus palitos y pinzas que se abren y se cierran, y ahora anda de lado de verdad.',
+      'La medusa es transparente, late para nadar y se le mecen los tentáculos; dentro brillan cuatro anillos y en el borde ocho puntitos de luz, que de noche se ven desde la orilla.',
+      'La raya tiene manchas blancas, hocico de pato y una cola larguísima, y ondula las alas como una ola. La foca es gris con manchitas, ojos grandes y bigotes; se arrastra a saltitos y, tumbada al sol, levanta la cola y mira a su alrededor.',
+      'Cada uno a su tamaño de verdad: la ballena mide unos 14 bloques (como 8 personas tumbadas), el delfín 2,5 y la raya casi 2,5 de ala a ala. El chorro sale ahora del espiráculo de la ballena.',
+      'Sin perder fluidez: cada animal se prepara una sola vez mientras arranca el juego y todas sus copias comparten la figura.',
+    ],
+  },
+  {
     version: '5.4',
     title: 'Cada pez y cada insecto, con su forma',
     items: [
