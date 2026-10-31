@@ -4415,7 +4415,7 @@ function frame(now: number) {
   furnitureLightTimer -= dt;
   if (furnitureLightTimer <= 0) {
     furnitureLightTimer = 0.5;
-    for (const g of [furniture.group, decor.group, terminalFixtures.group, villagerHomes.furniture.group, birds.group, museumHall.fixtures.group, shopFront.fixtures.group, commerce.fixtures.group, town.fixtures.group]) entityLight.applyAll(g);
+    for (const g of [furniture.group, decor.group, terminalFixtures.group, villagerHomes.furniture.group, birds.group, museumHall.fixtures.group, museumHall.critters, shopFront.fixtures.group, commerce.fixtures.group, town.fixtures.group]) entityLight.applyAll(g);
   }
   bugs.update(dt, hour, player.position, daylight);
   museumHall.update(dt, sky.night);

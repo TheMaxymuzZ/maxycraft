@@ -3,7 +3,8 @@
 // anfitrión, además, quita el cordón de cada planta cuando se abre. El edificio está en museum.ts.
 import * as THREE from 'three';
 import { Block, creatureTile, tileCanvas } from '../blocks';
-import { CREATURES, type Creature, DINO_PIECES } from '../creatures';
+import { CREATURES, type Creature, DINO_PIECES, sizeRange } from '../creatures';
+import { CritterModel } from '../critterModels';
 import { Furniture } from '../furniture';
 import { type ExhibitSpot, WINGS, barrierCell, exhibitSpot, museumOrigin, openWings } from '../museum';
 import { HALL_FIXTURES, hallBarrierCells, hallExhibitSpot, museumHallOrigin } from '../museumHall';
@@ -28,7 +29,10 @@ export interface MuseumHallDeps {
 
 interface Exhibit {
   creature: Creature;
-  sprite: THREE.Sprite;
+  /** El fósil (un dibujo plano) o el pez o insecto en 3D (v5.4). */
+  obj: THREE.Object3D;
+  model?: CritterModel;
+  size: number;
   base: THREE.Vector3;
   box?: [number, number, number, number, number, number];
   phase: number;
@@ -43,6 +47,8 @@ export class MuseumHall {
   private wing = 0;
   /** El museo nuevo (v5.2): peceras, terrarios, vitrinas, bancos… Muebles que no se guardan: salen al cargar. */
   readonly fixtures: Furniture;
+  /** Los peces y los insectos en 3D (v5.4), aparte para darles la luz del sitio. */
+  readonly critters = new THREE.Group();
   private v2 = false;
 
   constructor(private deps: MuseumHallDeps) {
@@ -52,6 +58,7 @@ export class MuseumHall {
     this.group.name = 'museo';
     this.fixtures = new Furniture([], deps.lampHook ?? null);
     this.group.add(this.fixtures.group);
+    this.group.add(this.critters);
     deps.scene.add(this.group);
     if (this.v2 && this.origin) {
       const [ox, oy, oz] = this.origin;
@@ -98,22 +105,35 @@ export class MuseumHall {
   private add(c: Creature, index: number, dino: number) {
     const [ox, oy, oz] = this.origin!;
     const spot: ExhibitSpot & { size?: number } = this.v2 ? hallExhibitSpot(c.kind, index, dino) : exhibitSpot(c.kind, index, dino);
-    const tex = new THREE.CanvasTexture(tileCanvas(this.deps.atlas, creatureTile(CREATURES.indexOf(c))));
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.5, fog: true }));
     // Las piezas del dinosaurio son grandes; los fósiles sueltos, medianos; peces e insectos, pequeños.
-    const size = spot.size ?? (dino >= 0 ? 1.3 : c.kind === 'fosil' ? 0.8 : c.kind === 'pez' ? 0.6 : 0.45);
-    sprite.scale.set(size, size, size);
+    let size = spot.size ?? (dino >= 0 ? 1.3 : c.kind === 'fosil' ? 0.8 : c.kind === 'pez' ? 0.6 : 0.45);
+    let obj: THREE.Object3D;
+    let model: CritterModel | undefined;
+    if (c.kind === 'fosil') {
+      const tex = new THREE.CanvasTexture(tileCanvas(this.deps.atlas, creatureTile(CREATURES.indexOf(c))));
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      obj = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, alphaTest: 0.5, fog: true }));
+      obj.scale.set(size, size, size);
+    } else {
+      // Peces e insectos en 3D (v5.4): los peces grandes, algo más grandes en la pecera.
+      if (c.kind === 'pez') {
+        const [lo, hi] = sizeRange(c);
+        size *= Math.min(1.3, Math.max(0.85, 0.75 + Math.log10((lo + hi) / 2) * 0.2));
+      } else size *= 1.25;
+      model = new CritterModel(c, size, c.kind === 'pez' ? 'nada' : c.sprite === 'mariposa' || c.sprite === 'libelula' || c.sprite === 'luciernaga' ? 'vuela' : 'suelo');
+      model.face(index * 1.3);
+      obj = model.root;
+    }
     const base = new THREE.Vector3(ox + spot.at[0], oy + spot.at[1], oz + spot.at[2]);
-    sprite.position.copy(base);
+    obj.position.copy(base);
     const box = spot.box
       ? [ox + spot.box[0], oy + spot.box[1], oz + spot.box[2], ox + spot.box[3], oy + spot.box[4], oz + spot.box[5]] as Exhibit['box']
       : undefined;
-    sprite.userData.creature = c.id;
-    this.group.add(sprite);
-    this.exhibits.set(c.id, { creature: c, sprite, base, box, phase: index * 1.7 });
+    obj.userData.creature = c.id;
+    (model ? this.critters : this.group).add(obj);
+    this.exhibits.set(c.id, { creature: c, obj, model, size, base, box, phase: index * 1.7 });
   }
 
   /** Los peces van y vienen por el tanque; los insectos revolotean (más deprisa de noche, los nocturnos). */
@@ -122,24 +142,28 @@ export class MuseumHall {
     for (const e of this.exhibits.values()) {
       if (!e.box) continue;
       e.phase += dt;
+      // La caja se encoge con el tamaño de la figura, para que no atraviese el cristal.
+      const m = e.model ? e.size * 0.38 : 0;
       const [x0, y0, z0, x1, y1, z1] = e.box;
-      const p = e.sprite.position;
+      const p = e.obj.position;
       if (e.creature.kind === 'pez') {
-        const span = (z1 - z0) / 2;
+        const span = Math.max(0.02, (z1 - z0) / 2 - m);
         const mid = (z0 + z1) / 2;
         p.set(
-          clamp(e.base.x + Math.sin(e.phase * 0.7) * 0.3, x0, x1),
+          clamp(e.base.x + Math.sin(e.phase * 0.7) * 0.3, x0 + m * 0.4, x1 - m * 0.4),
           clamp(e.base.y + Math.sin(e.phase * 1.3) * 0.25, y0, y1),
           mid + Math.sin(e.phase * 0.25) * span,
         );
       } else {
         const lively = 1 + night * 0.8;
+        const walks = e.model?.mode === 'suelo';
         p.set(
-          clamp(e.base.x + Math.sin(e.phase * 2.1 * lively) * 0.35, x0, x1),
-          clamp(e.base.y + Math.abs(Math.sin(e.phase * 1.6 * lively)) * 0.9, y0, y1),
-          clamp(e.base.z + Math.sin(e.phase * 0.9 * lively) * 1.2, z0, z1),
+          clamp(e.base.x + Math.sin(e.phase * (walks ? 0.5 : 2.1) * lively) * 0.35, x0 + m, x1 - m),
+          walks ? y0 + 0.02 : clamp(e.base.y + Math.abs(Math.sin(e.phase * 1.6 * lively)) * 0.9, y0, y1),
+          clamp(e.base.z + Math.sin(e.phase * (walks ? 0.4 : 0.9) * lively) * 1.2, z0 + m, z1 - m),
         );
       }
+      e.model?.animate(dt, e.phase);
     }
   }
 
@@ -149,11 +173,11 @@ export class MuseumHall {
     let bestDist = maxDist;
     const tmp = new THREE.Vector3();
     for (const e of this.exhibits.values()) {
-      const p = e.sprite.position;
+      const p = e.obj.position;
       const d = ray.origin.distanceTo(p);
       if (d > bestDist) continue;
       ray.closestPointToPoint(p, tmp);
-      if (tmp.distanceTo(p) <= e.sprite.scale.x * 0.6) {
+      if (tmp.distanceTo(p) <= e.size * 0.6) {
         best = e.creature;
         bestDist = d;
       }

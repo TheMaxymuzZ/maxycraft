@@ -1,6 +1,7 @@
 import { CLOTHES, darker } from './clothes';
 import * as THREE from 'three';
 import { CREATURES, CREATURE_SPRITES } from './creatures';
+import { critterArt } from './critterArt';
 
 export enum Block {
   Air = 0,
@@ -1908,8 +1909,11 @@ export function createAtlasCanvas(): HTMLCanvasElement {
   ], { c: [60, 120, 110], g: [150, 210, 196], p: [240, 228, 190] });
 
   // Peces e insectos, una casilla para cada uno.
+  // Desde la v5.4 cada pez e insecto tiene su propio dibujo (critterArt); los fósiles siguen con el de siempre.
   CREATURES.forEach((c, i) => {
-    paintSprite(ctx, creatureTile(i), CREATURE_SPRITES[c.sprite], { e: [20, 20, 20], c: [255, 255, 200], ...c.colors });
+    const art = critterArt(c);
+    if (art) paintTile(ctx, creatureTile(i), (x, y) => art.color[y * TILE + x]);
+    else paintSprite(ctx, creatureTile(i), CREATURE_SPRITES[c.sprite], { e: [20, 20, 20], c: [255, 255, 200], ...c.colors });
   });
 
   paintTile(ctx, Tile.Window, (x, y) => {

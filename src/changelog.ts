@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.4',
+    title: 'Cada pez y cada insecto, con su forma',
+    items: [
+      'Los 40 peces y los 9 insectos tienen dibujo propio: ya no son el mismo pez pintado de otro color. El pez espada lleva su espada, el pez vela su vela, el tiburón martillo su cabeza de martillo, el rape su farolillo, el pez globo sus pinchos, el atún sus aletas amarillas, el pez payaso sus rayas blancas…',
+      'Cada uno con su cola (en horquilla, redonda, de media luna, de velo…), sus aletas, sus bigotes o sus dientes, y su dibujo en la piel: manchas, rayas, motas o escamas que brillan.',
+      'Los insectos también: la mariposa blanca y la azul tienen alas distintas, la mariquita sus puntos, el escarabajo rinoceronte su cuerno, el grillo sus patas largas y la luciérnaga su colita que brilla.',
+      'En el mundo, en el museo y en la mano ya no son dibujos planos: son figuras de cubitos en 3D, más gorditas por el centro. Las mariposas, la libélula y la luciérnaga baten las alas, los insectos miran hacia donde van, el grillo da saltitos y los peces del acuario se dan la vuelta al llegar al cristal.',
+      'Lo que brilla (la luciérnaga, el pez linterna, el pez luminoso, el pez brasa y el farolillo del rape) se sigue viendo de noche.',
+    ],
+  },
+  {
     version: '5.3.1',
     title: 'Más fluido',
     items: [
