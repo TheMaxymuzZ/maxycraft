@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.7',
+    title: 'Los animales de tierra, con todo detalle (2.ª parte): aves y rana',
+    items: [
+      'Los pajaritos ya no son todos iguales: cada bandada es de una especie. Hay gorriones (con babero negro y rayitas en el lomo), petirrojos (con el pecho naranja), mirlos (negros, con el pico y el anillo del ojo naranjas) y herrerillos (gorrito azul, cara blanca y tripa amarilla).',
+      'Las gaviotas tienen alas grises con las puntas negras y lunares blancos, pico amarillo con su punto rojo y patas rosadas.',
+      'Al posarse, los pájaros recogen las alas hacia atrás y al volar esconden las patas. En el suelo miran a los lados, parpadean, mueven la cola y picotean.',
+      'El loro es un guacamayo rojo con las alas amarillas, azules y verdes, la cara blanca y la cola larga. El búho tiene orejitas de plumas, la cara redonda y los ojos amarillos que brillan de noche, y gira mucho la cabeza.',
+      'El pingüino tiene la tripa blanca, aletas y patas naranjas, y anda balanceándose. La rana tiene ojos saltones, manchas en la espalda y patas de atrás grandes, y infla la garganta para croar.',
+    ],
+  },
+  {
     version: '5.6',
     title: 'Los animales de tierra, con todo detalle (1.ª parte)',
     items: [

@@ -387,6 +387,204 @@ function suricata(): Rig {
   return r;
 }
 
+// ─── Aves y rana (v5.7) ────────────────────────────────────────────────────────────────────────────────────
+
+interface Songbird {
+  back: number;
+  belly: number;
+  head: number;
+  wing: number;
+  tip: number;
+  beak: number;
+  /** Colores especiales de la cabeza y el pecho (mejillas, babero, pecho rojo…). */
+  face?: (x: number, y: number, z: number) => number | null;
+  breast?: (x: number, y: number, z: number) => number | null;
+  /** Rayitas oscuras en el lomo (gorrión). */
+  streaks?: number;
+  eyeRing?: number;
+}
+
+/** Un pajarito: cuerpo, cabeza que picotea, alas con bisagra (se pliegan en el suelo) y cola. Pies en y = 0. */
+function songbird(c: Songbird): Rig {
+  const r = new Rig();
+  const body: Paint = (x, y, z, n) => {
+    const b = c.breast?.(x, y, z);
+    if (b != null) return b;
+    if (y < 2.6 || n[1] < -0.5) return c.belly;
+    if (c.streaks && y > 3.5 && hash3(x * 2, y * 2, z * 2, 31) > 0.45) return c.streaks;
+    return c.back;
+  };
+  r.box('body', body, [-1.5, 1.5, -2], [1.5, 4.5, 2]);
+  r.box('body', body, [-1.25, 1.75, 2], [1.25, 4, 2.75]);
+  r.part('head', 'body', [0, 4, 1.75], 'head');
+  r.box('head', (x, y, z) => c.face?.(x, y, z) ?? c.head, [-1.25, 4, 0.75], [1.25, 6.25, 3.25]);
+  r.box('head', c.beak, [-0.4, 4.75, 3.25], [0.4, 5.4, 4.5], { grain: 0 });
+  sideEyes(r, 'head', 1.25, 5, 5.75, 2, 2.75, c.head);
+  if (c.eyeRing) r.pair('head', c.eyeRing, [1.2, 4.85, 1.85], [1.4, 5.9, 2.9], { grain: 0 });
+  r.part('tail', 'body', [0, 3.5, -2], 'tail', 0, [0.25, 0, 0]);
+  r.box('tail', c.wing, [-1, 3, -5], [1, 3.75, -2]);
+  r.box('tail', c.tip, [-1, 3, -5.5], [1, 3.75, -5]);
+  for (const s of [-1, 1] as const) {
+    const n = s < 0 ? 'wingL' : 'wingR';
+    r.part(n, 'body', [s * 1.5, 4.25, 0.5], 'wing', s);
+    // Plumas: las largas de la punta más oscuras.
+    r.box(n, (x) => (Math.abs(x) > 4.5 ? c.tip : c.wing), s < 0 ? [-6, 4, -1.5] : [1.5, 4, -1.5], s < 0 ? [-1.5, 4.5, 2] : [6, 4.5, 2]);
+    const legName = s < 0 ? 'legL' : 'legR';
+    r.part(legName, 'body', [s * 0.75, 1.5, 0], 'leg', s);
+    r.box(legName, 0x5a4a3a, [s * 0.75 - 0.25, 0.25, -0.25], [s * 0.75 + 0.25, 1.5, 0.25], { grain: 0 });
+    r.box(legName, 0x5a4a3a, [s * 0.75 - 0.4, 0, -0.75], [s * 0.75 + 0.4, 0.25, 1], { grain: 0 });
+  }
+  return r;
+}
+
+const gorrion = () => songbird({
+  back: 0x9a6a40, belly: 0xd8ccb8, head: 0x8a8a8a, wing: 0x8a5a32, tip: 0x5a3a20, beak: 0x3a3a3a, streaks: 0x4a3020,
+  // Mejillas claras, nuca castaña y babero negro.
+  face: (x, y, z) => (y < 5 && z > 2.6 && Math.abs(x) < 0.9 ? 0x1e1e1e : y < 5.4 && Math.abs(x) > 1 ? 0xe8e0d0 : z < 1.6 && y < 5.8 ? 0x8a5a32 : null),
+  breast: (x, y, z) => (z > 1.9 && y > 3.3 && Math.abs(x) < 0.9 ? 0x1e1e1e : null),
+});
+const petirrojo = () => songbird({
+  back: 0x7a6a50, belly: 0xece4d8, head: 0x7a6a50, wing: 0x6a5a40, tip: 0x4a3e2c, beak: 0x2a2a2a,
+  face: (_x, y, z) => (z > 2.2 && y < 5.9 ? 0xe86a2a : null),
+  breast: (_x, y, z) => (z > 1 && y > 2.2 ? 0xe86a2a : null),
+});
+const mirlo = () => songbird({ back: 0x1e1e22, belly: 0x2a2a2e, head: 0x1e1e22, wing: 0x26262a, tip: 0x141416, beak: 0xf0a020, eyeRing: 0xf0b030 });
+const herrerillo = () => songbird({
+  back: 0x7a9a5a, belly: 0xf0d840, head: 0x3a7ad0, wing: 0x3a7ad0, tip: 0x2a5aa0, beak: 0x2a2a2a,
+  // Gorrito azul, cara blanca con una raya negra por el ojo.
+  face: (_x, y, z) => (y > 5.9 ? 0x3a7ad0 : y > 5.1 && y < 5.6 ? 0x1e2a40 : z > 0.9 ? 0xf8f8f8 : null),
+  breast: (x, y, z) => (z > 2 && y > 2.5 && Math.abs(x) < 0.4 ? 0x2a2a2a : null),
+});
+
+function gaviota(): Rig {
+  const W = 0xf6f6f2, GR = 0xb8c0ca, K = 0x1e1e22, Y = 0xf0c020;
+  const r = new Rig();
+  r.box('body', (_x, y, z) => (y > 5.4 && z < 2 ? GR : W), [-2, 2.5, -3.5], [2, 6, 3.5]);
+  r.part('head', 'body', [0, 5.5, 3], 'head');
+  r.box('head', W, [-1.5, 5.5, 2.5], [1.5, 8.5, 5.5]);
+  r.box('head', Y, [-0.5, 6.5, 5.5], [0.5, 7.25, 7.5], { grain: 0 });
+  r.box('head', 0xe03a2a, [-0.5, 6.2, 6.75], [0.5, 6.6, 7.25], { grain: 0 });
+  sideEyes(r, 'head', 1.5, 7, 7.75, 4, 4.75, W, 0xd8a020);
+  r.part('tail', 'body', [0, 5, -3.5], 'tail', 0, [0.1, 0, 0]);
+  r.box('tail', W, [-1.5, 4.25, -6], [1.5, 5, -3.5]);
+  r.box('tail', K, [-1.5, 4.25, -6.5], [1.5, 5, -6]);
+  for (const s of [-1, 1] as const) {
+    const n = s < 0 ? 'wingL' : 'wingR';
+    r.part(n, 'body', [s * 2, 5.5, 0.5], 'wing', s);
+    // Gris por arriba, puntas negras con lunares blancos.
+    r.box(n, (x, _y, z) => (Math.abs(x) > 9 ? (Math.abs(x) > 10 && z > 0.5 && z < 1.5 ? W : K) : GR),
+      s < 0 ? [-11, 5.25, -2.5] : [2, 5.25, -2.5], s < 0 ? [-2, 5.75, 2.5] : [11, 5.75, 2.5]);
+    const legName = s < 0 ? 'legL' : 'legR';
+    r.part(legName, 'body', [s * 1, 2.5, 0], 'leg', s);
+    r.box(legName, 0xe8b090, [s - 0.3, 0.3, -0.3], [s + 0.3, 2.5, 0.3], { grain: 0 });
+    r.box(legName, 0xe8b090, [s - 0.75, 0, -0.5], [s + 0.75, 0.3, 1.5], { grain: 0 });
+  }
+  return r;
+}
+
+/** Loro (guacamayo): rojo, con las alas amarillas y azules y la cola larga. Vuela: el centro del cuerpo en y = 0. */
+function loro(): Rig {
+  const RED = 0xe03030, Y = 0xf0c030, B = 0x3060e0, G = 0x30a040;
+  const r = new Rig();
+  r.box('body', RED, [-1.75, -1.75, -3], [1.75, 1.75, 3]);
+  r.part('head', 'body', [0, 1, 2.5], 'head');
+  r.box('head', RED, [-1.5, 0, 2.5], [1.5, 3, 5.5]);
+  r.pair('head', 0xf4f0ea, [1.4, 0.4, 3.6], [1.65, 2.2, 5.3], { grain: 0 });
+  r.box('head', 0xf0e8d8, [-0.75, 0.5, 5.5], [0.75, 2.25, 7]);
+  r.box('head', 0xf0e8d8, [-0.6, 0, 6.5], [0.6, 0.75, 7.25]);
+  r.box('head', 0x2a2a2a, [-0.6, -0.25, 5.5], [0.6, 0.6, 6.5], { grain: 0 });
+  sideEyes(r, 'head', 1.65, 1.6, 2.4, 3.9, 4.7, 0xf4f0ea, 0xe8d860);
+  for (const s of [-1, 1] as const) {
+    const n = s < 0 ? 'wingL' : 'wingR';
+    r.part(n, 'body', [s * 1.75, 0.75, 0.5], 'wing', s);
+    r.box(n, (x) => (Math.abs(x) < 3.5 ? RED : Math.abs(x) < 5 ? Y : Math.abs(x) < 7 ? B : G),
+      s < 0 ? [-8.5, 0.25, -2.5] : [1.75, 0.25, -2.5], s < 0 ? [-1.75, 0.9, 3] : [8.5, 0.9, 3]);
+    r.box('body', 0x3a3a3a, [s * 0.75 - 0.4, -2.25, -1], [s * 0.75 + 0.4, -1.75, 0.5], { grain: 0 });
+  }
+  r.part('tail', 'body', [0, 0, -3], 'tail');
+  r.box('tail', (_x, _y, z) => (z > -6 ? RED : B), [-1, -0.75, -11], [1, 0, -3]);
+  r.box('tail', B, [-0.5, -0.6, -12.5], [0.5, -0.1, -11]);
+  return r;
+}
+
+/** Búho: vuela de noche con los ojos que brillan. El centro del cuerpo en y = 0. */
+function buho(): Rig {
+  const BR = 0x8a6a48, BRD = 0x5e4430, BRL = 0xc8a878, DISC = 0xd8c0a0;
+  const r = new Rig();
+  r.box('body', (_x, y, z, n) => (n[2] > 0.5 || z > 2 ? (Math.floor(y * 1.5) % 2 ? BRL : tone(BRL, 0.82)) : hash3(_x, y, z, 41) > 0.6 ? BRD : BR), [-2.5, -3, -2], [2.5, 2.5, 2.5]);
+  r.part('head', 'body', [0, 2.5, 0.25], 'head');
+  r.box('head', (x, y, z) => (hash3(x, y, z, 42) > 0.65 ? BRD : BR), [-2.5, 2.5, -1.75], [2.5, 6.5, 2.75]);
+  r.box('head', DISC, [-2.25, 2.75, 2.75], [2.25, 6, 3.1], { grain: 0.04 });
+  r.pair('head', 0xf0c020, [0.5, 4, 3.05], [1.9, 5.25, 3.35], { glow: true, grain: 0 });
+  r.pair('head', BLACK, [0.95, 4.3, 3.35], [1.45, 4.95, 3.45], { grain: 0 });
+  r.box('head', 0x4a3a2a, [-0.4, 3, 3.1], [0.4, 4, 3.75], { grain: 0 });
+  r.pair('head', BRD, [1.25, 6.5, 0], [2.25, 8, 1]);
+  r.part('head_lid', 'head', [0, 2.5, 0.25], 'lid');
+  r.pair('head_lid', BR, [0.4, 3.9, 3.3], [2, 5.35, 3.6]);
+  for (const s of [-1, 1] as const) {
+    const n = s < 0 ? 'wingL' : 'wingR';
+    r.part(n, 'body', [s * 2.5, 0.75, 0], 'wing', s);
+    r.box(n, (x) => (Math.floor(Math.abs(x)) % 2 ? BR : BRD), s < 0 ? [-9, 0.5, -2] : [2.5, 0.5, -2], s < 0 ? [-2.5, 1, 2] : [9, 1, 2]);
+    r.box('body', 0x3a3a3a, [s * 1 - 0.5, -3.5, 0], [s * 1 + 0.5, -3, 1.5], { grain: 0 });
+  }
+  r.part('tail', 'body', [0, -2, -2], 'tail');
+  r.box('tail', BRD, [-1.5, -2.5, -4.5], [1.5, -1.75, -2]);
+  return r;
+}
+
+function pinguino(): Rig {
+  const K = 0x202430, W = 0xf4f4f4, OR = 0xf0a020;
+  const r = new Rig();
+  r.box('body', (_x, y, z, n) => ((n[2] > 0.5 || z > 1.4) && y < 9.4 ? W : K), [-2.75, 1, -2.5], [2.75, 10, 2.25]);
+  r.part('head', 'body', [0, 10, 0], 'head');
+  r.box('head', K, [-2.25, 10, -2], [2.25, 14, 2]);
+  r.box('head', OR, [-0.5, 11.25, 2], [0.5, 12, 3.75], { grain: 0 });
+  r.box('head', 0x303030, [-0.5, 12, 2], [0.5, 12.5, 3.25], { grain: 0 });
+  sideEyes(r, 'head', 2.25, 12.25, 13, 0.75, 1.5, K);
+  r.pair('head', W, [2.2, 12.05, 0.55], [2.35, 13.2, 1.7], { grain: 0 });
+  for (const s of [-1, 1] as const) {
+    const n = s < 0 ? 'wingL' : 'wingR';
+    r.part(n, 'body', [s * 2.75, 9, 0], 'wing', s);
+    r.box(n, (x) => (Math.abs(x) < 2.95 ? W : K), s < 0 ? [-3.5, 3, -1] : [2.75, 3, -1], s < 0 ? [-2.75, 9, 1] : [3.5, 9, 1]);
+    const legName = s < 0 ? 'legL' : 'legR';
+    r.part(legName, null, [s * 1.25, 1, 0], 'leg', s);
+    r.box(legName, OR, [s * 1.25 - 1, 0, -0.5], [s * 1.25 + 1, 0.75, 2]);
+  }
+  r.part('tail', 'body', [0, 2, -2.5], 'tail');
+  r.box('tail', K, [-1, 1, -3.5], [1, 2, -2.5]);
+  return r;
+}
+
+function rana(): Rig {
+  const G = 0x58a040, GD = 0x3e7a2c, PALE = 0xd8e0a0;
+  const r = new Rig();
+  const skin: Paint = (x, y, z, n) => (n[1] < -0.5 || y < 1 ? PALE : blob(x, y, z, 1.5, 51) > 0.35 ? GD : G);
+  r.box('body', skin, [-2.5, 0.5, -2.5], [2.5, 3.5, 2]);
+  r.box('body', skin, [-2.25, 0.75, 2], [2.25, 3.25, 4]);
+  r.box('body', 0x2a4a20, [-2.25, 1.4, 4], [2.25, 1.6, 4.1], { grain: 0 });
+  r.box('body', 0x2a4a20, [-0.75, 2.5, 4], [-0.25, 2.75, 4.1], { grain: 0 });
+  r.box('body', 0x2a4a20, [0.25, 2.5, 4], [0.75, 2.75, 4.1], { grain: 0 });
+  // Ojos saltones encima de la cabeza.
+  r.pair('body', G, [0.75, 3, 2], [2.25, 4.25, 3.5]);
+  r.part('body_lid', 'body', [0, 0, 0], 'lid');
+  r.pair('body', 0xe8d040, [1.25, 3.4, 3.5], [2.25, 4.25, 3.7], { grain: 0 });
+  r.pair('body', BLACK, [1.5, 3.6, 3.7], [2, 4, 3.8], { grain: 0 });
+  r.pair('body_lid', G, [1.15, 3.3, 3.45], [2.35, 4.35, 3.85]);
+  r.part('throat', 'body', [0, 1, 3.5], 'throat');
+  r.box('throat', 0xe8e4a8, [-1.5, 0.4, 2.75], [1.5, 1.2, 4.2]);
+  for (const s of [-1, 1] as const) {
+    const f = s < 0 ? 'leg0' : 'leg1';
+    r.part(f, null, [s * 2, 2, 2], 'leg', s);
+    r.box(f, G, [s * 2 - 0.5, 0, 1.5], [s * 2 + 0.5, 2, 2.5]);
+    r.box(f, G, [s * 2 - 0.75, 0, 2.25], [s * 2 + 0.75, 0.3, 3.25], { grain: 0 });
+    const b = s < 0 ? 'leg2' : 'leg3';
+    r.part(b, null, [s * 2.75, 2, -1.5], 'leg', (-s) as 1 | -1);
+    r.box(b, skin, [s * 2.75 - 0.75, 0.5, -3], [s * 2.75 + 0.75, 2.5, 0]);
+    r.box(b, GD, [s * 2.75 - 1.25, 0, -1], [s * 2.75 + 1.25, 0.4, 1.75], { grain: 0 });
+  }
+  return r;
+}
+
 // ─── Catálogo ──────────────────────────────────────────────────────────────────────────────────────────────
 
 export interface FaunaShape {
@@ -405,7 +603,20 @@ export const LAND_SHAPES: Record<string, FaunaShape> = {
   camello: { rig: camello, habits: { graze: 'pasta', tail: { amp: 0.25, speed: 2, axis: 'z' }, ears: true, look: 0.5 } },
   oso_polar: { rig: osoPolar, habits: { look: 0.6, ears: true } },
   suricata: { rig: suricata, habits: { crouch: 1.1, look: 1.1, tail: { amp: 0.15, speed: 3 } } },
+  // v5.7: aves y rana.
+  gorrion: { rig: gorrion, habits: { look: 0.9, tail: { amp: 0.15, speed: 4, axis: 'x' } } },
+  petirrojo: { rig: petirrojo, habits: { look: 0.9, tail: { amp: 0.2, speed: 3, axis: 'x' } } },
+  mirlo: { rig: mirlo, habits: { look: 0.9, tail: { amp: 0.15, speed: 3, axis: 'x' } } },
+  herrerillo: { rig: herrerillo, habits: { look: 1, tail: { amp: 0.15, speed: 5, axis: 'x' } } },
+  gaviota: { rig: gaviota, habits: { look: 0.8, tail: { amp: 0.08, speed: 3, axis: 'x' } } },
+  loro: { rig: loro, habits: { look: 0.6, tail: { amp: 0.12, speed: 4, axis: 'x' } } },
+  buho: { rig: buho, habits: { look: 1.6 } },
+  pinguino: { rig: pinguino, habits: { waddle: 0.14, look: 0.8, tail: { amp: 0.2, speed: 8 } } },
+  rana: { rig: rana, habits: { croak: true, look: 0.3 } },
 };
+
+/** Los pajaritos que vuelan en bandada (cada bandada, de una especie). */
+export const SONGBIRDS = ['gorrion', 'petirrojo', 'mirlo', 'herrerillo'];
 
 const built = new Map<string, FaunaGeometry>();
 
