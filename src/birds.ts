@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { FaunaModel } from './landFauna';
+import { SONGBIRDS, landModel } from './landFaunaShapes';
 import { SEA_LEVEL } from './world';
 
 type Kind = 'pajaro' | 'gaviota';
@@ -16,7 +18,9 @@ export interface BirdWorld {
 
 interface Bird {
   kind: Kind;
+  species: string;
   mesh: THREE.Group;
+  model: FaunaModel;
   wings: THREE.Object3D[];
   head: THREE.Object3D;
   flock: number;
@@ -63,44 +67,18 @@ export class Birds {
   private ahead = new THREE.Vector3();
 
   constructor(private random: () => number = Math.random) {
-    const box = new THREE.BoxGeometry(1, 1, 1);
-    const mat = (color: number) => new THREE.MeshLambertMaterial({ color });
-    const looks = {
-      pajaro: { body: mat(0x7a5a3a), wing: mat(0x5e4630), beak: mat(0xe8b040), size: 0.7 },
-      gaviota: { body: mat(0xf4f4f0), wing: mat(0xb8bec8), beak: mat(0xf0a020), size: 1 },
-    };
+    // Desde la v5.7 cada bandada es de una especie, con su figura de cubitos (landFaunaShapes): gorriones,
+    // petirrojos, mirlos o herrerillos, y las gaviotas.
     const kinds: Kind[] = ['pajaro', 'pajaro', 'gaviota'];
+    const songbirds = [...SONGBIRDS];
     kinds.forEach((kind, f) => {
       this.flocks.push({ kind, target: new THREE.Vector3(), center: new THREE.Vector3(), timer: 0 });
-      const look = looks[kind];
+      const species = kind === 'gaviota' ? 'gaviota' : songbirds.splice(Math.floor(random() * songbirds.length), 1)[0];
       for (let i = 0; i < 4; i++) {
-        const bird = new THREE.Group();
-        const body = new THREE.Mesh(box, look.body);
-        body.scale.set(0.22, 0.18, 0.5);
-        const head = new THREE.Group();
-        const skull = new THREE.Mesh(box, look.body);
-        skull.scale.set(0.18, 0.16, 0.18);
-        const beak = new THREE.Mesh(box, look.beak);
-        beak.scale.set(0.08, 0.06, 0.12);
-        beak.position.set(0, -0.01, -0.14);
-        head.add(skull, beak);
-        head.position.set(0, 0.1, -0.26);
-        const wings = [-1, 1].map((side) => {
-          // Cada ala gira desde el hombro: se mueve la caja hacia fuera dentro de un grupo pivote.
-          const w = new THREE.Mesh(box, look.wing);
-          w.scale.set(0.42, 0.04, 0.24);
-          w.position.x = side * 0.21;
-          const pivot = new THREE.Group();
-          pivot.add(w);
-          pivot.position.x = side * 0.1;
-          bird.add(pivot);
-          return pivot;
-        });
-        bird.add(body, head);
-        bird.scale.setScalar(look.size);
-        this.group.add(bird);
+        const model = landModel(species, -1)!;
+        this.group.add(model.group);
         this.birds.push({
-          kind, mesh: bird, wings, head, flock: f, state: 'fly',
+          kind, species, mesh: model.group, model, wings: model.wings, head: model.byName.get('head')!, flock: f, state: 'fly',
           velocity: new THREE.Vector3(),
           offset: new THREE.Vector3((random() - 0.5) * 8, (random() - 0.5) * 3, (random() - 0.5) * 8),
           phase: random() * Math.PI * 2,
@@ -111,6 +89,11 @@ export class Birds {
         });
       }
     });
+  }
+
+  /** De qué especie es cada bandada (para las pruebas). */
+  get species(): string[] {
+    return this.birds.map((b) => b.species);
   }
 
   /** Cuántos pájaros están posados ahora mismo (para las pruebas). */
@@ -133,6 +116,10 @@ export class Birds {
     if (dt <= 0) return;
     for (const f of this.flocks) this.updateFlock(f, dt, player, world);
     for (const b of this.birds) {
+      // Parpadea, mira a los lados y mueve la cola (la cabeza para picotear y las alas las mueve lo de abajo).
+      b.model.animate(dt, seconds, b.state !== 'ground');
+      // En el aire recoge las patas.
+      for (const l of b.model.legs) l.rotation.x = b.state === 'ground' ? 0 : 1.2;
       if (b.state === 'ground') this.updateGround(b, dt, seconds, world, beings);
       else this.updateFlying(b, dt, seconds, player, world, beings);
     }
@@ -242,8 +229,8 @@ export class Birds {
     const climbing = b.velocity.y > 1 || b.scared > 0;
     const glide = !climbing && b.state === 'fly' && Math.sin(seconds * 0.7 + b.phase) > 0.3;
     const flap = glide ? 0.15 : Math.sin(seconds * (climbing ? 18 : 10) + b.phase * 3) * 0.7;
-    b.wings[0].rotation.z = -flap;
-    b.wings[1].rotation.z = flap;
+    b.wings[0].rotation.set(0, 0, -flap);
+    b.wings[1].rotation.set(0, 0, flap);
   }
 
   private updateGround(b: Bird, dt: number, seconds: number, world: BirdWorld, beings: THREE.Vector3[]) {
@@ -261,9 +248,9 @@ export class Birds {
       } else b.velocity.set(0, 4, 0);
       return;
     }
-    // Alas plegadas, y de vez en cuando un saltito o un picoteo.
-    b.wings[0].rotation.z = 0.15;
-    b.wings[1].rotation.z = -0.15;
+    // Alas plegadas junto al cuerpo, y de vez en cuando un saltito o un picoteo.
+    b.wings[0].rotation.set(0, -1.5, 0.15);
+    b.wings[1].rotation.set(0, 1.5, -0.15);
     b.mesh.rotation.x = 0;
     b.peck -= dt;
     if (b.peck <= 0) {

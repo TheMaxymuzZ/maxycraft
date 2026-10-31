@@ -7,6 +7,40 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.8',
+    title: 'Los enemigos y los jefes, con todo detalle',
+    items: [
+      'Las criaturas hostiles están hechas de nuevo, cubito a cubito y pintadas píxel a píxel. El limo es de gelatina: se le ve el corazón y las burbujas por dentro, y tiene cejas de enfadado y mofletes. El murciélago tiene orejas grandes, colmillos, ojos rojos que brillan y alas con sus dedos que se doblan al aletear.',
+      'El esqueleto tiene costillas, columna, cadera, taparrabos roto, carcaj con flechas a la espalda y un arco de verdad; los ojos le brillan en el fondo de las cuencas y castañetea la mandíbula. El gólem de lava es de roca con grietas de lava que brillan y laten, y un corazón encendido en el pecho. El espíritu tiene una cola que ondea, bracitos y chispitas que le dan vueltas.',
+      'Los jefes ya no son las mismas figuras pintadas de otro color. El rey esqueleto lleva corona con gemas, cuello de armiño, hombreras y arco de oro, y una capa roja que ondea. El gran limo dorado, corona y monedas dentro. El gólem de hielo, cristales en la espalda y los hombros, nieve encima y barba de carámbanos. El de magma es una armadura de basalto con aristas marcadas, un horno con barrotes en el pecho, chimeneas en la espalda, cuernos, puños de lava y una corona de llamas; como está caliente, se ve bien también de noche.',
+      'Ahora se les ve venir: el gólem levanta los dos brazos antes de golpear y los deja caer, el esqueleto apunta y tensa el arco, el limo se agacha antes de saltar encima, el murciélago se echa atrás y se lanza en picado. Los jefes enseñan cada ataque: brazos arriba para el pisotón, brazos abiertos para el anillo (y brillan muy fuerte), cabeza atrás para llamar a los suyos.',
+      'Lo que brilla (ojos, grietas, gemas, el fuego) se ve en la oscuridad de las cuevas. Sin perder fluidez: todas las criaturas de una especie comparten la figura, de lejos se dibujan con menos detalle y las figuras se preparan poco a poco cuando el juego está libre.',
+    ],
+  },
+  {
+    version: '5.7',
+    title: 'Los animales de tierra, con todo detalle (2.ª parte): aves y rana',
+    items: [
+      'Los pajaritos ya no son todos iguales: cada bandada es de una especie. Hay gorriones (con babero negro y rayitas en el lomo), petirrojos (con el pecho naranja), mirlos (negros, con el pico y el anillo del ojo naranjas) y herrerillos (gorrito azul, cara blanca y tripa amarilla).',
+      'Las gaviotas tienen alas grises con las puntas negras y lunares blancos, pico amarillo con su punto rojo y patas rosadas.',
+      'Al posarse, los pájaros recogen las alas hacia atrás y al volar esconden las patas. En el suelo miran a los lados, parpadean, mueven la cola y picotean.',
+      'El loro es un guacamayo rojo con las alas amarillas, azules y verdes, la cara blanca y la cola larga. El búho tiene orejitas de plumas, la cara redonda y los ojos amarillos que brillan de noche, y gira mucho la cabeza.',
+      'El pingüino tiene la tripa blanca, aletas y patas naranjas, y anda balanceándose. La rana tiene ojos saltones, manchas en la espalda y patas de atrás grandes, y infla la garganta para croar.',
+      'Cada animal tiene su tamaño de verdad al lado tuyo: la gallina, el conejo, la suricata, el zorro y los pajaritos son pequeños, la oveja te llega por la cintura y el oso polar y el camello son más grandes que tú.',
+    ],
+  },
+  {
+    version: '5.6',
+    title: 'Los animales de tierra, con todo detalle (1.ª parte)',
+    items: [
+      'La vaca, la oveja y la gallina de la granja y los animales salvajes (ciervo, zorro, conejo, cabra montesa, camello, oso polar y suricata) están hechos de nuevo, cubito a cubito, como los de Minecraft: cada uno con su pelaje pintado píxel a píxel.',
+      'La vaca tiene sus manchas negras, la ubre, los cuernos, el collar con cencerro y la borla de la cola. La oveja es una bola de lana con rizos, cara negra y calcetines de lana. La gallina tiene cresta con picos, barbilla roja, alas y plumas de cola.',
+      'El ciervo lleva astas con sus puntas, motitas blancas en el lomo y la cola blanca. El zorro, el pecho y la punta de la cola blancos y las patas y las puntas de las orejas negras. La cabra montesa, cuernos con anillos curvados hacia atrás, perilla y ojos dorados. El camello, joroba, rodillas, cuello en forma de S y pestañas largas. El oso polar, hocico negro y garras. La suricata, rayas en la espalda y antifaz.',
+      'Ahora están vivos: parpadean, mueven las orejas y la cola, miran a los lados y bajan la cabeza a pastar (la gallina picotea). La suricata se pone de pie para vigilar y se agacha cuando corre.',
+      'Sin perder fluidez: todos los animales de una especie comparten la figura y, de lejos, se dibujan con menos detalle (no se nota y cuesta diez veces menos).',
+    ],
+  },
+  {
     version: '5.5',
     title: 'Los animales del mar, con todo detalle',
     items: [

@@ -5,6 +5,7 @@
 // (Population), para que nunca haya ni demasiados ni ninguno.
 import * as THREE from 'three';
 import { Population, type PopulationRule } from './population';
+import { landModel } from './landFaunaShapes';
 import { type Biome, SEA_LEVEL } from './world';
 import { seaModel } from './seaFauna';
 
@@ -236,7 +237,10 @@ export interface WildWorld {
 
 /** Monta el modelo de cubos de un animal, mirando hacia +z. */
 export function wildModel(kind: WildKind): PartsModel {
-  const sea = seaModel(kind); if (sea) return sea;
+  const sea = seaModel(kind);
+  if (sea) return sea;
+  const land = landModel(kind);
+  if (land) return land;
   return partsModel(WILDLIFE[kind].parts, kind === 'medusa' ? 0.75 : 1);
 }
 

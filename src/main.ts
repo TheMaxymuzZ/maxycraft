@@ -16,6 +16,8 @@ import { Bugs } from './bugs';
 import { GameClock, dailyRandom, dayKey, timeOverrides } from './clock';
 import { Clouds, cloudCover } from './clouds';
 import { Collection, sizeText } from './collection';
+import { faunaEye } from './landFauna';
+import { prewarmEnemies } from './enemyModels';
 import { Wildlife } from './wildlife';
 import { DUNGEON_LEGENDS, type DungeonTheme, KIND_THEME, THEMES, planDungeon, ruinLoot, treasure } from './dungeon';
 import { DungeonGame, type DungeonUse } from './game/dungeon';
@@ -384,6 +386,8 @@ scene.add(wildlife.group);
 // Solo lejos de casa: en tu isla y en las islas aldea no sale ninguna, ni con el modo tranquilo.
 const hostiles = new Hostiles();
 scene.add(hostiles.group);
+// Las figuras de las criaturas (v5.8) se preparan poco a poco, cuando el navegador está libre.
+prewarmEnemies();
 const STRANGE: Partial<Record<string, HostilePlace>> = { luminoso: 'luminoso', volcanico: 'volcanico', setas: 'setas' };
 const MYSTERY_PLACE: Partial<Record<string, HostilePlace>> = { volcan: 'volcanico', setas: 'setas', cristal: 'luminoso' };
 const hostileWorld = {
@@ -4373,6 +4377,8 @@ function frame(now: number) {
   wind.update(now / 1000, 1 + weather.gloom * 1.5);
   birds.update(dt, now / 1000, player.position, Math.max(sky.night, weather.raining ? 0.7 : 0), birdWorld, livingBeings());
   const sailingBoat = shipyard.sailing && shipyard.boat ? boatSpot.set(shipyard.boat.x, SEA_LEVEL, shipyard.boat.z) : null;
+  // Los animales lejanos se dibujan con menos detalle (v5.6).
+  faunaEye.copy(camera.position);
   wildlife.update(dt, now / 1000, player.position, sky.night, wildWorld, sailingBoat);
   updateCombat(dt, now / 1000);
   paths.update();
