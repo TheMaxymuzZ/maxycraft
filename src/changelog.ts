@@ -7,6 +7,18 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.3',
+    title: 'Terminal, astillero, barcos y avioneta nuevos',
+    items: [
+      'La terminal es nueva: suelo de baldosas, ventanales hacia el mar, tejado de teja azul a dos aguas, un porche con bancos para ver el mar, lámparas colgantes y un mostrador bajo con caja donde se ve bien a Plumas. Al final del muelle, un faro de piedra con salvavidas y manga de viento.',
+      'El astillero también: el taller tiene zócalo de piedra y tejado de teja, la grada está bajo un cobertizo de troncos con tejado rojo y la grúa sujeta una caja. Hay barriles, cuerdas, un ancla, un timón en la pared y el puesto de Brújula con su toldo.',
+      'Los barcos tienen casco con forma (se estrecha hacia la proa), quilla, franja de color, botalón, velas triangulares que giran con el viento y jarcias. El barco de expedición lleva dos mástiles, cofa, camarote con ventanas y salvavidas, y rueda de timón.',
+      'La avioneta está redondeada: capó con hélice de dos palas, cabina de cristal, puerta, ala con luces de posición y puntales, cola con timón a rayas y flotadores afilados.',
+      'Muebles nuevos: maletas, salvavidas, manga de viento, rollo de cuerda, ancla, timón de pared y puesto del muelle.',
+      'Todo esto sale también en las islas que ya tenías: la terminal y el astillero se rehacen solos al entrar, en la etapa en la que estuvieran.',
+    ],
+  },
+  {
     version: '5.2',
     title: 'Edificios nuevos por dentro y por fuera',
     items: [

@@ -71,7 +71,7 @@ import { ShipyardGame } from './game/shipyard';
 import { type SeaIsland, type SeaSave, RING_BOAT, SEA_TYPES, archipelago, boatReach, canReach, dayNumber, genericVillagers, isSeaSave, seaSpots, seededRandom } from './archipelago';
 import { chartList, chartSvg } from './seaChart';
 import { BRUJULA, type BoatKind, MAX_STAGE, boatModel, shipyardCell, shipyardCenter } from './shipyard';
-import { DECK_Y, PILOT_SPOT, PLANE_SPOT, TERMINAL_FIXTURES, type TerminalSite, buildTerminal, clearTerminalSurroundings, eraseTerminal, findTerminalSite, terminalDeckFor, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
+import { DECK_Y, PILOT_SPOT, PLANE_SPOT, TERMINAL_VERSION, type TerminalSite, buildTerminal, clearTerminalSurroundings, eraseTerminal, findTerminalSite, terminalDeckFor, terminalFixtures as terminalFixtureList, isTerminalSite, seaward, terminalCell, terminalPoint } from './terminal';
 import { WEATHER_TEXT, type Weather, holidayOf, seasonOf, upcomingHoliday, weatherAt } from './seasons';
 import { PIXEL_RATIO, type Settings, loadSettings, uiScaleFor } from './settings';
 import { Sky } from './sky';
@@ -456,6 +456,7 @@ let terminalSite: TerminalSite | null = [trip ? null : joined ? joined.snapshot.
 if (!terminalSite && airport && !joined && !trip) {
   terminalSite = findTerminalSite(terminalWorld, airport);
   terminalSite.y = terminalDeckFor(terminalWorld, terminalSite);
+  terminalSite.v = TERMINAL_VERSION;
   buildTerminal(terminalWorld, terminalSite);
 }
 // v5.0.1: la terminal ya no queda hundida. Las de antes se levantan a ras de la playa y se rebaja la tierra de alrededor.
@@ -467,6 +468,12 @@ if (terminalSite && !joined && !trip) {
       terminalSite = { ...terminalSite, y };
       buildTerminal(terminalWorld, terminalSite);
     } else terminalSite = { ...terminalSite, y };
+  }
+  // v5.3: la terminal de antes se cambia por la nueva (en el mismo sitio y a la misma altura).
+  if (terminalSite.v !== TERMINAL_VERSION) {
+    eraseTerminal(terminalWorld, terminalSite);
+    terminalSite = { ...terminalSite, v: TERMINAL_VERSION };
+    buildTerminal(terminalWorld, terminalSite);
   }
   clearTerminalSurroundings(terminalWorld, terminalSite);
 }
@@ -568,7 +575,7 @@ if (airport && plumasHere) {
 const terminalFixtures = new Furniture([], lampHook);
 scene.add(terminalFixtures.group);
 if (terminalSite) {
-  for (const [id, x, y, z, rot] of TERMINAL_FIXTURES) {
+  for (const [id, x, y, z, rot] of terminalFixtureList(terminalSite)) {
     const [cx, cy, cz] = terminalCell(terminalSite, x, y, z);
     terminalFixtures.place(id, cx, cy, cz, (rot - terminalSite.rotation + 4) % 4);
   }

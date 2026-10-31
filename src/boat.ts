@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { isSolid, isWater } from './blocks';
+import { VoxelKit, hullWidth } from './voxelKit';
 import { type BoatKind, type BoatSave, type UpgradeId, boatSpeed, holdSize, windFactor } from './shipyard';
 import { SEA_LEVEL, WATER_SURFACE } from './world';
 
@@ -69,7 +70,8 @@ export function stepBoat(
 export class Boat {
   readonly group = new THREE.Group();
   private hull = new THREE.Group();
-  private sail: THREE.Mesh | null = null;
+  /** Las velas (cada una gira con el viento alrededor de su mástil). */
+  private sails: THREE.Object3D[] = [];
   readonly light = new THREE.PointLight(0xffd890, 0, 12, 1.5);
   kind: BoatKind;
   upgrades: Partial<Record<UpgradeId, number>>;
@@ -136,69 +138,145 @@ export class Boat {
   update(seconds: number, night: number, wind: { angle: number }) {
     this.group.position.set(this.x, WATER_SURFACE + FLOAT[this.kind] + Math.sin(seconds * 1.6) * 0.04, this.z);
     this.group.rotation.set(Math.sin(seconds * 1.1) * 0.03, this.yaw, Math.sin(seconds * 1.3 + 1) * 0.04);
-    if (this.sail) this.sail.rotation.y = Math.max(-0.6, Math.min(0.6, Math.sin(wind.angle + this.yaw) * 0.6));
+    const swing = Math.max(-0.6, Math.min(0.6, Math.sin(wind.angle + this.yaw) * 0.6));
+    for (const sail of this.sails) sail.rotation.y = swing;
     this.light.intensity = this.upgrades.farol ? night * 2.2 : 0;
   }
 
   private rebuild() {
     this.hull.clear();
-    this.sail = null;
-    const box = new THREE.BoxGeometry(1, 1, 1);
-    const mats = new Map<number, THREE.MeshLambertMaterial>();
-    const part = (color: number, sx: number, sy: number, sz: number, x: number, y: number, z: number) => {
-      let m = mats.get(color);
-      if (!m) mats.set(color, (m = new THREE.MeshLambertMaterial({ color })));
-      const mesh = new THREE.Mesh(box, m);
-      mesh.scale.set(sx, sy, sz);
-      mesh.position.set(x, y, z);
-      this.hull.add(mesh);
-      return mesh;
-    };
-    const wood = 0xa8783e;
+    this.sails = [];
+    const kit = new VoxelKit(this.hull);
+    const wood = 0xb9824f;
     const dark = 0x6a4a28;
+    const rope = 0xd8c08a;
     const iron = 0x8a8e96;
+    const lantern = (z: number, y: number) => {
+      kit.box(iron, 0.06, 0.6, 0.06, 0, y + 0.3, z);
+      kit.box(0x3a3e44, 0.26, 0.04, 0.26, 0, y + 0.62, z);
+      kit.glow(0xffe08a, 0.18, 0.2, 0.18, 0, y + 0.74, z);
+      kit.box(0x3a3e44, 0.24, 0.05, 0.24, 0, y + 0.86, z);
+    };
     // Todos miran hacia -z: la proa va delante.
     if (this.kind === 'balsa') {
-      for (const x of [-0.6, -0.2, 0.2, 0.6]) part(x === -0.2 || x === 0.6 ? wood : dark, 0.38, 0.3, 2.2, x, 0, 0);
-      part(dark, 1.6, 0.12, 0.2, 0, 0.18, -0.8);
-      part(dark, 1.6, 0.12, 0.2, 0, 0.18, 0.8);
-      part(wood, 0.08, 0.08, 1.6, 0.9, 0.4, 0.2).rotation.x = 0.3; // remo
+      // Cinco troncos atados con cuerda, con los cortes claros; un remo, un banderín y una caja.
+      [-0.64, -0.32, 0, 0.32, 0.64].forEach((x, i) => {
+        const len = i === 0 || i === 4 ? 2.0 : 2.2;
+        kit.box(i % 2 ? 0x8a5a32 : 0x9a6a3a, 0.32, 0.3, len, x, 0, 0);
+        for (const z of [-len / 2, len / 2]) kit.box(0xd8b07a, 0.26, 0.24, 0.02, x, 0, z);
+      });
+      for (const z of [-0.7, 0.7]) kit.box(rope, 1.66, 0.06, 0.1, 0, 0.16, z);
+      kit.box(0xc8a070, 0.4, 0.3, 0.36, -0.4, 0.3, -0.55);
+      kit.box(dark, 0.42, 0.04, 0.04, -0.4, 0.38, -0.55);
+      kit.box(dark, 0.06, 1.3, 0.06, 0.6, 0.8, -0.85);
+      kit.box(0xe8524a, 0.02, 0.24, 0.36, 0.6, 1.3, -0.68);
+      kit.rod(wood, 0.07, [0.85, 0.75, 0.6], [1.0, -0.1, -0.5]);
+      kit.box(wood, 0.04, 0.3, 0.18, 1.0, -0.12, -0.55);
     } else {
       const big = this.kind === 'expedicion';
       const L = big ? 4.6 : 3.2;
       const Wd = big ? 2 : 1.5;
-      const hullColor = this.upgrades.casco ? 0x4a5a6a : big ? 0x7a2a2a : 0xf2f0ea;
-      part(hullColor, Wd, 0.5, L, 0, 0, 0);
-      part(dark, Wd + 0.06, 0.12, L + 0.04, 0, 0.28, 0); // borda
-      part(wood, Wd - 0.3, 0.06, L - 0.3, 0, 0.26, 0); // cubierta
-      part(hullColor, Wd * 0.6, 0.4, 0.6, 0, 0.05, -L / 2 - 0.2); // proa
-      part(hullColor, Wd * 0.3, 0.35, 0.4, 0, 0.1, -L / 2 - 0.55);
-      if (this.upgrades.casco) for (const x of [-Wd / 2, Wd / 2]) part(iron, 0.04, 0.3, L * 0.8, x, -0.05, 0);
-      // Mástil y vela (la grande es más alta y de rayas).
-      const tall = (big ? 3.6 : 2.6) + (this.upgrades.vela ? 0.6 : 0);
-      part(dark, 0.14, tall + 1.4, 0.14, 0, (tall + 1.4) / 2 + 0.3, -0.2);
-      const sailMat = new THREE.MeshLambertMaterial({ color: this.upgrades.vela ? 0xe8524a : 0xfaf6ea, side: THREE.DoubleSide });
-      // La vela empieza por encima de la cabeza de quien lleva el timón, para que se vea por debajo.
-      const sail = new THREE.Mesh(new THREE.PlaneGeometry(Wd * 0.9, tall * 0.5), sailMat);
-      sail.geometry.translate(0, 0, 0.3);
-      sail.position.set(0, 2.5 + tall * 0.25, -0.2);
-      sail.rotation.order = 'YXZ';
-      this.hull.add(sail);
-      this.sail = sail;
-      // Timón detrás.
-      part(dark, 0.1, 0.5, 0.1, 0, 0.55, L / 2 - 0.3);
-      part(wood, 0.5, 0.5, 0.06, 0, 0.85, L / 2 - 0.3);
+      const top = this.upgrades.casco ? 0x5a6a7a : big ? 0x1f3f5f : 0xf4f1ea;
+      const stripe = big ? 0xf4f1ea : 0x2f6fb0;
+      const bottom = big ? 0x7a2a2a : 0xc0392b;
+      // El casco, en rebanadas que se estrechan hacia la proa: costado, franja, obra viva roja, cubierta y regala.
+      const n = Math.round(L / 0.2);
+      const s = L / n;
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n;
+        const z = L / 2 - (i + 0.5) * s;
+        const w = Wd * hullWidth(t);
+        kit.box(top, w, 0.4, s + 0.01, 0, 0.06, z);
+        kit.box(stripe, w + 0.02, 0.07, s + 0.01, 0, 0.12, z);
+        kit.box(bottom, w * 0.74, 0.24, s + 0.01, 0, -0.2, z);
+        kit.box(dark, w * 0.2, 0.12, s + 0.01, 0, -0.36, z); // quilla
+        kit.box(i % 2 ? 0xc89a64 : 0xbf8f58, Math.max(0.05, w - 0.16), 0.04, s + 0.01, 0, 0.28, z);
+        for (const side of [-1, 1]) kit.box(big ? wood : dark, 0.08, 0.1, s + 0.01, side * (w / 2 - 0.04), 0.33, z);
+        if (this.upgrades.casco && i % 3 === 1) kit.box(0x3a4048, w + 0.04, 0.3, 0.04, 0, 0.02, z);
+        if (big && i % 3 === 1 && t > 0.15 && t < 0.8) for (const side of [-1, 1]) kit.box(0x22303a, 0.02, 0.1, 0.1, side * (w / 2 + 0.005), 0.02, z);
+      }
+      // Espejo de popa, roda y botalón.
+      kit.box(dark, Wd * 0.86, 0.44, 0.06, 0, 0.1, L / 2);
+      kit.rod(dark, 0.1, [0, -0.3, -L / 2 + 0.05], [0, 0.42, -L / 2 - 0.12]);
+      kit.rod(wood, 0.07, [0, 0.36, -L / 2 + 0.3], [0, 0.55, -L / 2 - 0.8]);
+      // Mástiles con la vela mayor (gira con el viento) y la botavara por encima de quien lleva el timón.
+      const tall = (big ? 3.4 : 2.6) + (this.upgrades.vela ? 0.6 : 0);
+      const cloth = this.upgrades.vela ? 0xe8524a : 0xfaf6ea;
+      const masts = big ? [{ z: -0.5, h: tall, boom: 1.6 }, { z: -1.6, h: tall * 0.7, boom: 0.9 }] : [{ z: -0.2, h: tall, boom: 1.3 }];
+      const foot = 2.5;
+      for (const [k, m] of masts.entries()) {
+        const head = foot + m.h * 0.75;
+        kit.box(dark, 0.14, head + 0.5, 0.14, 0, (head + 0.5) / 2 + 0.3, m.z);
+        const sail = new THREE.Group();
+        sail.position.set(0, 0, m.z);
+        sail.rotation.order = 'YXZ';
+        kit.tri(cloth, [0, foot, 0.08], [0, head, 0.08], [0, foot, m.boom], sail);
+        if (this.upgrades.vela) kit.tri(0xfaf6ea, [0.005, foot + (head - foot) * 0.35, 0.08], [0.005, foot + (head - foot) * 0.5, 0.08], [0.005, foot + (head - foot) * 0.35, m.boom * 0.65], sail);
+        kit.rod(dark, 0.08, [0, foot - 0.05, 0.05], [0, foot - 0.05, m.boom + 0.05], sail);
+        this.hull.add(sail);
+        this.sails.push(sail);
+        // Obenques a los costados y un estay a la proa (o al otro palo).
+        for (const side of [-1, 1]) kit.rod(0x4a3a2a, 0.025, [0, head, m.z], [side * Wd * 0.45, 0.36, m.z + 0.25]);
+        if (k === masts.length - 1) kit.rod(0x4a3a2a, 0.025, [0, head, m.z], [0, 0.55, -L / 2 - 0.8]);
+        // Banderín arriba.
+        kit.box(k === 0 ? 0xf2c230 : 0xe8524a, 0.02, 0.18, 0.4, 0, head + 0.55, m.z + 0.22);
+      }
       if (big) {
-        // Camarote con ventanas.
-        part(wood, 1.4, 0.8, 1.2, 0, 0.7, L / 2 - 1.3);
-        part(0xa8d8f0, 1.42, 0.25, 0.6, 0, 0.8, L / 2 - 1.3);
-        part(0x2f6fb0, 1.6, 0.12, 1.4, 0, 1.15, L / 2 - 1.3);
+        // Cofa del palo mayor.
+        const head = foot + tall * 0.75;
+        kit.box(wood, 0.5, 0.1, 0.5, 0, head + 0.1, -0.5);
+        for (const [x, z] of [[-0.22, 0], [0.22, 0], [0, -0.22], [0, 0.22]]) kit.box(dark, x ? 0.06 : 0.5, 0.18, z ? 0.06 : 0.5, x, head + 0.24, -0.5 + z);
+        // Camarote con ventanas, puerta, tejado blanco y chimenea.
+        const cz = 0.7;
+        kit.box(0xa8783e, 1.3, 0.8, 1.1, 0, 0.7, cz);
+        for (const side of [-1, 1]) for (const z of [cz - 0.25, cz + 0.25]) kit.box(0xa8d8f0, 0.02, 0.26, 0.3, side * 0.66, 0.82, z);
+        kit.box(dark, 0.4, 0.6, 0.02, 0, 0.6, cz - 0.56);
+        kit.box(0xf2c230, 0.05, 0.05, 0.02, 0.12, 0.6, cz - 0.575);
+        kit.box(0xf4f1ea, 1.5, 0.08, 1.3, 0, 1.14, cz);
+        kit.box(0x2f6fb0, 1.52, 0.04, 1.32, 0, 1.1, cz);
+        kit.box(0x3a3e44, 0.14, 0.4, 0.14, 0.4, 1.36, cz + 0.3);
+        // Salvavidas a los lados del camarote.
+        for (const side of [-1, 1]) {
+          const x = side * 0.67;
+          kit.box(0xe8524a, 0.04, 0.06, 0.3, x, 0.92, cz + 0.05);
+          kit.box(0xe8524a, 0.04, 0.06, 0.3, x, 0.66, cz + 0.05);
+          kit.box(0xf4f1ea, 0.04, 0.2, 0.06, x, 0.79, cz - 0.08);
+          kit.box(0xf4f1ea, 0.04, 0.2, 0.06, x, 0.79, cz + 0.18);
+        }
+        // Rueda del timón.
+        kit.box(dark, 0.12, 0.7, 0.12, 0, 0.65, 1.55);
+        const wz = 1.49;
+        kit.box(wood, 0.62, 0.06, 0.05, 0, 1.0 + 0.28, wz);
+        kit.box(wood, 0.62, 0.06, 0.05, 0, 1.0 - 0.28, wz);
+        kit.box(wood, 0.06, 0.62, 0.05, -0.28, 1.0, wz);
+        kit.box(wood, 0.06, 0.62, 0.05, 0.28, 1.0, wz);
+        kit.box(dark, 0.8, 0.04, 0.04, 0, 1.0, wz - 0.01);
+        kit.box(dark, 0.04, 0.8, 0.04, 0, 1.0, wz - 0.01);
+        // Ancla a babor y barriles en cubierta.
+        kit.box(0x3a3e44, 0.04, 0.3, 0.06, -Wd * 0.36, 0.2, -L / 2 + 0.7);
+        kit.box(0x3a3e44, 0.04, 0.06, 0.22, -Wd * 0.36, 0.06, -L / 2 + 0.7);
+        for (const x of [-0.55, 0.55]) {
+          kit.box(0xa8743e, 0.3, 0.36, 0.3, x, 0.48, -1.0);
+          kit.box(0x50555c, 0.32, 0.03, 0.32, x, 0.42, -1.0);
+          kit.box(0x50555c, 0.32, 0.03, 0.32, x, 0.58, -1.0);
+        }
+      } else {
+        // Caña del timón, la pala detrás y una bañera de madera para el patrón.
+        kit.box(dark, 0.06, 0.5, 0.3, 0, -0.05, L / 2 + 0.12);
+        kit.rod(wood, 0.06, [0, 0.42, L / 2 + 0.05], [0, 0.55, L / 2 - 0.65]);
+        kit.box(0x8a5a32, 0.9, 0.08, 0.6, 0, 0.33, L / 2 - 0.65);
+        kit.box(0xf4f1ea, 0.7, 0.24, 0.5, 0, 0.42, -0.85);
+        kit.box(0xa8d8f0, 0.02, 0.1, 0.24, 0.355, 0.46, -0.85);
+        kit.box(0xa8d8f0, 0.02, 0.1, 0.24, -0.355, 0.46, -0.85);
       }
     }
-    if (this.upgrades.farol) {
-      part(iron, 0.06, 0.6, 0.06, 0, 0.6, this.kind === 'balsa' ? -1 : -1.4);
-      part(0xffe08a, 0.22, 0.26, 0.22, 0, 1, this.kind === 'balsa' ? -1 : -1.4);
+    if (this.upgrades.farol) lantern(this.kind === 'balsa' ? -0.95 : this.kind === 'velero' ? -1.35 : -1.9, this.kind === 'balsa' ? 0.15 : 0.3);
+    if (this.upgrades.cama) {
+      const [x, z] = this.kind === 'balsa' ? [0, 0.3] : this.kind === 'velero' ? [-0.35, 0.45] : [0, -0.2];
+      kit.box(dark, 0.74, 0.1, 1.14, x, 0.33, z);
+      kit.box(0xf4f1e8, 0.66, 0.08, 1.06, x, 0.41, z);
+      kit.box(0xd04a4a, 0.68, 0.06, 0.7, x, 0.47, z + 0.17);
+      kit.box(0xffffff, 0.4, 0.08, 0.22, x, 0.48, z - 0.38);
     }
-    if (this.upgrades.cama) part(0xd04a4a, 0.7, 0.12, 1.1, this.kind === 'balsa' ? 0 : -0.3, 0.32, 0.6);
   }
 }

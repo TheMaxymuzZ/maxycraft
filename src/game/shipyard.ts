@@ -12,7 +12,7 @@ import type { MapMarker } from '../map';
 import type { Cell } from '../pathfind';
 import {
   BOAT_SPOT, type BoatKind, type BoatSave, type Cost, HOME_STAGE, KIOSK_KEEPER, KIOSK_SPOT, MAX_STAGE, SHIPWRIGHT, SHIPWRIGHT_SPOT, STAGE_COSTS,
-  type ShipyardSite, type UpgradeId, boatModel, buildShipyard, buildWorkersHome, costText, findShipyardSite, findWorkersHome, isBoatSave, isShipyardSite,
+  SHIPYARD_VERSION, type ShipyardSite, type UpgradeId, boatModel, buildShipyard, eraseShipyard, shipyardFixtures, buildWorkersHome, costText, findShipyardSite, findWorkersHome, isBoatSave, isShipyardSite,
   shipyardCell, shipyardCenter, shipyardPoint, shipyardSeaward, upgradeOf, windOf, workerBeds,
 } from '../shipyard';
 import { type Profile, Villager, type VillagerMemory } from '../villagers';
@@ -47,6 +47,8 @@ export class ShipyardGame {
   /** Las camas de su casa (v5.1): no se guardan, salen cada vez. */
   private fixtures: Furniture;
   private bedsPlaced = false;
+  /** Los muebles del astillero (v5.3): barriles, cuerdas, el puesto de Brújula, lámparas… No se guardan. */
+  readonly props: Furniture;
 
   /**
    * `saved`: el astillero de la partida o de la isla del amigo. Si no hay y es tu isla, se busca una playa (la
@@ -58,9 +60,18 @@ export class ShipyardGame {
       this.site = findShipyardSite(this.buildWorld(), beaches[0]);
       buildShipyard(this.buildWorld(), this.site);
     }
+    // v5.3: el astillero de antes se cambia por el nuevo, en la etapa en la que estaba.
+    if (this.site && deps.host && this.site.v !== SHIPYARD_VERSION) {
+      eraseShipyard(this.buildWorld(), this.site);
+      this.site.v = SHIPYARD_VERSION;
+      buildShipyard(this.buildWorld(), this.site);
+    }
     if (isBoatSave(boat)) this.setBoat(new Boat(boat));
     this.fixtures = new Furniture([], deps.lampHook ?? null);
     deps.scene.add(this.fixtures.group);
+    this.props = new Furniture([], deps.lampHook ?? null);
+    deps.scene.add(this.props.group);
+    this.furnish();
     // Partidas de antes de la v5.1 con el astillero ya arreglado: la casa sale ahora.
     this.buildHome();
     this.spawn();
@@ -77,6 +88,14 @@ export class ShipyardGame {
     if (!home) return;
     buildWorkersHome(this.buildWorld(), home);
     s.home = home;
+  }
+
+  /** Pone los muebles de la etapa en la que está (también los ve quien está de visita). */
+  furnish() {
+    this.props.clear();
+    const s = this.site;
+    if (!s) return;
+    for (const [id, x, y, z, rot] of shipyardFixtures(s)) this.props.place(id, ...shipyardCell(s, x, y, z), (rot - s.rotation + 4) % 4);
   }
 
   get stage(): number {
@@ -175,6 +194,7 @@ export class ShipyardGame {
     this.charge(c);
     s.stage++;
     buildShipyard(this.buildWorld(), s);
+    this.furnish();
     this.buildHome();
     this.spawn();
     return null;
@@ -216,6 +236,7 @@ export class ShipyardGame {
       s.stage++;
       buildShipyard(this.buildWorld(), s);
     }
+    this.furnish();
     this.buildHome();
     this.spawn();
     return null;

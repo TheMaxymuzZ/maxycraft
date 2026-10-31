@@ -95,6 +95,13 @@ export const FURNITURE_STYLE: Record<string, DecorStyle[]> = {
   yunque: ['rustico'],
   maquina_coser: ['elegante', 'mono'],
   banco_carpintero: ['rustico'],
+  maletas: ['moderno'],
+  salvavidas: ['rustico'],
+  manga_viento: ['moderno'],
+  rollo_cuerda: ['rustico'],
+  ancla: ['rustico', 'elegante'],
+  timon: ['rustico', 'elegante'],
+  puesto_pesca: ['rustico'],
   muestrario: ['moderno'],
 };
 

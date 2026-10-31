@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { FRUITS, type Block } from './blocks';
 import type { SeaIslandType } from './archipelago';
 import { MYSTERY_KINDS, type MysteryKind } from './world';
+import { VoxelKit } from './voxelKit';
 
 /** Un viaje a una isla misteriosa. Dura hasta volver a casa o cerrar el juego. */
 export interface Trip {
@@ -84,38 +85,76 @@ export class Seaplane {
   private base = new THREE.Vector3();
 
   constructor() {
-    const box = new THREE.BoxGeometry(1, 1, 1);
-    const mats = new Map<number, THREE.MeshLambertMaterial>();
-    const part = (color: number, sx: number, sy: number, sz: number, x: number, y: number, z: number, parent: THREE.Object3D = this.group) => {
-      let m = mats.get(color);
-      if (!m) mats.set(color, (m = new THREE.MeshLambertMaterial({ color })));
-      const mesh = new THREE.Mesh(box, m);
-      mesh.scale.set(sx, sy, sz);
-      mesh.position.set(x, y, z);
-      parent.add(mesh);
-      return mesh;
-    };
+    const kit = new VoxelKit(this.group);
     const yellow = 0xf2c230;
+    const cream = 0xfaf6ea;
     const blue = 0x2f6fb0;
-    // Mira hacia -z: la hélice va delante.
-    part(yellow, 1.1, 1, 4.2, 0, 1.5, 0); // fuselaje
-    part(0xa8d8f0, 1.12, 0.45, 0.9, 0, 2.05, -0.6); // ventanas de la cabina
-    part(blue, 1.14, 0.2, 4.22, 0, 1.2, 0); // franja
-    part(yellow, 6.4, 0.18, 1.2, 0, 2.05, -0.3); // ala
-    part(blue, 0.3, 0.2, 1.22, -3.1, 2.06, -0.3);
-    part(blue, 0.3, 0.2, 1.22, 3.1, 2.06, -0.3);
-    part(yellow, 2.4, 0.14, 0.7, 0, 1.75, 1.85); // cola
-    part(blue, 0.14, 1, 0.8, 0, 2.3, 1.85);
-    part(0x555560, 0.5, 0.5, 0.3, 0, 1.5, -2.2); // morro
-    // Flotadores.
-    for (const x of [-1.2, 1.2]) {
-      part(0xf4f4f0, 0.5, 0.4, 3.6, x, 0.2, -0.2);
-      part(0x777780, 0.1, 0.8, 0.1, x * 0.8, 0.8, -1);
-      part(0x777780, 0.1, 0.8, 0.1, x * 0.8, 0.8, 0.8);
+    const metal = 0x8a8e96;
+    const glass = 0x9fd4ee;
+    // Mira hacia -z: la hélice va delante. Fuselaje en rebanadas: redondo delante y afinándose hacia la cola.
+    const n = 18;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1); // 0 morro, 1 cola
+      const z = -2.0 + t * 4.4;
+      const w = t < 0.45 ? 1.1 : 1.1 - (t - 0.45) / 0.55 * 0.7;
+      const h = t < 0.45 ? 1.05 : 1.05 - (t - 0.45) / 0.55 * 0.65;
+      const y = 1.5 + (t < 0.45 ? 0 : (t - 0.45) / 0.55 * 0.3);
+      kit.box(yellow, w, h, 0.26, 0, y, z);
+      kit.box(blue, w + 0.02, 0.14, 0.26, 0, y - h * 0.22, z); // franja azul
+      kit.box(cream, w * 0.8, 0.12, 0.26, 0, y - h / 2 + 0.06, z); // panza clara
     }
-    this.propeller.position.set(0, 1.5, -2.4);
-    part(0x333338, 0.16, 1.8, 0.08, 0, 0, 0, this.propeller);
-    part(0x333338, 1.8, 0.16, 0.08, 0, 0, 0, this.propeller);
+    // Capó del motor, con rejilla y tubos de escape, y la cabina de cristal con su marco.
+    kit.box(cream, 1.0, 0.9, 0.5, 0, 1.5, -2.25);
+    kit.box(0x3a3e44, 0.7, 0.5, 0.04, 0, 1.45, -2.51);
+    for (const side of [-1, 1]) kit.box(0x5a5e66, 0.08, 0.08, 0.3, side * 0.42, 1.18, -2.0);
+    kit.box(glass, 0.98, 0.42, 0.7, 0, 2.15, -1.25);
+    kit.box(glass, 1.13, 0.38, 1.0, 0, 1.95, -0.55);
+    kit.box(0x3a3e44, 1.14, 0.06, 0.06, 0, 2.15, -1.08);
+    for (const z of [-0.85, -0.25]) kit.box(yellow, 1.14, 0.4, 0.06, 0, 1.95, z);
+    // Puerta con su ventanita y el número en el costado.
+    for (const side of [-1, 1]) {
+      kit.box(0xd8a820, 0.02, 0.7, 0.55, side * 0.555, 1.55, 0.15);
+      kit.box(glass, 0.02, 0.22, 0.3, side * 0.56, 1.75, 0.15);
+      for (const [k, z] of [0.75, 0.95, 1.15].entries()) kit.box(0x1f3f5f, 0.02, k === 1 ? 0.06 : 0.22, 0.12, side * 0.5, 1.6, z);
+    }
+    // Ala alta con las puntas azules, alerones, luces de posición y dos puntales a cada lado.
+    kit.box(cream, 7.0, 0.16, 1.3, 0, 2.42, -0.6);
+    kit.box(yellow, 6.0, 0.1, 1.32, 0, 2.53, -0.6);
+    for (const side of [-1, 1]) {
+      kit.box(blue, 0.5, 0.18, 1.32, side * 3.25, 2.44, -0.6);
+      kit.box(0xd8a820, 1.6, 0.06, 0.3, side * 2.2, 2.38, 0.1);
+      kit.glow(side < 0 ? 0xff4a3a : 0x4aff6a, 0.12, 0.12, 0.2, side * 3.52, 2.44, -0.9);
+      kit.rod(metal, 0.07, [side * 0.5, 1.15, -0.6], [side * 2.0, 2.34, -0.75]);
+      kit.rod(metal, 0.07, [side * 0.5, 1.15, -0.2], [side * 2.0, 2.34, -0.35]);
+    }
+    // Cola: estabilizador con timones de profundidad y deriva con el timón a rayas.
+    kit.box(yellow, 2.6, 0.12, 0.7, 0, 1.85, 2.15);
+    for (const side of [-1, 1]) kit.box(blue, 0.9, 0.1, 0.24, side * 0.75, 1.85, 2.58);
+    kit.box(yellow, 0.12, 1.2, 0.8, 0, 2.4, 2.2);
+    kit.box(blue, 0.13, 0.9, 0.25, 0, 2.45, 2.62);
+    kit.box(cream, 0.14, 0.18, 0.26, 0, 2.6, 2.62);
+    kit.glow(0xffffff, 0.08, 0.08, 0.08, 0, 1.95, 2.7);
+    // Flotadores: más estrechos y levantados delante, con el escalón debajo, y los puntales con travesaños.
+    for (const x of [-1.25, 1.25]) {
+      for (let i = 0; i < 8; i++) {
+        const t = i / 7; // 0 delante, 1 detrás
+        const z = -2.1 + t * 3.8;
+        const lift = t < 0.25 ? (0.25 - t) * 0.8 : 0;
+        const w = t < 0.25 ? 0.38 + t * 0.6 : t > 0.8 ? 0.53 - (t - 0.8) * 0.8 : 0.53;
+        kit.box(cream, w, 0.36 - lift * 0.4, 0.52, x, 0.22 + lift, z);
+        kit.box(blue, w + 0.02, 0.06, 0.52, x, 0.32 + lift * 0.8, z);
+      }
+      kit.rod(metal, 0.08, [x, 0.4, -1.1], [x * 0.35, 1.15, -1.1]);
+      kit.rod(metal, 0.08, [x, 0.4, 0.6], [x * 0.35, 1.15, 0.5]);
+      kit.rod(metal, 0.06, [x, 0.4, -1.1], [x * 0.35, 1.15, 0.5]);
+    }
+    for (const z of [-1.1, 0.6]) kit.box(metal, 2.5, 0.06, 0.06, 0, 0.42, z);
+    // Hélice de dos palas con su buje.
+    this.propeller.position.set(0, 1.5, -2.62);
+    kit.box(0xe8524a, 0.3, 0.3, 0.3, 0, 0, 0, this.propeller);
+    kit.box(0xe8524a, 0.16, 0.16, 0.2, 0, 0, -0.18, this.propeller);
+    kit.box(0x2a2e34, 0.18, 2.0, 0.06, 0, 0, 0.06, this.propeller);
+    for (const y of [-0.92, 0.92]) kit.box(0xf2c230, 0.19, 0.14, 0.07, 0, y, 0.06, this.propeller);
     this.group.add(this.propeller);
   }
 

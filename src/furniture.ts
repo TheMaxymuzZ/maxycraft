@@ -790,8 +790,77 @@ export const FURNITURE: FurnitureDef[] = [
       [0.24, 0.24, 0.02, 0xd8c08a, -0.26, 0.56, 0], [0.24, 0.24, 0.02, 0x4a8a5a, 0, 0.56, 0], [0.24, 0.24, 0.02, 0xf4f1e8, 0.26, 0.56, 0],
     ],
   },
+  // Terminal y astillero (v5.3).
+  {
+    id: 'maletas', name: 'Montón de maletas', sell: 250, seller: 'muebles', buy: 1000,
+    parts: [
+      [0.62, 0.42, 0.3, 0x9a5a3a, -0.1, 0, -0.14], [0.66, 0.04, 0.32, 0x6a3a22, -0.1, 0.2, -0.14],
+      [0.46, 0.34, 0.26, 0x2f6fb0, -0.04, 0.42, -0.14], [0.14, 0.06, 0.04, 0x2a2e34, -0.04, 0.78, -0.14],
+      [0.36, 0.5, 0.26, 0xd04a3a, 0.26, 0, 0.2], [0.04, 0.2, 0.04, 0x5f6670, 0.2, 0.5, 0.2], [0.04, 0.2, 0.04, 0x5f6670, 0.32, 0.5, 0.2],
+      [0.12, 0.08, 0.02, 0xf2c230, -0.2, 0.26, 0.02],
+    ],
+  },
+  {
+    id: 'salvavidas', name: 'Salvavidas', sell: 200, seller: 'pesca', buy: 800,
+    parts: [
+      [0.1, 1.0, 0.1, DARK, 0, 0, -0.06],
+      [0.62, 0.14, 0.12, 0xe8524a, 0, 0.42, 0.02], [0.62, 0.14, 0.12, 0xe8524a, 0, 0.9, 0.02],
+      [0.14, 0.36, 0.12, 0xf4f1e8, -0.24, 0.56, 0.02], [0.14, 0.36, 0.12, 0xf4f1e8, 0.24, 0.56, 0.02],
+      [0.02, 0.06, 0.13, 0xf4f1e8, 0, 0.46, 0.02], [0.02, 0.06, 0.13, 0xf4f1e8, 0, 0.94, 0.02],
+    ],
+  },
+  {
+    id: 'manga_viento', name: 'Manga de viento', sell: 300, seller: 'pesca', buy: 1200,
+    parts: [
+      [0.08, 2.1, 0.08, 0xc0c4cc, 0, 0, 0],
+      [0.06, 0.06, 0.34, 0xc0c4cc, 0, 1.9, 0.16],
+      [0.3, 0.3, 0.2, 0xff8a30, 0, 1.78, 0.4], [0.26, 0.26, 0.2, 0xf4f1e8, 0, 1.78, 0.6],
+      [0.22, 0.22, 0.2, 0xff8a30, 0, 1.78, 0.8], [0.16, 0.16, 0.12, 0xf4f1e8, 0, 1.79, 0.96],
+    ],
+  },
+  {
+    id: 'rollo_cuerda', name: 'Rollo de cuerda', sell: 120, seller: 'pesca', buy: 500, stack: 10,
+    parts: [
+      [0.7, 0.1, 0.7, 0xd8c08a, 0, 0, 0], [0.6, 0.1, 0.6, 0xc8ac72, 0, 0.1, 0], [0.5, 0.1, 0.5, 0xd8c08a, 0, 0.2, 0],
+      [0.22, 0.31, 0.22, 0x7a5233, 0, 0, 0], [0.3, 0.06, 0.06, 0xc8ac72, 0.42, 0.04, 0.16],
+    ],
+  },
+  {
+    id: 'ancla', name: 'Ancla', sell: 400, seller: 'pesca', buy: 1600,
+    parts: [
+      [0.1, 0.9, 0.1, 0x3a3e44, 0, 0.1, 0],
+      [0.5, 0.08, 0.1, 0x3a3e44, 0, 0.86, 0], [0.18, 0.18, 0.06, 0x3a3e44, 0, 1.0, 0],
+      [0.7, 0.1, 0.1, 0x3a3e44, 0, 0.1, 0], [0.1, 0.24, 0.1, 0x3a3e44, -0.36, 0.1, 0], [0.1, 0.24, 0.1, 0x3a3e44, 0.36, 0.1, 0],
+      [0.22, 0.04, 0.22, 0x7a5233, 0, 0, 0],
+    ],
+  },
+  {
+    id: 'timon', name: 'Timón de pared', sell: 450, seller: 'pesca', buy: 1800,
+    parts: [
+      [0.14, 0.14, 0.1, DARK, 0, 0.73, -0.42],
+      [0.7, 0.07, 0.06, WOOD, 0, 0.98, -0.42], [0.7, 0.07, 0.06, WOOD, 0, 0.46, -0.42],
+      [0.07, 0.5, 0.06, WOOD, -0.32, 0.5, -0.42], [0.07, 0.5, 0.06, WOOD, 0.32, 0.5, -0.42],
+      [0.9, 0.05, 0.05, DARK, 0, 0.78, -0.4], [0.05, 0.9, 0.05, DARK, 0, 0.32, -0.4],
+    ],
+  },
+  {
+    id: 'puesto_pesca', name: 'Puesto del muelle', sell: 600, seller: 'pesca',
+    parts: [
+      [1, 0.56, 0.5, 0x3f7ea6, 0, 0, 0.12], [1, 0.05, 0.62, WOOD, 0, 0.56, 0.1],
+      [0.08, 1.9, 0.08, DARK, -0.46, 0, -0.42], [0.08, 1.9, 0.08, DARK, 0.46, 0, -0.42],
+      [1.04, 0.06, 0.8, 0xf4f1e8, 0, 1.9, 0.0], [1.04, 0.06, 0.2, 0x3f7ea6, 0, 1.86, 0.36],
+      [0.2, 0.16, 0.2, 0xd8c08a, -0.3, 0.61, 0.06], [0.14, 0.06, 0.3, 0x8ac0e0, 0.24, 0.61, 0.1],
+    ],
+  },
 ];
-export const FURNITURE_TILE = (id: string) => FURNITURE_TILE_START + FURNITURE.findIndex((f) => f.id === id);
+/** Los muebles que no caben antes de los dibujos extra siguen aquí en el atlas (v5.3). */
+export const FURNITURE_TILE_START_2 = 448;
+const FIRST_RANGE = 256 - FURNITURE_TILE_START;
+/** Casilla del atlas del mueble número i. */
+export function furnitureTileAt(i: number): number {
+  return i < FIRST_RANGE ? FURNITURE_TILE_START + i : FURNITURE_TILE_START_2 + i - FIRST_RANGE;
+}
+export const FURNITURE_TILE = (id: string) => furnitureTileAt(FURNITURE.findIndex((f) => f.id === id));
 
 export function furnitureDef(id: string): FurnitureDef | undefined {
   return FURNITURE.find((f) => f.id === id);
@@ -860,7 +929,7 @@ export function paintFurnitureIcons(atlas: HTMLCanvasElement) {
     scene.add(model);
     renderer.render(scene, cam);
     scene.remove(model);
-    const tile = FURNITURE_TILE_START + i;
+    const tile = furnitureTileAt(i);
     const tx = (tile % ATLAS_TILES) * TILE;
     const ty = Math.floor(tile / ATLAS_TILES) * TILE;
     ctx.clearRect(tx, ty, TILE, TILE);

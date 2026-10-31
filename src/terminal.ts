@@ -93,6 +93,127 @@ export const TERMINAL_FIXTURES: Fixture[] = [
   ['panel_salidas', 2, 1, 1, 0],
   ['planta', 1, 1, 5, 0], ['planta', 7, 1, 5, 0],
 ];
+
+// --- La terminal nueva (v5.3) ---
+// Mismo solar que la de antes (9 × 14), pero menos tosca: suelo de baldosas, pilastras de tronco, ventanales hacia
+// el mar, tejado azul a dos aguas con escaleras de teja que vuela sobre un porche con bancos, una viga con
+// lámparas colgantes, el mostrador bajo de Plumas y un faro de piedra al final del muelle.
+
+const LEGEND_V2: Record<string, Block> = {
+  ...LEGEND,
+  Q: Block.Tiles,
+  O: Block.PolishedStone,
+  G: Block.Glass,
+  V: Block.Window,
+  '<': (Block.RoofBlueStairs + 1) as Block,
+  '>': (Block.RoofBlueStairs + 3) as Block,
+  b: Block.RoofBlueSlab,
+  r: Block.RoofRedSlab,
+};
+
+function buildV2(): string[][] {
+  const H = 9;
+  const grid: string[][][] = Array.from({ length: H }, () => Array.from({ length: D }, () => Array(W).fill(' ')));
+  const set = (x: number, y: number, z: number, c: string) => {
+    if (y >= 0 && y < H && x >= 0 && x < W && z >= 0 && z < D) grid[y][z][x] = c;
+  };
+  // Suelo: baldosas dentro, tablones en el borde, en el porche (z = 7) y en el muelle.
+  for (let z = 0; z < D; z++) {
+    for (let x = 0; x < W; x++) {
+      if (z <= HALL + 1 || (x >= 3 && x <= 5)) set(x, 0, z, x > 0 && x < W - 1 && z > 0 && z < HALL ? 'Q' : 'K');
+    }
+  }
+  // Paredes de la sala.
+  for (let y = 1; y <= 3; y++) {
+    for (let z = 0; z <= HALL; z++) {
+      for (let x = 0; x < W; x++) {
+        const side = x === 0 || x === W - 1;
+        const end = z === 0 || z === HALL;
+        if (!side && !end) {
+          set(x, y, z, '.');
+          continue;
+        }
+        let c = 'H';
+        if ((side && end) || (side && z === 3)) c = 'L'; // esquinas y pilastra en medio de los lados
+        else if (side) c = y === 2 ? 'V' : 'H'; // ventanas a los lados
+        else if (z === 0) c = y === 2 && (x === 2 || x === 6) ? 'V' : 'H';
+        else c = y >= 2 ? 'G' : 'H'; // ventanal hacia el mar
+        set(x, y, z, c);
+      }
+    }
+  }
+  for (const z of [0, HALL]) {
+    set(4, 1, z, 'D');
+    set(4, 2, z, 'T');
+    set(4, 3, z, 'H');
+  }
+  // Viga de lado a lado en el medio, de donde cuelgan las lámparas.
+  for (let x = 1; x < W - 1; x++) set(x, 4, 3, 'L');
+  // Tejado a dos aguas con la cumbrera de la playa al mar; vuela sobre el porche (z = 7) apoyado en dos postes.
+  for (let k = 0; k <= 4; k++) {
+    const off = 4 - k;
+    for (let z = 0; z <= HALL + 1; z++) {
+      if (off === 0) {
+        set(4, 4 + k, z, 'b');
+        set(4, 3 + k, z, 'B');
+        continue;
+      }
+      set(4 - off, 4 + k, z, '<');
+      set(4 + off, 4 + k, z, '>');
+    }
+    if (k === 0) continue;
+    // Hastiales: pared con ventana hacia la playa, cristal hacia el mar.
+    for (let x = 4 - off + 1; x <= 4 + off - 1; x++) {
+      set(x, 3 + k, 0, k === 2 && x === 4 ? 'V' : 'H');
+      set(x, 3 + k, HALL, k <= 2 && Math.abs(x - 4) <= 1 ? 'G' : 'H');
+    }
+  }
+  for (let y = 1; y <= 3; y++) {
+    set(0, y, HALL + 1, 'L');
+    set(W - 1, y, HALL + 1, 'L');
+  }
+  // Barandillas del muelle (a la derecha, abierto donde amarra la avioneta).
+  for (let z = HALL + 2; z < D; z++) {
+    set(3, 1, z, z >= D - 2 ? ' ' : 'F');
+    if (z === HALL + 2) set(5, 1, z, 'F');
+  }
+  // Faro al final del muelle: base de piedra, rayas rojas y blancas, la luz y un sombrerito rojo.
+  for (let y = 1; y <= 4; y++) set(3, y, D - 1, y === 1 ? 'O' : y % 2 ? 'H' : 'R');
+  set(3, 5, D - 1, 'I');
+  set(3, 6, D - 1, 'r');
+  return grid.map((layer) => layer.map((row) => row.join('')));
+}
+
+export const TERMINAL_V2: BuildingTemplate = {
+  ...TERMINAL,
+  legend: LEGEND_V2,
+  layers: buildV2(),
+};
+
+/** Muebles de la terminal nueva: mostrador bajo con caja, bancos, maletas, lámparas, y en el muelle salvavidas y manga de viento. */
+export const TERMINAL_FIXTURES_V2: Fixture[] = [
+  ['mostrador_bajo', 5, 1, 2, 0], ['caja_mostrador', 6, 1, 2, 0], ['mostrador_bajo', 7, 1, 2, 0],
+  ['panel_salidas', 2, 1, 1, 0], ['planta', 1, 1, 1, 0],
+  ['banco', 1, 1, 3, 1], ['banco', 1, 1, 4, 1], ['maletas', 1, 1, 5, 1],
+  ['bascula', 7, 1, 4, 3], ['maletas', 6, 1, 5, 0], ['planta', 7, 1, 5, 0],
+  ['lampara_techo', 2, 3, 3, 0], ['lampara_techo', 6, 3, 3, 0],
+  ['banco', 1, 1, 7, 0], ['banco', 2, 1, 7, 0], ['banco', 6, 1, 7, 0], ['banco', 7, 1, 7, 0],
+  ['salvavidas', 5, 1, 9, 1], ['manga_viento', 5, 1, 13, 0], ['rollo_cuerda', 5, 1, 12, 0],
+];
+
+/** Versión del edificio de la terminal: la nueva es la 2 (v5.3). */
+export const TERMINAL_VERSION = 2;
+
+/** La plantilla de la terminal de ese sitio (la de antes si aún no se ha rehecho). */
+export function terminalTemplate(site: TerminalSite): BuildingTemplate {
+  return site.v === TERMINAL_VERSION ? TERMINAL_V2 : TERMINAL;
+}
+
+/** Los muebles de la terminal de ese sitio. */
+export function terminalFixtures(site: TerminalSite): Fixture[] {
+  return site.v === TERMINAL_VERSION ? TERMINAL_FIXTURES_V2 : TERMINAL_FIXTURES;
+}
+
 /** Plumas atiende detrás del mostrador. */
 export const PILOT_SPOT: Cell = [6, 1, 1];
 /** Donde queda amarrada la avioneta: a la derecha del final del muelle (con decimales). */
@@ -104,7 +225,8 @@ export function isTerminalSite(v: unknown): v is TerminalSite {
   const t = v as Record<string, unknown>;
   return Number.isInteger(t.x) && Number.isInteger(t.z) && Number.isInteger(t.rotation) && (t.rotation as number) >= 0 && (t.rotation as number) < 4
     && Math.abs(t.x as number) < 10_000 && Math.abs(t.z as number) < 10_000
-    && (t.y === undefined || (Number.isInteger(t.y) && (t.y as number) >= DECK_Y && (t.y as number) <= DECK_MAX));
+    && (t.y === undefined || (Number.isInteger(t.y) && (t.y as number) >= DECK_Y && (t.y as number) <= DECK_MAX))
+    && (t.v === undefined || t.v === TERMINAL_VERSION);
 }
 
 /** Hacia dónde mira el muelle (hacia el mar). */
@@ -119,6 +241,8 @@ export interface TerminalSite {
   rotation: number;
   /** Altura de la tarima (v5.0.1). Las terminales de antes no la tienen y están a DECK_Y. */
   y?: number;
+  /** Versión del edificio (v5.3): 2 es la terminal nueva; sin ella, la de antes. */
+  v?: number;
 }
 
 /** La tarima más alta: si la playa sube mucho, la terminal no se sube más (se rebaja la tierra de alrededor). */
@@ -203,7 +327,7 @@ export function terminalDeckFor(world: BuildWorld, site: TerminalSite): number {
 /** Quita una terminal ya construida (para volver a levantarla a otra altura, v5.0.1). */
 export function eraseTerminal(world: BuildWorld, site: TerminalSite) {
   const deck = deckOf(site);
-  for (const [x, y, z, b] of templateCells(TERMINAL, site.rotation)) {
+  for (const [x, y, z, b] of templateCells(terminalTemplate(site), site.rotation)) {
     if (b === null) continue;
     const at = [site.x + x, deck + y, site.z + z] as const;
     if (world.getBlock(...at) === b) world.setBlock(...at, Block.Air);
@@ -212,11 +336,12 @@ export function eraseTerminal(world: BuildWorld, site: TerminalSite) {
 
 /** Construye la terminal: pilotes hasta el fondo, la tarima, la sala, el muelle y el faro. */
 export function buildTerminal(world: BuildWorld, site: TerminalSite) {
-  const [w, , d] = templateSize(TERMINAL);
+  const t = terminalTemplate(site);
+  const [w, , d] = templateSize(t);
   const deck = deckOf(site);
   for (let z = 0; z < d; z++) {
     for (let x = 0; x < w; x++) {
-      if (TERMINAL.layers[0][z][x] !== 'K') continue;
+      if (t.layers[0][z][x] === ' ') continue;
       const [cx, , cz] = terminalCell(site, x, 0, z);
       // Pilotes en las esquinas de la sala y a lo largo del muelle; bajo lo demás, arena si debajo hay tierra.
       const pillar = (x === 0 || x === w - 1 || x === 3 || x === 5) && z % 3 === 0;
@@ -231,14 +356,14 @@ export function buildTerminal(world: BuildWorld, site: TerminalSite) {
         else if (isWater(b)) break;
       }
       // Lo que hubiera por encima de la tarima donde la plantilla no pone nada (arena, hierba, flores) se quita.
-      for (let y = deck + 1; y < deck + TERMINAL.layers.length; y++) {
-        const free = (TERMINAL.layers[y - deck][z]?.[x] ?? ' ') === ' ';
+      for (let y = deck + 1; y < deck + t.layers.length; y++) {
+        const free = (t.layers[y - deck][z]?.[x] ?? ' ') === ' ';
         const b = world.getBlock(cx, y, cz);
         if (free && b !== Block.Air && !isWater(b)) world.setBlock(cx, y, cz, Block.Air);
       }
     }
   }
-  for (const [x, y, z, b] of templateCells(TERMINAL, site.rotation)) {
+  for (const [x, y, z, b] of templateCells(t, site.rotation)) {
     if (b === null) continue;
     const at = [site.x + x, deck + y, site.z + z] as const;
     if (world.getBlock(...at) !== b) world.setBlock(...at, b);

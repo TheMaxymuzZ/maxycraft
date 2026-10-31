@@ -18,6 +18,8 @@ export const DECK_Y = SEA_LEVEL + 1;
 const W = 11;
 const D = 18;
 const HALL = 6;
+/** Donde atiende Brújula en el muelle. */
+const KIOSK_Z = D - 3;
 
 const LEGEND: Record<string, Block> = {
   K: Block.BridgeDeck,
@@ -126,12 +128,133 @@ function build(stage: number): string[][] {
   return grid.map((layer) => layer.map((row) => row.join('')));
 }
 
-export function shipyardTemplate(stage: number): BuildingTemplate {
+// --- El astillero nuevo (v5.3) ---
+// Mismo solar y mismas etapas, pero menos tosco: el taller con zócalo de piedra, entramado de troncos y tejado
+// de teja a dos aguas; la grada bajo un cobertizo abierto de postes y tejado; una grúa de verdad con su caja
+// colgando; y nada de bloques de luz: lámparas, faroles y muebles de ribera (barriles, cuerdas, ancla, timón).
+
+const LEGEND_V2: Record<string, Block> = {
+  ...LEGEND,
+  V: Block.Window,
+  '<': (Block.RoofBlueStairs + 1) as Block,
+  '>': (Block.RoofBlueStairs + 3) as Block,
+  b: Block.RoofBlueSlab,
+  '{': (Block.RoofRedStairs + 1) as Block,
+  '}': (Block.RoofRedStairs + 3) as Block,
+  E: Block.Wall,
+};
+
+function buildV2(stage: number): string[][] {
+  if (stage === 0) return build(0);
+  const H = 9;
+  const grid: string[][][] = Array.from({ length: H }, () => Array.from({ length: D }, () => Array(W).fill(' ')));
+  const set = (x: number, y: number, z: number, c: string) => {
+    if (y >= 0 && y < H && x >= 0 && x < W && z >= 0 && z < D) grid[y][z][x] = c;
+  };
+  for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) if (z <= HALL || (x >= 1 && x <= 3)) set(x, 0, z, 'K');
+  // El taller: zócalo de piedra, tablones con troncos en las esquinas y en medio de los lados, ventanas.
+  for (let y = 1; y <= 3; y++) {
+    for (let z = 0; z <= HALL; z++) {
+      for (let x = 0; x <= 4; x++) {
+        const side = x === 0 || x === 4;
+        const end = z === 0 || z === HALL;
+        if (!side && !end) {
+          set(x, y, z, '.');
+          continue;
+        }
+        let c = y === 1 ? 'C' : 'H';
+        if ((side && end) || (side && z === 3)) c = 'L';
+        else if (y === 2 && side && z % 2 === 1 && z !== 3) c = 'V';
+        else if (y === 2 && end && (x === 1 || x === 3)) c = 'V';
+        set(x, y, z, c);
+      }
+    }
+  }
+  for (const z of [0, HALL]) {
+    set(2, 1, z, 'D');
+    set(2, 2, z, 'T');
+  }
+  if (stage >= 3) {
+    // Tejado azul a dos aguas que vuela sobre la puerta del muelle, con el hastial encalado.
+    for (let z = 0; z <= HALL + 1; z++) {
+      set(0, 4, z, '<');
+      set(4, 4, z, '>');
+      set(1, 5, z, '<');
+      set(3, 5, z, '>');
+      set(2, 6, z, 'b');
+      set(2, 5, z, 'B');
+    }
+    for (const z of [0, HALL]) for (let x = 1; x <= 3; x++) set(x, 4, z, x === 2 ? 'V' : 'E');
+  } else {
+    for (let z = 0; z <= HALL; z++) for (let x = 0; x <= 4; x++) set(x, 4, z, 'S');
+  }
+  // Barandillas del muelle.
+  for (let z = HALL + 1; z < D; z++) {
+    set(1, 1, z, 'F');
+    if (z < D - 3) set(3, 1, z, 'F');
+  }
+  if (stage >= 2) {
+    // La grada: rampa de tablones hasta el agua con calzos de tronco.
+    for (let z = 0; z < D; z++) for (let x = 6; x <= 9; x++) set(x, 0, z, 'P');
+    for (const z of [8, 11, 14]) {
+      set(6, 1, z, 'L');
+      set(9, 1, z, 'L');
+    }
+  }
+  if (stage >= 3) {
+    // El cobertizo de la grada: postes de tronco, vigas y tejado rojo a dos aguas, abierto por los lados.
+    for (const x of [5, 10]) {
+      for (const z of [0, 3, HALL]) for (let y = 1; y <= 3; y++) set(x, y, z, 'L');
+      for (let z = 0; z <= HALL; z++) set(x, 4, z, 'L');
+    }
+    for (let z = 0; z <= HALL; z++) {
+      set(5, 5, z, '{');
+      set(10, 5, z, '}');
+      set(6, 6, z, '{');
+      set(9, 6, z, '}');
+      set(7, 7, z, '{');
+      set(8, 7, z, '}');
+    }
+  } else if (stage >= 2) {
+    for (let z = 0; z < HALL; z++) set(10, 1, z, 'G');
+  }
+  if (stage >= 4) {
+    // La grúa: torre de piedra y troncos, brazo sobre la grada, cuerda y una caja colgando.
+    for (let y = 1; y <= 7; y++) set(10, y, HALL + 1, y <= 2 ? 'O' : 'L');
+    for (let x = 6; x <= 10; x++) set(x, 8, HALL + 1, 'L');
+    for (let y = 5; y <= 7; y++) set(7, y, HALL + 1, 'G');
+    set(7, 4, HALL + 1, 'X');
+  }
+  return grid.map((layer) => layer.map((row) => row.join('')));
+}
+
+/** Versión del edificio del astillero: el nuevo es el 2 (v5.3). */
+export const SHIPYARD_VERSION = 2;
+
+/** Muebles del astillero nuevo en cada etapa: [mueble, x, y, z, giro, etapa desde la que está]. */
+export const SHIPYARD_FIXTURES: [string, number, number, number, number, number][] = [
+  ['puesto_pesca', 2, 1, KIOSK_Z - 1, 2, 1],
+  ['barril', 3, 1, 1, 0, 1], ['rollo_cuerda', 1, 1, 5, 0, 1],
+  ['banco_carpintero', 1, 1, 2, 1, 1], ['timon', 3, 2, 1, 0, 3],
+  ['lampara_techo', 2, 3, 3, 0, 3],
+  ['farola', 2, 1, D - 1, 0, 1], ['salvavidas', 2, 1, HALL + 1, 0, 1],
+  ['ancla', 5, 1, 1, 1, 1], ['barril', 5, 1, 5, 0, 2], ['barril', 10, 1, 1, 0, 3], ['rollo_cuerda', 10, 1, 5, 0, 3],
+  ['farola', 5, 1, 2, 0, 3], ['lampara_techo', 7, 4, 3, 0, 3], ['lampara_techo', 8, 4, 3, 0, 3],
+];
+
+/** Los muebles que tocan en el astillero de ese sitio. */
+export function shipyardFixtures(site: ShipyardSite): [string, number, number, number, number][] {
+  if (site.v !== SHIPYARD_VERSION) return [];
+  return SHIPYARD_FIXTURES.filter((f) => site.stage >= f[5]).map(([id, x, y, z, rot]) => [id, x, y, z, rot]);
+}
+
+export function shipyardTemplate(stage: number, v?: number): BuildingTemplate {
+  const at = Math.max(0, Math.min(MAX_STAGE, stage));
   return {
     id: 'astillero',
     name: 'Astillero',
-    legend: LEGEND,
-    layers: build(Math.max(0, Math.min(MAX_STAGE, stage))),
+    legend: v === SHIPYARD_VERSION ? LEGEND_V2 : LEGEND,
+    layers: v === SHIPYARD_VERSION ? buildV2(at) : build(at),
     door: [2, 1, -1],
     rooms: [{ name: 'Taller', floor: 1, area: [1, 1, 3, 5] }],
     slots: [],
@@ -140,7 +263,7 @@ export function shipyardTemplate(stage: number): BuildingTemplate {
 
 /** Bartolo trabaja dentro del taller; Brújula atiende al final del muelle. */
 export const SHIPWRIGHT_SPOT: Cell = [2, 1, 3];
-export const KIOSK_SPOT: Cell = [2, 1, D - 3];
+export const KIOSK_SPOT: Cell = [2, 1, KIOSK_Z];
 /** Donde queda amarrado tu barco: al lado de la grada, en el agua (con decimales). */
 export const BOAT_SPOT: [number, number] = [7.5, D + 1.5];
 
@@ -153,6 +276,8 @@ export interface ShipyardSite {
   stage: number;
   /** Casa de Bartolo y Brújula (v5.1): centro del suelo de la casita, junto al astillero. */
   home?: Cell;
+  /** Versión del edificio (v5.3): 2 es el astillero nuevo; sin ella, el de antes. */
+  v?: number;
 }
 
 /** Etapa a partir de la cual Bartolo y Brújula tienen su casa al lado del astillero (v5.1). */
@@ -236,7 +361,8 @@ export function isShipyardSite(v: unknown): v is ShipyardSite {
   const t = v as Record<string, unknown>;
   return Number.isInteger(t.x) && Number.isInteger(t.z) && Number.isInteger(t.rotation) && (t.rotation as number) >= 0 && (t.rotation as number) < 4
     && Math.abs(t.x as number) < 10_000 && Math.abs(t.z as number) < 10_000
-    && Number.isInteger(t.stage) && (t.stage as number) >= 0 && (t.stage as number) <= MAX_STAGE;
+    && Number.isInteger(t.stage) && (t.stage as number) >= 0 && (t.stage as number) <= MAX_STAGE
+    && (t.v === undefined || t.v === SHIPYARD_VERSION);
 }
 
 /** Hacia dónde mira el muelle (hacia el mar). */
@@ -280,7 +406,7 @@ export function findShipyardSite(world: BuildWorld, beach: { x: number; z: numbe
   for (let shift = -3; shift <= 3; shift++) {
     const [ax, az] = [beach.x + sx * shift, beach.z + sz * shift];
     const [rx, rz] = rotateCell(2, HALL, W, D, rotation);
-    const site = { x: ax - rx, z: az - rz, rotation, stage: 0 };
+    const site = { x: ax - rx, z: az - rz, rotation, stage: 0, v: SHIPYARD_VERSION };
     let score = 0;
     for (let z = 0; z < D; z++) {
       for (let x = 0; x < W; x++) {
@@ -301,7 +427,7 @@ export function findShipyardSite(world: BuildWorld, beach: { x: number; z: numbe
 
 /** Construye (o rehace) el astillero en su etapa: pilotes hasta el fondo, la tarima y lo de encima. */
 export function buildShipyard(world: BuildWorld, site: ShipyardSite) {
-  const t = shipyardTemplate(site.stage);
+  const t = shipyardTemplate(site.stage, site.v);
   const tall = t.layers.length;
   for (let z = 0; z < D; z++) {
     for (let x = 0; x < W; x++) {
@@ -330,6 +456,15 @@ export function buildShipyard(world: BuildWorld, site: ShipyardSite) {
     if (b === null) continue;
     const at = [site.x + x, DECK_Y + y, site.z + z] as const;
     if (world.getBlock(...at) !== b) world.setBlock(...at, b);
+  }
+}
+
+/** Quita lo que queda del astillero de antes que coincide con su plantilla (para rehacerlo con la nueva, v5.3). */
+export function eraseShipyard(world: BuildWorld, site: ShipyardSite) {
+  for (const [x, y, z, b] of templateCells(shipyardTemplate(site.stage, site.v), site.rotation)) {
+    if (b === null || b === Block.Air || y === 0) continue;
+    const at = [site.x + x, DECK_Y + y, site.z + z] as const;
+    if (world.getBlock(...at) === b) world.setBlock(...at, Block.Air);
   }
 }
 
