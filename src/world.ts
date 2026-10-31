@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { waterFlow } from './fluids';
 import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, WALL_TORCH_DIRS, isCross, isTorch, isDoor, isDoorTop, isFence, isFullBlock, isGate, isLava, isOpaque, isOpen, isSolid, isWater, lavaHeight, roofColorOf, waterHeight, waterLevel as fluidLevel } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
-import { acaciaShape, blossomShape, ceibaShape, firShape, glowShape, fruitTreeShape, palmShape, pineShape, willowShape } from './trees';
+import { type TreeBlock, acaciaShape, blossomShape, broadOakShape, bushShape, ceibaShape, cloudTreeShape, firShape, glowShape, fruitTreeShape, palmShape, pineShape, poplarShape, taller, tieredPineShape, willowShape } from './trees';
 import { type BuildingTemplate, templateCells } from './buildings';
 import { SHOP_BUILDING, shopOrigin } from './shopBuilding';
 import { MUSEUM, museumOrigin } from './museum';
@@ -23,17 +23,24 @@ export const ISLAND_RADIUS = 72;
 export const BIG_ISLAND_RADIUS = 112;
 /** Radio de las islas del terreno 3 (v5.2): más grandes, para que quepan los edificios nuevos. */
 export const HUGE_ISLAND_RADIUS = 150;
+/** Radio de las islas del terreno 4 (v5.9): aún más grandes. */
+export const GIANT_ISLAND_RADIUS = 185;
 /** Radio de los islotes (v5.0.1: de 12 a 17) y hasta dónde pueden llegar, en radios de la isla. */
 export const ISLET_MIN_R = 12;
 export const ISLET_REACH = 1.7;
 /** Versión del terreno de las islas nuevas. Las guardadas siguen con el suyo para que no se mueva nada. */
-export const TERRAIN_VERSION = 3;
+export const TERRAIN_VERSION = 4;
 /** Desde este terreno (v5.2) la isla es más grande, los islotes el doble y los edificios son los nuevos. */
 export const NEW_BUILDINGS_TERRAIN = 3;
+/**
+ * Desde este terreno (v5.9): isla más grande, árboles propios de muchas alturas, menos bambú, orillas del río
+ * en pendiente suave (se sale andando) y playas de los islotes que bajan poco a poco hasta el fondo del mar.
+ */
+export const GENTLE_TERRAIN = 4;
 
 /** Radio de la isla de casa de cada versión del terreno. */
 export function homeRadius(terrain: number): number {
-  return terrain >= NEW_BUILDINGS_TERRAIN ? HUGE_ISLAND_RADIUS : terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS;
+  return terrain >= GENTLE_TERRAIN ? GIANT_ISLAND_RADIUS : terrain >= NEW_BUILDINGS_TERRAIN ? HUGE_ISLAND_RADIUS : terrain >= 2 ? BIG_ISLAND_RADIUS : ISLAND_RADIUS;
 }
 
 /** Zonas de la isla con su propio paisaje (solo en el terreno 2). */
@@ -295,6 +302,8 @@ export interface WorldOptions {
   village?: boolean;
   /** Estilo de las casas de la aldea (v5.2): las grandes si la isla de casa es del terreno 3. */
   houses?: number;
+  /** Árboles nuevos (v5.9) en las islas del archipiélago de una isla de casa del terreno 4. */
+  gentle?: boolean;
 }
 
 /** Una isla del archipiélago dentro del mundo de casa (v5.1): su terreno sale de su propia semilla, centrado en (x, z). */
@@ -423,7 +432,7 @@ export class World {
     // Las islas misteriosas miden entre 40 y 54 bloques de radio; la del volcán, algo más.
     const mysteryRadius = 40 + Math.floor(columnRandom(5, 5, seed) * 14) + (this.mystery?.kind === 'volcan' ? 6 : 0);
     this.radius = this.mystery ? mysteryRadius : homeRadius(this.terrain);
-    this.spread = this.terrain >= NEW_BUILDINGS_TERRAIN ? 2 : this.terrain >= 2 ? 1.5 : 1;
+    this.spread = this.terrain >= GENTLE_TERRAIN ? 2.3 : this.terrain >= NEW_BUILDINGS_TERRAIN ? 2 : this.terrain >= 2 ? 1.5 : 1;
     this.climate = this.terrain >= 2 && !this.mystery && isClimate(options.climate) ? options.climate : undefined;
     if (this.terrain >= 2) {
       this.biomeOrder = [...(this.climate ? CLIMATE_BIOMES[this.climate] : INLAND_BIOMES)].sort((a, b) => columnRandom(a.length, 41, seed + a.charCodeAt(1)) - columnRandom(b.length, 41, seed + b.charCodeAt(1)));
@@ -435,7 +444,7 @@ export class World {
     }
     this.plots = this.mystery ? (options.village ? this.findVillage() : []) : this.findPlots(6);
     for (const spot of options.sea ?? []) {
-      const world = new World(spot.seed, material, {}, { mystery: { kind: spot.kind, fruit: spot.fruit }, village: spot.village, houses: this.newBuildings ? BIG_HOUSE : undefined });
+      const world = new World(spot.seed, material, {}, { mystery: { kind: spot.kind, fruit: spot.fruit }, village: spot.village, houses: this.newBuildings ? BIG_HOUSE : undefined, gentle: this.gentle || undefined });
       this.seaWorlds.push({ spot, world, half: Math.ceil(world.radius * 1.45) + 4 });
     }
     this.caveEntrances = this.mystery ? [] : this.findCaveEntrances(2);
@@ -631,6 +640,14 @@ export class World {
     return this.mystery ? this.options.houses === BIG_HOUSE : this.terrain >= NEW_BUILDINGS_TERRAIN;
   }
 
+  /**
+   * Terreno suave (v5.9): árboles propios de muchas alturas, menos bambú, orillas del río en pendiente y playas de
+   * los islotes que bajan hasta el fondo. Las islas de casa del terreno 4 y las de su archipiélago.
+   */
+  get gentle(): boolean {
+    return this.mystery ? this.options.gentle === true : this.terrain >= GENTLE_TERRAIN;
+  }
+
   /** Si el jugador (o un edificio colocado después) ha cambiado ese bloque. */
   isEdited(x: number, y: number, z: number): boolean {
     if (y < 0 || y >= HEIGHT) return false;
@@ -769,6 +786,7 @@ export class World {
 
   /** Altura del suelo de un islote en (x, z), o null si ahí no hay islote. */
   private isletHeight(x: number, z: number): number | null {
+    if (this.gentle) return this.isletSlope(x, z);
     for (const i of this.islets) {
       const dx = x - i.x;
       const dz = z - i.z;
@@ -781,6 +799,32 @@ export class World {
       if (d < 1.3) return SEA_LEVEL - 1;
     }
     return null;
+  }
+
+  /**
+   * Islotes del terreno 4 (v5.9): la meseta y la playa como antes, y desde la orilla el fondo baja como el de la
+   * isla grande (un bloque cada tres) hasta el fondo del mar. Si dos islotes se acercan, manda el más alto.
+   */
+  private isletSlope(x: number, z: number): number | null {
+    let best: number | null = null;
+    for (const i of this.islets) {
+      const dx = x - i.x;
+      const dz = z - i.z;
+      const reach = i.r * 1.3 + 34;
+      if (Math.abs(dx) > reach || Math.abs(dz) > reach) continue;
+      const wobble = fbm(x / 9, z / 9, this.seed + 72, 2) - 0.5;
+      const size = i.r * (1 + wobble * 0.3);
+      const d = Math.hypot(dx, dz) / size;
+      let h: number;
+      if (d < 0.8) h = SEA_LEVEL + 2;
+      else if (d < 1) h = SEA_LEVEL + 1;
+      else {
+        const out = (d - 1) * size;
+        h = out < 2.5 ? SEA_LEVEL : SEA_LEVEL - Math.min(10, 1 + Math.floor((out - 2.5) / 3));
+      }
+      if (best === null || h > best) best = h;
+    }
+    return best;
   }
 
   /** El islote que hay en (x, z), contando su playa. */
@@ -917,16 +961,27 @@ export class World {
     const mask = this.landMask(x, z);
     if (mask < 0.14) {
       const islet = this.isletHeight(x, z);
-      if (islet !== null) return islet;
+      if (islet !== null && !this.gentle) return islet;
       // El fondo del mar baja poco a poco desde la orilla (v4.0): un bloque más hondo cada dos o tres bloques.
       const out = (0.14 - this.landMaskRaw(x, z)) * this.radius * 0.45;
-      if (out < 1.5) return SEA_LEVEL; // orilla, justo a ras del agua
-      return SEA_LEVEL - Math.min(10, 1 + Math.floor((out - 1.5) / 3));
+      const floor = out < 1.5 ? SEA_LEVEL : SEA_LEVEL - Math.min(10, 1 + Math.floor((out - 1.5) / 3));
+      // v5.9: la playa de los islotes baja igual de suave hasta juntarse con el fondo, sin escalón.
+      return islet === null ? floor : Math.max(floor, islet);
     }
     if (mask < 0.26) return SEA_LEVEL + 1; // playa
 
     if (this.terrain >= 2) {
       const { dist, u } = this.riverAt(x, z);
+      if (this.gentle && dist < 20) {
+        // v5.9: orillas en pendiente suave. Del fondo a la orilla se sube de uno en uno (se sale andando o con un
+        // salto), y si la tierra de al lado está mucho más alta, baja hasta el río en escalones de un bloque.
+        const level = this.riverLevel(u);
+        if (dist < 1.3) return level - 2;
+        if (dist < 2.8) return level - 1;
+        if (dist < 3.8) return level;
+        const ramp = level + 1 + Math.floor((dist - 3.8) / 1.3);
+        return Math.max(level + 1, Math.min(this.landHeight(x, z, mask), ramp));
+      }
       if (dist < 6) {
         const level = this.riverLevel(u);
         // Hondo solo por el medio; hacia las orillas cubre cada vez menos (v4.0).
@@ -1407,7 +1462,7 @@ export class World {
             plant = Block.CrystalCluster;
           } else if (kind === 'setas' && r < 0.06) {
             plant = Block.SmallMushroom;
-          } else if (zone === 'bambu' && r < 0.2) {
+          } else if (zone === 'bambu' && r < (this.gentle ? 0.11 : 0.2)) {
             // Cañas de 3 a 5 bloques.
             const tall = Math.min(3 + Math.floor(blockRandom(wx, 13, wz, this.seed) * 3), HEIGHT - h - 1);
             for (let k = 1; k <= tall; k++) d[index(x, h + k, z)] = Block.Bamboo;
@@ -1430,21 +1485,30 @@ export class World {
       const i = index(lx, y, lz);
       if (replace || d[i] === Block.Air || isCross(d[i])) d[i] = b;
     };
-    for (let tz = -2; tz < CHUNK + 2; tz++) {
-      for (let tx = -2; tx < CHUNK + 2; tx++) {
+    // v5.9: los árboles nuevos son más anchos; se miran 5 columnas alrededor para que ninguna copa se corte.
+    const margin = this.gentle ? 5 : 2;
+    for (let tz = -margin; tz < CHUNK + margin; tz++) {
+      for (let tx = -margin; tx < CHUNK + margin; tx++) {
         const wx = ox + tx;
         const wz = oz + tz;
         const kind = this.treeAt(wx, wz);
         if (kind === 'fruit') this.placeFruitTree(wx, wz, tx, tz, set);
-        else if (kind === 'palm') this.placePalm(this.heightAt(wx, wz) + 1, tx, tz, set);
-        else if (kind === 'pine') for (const [dx, dy, dz, b, replace] of pineShape()) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
+        else if (kind === 'palm') this.placePalm(this.heightAt(wx, wz) + 1, tx, tz, set, wx, wz);
+        else if (kind === 'pine') for (const [dx, dy, dz, b, replace] of this.gentle ? tieredPineShape(this.treeRandom(wx, wz)) : pineShape()) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
+        else if (kind === 'poplar' || kind === 'oak' || kind === 'bush') {
+          const rand = this.treeRandom(wx, wz);
+          const shape = kind === 'poplar' ? poplarShape(rand) : kind === 'oak' ? broadOakShape(this.fruit, rand) : bushShape(rand);
+          for (const [dx, dy, dz, b, replace] of shape) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
+        }
         else if (kind === 'boulder') this.placeBoulder(wx, wz, tx, tz, set);
         else if (kind === 'mushroom') this.placeMushroom(wx, wz, tx, tz, set);
         else if (kind === 'spire') this.placeSpire(wx, wz, tx, tz, set);
         else if (kind === 'rock') this.placeRock(wx, wz, tx, tz, set);
         else if (kind) {
-          const shape = kind === 'acacia' ? acaciaShape(Math.floor(columnRandom(wx, wz, this.seed + 74) * 4)) : kind === 'ceiba' ? ceibaShape() : kind === 'blossom' ? blossomShape()
+          let shape = kind === 'acacia' ? acaciaShape(Math.floor(columnRandom(wx, wz, this.seed + 74) * 4)) : kind === 'ceiba' ? ceibaShape() : kind === 'blossom' ? blossomShape()
             : kind === 'willow' ? willowShape() : kind === 'glow' ? glowShape() : kind === 'giant' ? this.giantMushroom(wx, wz) : kind === 'column' ? this.basaltColumn(wx, wz) : firShape();
+          // v5.9: los árboles de los climas tampoco son todos iguales de altos.
+          if (this.gentle && kind !== 'acacia' && kind !== 'giant' && kind !== 'column') shape = taller(shape, Math.floor(this.treeRandom(wx, wz) * 4));
           for (const [dx, dy, dz, b, replace] of shape) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
         }
       }
@@ -1660,18 +1724,24 @@ export class World {
     if (this.terrain >= 2) {
       const biome = this.biomeAt(x, z);
       if (biome === 'pradera') return 'pradera';
-      if (biome === 'bambu') return fbm(x / 20, z / 20, this.seed + 21, 2) > 0.42 ? 'bambu' : null;
+      // v5.9: bastante menos bambú, en bosquecillos sueltos en vez de cubrir todo el bioma.
+      if (biome === 'bambu') return fbm(x / 20, z / 20, this.seed + 21, 2) > (this.gentle ? 0.58 : 0.42) ? 'bambu' : null;
       return null;
     }
     if (this.mystery?.kind === 'flores') return 'pradera';
-    if (this.mystery?.kind === 'bambu') return fbm(x / 20, z / 20, this.seed + 21, 2) > 0.45 ? 'bambu' : 'pradera';
+    if (this.mystery?.kind === 'bambu') return fbm(x / 20, z / 20, this.seed + 21, 2) > (this.gentle ? 0.52 : 0.45) ? 'bambu' : 'pradera';
     if (fbm(x / 34, z / 34, this.seed + 21, 2) > 0.66) return 'bambu';
     if (fbm(x / 40, z / 40, this.seed + 22, 2) > 0.65) return 'pradera';
     return null;
   }
 
-  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | 'mushroom' | 'spire' | 'acacia' | 'ceiba' | 'blossom' | 'willow' | 'fir' | 'glow' | 'giant' | 'column' | null {
-    if (this.plotAt(x, z, 3) || this.zoneAt(x, z) === 'bambu') return null;
+  /** Azar de cada árbol (0 a 1) para su forma y su altura (v5.9). */
+  private treeRandom(x: number, z: number): number {
+    return columnRandom(x, z, this.seed + 9);
+  }
+
+  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | 'mushroom' | 'spire' | 'acacia' | 'ceiba' | 'blossom' | 'willow' | 'fir' | 'glow' | 'giant' | 'column' | 'poplar' | 'oak' | 'bush' | null {
+    if (this.plotAt(x, z, this.gentle ? 5 : 3) || this.zoneAt(x, z) === 'bambu') return null;
     if (this.village?.clear.has(`${x},${z}`)) return null;
     // En el pueblo hay menos árboles que en el resto de la isla, para que se vean las casas.
     if (this.village && Math.hypot(x - this.village.center[0], z - this.village.center[1]) < 30 && columnRandom(x, z, this.seed + 93) > 0.3) return null;
@@ -1697,6 +1767,14 @@ export class World {
         if (biome === 'volcanico') return r < 0.012 ? 'column' : null;
       }
       if (this.river(x, z) <= 6 || this.surfaceAt(x, z, h).top !== Block.Grass) return null;
+      if (this.gentle) {
+        // v5.9: bosques variados, de árboles bajos, medianos y muy altos, con matas entre medias.
+        if (biome === 'bosque') return r < 0.016 ? 'fruit' : r < 0.026 ? 'poplar' : r < 0.034 ? 'pine' : r < 0.038 ? 'oak' : r < 0.06 ? 'bush' : null;
+        if (biome === 'montaña') return r < 0.022 ? 'pine' : r < 0.027 ? 'poplar' : r < 0.04 ? 'bush' : r > 0.993 ? 'boulder' : null;
+        if (biome === 'pradera') return r < 0.004 ? 'fruit' : r < 0.0055 ? 'oak' : r < 0.018 ? 'bush' : null;
+        if (biome === 'bambu') return r < 0.01 ? 'fruit' : r < 0.016 ? 'poplar' : r < 0.03 ? 'bush' : null;
+        return r < 0.006 ? 'fruit' : r < 0.009 ? 'poplar' : r < 0.02 ? 'bush' : null;
+      }
       if (biome === 'bosque') return r < 0.022 ? 'fruit' : r < 0.04 ? 'pine' : null;
       if (biome === 'montaña') return r < 0.025 ? 'pine' : r > 0.993 ? 'boulder' : null;
       if (biome === 'pradera') return r < 0.004 ? 'fruit' : null;
@@ -1797,11 +1875,15 @@ export class World {
 
   private placeFruitTree(wx: number, wz: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
     const base = this.heightAt(wx, wz) + 1;
-    for (const [dx, dy, dz, b, replace] of fruitTreeShape(this.fruit, columnRandom(wx, wz, this.seed + 9))) set(tx + dx, base + dy, tz + dz, b, replace);
+    const rand = columnRandom(wx, wz, this.seed + 9);
+    const shape: TreeBlock[] = this.gentle ? cloudTreeShape(this.fruit, rand) : fruitTreeShape(this.fruit, rand);
+    for (const [dx, dy, dz, b, replace] of shape) set(tx + dx, base + dy, tz + dz, b, replace);
   }
 
-  private placePalm(base: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void) {
-    for (const [dx, dy, dz, b, replace] of palmShape()) set(tx + dx, base + dy, tz + dz, b, replace);
+  private placePalm(base: number, tx: number, tz: number, set: (x: number, y: number, z: number, b: Block, r: boolean) => void, wx = 0, wz = 0) {
+    // v5.9: palmeras de 5 a 8 de alto.
+    const shape = this.gentle ? taller(palmShape(), Math.floor(this.treeRandom(wx, wz) * 4)) : palmShape();
+    for (const [dx, dy, dz, b, replace] of shape) set(tx + dx, base + dy, tz + dz, b, replace);
   }
 
   private getChunk(cx: number, cz: number): Chunk {

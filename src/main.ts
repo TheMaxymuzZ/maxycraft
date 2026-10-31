@@ -1264,6 +1264,7 @@ const museumHall = new MuseumHall({
   donated: () => collection.donated,
   host: !joined && !trip,
   put: (x, y, z, b) => sync.setBlock(x, y, z, b),
+  restore: (cells) => sync.clearEdits(cells),
   toast: (t) => hud.toast(t),
   lampHook,
 });

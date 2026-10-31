@@ -69,8 +69,9 @@ function build(stage: number): string[][] {
     // Ruinas: esquinas del taller a medio caer, montones de piedra y cajas rotas.
     for (const [x, z, h] of [[0, 0, 2], [4, 0, 1], [0, HALL, 1], [4, HALL, 3]]) for (let y = 1; y <= h; y++) set(x, y, z, 'L');
     for (const [x, z] of [[1, 0], [2, 0], [0, 2], [0, 3]]) set(x, 1, z, 'H');
-    for (const [x, z, c] of [[2, 3, 'C'], [3, 3, 'C'], [2, 4, 'C'], [7, 2, 'C'], [8, 5, 'C'], [6, 4, 'X'], [9, 1, 'X'], [1, 5, 'X']] as const) set(x, 1, z, c);
-    set(3, 2, 3, 'C');
+    // v5.9: el montón de piedras ya no está donde trabaja Bartolo (SHIPWRIGHT_SPOT), que aparecía dentro.
+    for (const [x, z, c] of [[3, 3, 'C'], [3, 4, 'C'], [1, 4, 'C'], [7, 2, 'C'], [8, 5, 'C'], [6, 4, 'X'], [9, 1, 'X'], [1, 5, 'X']] as const) set(x, 1, z, c);
+    set(3, 2, 4, 'C');
     return grid.map((layer) => layer.map((row) => row.join('')));
   }
   // El taller: paredes de tablones con ventanas, puertas a la playa (z = 0) y al muelle (z = 6).

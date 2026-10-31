@@ -7,6 +7,19 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.9',
+    title: 'Correcciones: árboles propios, río suave y museo abierto',
+    items: [
+      'Bartolo ya no aparece dentro de un bloque: en las ruinas del astillero había un montón de piedras justo donde se pone a trabajar. Si en tu partida ya estaba ahí, ahora busca el hueco libre más cercano.',
+      'El museo ya no agobia: la planta de abajo es más alta, en el centro hay un patio de doble altura con la escalinata y un lucernario de cristal en el tejado, y arriba el insectario es una galería con barandilla que da al patio. Los ventanales son mucho más grandes y entra mucha luz. Sigue teniendo dos plantas.',
+      'Árboles de Maxycraft, con su propia forma y de muchas alturas: el árbol nube (copa de bolas redondas, a veces con el tronco torcido, y la fruta colgando), el álamo (alto y estrecho como una llama), el pino de pisos (faldas de ramas separadas con las puntas caídas, de 9 a 15 de alto), el roble ancho (tronco gordo con raíces y tres o cuatro copas, una sombrilla) y matas redondas entre medias. Los cerezos, sauces, palmeras y abetos tampoco son ya todos iguales de altos.',
+      'La isla es más grande (de 150 a 185 bloques de radio) y hay bastante menos bambú: bosquecillos sueltos en vez de cubrir toda la zona.',
+      'Las orillas del río bajan en escalones de un bloque: si te caes al río, sales andando o con un salto, también donde la tierra de al lado es alta.',
+      'Las playas de los islotes bajan poco a poco hasta el fondo del mar, como las de la isla grande, sin escalón bajo el agua.',
+      'Lo de la isla (árboles, tamaño, bambú, río e islotes) se ve en las islas nuevas, para no mover nada de lo que ya has construido. El museo nuevo y lo de Bartolo, también en tu isla de ahora.',
+    ],
+  },
+  {
     version: '5.8',
     title: 'Los enemigos y los jefes, con todo detalle',
     items: [

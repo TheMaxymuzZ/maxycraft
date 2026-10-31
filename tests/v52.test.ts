@@ -9,7 +9,7 @@ import { MuseumHall } from '../src/game/museum';
 import { ShopFront } from '../src/game/shopFront';
 import { VillagerHomes } from '../src/game/villagerHomes';
 import { LORE } from '../src/lore';
-import { CURATOR_SPOT, HALL_FIXTURES as MUSEUM_FIXTURES, MUSEUM_HALL, hallBarrierCells, hallExhibitSpot, museumHallOrigin } from '../src/museumHall';
+import { CURATOR_SPOT, HALL_FLOORS, HALL_FIXTURES as MUSEUM_FIXTURES, MUSEUM_HALL, hallBarrierCells, hallExhibitSpot, museumHallOrigin } from '../src/museumHall';
 import { findPath, standable } from '../src/pathfind';
 import { HALL_KEEPER_BED, HALL_KEEPER_SPOT, SHOP_HALL, shopHallOrigin } from '../src/shopHall';
 import { hallFixtures, hallTemplate } from '../src/townhall';
@@ -21,11 +21,12 @@ vi.mock('../src/icons', () => ({ tileIcon: () => '', itemIcon: () => '' }));
 
 const material = new THREE.MeshBasicMaterial();
 const SEED = 20261030;
-const newWorld = (seed = SEED) => new World(seed, material, {}, { terrain: TERRAIN_VERSION });
+// v5.9: el terreno nuevo es el 4; estas pruebas son de las islas del terreno 3 (y valen también para el 4).
+const newWorld = (seed = SEED) => new World(seed, material, {}, { terrain: 3 });
 
 describe('v5.2: islas más grandes', () => {
   it('las islas nuevas son del terreno 3: más grandes y con los islotes el doble de grandes', () => {
-    expect(TERRAIN_VERSION).toBe(3);
+    expect(TERRAIN_VERSION).toBeGreaterThanOrEqual(3);
     const w = newWorld();
     expect(w.islandRadius).toBe(HUGE_ISLAND_RADIUS);
     expect(w.newBuildings).toBe(true);
@@ -137,7 +138,8 @@ describe('v5.2: el museo nuevo', () => {
     const [w, h, d] = templateSize(MUSEUM_HALL);
     expect(w).toBeGreaterThan(11);
     expect(d).toBeGreaterThan(11);
-    expect(h).toBeLessThan(20);
+    // v5.9: más alto por dentro (patio de doble altura), pero siguen siendo dos plantas.
+    expect(h).toBeLessThanOrEqual(22);
     expect(MUSEUM_HALL.rooms.map((r) => r.floor).filter((f, i, a) => a.indexOf(f) === i).length).toBe(2);
     expect(templateCells(MUSEUM_HALL, 0).every(([x, , z]) => x >= 0 && x < w && z >= 0 && z < d)).toBe(true);
   });
@@ -171,7 +173,7 @@ describe('v5.2: el museo nuevo', () => {
     expect(hall.openWing).toBe(3);
     for (let wing = 1; wing <= 3; wing++) for (const c of hallBarrierCells(wing)) expect(w.getBlock(...at(c))).toBe(Block.Air);
     expect(findPath(w, museum.door, aquarium)).not.toBeNull();
-    expect(findPath(w, museum.door, at([3, 7, 8]))).not.toBeNull();
+    expect(findPath(w, museum.door, at([3, HALL_FLOORS[1] + 1, 8]))).not.toBeNull();
     expect(hall.size).toBe(CREATURES.length);
     expect(hall.fixtures.serialize().filter((f) => f.id === 'pecera').length).toBeGreaterThanOrEqual(40);
     spy.mockRestore();
