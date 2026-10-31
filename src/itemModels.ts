@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { ATLAS_TILES, BLOCKS, TILE } from './blocks';
+import { creature } from './creatures';
+import { critterGeometry } from './critterModels';
 import { itemDef } from './items';
 
 /**
@@ -27,7 +29,10 @@ export class ItemModels {
   geometry(id: string): THREE.BufferGeometry {
     let geo = this.geometries.get(id);
     if (!geo) {
-      geo = this.isCube(id) ? this.cube(id) : this.voxels(itemDef(id).tile);
+      // Los peces y los insectos (v5.4), con su figura gordita en 3D en vez del icono plano.
+      const c = creature(id);
+      const critter = c ? critterGeometry(c) : null;
+      geo = this.isCube(id) ? this.cube(id) : critter ? critter.merged : this.voxels(itemDef(id).tile);
       this.geometries.set(id, geo);
     }
     return geo;
