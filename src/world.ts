@@ -7,8 +7,8 @@ import { type BuildingTemplate, templateCells } from './buildings';
 import { SHOP_BUILDING, shopOrigin } from './shopBuilding';
 import { MUSEUM, museumOrigin } from './museum';
 import { BIG_HOUSE, DOOR_DZ, HOUSE_REACH, buildBigHouse, isBigHouse } from './villagerHouse';
-import { MUSEUM_HALL, MUSEUM_HALL_DOOR, museumHallOrigin } from './museumHall';
-import { SHOP_HALL, SHOP_HALL_DOOR, shopHallOrigin } from './shopHall';
+import { MUSEUM_HALF, MUSEUM_HALF_BIG, museumHallOrigin, museumLayout } from './museumHall';
+import { SHOP_HALF, SHOP_HALF_BIG, shopHallOrigin, shopLayout } from './shopHall';
 
 export const CHUNK = 16;
 export const HEIGHT = 64;
@@ -29,7 +29,7 @@ export const GIANT_ISLAND_RADIUS = 185;
 export const ISLET_MIN_R = 12;
 export const ISLET_REACH = 1.7;
 /** Versión del terreno de las islas nuevas. Las guardadas siguen con el suyo para que no se mueva nada. */
-export const TERRAIN_VERSION = 4;
+export const TERRAIN_VERSION = 5;
 /** Desde este terreno (v5.2) la isla es más grande, los islotes el doble y los edificios son los nuevos. */
 export const NEW_BUILDINGS_TERRAIN = 3;
 /**
@@ -37,6 +37,14 @@ export const NEW_BUILDINGS_TERRAIN = 3;
  * en pendiente suave (se sale andando) y playas de los islotes que bajan poco a poco hasta el fondo del mar.
  */
 export const GENTLE_TERRAIN = 4;
+/**
+ * Desde este terreno (v5.11): el museo y la tienda ocupan más suelo (parcelas más grandes) y los islotes quedan más
+ * lejos de la isla. En las islas de antes no cambian de sitio (moverían las casas y lo construido).
+ */
+export const ROOMY_TERRAIN = 5;
+/** Agua libre entre la costa y un islote: en las islas de antes, y desde el terreno 5. */
+export const ISLET_GAP = 5;
+export const ISLET_GAP_ROOMY = 30;
 
 /** Radio de la isla de casa de cada versión del terreno. */
 export function homeRadius(terrain: number): number {
@@ -256,13 +264,15 @@ export function buildCottage(x: number, y: number, z: number, roof: Block, put: 
 /** El museo y la tienda son edificios de plantilla que llenan su parcela: cuál y dónde va su esquina. */
 function bigBuilding(p: Plot): { template: BuildingTemplate; origin: [number, number, number] } | null {
   const v2 = p.style === BIG_HOUSE;
-  if (p.kind === 'museum') return v2 ? { template: MUSEUM_HALL, origin: museumHallOrigin(p) } : { template: MUSEUM, origin: museumOrigin(p) };
-  if (p.kind === 'shop') return v2 ? { template: SHOP_HALL, origin: shopHallOrigin(p) } : { template: SHOP_BUILDING, origin: shopOrigin(p) };
+  if (p.kind === 'museum') return v2 ? { template: museumLayout(p).template, origin: museumHallOrigin(p) } : { template: MUSEUM, origin: museumOrigin(p) };
+  if (p.kind === 'shop') return v2 ? { template: shopLayout(p).template, origin: shopHallOrigin(p) } : { template: SHOP_BUILDING, origin: shopOrigin(p) };
   return null;
 }
 
 /** Medio lado de la parcela de cada edificio nuevo (v5.2). */
-const PLOT_HALF_V2: Record<Plot['kind'], number> = { museum: 9, shop: 7, house: 5, player: 5, townhall: 5 };
+const PLOT_HALF_V2: Record<Plot['kind'], number> = { museum: MUSEUM_HALF, shop: SHOP_HALF, house: 5, player: 5, townhall: 5 };
+/** v5.11 (terreno 5): el museo y la tienda, más grandes. */
+const PLOT_HALF_ROOMY: Record<Plot['kind'], number> = { ...PLOT_HALF_V2, museum: MUSEUM_HALF_BIG, shop: SHOP_HALF_BIG };
 
 /** Medio lado de la parcela que se allana y se deja sin árboles. */
 export const PLOT_RADIUS = 5;
@@ -514,6 +524,7 @@ export class World {
   private findPlots(count: number): Plot[] {
     const plots: Plot[] = [];
     const v2 = this.newBuildings;
+    const halves = this.terrain >= ROOMY_TERRAIN && !this.mystery ? PLOT_HALF_ROOMY : PLOT_HALF_V2;
     for (let tries = 0; tries < 600 && plots.length < count; tries++) {
       const a = columnRandom(tries, 77, this.seed) * Math.PI * 2;
       const d = (12 + columnRandom(tries, 78, this.seed) * 34) * this.spread;
@@ -525,11 +536,11 @@ export class World {
       const kind = plots.length === 0 ? 'shop' : plots.length === 1 ? 'museum' : 'house';
       if (v2) {
         // v5.2: cada edificio con su tamaño y un buen trecho entre ellos para jardines y caminos.
-        const half = PLOT_HALF_V2[kind];
+        const half = halves[kind];
         if (this.river(x, z) < half + 6) continue;
         if (plots.some((p) => Math.max(Math.abs(p.x - x), Math.abs(p.z - z)) < (p.half ?? PLOT_RADIUS) + half + 5)) continue;
       } else if (plots.some((p) => Math.hypot(p.x - x, p.z - z) < 16)) continue;
-      const half = v2 ? PLOT_HALF_V2[kind] : PLOT_RADIUS;
+      const half = v2 ? halves[kind] : PLOT_RADIUS;
       // Con el tiempo se relaja: al principio se busca un sitio totalmente llano.
       const tolerance = tries < 300 ? 0 : 1;
       let flat = true;
@@ -542,7 +553,7 @@ export class World {
       if (!flat) continue;
       const roof = kind === 'shop' ? Block.RoofGreen : kind === 'museum' ? Block.RoofBlue : ROOFS[(plots.length - 2) % ROOFS.length];
       if (v2) {
-        const door: [number, number, number] = kind === 'museum' ? MUSEUM_HALL_DOOR : kind === 'shop' ? SHOP_HALL_DOOR : [0, 1, DOOR_DZ];
+        const door: [number, number, number] = kind === 'museum' ? museumLayout({ half }).door : kind === 'shop' ? shopLayout({ half }).door : [0, 1, DOOR_DZ];
         plots.push({ kind, x, z, y: h, roof, door: [x + door[0], h + door[1], z + door[2]], style: BIG_HOUSE, half });
         continue;
       }
@@ -768,10 +779,13 @@ export class World {
         for (let d = this.radius * 0.95; d + r < this.radius * ISLET_REACH && !found; d += 2) {
           const x = Math.round(Math.cos(a) * d);
           const z = Math.round(Math.sin(a) * d);
+          // v5.11: en las islas nuevas, con mucha más agua entre la costa y el islote.
+          const gap = this.terrain >= ROOMY_TERRAIN ? ISLET_GAP_ROOMY : ISLET_GAP;
+          const ring = this.terrain >= ROOMY_TERRAIN ? 48 : 24;
           let clear = this.landMaskRaw(x, z) < 0;
-          for (let i = 0; i < 24 && clear; i++) {
-            const t = (i / 24) * Math.PI * 2;
-            clear = this.landMaskRaw(x + Math.cos(t) * (r + 5), z + Math.sin(t) * (r + 5)) < 0;
+          for (let i = 0; i < ring && clear; i++) {
+            const t = (i / ring) * Math.PI * 2;
+            clear = this.landMaskRaw(x + Math.cos(t) * (r + gap), z + Math.sin(t) * (r + gap)) < 0;
           }
           if (clear && out.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + r + 10)) found = { x, z, r };
         }

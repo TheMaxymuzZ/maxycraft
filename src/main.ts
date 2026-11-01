@@ -509,11 +509,11 @@ try {
 
 const player = new Player(world, camera);
 // El piloto espera en la playa a un lado del avión (donde también haya playa).
-const pilotSpot = terminalSite ? (() => {
-  const [x, , z] = terminalCell(terminalSite, ...PILOT_SPOT);
-  return [x, z];
-})() : airport && [1, -1].map((side) => [airport.x + Math.round(-airport.dz * side), airport.z + Math.round(airport.dx * side)])
-  .find(([x, z]) => world.heightAt(x, z) === SEA_LEVEL + 1) || (airport && [airport.x, airport.z]);
+// v5.11: con la altura de verdad del suelo de la terminal (antes se usaba la de la playa y, si la tarima estaba
+// más alta, Plumas salía metido dentro del suelo).
+const pilotSpot: [number, number, number] | null = terminalSite ? terminalCell(terminalSite, ...PILOT_SPOT) : airport && ([1, -1]
+  .map((side): [number, number, number] => [airport.x + Math.round(-airport.dz * side), airport.y, airport.z + Math.round(airport.dx * side)])
+  .find(([x, , z]) => world.heightAt(x, z) === SEA_LEVEL + 1) ?? [airport.x, airport.y, airport.z]);
 if (joined?.snapshot.spawn) {
   // De visita se aparece al lado de quien invita.
   player.spawnAt(...joined.snapshot.spawn);
@@ -572,7 +572,7 @@ const villagers = createVillagers(world, save?.villagers ?? {}, guests, trip ? [
 // El piloto espera en la playa junto a la avioneta; en las islas misteriosas hay alguien de vacaciones.
 let pilot: Villager | null = null;
 if (airport && plumasHere) {
-  pilot = createVisitor(world, PILOT.name, pilotSpot![0], airport.y, pilotSpot![1], save?.villagers?.[PILOT.name] ?? { friendship: 0 });
+  pilot = createVisitor(world, PILOT.name, pilotSpot![0], pilotSpot![1], pilotSpot![2], save?.villagers?.[PILOT.name] ?? { friendship: 0 });
   if (pilot) villagers.push(pilot);
   // En la terminal, Plumas mira desde el mostrador hacia la sala de espera.
   if (pilot && terminalSite) pilot.lookAt = seaward(terminalSite);
