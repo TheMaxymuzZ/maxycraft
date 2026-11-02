@@ -354,6 +354,65 @@ export function bushShape(rand: number): TreeBlock[] {
   return out;
 }
 
+/** Los arbustos de las islas nuevas (v5.11.1). */
+export type ShrubKind = 'boj' | 'bayas' | 'azalea' | 'hortensia' | 'helechos' | 'mata';
+export const SHRUB_KINDS: readonly ShrubKind[] = ['boj', 'bayas', 'azalea', 'hortensia', 'helechos', 'mata'];
+
+/**
+ * Arbustos (v5.11.1): matas pequeñas y variadas en vez de la bola de hojas de siempre, que llenaba el suelo de
+ * bloques de hojas. Como mucho ocupan 3 x 3 y dos de alto, y casi todos llevan su propio bloque (boj, bayas,
+ * azalea, hortensia) o son solo plantas (helechos), así que las hojas de árbol en el suelo quedan para la "mata".
+ */
+export function shrubShape(kind: ShrubKind, rand: number): TreeBlock[] {
+  const out: TreeBlock[] = [];
+  const at = (dx: number, dy: number, dz: number, b: Block) => out.push([dx, dy, dz, b, false]);
+  /** Vecinos en cruz, cada uno con su azar: no salen dos matas iguales. */
+  const around = (first: number, chance: number, each: (dx: number, dz: number) => void) => {
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dz], i) => {
+      if (pick(rand, first + i) < chance) each(dx, dz);
+    });
+  };
+  switch (kind) {
+    case 'boj': {
+      // Boj recortado: una bolita de uno, o un seto corto de dos o tres en fila, a veces con un piso más.
+      const long = Math.floor(pick(rand, 1) * 3);
+      const along = pick(rand, 2) < 0.5;
+      for (let i = 0; i <= long; i++) at(along ? i : 0, 0, along ? 0 : i, Block.Boxwood);
+      if (pick(rand, 3) < 0.35) at(0, 1, 0, Block.Boxwood);
+      break;
+    }
+    case 'bayas':
+      // Mata de bayas: una cruz baja, con el centro un poco más alto.
+      at(0, 0, 0, Block.BerryBush);
+      around(4, 0.65, (dx, dz) => at(dx, 0, dz, Block.BerryBush));
+      if (pick(rand, 8) < 0.5) at(0, 1, 0, Block.BerryBush);
+      break;
+    case 'azalea':
+      // Azalea: hojas abajo y la flor encima, como una cúpula.
+      at(0, 0, 0, Block.Leaves);
+      around(4, 0.7, (dx, dz) => at(dx, 0, dz, Block.Azalea));
+      at(0, 1, 0, Block.Azalea);
+      break;
+    case 'hortensia':
+      // Hortensia: dos o tres bolas de flores juntas, a ras de suelo.
+      at(0, 0, 0, Block.Hydrangea);
+      around(4, 0.45, (dx, dz) => at(dx, 0, dz, Block.Hydrangea));
+      if (pick(rand, 9) < 0.3) at(0, 1, 0, Block.Hydrangea);
+      break;
+    case 'helechos':
+      // Un corro de helechos: solo plantas, ningún bloque.
+      at(0, 0, 0, Block.Fern);
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if ((dx || dz) && pick(rand, 10 + (dx + 1) * 3 + dz + 1) < 0.45) at(dx, 0, dz, Block.Fern);
+      break;
+    case 'mata':
+      // La mata de hojas de siempre, pero de un solo bloque con hierba alrededor.
+      at(0, 0, 0, Block.Leaves);
+      around(4, 0.5, (dx, dz) => at(dx, 0, dz, Block.TallGrass));
+      break;
+  }
+  return out;
+}
+
 /**
  * El mismo árbol pero `extra` bloques más alto: todo lo que está por encima del arranque de la copa sube y el
  * tronco crece lo que falta. Sirve para que los árboles de los climas (cerezos, sauces, palmeras…) no sean

@@ -423,6 +423,11 @@ export function dropFor(b: Block): string | null {
     case Block.CherryLeaves:
     case Block.WillowLeaves:
     case Block.SnowLeaves:
+    case Block.Boxwood:
+    case Block.BerryBush:
+    case Block.Azalea:
+    case Block.Hydrangea:
+    case Block.Fern:
     case Block.DryShrub:
     case Block.Vine:
       return null; // las hojas se deshacen (a veces sueltan una rama: LEAF_BRANCH_CHANCE)
@@ -578,6 +583,10 @@ const HARDNESS: Partial<Record<Block, Hardness>> = {
   [Block.CherryLeaves]: { time: 0.25 },
   [Block.WillowLeaves]: { time: 0.25 },
   [Block.SnowLeaves]: { time: 0.25 },
+  [Block.Boxwood]: { time: 0.25 },
+  [Block.BerryBush]: { time: 0.25 },
+  [Block.Azalea]: { time: 0.25 },
+  [Block.Hydrangea]: { time: 0.25 },
   [Block.RedSand]: { time: 0.5, tool: 'shovel' },
   [Block.Mud]: { time: 0.5, tool: 'shovel' },
   [Block.PowderSnow]: { time: 0.3, tool: 'shovel' },

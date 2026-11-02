@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.11.1',
+    title: 'Tienda de siempre, árboles con su sitio, arbustos y montañas de verdad',
+    items: [
+      'La tienda vuelve a ser la de siempre (la de la 5.2), sin la ampliación de la 5.11. El museo grande se queda como está.',
+      'Los árboles ya no nacen pegados ni metidos unos dentro de otros: cada uno guarda su sitio según lo grande que es su copa, y nunca quedan dos troncos juntos.',
+      'Menos bloques de hojas por el suelo y cinco arbustos nuevos, pequeños y con detalle: boj recortado (a veces en seto), mata de bayas rojas y azules, azalea rosa en flor, hortensia azul y morada y corros de helechos. Cada zona tiene sus favoritos: helechos y bayas en el bosque, flores en la pradera, boj y helechos en la montaña.',
+      'La zona de montaña ahora parece una montaña: en su centro el suelo sube en escalones hasta una cumbre de unos 38 bloques sobre el mar, con laderas de roca, piedra suelta arriba y nieve en la cima. El río la cruza por un valle y baja antes de llegar a la playa. En las islas frías, lo mismo en los picos nevados.',
+      'Todo esto se ve en las islas nuevas, para no mover nada de lo que ya has construido.',
+    ],
+  },
+  {
     version: '5.11',
     title: 'Museo y tienda más amplios, islotes más lejos',
     items: [

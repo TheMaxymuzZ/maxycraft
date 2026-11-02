@@ -104,6 +104,8 @@ export enum Block {
   RoofYellowStairs = 182, RoofYellowStairs1 = 183, RoofYellowStairs2 = 184, RoofYellowStairs3 = 185,
   PolishedStairs = 186, PolishedStairs1 = 187, PolishedStairs2 = 188, PolishedStairs3 = 189,
   RoofRedSlab = 190, RoofBlueSlab = 191, RoofGreenSlab = 192, RoofYellowSlab = 193,
+  // Arbustos (v5.11.1): boj, arbusto de bayas, azalea, hortensia y helecho.
+  Boxwood = 194, BerryBush = 195, Azalea = 196, Hydrangea = 197, Fern = 198,
 }
 
 export const TILE = 16;
@@ -226,6 +228,12 @@ export const XTile = {
   // Mazmorras (v4.25): armas legendarias del tesoro.
   StarSword: EXTRA_TILE_START + 178,
   MoonBow: EXTRA_TILE_START + 179,
+  // Arbustos (v5.11.1).
+  Boxwood: EXTRA_TILE_START + 180,
+  BerryBush: EXTRA_TILE_START + 181,
+  Azalea: EXTRA_TILE_START + 182,
+  Hydrangea: EXTRA_TILE_START + 183,
+  Fern: EXTRA_TILE_START + 184,
 } as const;
 
 /** Los iconos de los muebles se dibujan aquí al arrancar, una casilla por mueble. */
@@ -419,6 +427,12 @@ export const BLOCKS: Record<number, BlockDef> = {
   [Block.CherryLeaves]: cube('Flores de cerezo', XTile.CherryLeaves, XTile.CherryLeaves, XTile.CherryLeaves, true),
   [Block.WillowLeaves]: cube('Hojas de sauce', XTile.WillowLeaves, XTile.WillowLeaves, XTile.WillowLeaves, true),
   [Block.SnowLeaves]: cube('Hojas de abeto nevado', XTile.SnowLeaves, XTile.SnowLeaves, XTile.SnowLeaves, true),
+  // Arbustos (v5.11.1).
+  [Block.Boxwood]: cube('Boj', XTile.Boxwood, XTile.Boxwood, XTile.Boxwood, true),
+  [Block.BerryBush]: cube('Arbusto de bayas', XTile.BerryBush, XTile.BerryBush, XTile.BerryBush, true),
+  [Block.Azalea]: cube('Azalea en flor', XTile.Azalea, XTile.Azalea, XTile.Azalea, true),
+  [Block.Hydrangea]: cube('Hortensia', XTile.Hydrangea, XTile.Hydrangea, XTile.Hydrangea, true),
+  [Block.Fern]: cross('Helecho', XTile.Fern as unknown as Tile),
   [Block.Vine]: cross('Liana', XTile.Vine as unknown as Tile),
   [Block.LilyPad]: { name: 'Nenúfar', tiles: [XTile.LilyPad, XTile.LilyPad, XTile.LilyPad], transparent: true, shape: 'pad' },
   [Block.CactusFlower]: cross('Cactus con flor', XTile.CactusFlower as unknown as Tile),
@@ -544,7 +558,7 @@ export function isGate(b: number): boolean {
 export const SWAYING: ReadonlySet<number> = new Set([
   Block.TallGrass, Block.FlowerRed, Block.FlowerYellow, Block.FlowerWhite, Block.FlowerBlue, Block.FlowerPink, Block.Bamboo,
   Block.Wheat1, Block.Wheat2, Block.Wheat3, Block.Carrot1, Block.Carrot2, Block.Carrot3, Block.Tomato1, Block.Tomato2, Block.Tomato3,
-  Block.DryShrub, Block.Vine, Block.SnowFlower, Block.GlowFlower,
+  Block.DryShrub, Block.Vine, Block.SnowFlower, Block.GlowFlower, Block.Fern,
 ]);
 
 /** Bloques que dan luz y cuánta (nivel de 1 a 15: la luz baja uno por cada bloque que avanza). */
@@ -748,7 +762,7 @@ export function isOpaque(b: number): boolean {
 /** Hojas de todos los árboles (las de antes y las de los climas de la v4.19). */
 export const LEAF_BLOCKS: ReadonlySet<number> = new Set([
   Block.Leaves, Block.PalmLeaves, Block.PineLeaves, Block.AcaciaLeaves, Block.JungleLeaves, Block.CherryLeaves, Block.WillowLeaves, Block.SnowLeaves,
-  Block.GlowLeaves,
+  Block.GlowLeaves, Block.Boxwood, Block.BerryBush, Block.Azalea, Block.Hydrangea,
 ]);
 
 export function isLeaves(b: number): boolean {
@@ -760,6 +774,50 @@ export function isCross(b: number): boolean {
 }
 
 // --- Texturas pixel art generadas en un canvas (sin archivos externos) ---
+
+/**
+ * Arbustos (v5.11.1): hojas más menudas y apretadas que las de los árboles, con flores o bayas por encima, para que
+ * las matas del suelo no sean todas el mismo bloque de hojas.
+ */
+function paintBushTiles(ctx: CanvasRenderingContext2D) {
+  const BOX: RGB[] = [[48, 112, 52], [40, 98, 46], [58, 126, 60], [34, 88, 40]];
+  const BUSH: RGB[] = [[70, 136, 58], [60, 122, 50], [82, 150, 66], [54, 112, 46]];
+  // Boj recortado: hojitas oscuras muy juntas y el canto más claro, como recién podado.
+  paintTile(ctx, XTile.Boxwood, (x, y, r) => {
+    if (x === 0 || y === 0 || x === 15 || y === 15) return r() < 0.7 ? [86, 150, 76] : pick(r, BOX);
+    return (x * 7 + y * 3) % 11 === 0 && r() < 0.6 ? null : (x + y * 2) % 9 === 0 ? [92, 156, 84] : pick(r, BOX);
+  });
+  // Flores y bayas colocadas a mano, para que se lean como flores y no como ruido.
+  const dots = (tile: number, leaf: RGB[], marks: [number, number, RGB][]) => {
+    const at = new Map<string, RGB>(marks.map(([x, y, c]) => [`${x},${y}`, c]));
+    paintTile(ctx, tile, (x, y, r) => at.get(`${x},${y}`) ?? ((x * 3 + y * 5) % 13 === 0 && r() < 0.5 ? null : pick(r, leaf)));
+  };
+  /** Baya de 2x2 con su brillo. */
+  const berry = (x: number, y: number, c: RGB, dark: RGB, shine: RGB): [number, number, RGB][] => [[x, y, shine], [x + 1, y, c], [x, y + 1, c], [x + 1, y + 1, dark]];
+  /** Flor de cinco pétalos en cruz con el centro amarillo. */
+  const flower = (x: number, y: number, petal: RGB, edge: RGB): [number, number, RGB][] => [[x, y, [250, 222, 110]], [x - 1, y, petal], [x + 1, y, petal], [x, y - 1, petal], [x, y + 1, edge]];
+  const RED: [RGB, RGB, RGB] = [[214, 44, 56], [150, 24, 40], [255, 150, 150]];
+  const BLUE: [RGB, RGB, RGB] = [[70, 80, 186], [40, 46, 124], [160, 170, 240]];
+  dots(XTile.BerryBush, BOX, [[2, 1], [9, 2], [5, 6], [12, 7], [1, 10], [8, 11], [13, 13]].flatMap(([x, y], i) => berry(x, y, ...(i % 3 === 2 ? BLUE : RED))));
+  const PINK: RGB = [255, 110, 176];
+  const LIGHT: RGB = [255, 168, 212];
+  dots(XTile.Azalea, BUSH, [[3, 2], [10, 2], [6, 6], [13, 7], [2, 10], [9, 10], [5, 14], [13, 13]].flatMap(([x, y], i) => flower(x, y, i % 2 ? PINK : LIGHT, [236, 84, 150])));
+  // Hortensia: bolas grandes de florecitas azules y moradas.
+  paintTile(ctx, XTile.Hydrangea, (x, y, r) => {
+    for (const [cx, cy, c] of [[4, 4, 0], [11, 5, 1], [7, 11, 0], [13, 13, 1], [1, 12, 1]] as const) {
+      const d = Math.hypot(x - cx, y - cy);
+      if (d < 2.6) {
+        const PETAL: RGB[][] = [[[120, 150, 230], [96, 124, 214], [150, 176, 240]], [[166, 128, 220], [140, 104, 204], [190, 160, 236]]];
+        return (x + y) % 3 === 0 ? [236, 236, 250] : pick(r, PETAL[c]);
+      }
+    }
+    return (x * 3 + y * 5) % 13 === 0 && r() < 0.5 ? null : pick(r, BUSH);
+  });
+  paintSprite(ctx, XTile.Fern, [
+    '.......f........', '.f.....f.....f..', '..f...fFf...f...', 'f..f..fFf..f..f.', '.f..f.fFf.f..f..', '..ff.ffFff.ff...', 'f..fffFFFfff..f.', '.ff..ffFff..ff..',
+    '...fff.F.fff....', 'ff...ffFff...ff.', '..fff.fFf.fff...', '.....ffFff......', '...fff.F.fff....', '......fFf.......', '.......F........', '.......F........',
+  ], { f: [92, 172, 74], F: [56, 124, 50] });
+}
 
 /** Texturas de los climas (v4.19): arenas, arenisca, terracota, cactus, hielo, hojas nuevas y plantas. */
 function paintClimateTiles(ctx: CanvasRenderingContext2D) {
@@ -801,6 +859,7 @@ function paintClimateTiles(ctx: CanvasRenderingContext2D) {
   leaves(XTile.CherryLeaves, [[246, 178, 206], [238, 160, 194], [252, 204, 224], [230, 146, 184]]);
   leaves(XTile.WillowLeaves, [[100, 150, 70], [90, 138, 62], [112, 162, 80]], 4);
   paintTile(ctx, XTile.SnowLeaves, (x, y, r) => ((x + y * 3) % 7 === 0 && r() < 0.5 ? null : y % 3 === 0 ? pick(r, SNOW) : pick(r, PINE_LEAF)));
+  paintBushTiles(ctx);
   paintSprite(ctx, XTile.Vine, Array.from({ length: 16 }, (_, y) => ['...v......v.....', '...vl.....v.....', '..lv......vl....', '...v.....lv.....'][y % 4]), { v: [52, 120, 50], l: [84, 160, 70] });
   paintSprite(ctx, XTile.LilyPad, [
     '................', '....gggggg......', '..gggggggggg....', '.gggggggggggg...', '.ggggggGgggggg..', 'gggggggGggg.....', 'ggggggggGg......', 'gggggggg........',
