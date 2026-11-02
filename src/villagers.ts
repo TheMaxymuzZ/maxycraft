@@ -8,8 +8,8 @@ import { type Species, buildVillagerModel } from './villagerModel';
 import { type MysteryKind, type Plot, type World } from './world';
 import { SHOPKEEPER_BED, SHOPKEEPER_SPOT, shopOrigin } from './shopBuilding';
 import { BIG_BED, insideBigHouse, isBigHouse } from './villagerHouse';
-import { HALL_KEEPER_BED, HALL_KEEPER_SPOT, shopHallOrigin } from './shopHall';
-import { CURATOR_SPOT, museumHallOrigin } from './museumHall';
+import { shopHallOrigin, shopLayout } from './shopHall';
+import { museumHallOrigin, museumLayout } from './museumHall';
 
 export type Personality = 'alegre' | 'gruñón' | 'dormilón' | 'presumido' | 'deportista' | 'dulce';
 export type { Species };
@@ -944,14 +944,15 @@ export function createVillagers(world: World, memories: Record<string, VillagerM
   const shop = world.plots.find((p) => p.kind === 'shop');
   // Desde la v4.16 Avellana atiende detrás del mostrador y por la noche sube a dormir a su casa, encima de la tienda.
   const big = isBigHouse(shop);
-  const keeper = shop ? [new Villager(SHOPKEEPER, { ...shop, door: atShop(shop, big ? HALL_KEEPER_SPOT : SHOPKEEPER_SPOT) }, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
-  if (shop) keeper[0].rest = atShop(shop, big ? HALL_KEEPER_BED : SHOPKEEPER_BED);
+  const keeper = shop ? [new Villager(SHOPKEEPER, { ...shop, door: atShop(shop, big ? shopLayout(shop).keeperSpot : SHOPKEEPER_SPOT) }, world, memories[SHOPKEEPER.name] ?? { friendship: 0 })] : [];
+  if (shop) keeper[0].rest = atShop(shop, big ? shopLayout(shop).keeperBed : SHOPKEEPER_BED);
   const museum = world.plots.find((p) => p.kind === 'museum');
   // Desde la v4.15 Matilde espera dentro del museo, en la recepción, mirando a la puerta.
   const curatorAt = (m: Plot): Cell => {
     if (!isBigHouse(m)) return [m.x + 2, m.y + 1, m.z + 2];
     const [ox, oy, oz] = museumHallOrigin(m);
-    return [ox + CURATOR_SPOT[0], oy + CURATOR_SPOT[1], oz + CURATOR_SPOT[2]];
+    const [cx, cy, cz] = museumLayout(m).curator;
+    return [ox + cx, oy + cy, oz + cz];
   };
   const curator = museum ? [new Villager(CURATOR, { ...museum, door: curatorAt(museum) }, world, memories[CURATOR.name] ?? { friendship: 0 })] : [];
   const locals = world.plots.filter((p) => p.kind === 'house' && !p.guest).map((plot, i) => {

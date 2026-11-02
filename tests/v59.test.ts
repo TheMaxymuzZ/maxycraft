@@ -32,7 +32,7 @@ describe('v5.9: Bartolo no aparece dentro de un bloque', () => {
 
 describe('v5.9: la isla nueva', () => {
   it('las islas nuevas son del terreno 4 y más grandes; las de antes no cambian de tamaño', () => {
-    expect(TERRAIN_VERSION).toBe(4);
+    expect(TERRAIN_VERSION).toBeGreaterThanOrEqual(4);
     expect(world(4).islandRadius).toBe(GIANT_ISLAND_RADIUS);
     expect(GIANT_ISLAND_RADIUS).toBeGreaterThan(HUGE_ISLAND_RADIUS);
     expect(world(3).islandRadius).toBe(HUGE_ISLAND_RADIUS);
@@ -214,8 +214,9 @@ describe('v5.9: el museo más abierto', () => {
     return b !== undefined && b !== null && isSolid(b);
   };
 
-  it('la planta de abajo tiene 7 bloques de alto y sigue habiendo solo dos plantas', () => {
-    expect(HALL_FLOORS).toEqual([0, 8]);
+  // v5.11: era demasiado alto; la planta de abajo vuelve a los 5 de alto de la v5.2 (ver v511.test.ts).
+  it('la planta de abajo está despejada y sigue habiendo solo dos plantas', () => {
+    expect(HALL_FLOORS.length).toBe(2);
     for (const [x, z] of [[2, 8], [17, 8], [10, 14]]) for (let y = 1; y < HALL_FLOORS[1]; y++) expect(solid(x, y, z), `${x},${y},${z}`).toBe(false);
   });
 
@@ -223,7 +224,7 @@ describe('v5.9: el museo más abierto', () => {
     for (const [x, z] of [[7, 8], [13, 8]]) {
       let y = 1;
       while (!solid(x, y, z)) y++;
-      expect(y, `${x},${z}`).toBeGreaterThan(14);
+      expect(y, `${x},${z}`).toBeGreaterThan(10);
     }
     let y = 1;
     while (!solid(10, y, 8) || cell.get(`10,${y},8`) === Block.PolishedStairs || cell.get(`10,${y},8`) === Block.PolishedStone) y++;

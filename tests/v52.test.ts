@@ -9,7 +9,9 @@ import { MuseumHall } from '../src/game/museum';
 import { ShopFront } from '../src/game/shopFront';
 import { VillagerHomes } from '../src/game/villagerHomes';
 import { LORE } from '../src/lore';
-import { CURATOR_SPOT, HALL_FLOORS, HALL_FIXTURES as MUSEUM_FIXTURES, MUSEUM_HALL, hallBarrierCells, hallExhibitSpot, museumHallOrigin } from '../src/museumHall';
+import { HALL_FLOORS, HALL_NORMAL, MUSEUM_HALL, museumHallOrigin } from '../src/museumHall';
+
+const { curator: CURATOR_SPOT, fixtures: MUSEUM_FIXTURES, barrierCells: hallBarrierCells, exhibitSpot: hallExhibitSpot } = HALL_NORMAL;
 import { findPath, standable } from '../src/pathfind';
 import { HALL_KEEPER_BED, HALL_KEEPER_SPOT, SHOP_HALL, shopHallOrigin } from '../src/shopHall';
 import { hallFixtures, hallTemplate } from '../src/townhall';

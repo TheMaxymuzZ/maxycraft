@@ -7,6 +7,17 @@ export interface Release {
 
 export const CHANGELOG: Release[] = [
   {
+    version: '5.11',
+    title: 'Museo y tienda más amplios, islotes más lejos',
+    items: [
+      'El museo vuelve a la altura de antes (la planta de abajo de 5 de alto, como en la 5.2), pero se queda el patio con la escalinata y el lucernario. En las islas nuevas, además, ocupa mucho más suelo: por dentro tiene más del doble de superficie, con una sala de fósiles con el dinosaurio en medio y un rincón para sentarse, un acuario con una pared entera de peceras y una isla de peceras en el centro, y una galería de arriba mucho más espaciosa.',
+      'La tienda de las islas nuevas también es más grande, igual de alta: más estanterías en el fondo y en la pared, tres mesas con lo del día, un mostrador más largo para Avellana, su casa del altillo más amplia y una sala de muebles más grande.',
+      'Plumas ya no sale metido dentro del suelo de la terminal: se ponía a la altura de la playa aunque la tarima estuviera más alta.',
+      'Los islotes quedan bastante más lejos de la isla grande, con unos 30 bloques de mar en medio (antes, unos 5).',
+      'Lo del tamaño del museo y la tienda y lo de los islotes se ve en las islas nuevas, para no mover nada de lo que ya has construido. La altura del museo y lo de Plumas, también en tu isla de ahora.',
+    ],
+  },
+  {
     version: '5.10',
     title: 'Lo lejano, con el detalle bajando poco a poco',
     items: [

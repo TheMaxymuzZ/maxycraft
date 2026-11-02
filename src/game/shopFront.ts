@@ -10,9 +10,7 @@ import type { Season } from '../seasons';
 import {
   type Fixture, SHELF_SPOTS, SHOP_FIXTURES, SHOWROOM_DOOR, SHOWROOM_FIXTURES, SHOP_LEVELS, WINDOW_SPOTS, shopOrigin, windowDisplay,
 } from '../shopBuilding';
-import {
-  HALL_FIXTURES, HALL_SHELF_SPOTS, HALL_SHOWROOM_DOOR, HALL_SHOWROOM_FIXTURES, HALL_WINDOW_SPOTS, shopHallOrigin,
-} from '../shopHall';
+import { type ShopLayoutHall, shopHallOrigin, shopLayout } from '../shopHall';
 import { BIG_HOUSE } from '../villagerHouse';
 import type { World } from '../world';
 
@@ -25,7 +23,8 @@ interface ShopLayout {
   door: [number, number, number];
 }
 const OLD_LAYOUT: ShopLayout = { fixtures: SHOP_FIXTURES, showroom: SHOWROOM_FIXTURES, shelves: SHELF_SPOTS, window: WINDOW_SPOTS, door: SHOWROOM_DOOR };
-const HALL_LAYOUT: ShopLayout = { fixtures: HALL_FIXTURES, showroom: HALL_SHOWROOM_FIXTURES, shelves: HALL_SHELF_SPOTS, window: HALL_WINDOW_SPOTS, door: HALL_SHOWROOM_DOOR };
+/** La tienda nueva (v5.2), de siempre o grande (v5.11). */
+const hallLayout = (h: ShopLayoutHall): ShopLayout => ({ fixtures: h.fixtures, showroom: h.showroom, shelves: h.shelves, window: h.window, door: h.showroomDoor });
 
 export interface ShopFrontDeps {
   world: World;
@@ -54,7 +53,7 @@ export class ShopFront {
 
   constructor(private deps: ShopFrontDeps) {
     const plot = deps.world.plots.find((p) => p.kind === 'shop');
-    if (plot?.style === BIG_HOUSE) this.layout = HALL_LAYOUT;
+    if (plot?.style === BIG_HOUSE) this.layout = hallLayout(shopLayout(plot));
     if (plot) this.origin = plot.style === BIG_HOUSE ? shopHallOrigin(plot) : shopOrigin(plot);
     this.fixtures = new Furniture([], deps.lampHook);
     this.group.name = 'tienda';
