@@ -799,9 +799,9 @@ function paintBushTiles(ctx: CanvasRenderingContext2D) {
   const RED: [RGB, RGB, RGB] = [[214, 44, 56], [150, 24, 40], [255, 150, 150]];
   const BLUE: [RGB, RGB, RGB] = [[70, 80, 186], [40, 46, 124], [160, 170, 240]];
   dots(XTile.BerryBush, BOX, [[2, 1], [9, 2], [5, 6], [12, 7], [1, 10], [8, 11], [13, 13]].flatMap(([x, y], i) => berry(x, y, ...(i % 3 === 2 ? BLUE : RED))));
-  const PINK: RGB = [248, 150, 196];
-  const LIGHT: RGB = [252, 200, 226];
-  dots(XTile.Azalea, BUSH, [[3, 2], [10, 3], [6, 7], [13, 9], [2, 11], [9, 13]].flatMap(([x, y], i) => flower(x, y, i % 2 ? PINK : LIGHT, [214, 92, 150])));
+  const PINK: RGB = [255, 110, 176];
+  const LIGHT: RGB = [255, 168, 212];
+  dots(XTile.Azalea, BUSH, [[3, 2], [10, 2], [6, 6], [13, 7], [2, 10], [9, 10], [5, 14], [13, 13]].flatMap(([x, y], i) => flower(x, y, i % 2 ? PINK : LIGHT, [236, 84, 150])));
   // Hortensia: bolas grandes de florecitas azules y moradas.
   paintTile(ctx, XTile.Hydrangea, (x, y, r) => {
     for (const [cx, cy, c] of [[4, 4, 0], [11, 5, 1], [7, 11, 0], [13, 13, 1], [1, 12, 1]] as const) {

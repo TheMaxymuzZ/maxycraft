@@ -98,8 +98,8 @@ const MAX_TREE_ROOM = 4;
 /** Biomas con cumbre (v5.11.1), lo alto que sube y el techo (deja sitio a un árbol encima). */
 const PEAK_BIOMES: Biome[] = ['montaña', 'picos'];
 const PEAK_FOOT = SEA_LEVEL + 2 + 6;
-const PEAK_LIFT = 29;
-const PEAK_TOP = 54;
+const PEAK_LIFT = 37;
+const PEAK_TOP = 58;
 /** Rayas de los acantilados del cañón, de abajo arriba. */
 const STRATA: Block[] = [Block.TerracottaOrange, Block.TerracottaYellow, Block.RedSand, Block.TerracottaWhite, Block.TerracottaOrange, Block.Sandstone];
 /** Capas de los acantilados volcánicos (v4.20). */
@@ -1080,7 +1080,7 @@ export class World {
 
   /**
    * La cumbre de la montaña (v5.11.1): en el corazón de la zona de montaña (o de los picos nevados) el suelo sube
-   * en escalones de 3, por encima de las terrazas, hasta una cima a unos 36 bloques sobre el mar, con el borde
+   * en escalones de 3, por encima de las terrazas, hasta una cima a unos 40 bloques sobre el mar, con el borde
    * irregular. No se sale de su zona, baja antes de la costa y el río la atraviesa por un valle.
    */
   private peakLift(x: number, z: number, mask: number): number {
@@ -1090,12 +1090,13 @@ export class World {
     const d = Math.hypot(x - peak.x, z - peak.z) + wobble;
     if (d >= peak.r) return 0;
     const w = 1 - d / peak.r;
-    const smooth = w * w * (3 - 2 * w);
+    // Mitad cono (cima en punta) y mitad curva suave (falda ancha).
+    const smooth = 0.55 * w + 0.45 * w * w * (3 - 2 * w);
     const valley = Math.max(0, Math.min(1, (this.riverAt(x, z).dist - 8) / 26));
     const ridges = (fbm(x / 9, z / 9, this.seed + 132, 2) - 0.5) * 6 * w;
     // Cerca de la costa baja otra vez, para que la playa no quede al pie de un muro.
-    const coast = Math.max(0, Math.min(1, (mask - 0.3) / 0.25));
-    const zone = Math.min(1, this.mountainWeight(x, z) * 1.5);
+    const coast = Math.max(0, Math.min(1, (mask - 0.27) / 0.18));
+    const zone = Math.min(1, this.mountainWeight(x, z) * 3);
     const lift = (smooth * PEAK_LIFT + ridges) * valley * coast * zone;
     return lift < 3 ? 0 : Math.floor(lift / 3) * 3;
   }
@@ -1106,9 +1107,22 @@ export class World {
     const i = this.biomeOrder.findIndex((b) => PEAK_BIOMES.includes(b));
     if (i < 0 || this.mystery) return (this.peakSpot = null);
     const sector = (Math.PI * 2) / this.biomeOrder.length;
-    const a = (i + 0.5) * sector + this.biomeTurn;
-    const far = this.radius * 0.55;
-    return (this.peakSpot = { x: Math.cos(a) * far, z: Math.sin(a) * far, r: this.radius * 0.34 });
+    // Entre unos cuantos sitios del corazón de la zona, el más lejos del río (que no parta la cumbre en dos).
+    let best: { x: number; z: number; r: number } | null = null;
+    let bestDist = -1;
+    for (const turn of [0, -0.18, 0.18]) {
+      for (const far of [0.5, 0.43, 0.56]) {
+        const a = (i + 0.5 + turn) * sector + this.biomeTurn;
+        const x = Math.cos(a) * far * this.radius;
+        const z = Math.sin(a) * far * this.radius;
+        const dist = Math.min(this.riverAt(x, z).dist, 60);
+        if (dist > bestDist + 4) {
+          best = { x, z, r: this.radius * 0.34 };
+          bestDist = dist;
+        }
+      }
+    }
+    return (this.peakSpot = best);
   }
 
   /** Ángulo alrededor del centro, deformado con ruido para que los biomas no tengan bordes rectos. */
@@ -1920,7 +1934,12 @@ export class World {
       if (this.tidy) {
         // v5.11.1: los mismos bosques, con la mitad de matas (y ahora de muchos tipos).
         if (biome === 'bosque') return r < 0.016 ? 'fruit' : r < 0.026 ? 'poplar' : r < 0.034 ? 'pine' : r < 0.038 ? 'oak' : r < 0.05 ? 'bush' : null;
-        if (biome === 'montaña') return r < 0.022 ? 'pine' : r < 0.027 ? 'poplar' : r < 0.034 ? 'bush' : r > 0.993 ? 'boulder' : null;
+        if (biome === 'montaña') {
+          // En la cumbre, cada vez menos árboles según se sube, para que se vea su forma (y ninguno en la nieve).
+          if (h >= SEA_LEVEL + 2 + 30) return r > 0.993 ? 'boulder' : null;
+          if (h >= SEA_LEVEL + 2 + 18) return r < 0.008 ? 'pine' : r < 0.016 ? 'bush' : r > 0.99 ? 'boulder' : null;
+          return r < 0.022 ? 'pine' : r < 0.027 ? 'poplar' : r < 0.034 ? 'bush' : r > 0.993 ? 'boulder' : null;
+        }
         if (biome === 'pradera') return r < 0.004 ? 'fruit' : r < 0.0055 ? 'oak' : r < 0.013 ? 'bush' : null;
         if (biome === 'bambu') return r < 0.01 ? 'fruit' : r < 0.016 ? 'poplar' : r < 0.024 ? 'bush' : null;
         return r < 0.006 ? 'fruit' : r < 0.009 ? 'poplar' : r < 0.016 ? 'bush' : null;

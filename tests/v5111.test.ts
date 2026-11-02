@@ -128,7 +128,7 @@ describe('v5.11.1: montañas de verdad', () => {
       };
       const old = top(5);
       const now = top(6);
-      expect(now).toBeLessThanOrEqual(54);
+      expect(now).toBeLessThanOrEqual(58);
       if (now >= old + 10) higher++;
     }
     expect(higher).toBeGreaterThanOrEqual(5);
