@@ -23,7 +23,7 @@ const top = (layers: string[][]) => layers.reduce((m, layer, y) => (layer.some((
 
 describe('v5.11: las islas nuevas', () => {
   it('son del terreno 5: museo y tienda con parcela más grande; las de antes no cambian', () => {
-    expect(TERRAIN_VERSION).toBe(ROOMY_TERRAIN);
+    expect(TERRAIN_VERSION).toBeGreaterThanOrEqual(ROOMY_TERRAIN);
     const now = world(5).plots;
     expect(now.find((p) => p.kind === 'museum')?.half).toBe(MUSEUM_HALF_BIG);
     expect(now.find((p) => p.kind === 'shop')?.half).toBe(SHOP_HALF_BIG);

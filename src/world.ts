@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { waterFlow } from './fluids';
 import { ATLAS_TILES, BLOCKS, Block, FRUITS, HOUSE_BLOCKS, LIGHT_COLOR, LIGHT_COLORS, LIGHT_RADIUS, MAX_LIGHT, ROOFS, SWAYING, WALL_TORCH_DIRS, isCross, isTorch, isDoor, isDoorTop, isFence, isFullBlock, isGate, isLava, isOpaque, isOpen, isSolid, isWater, lavaHeight, roofColorOf, waterHeight, waterLevel as fluidLevel } from './blocks';
 import { blockRandom, columnRandom, fbm, valueNoise3 } from './noise';
-import { type TreeBlock, acaciaShape, blossomShape, broadOakShape, bushShape, ceibaShape, cloudTreeShape, firShape, glowShape, fruitTreeShape, palmShape, pineShape, poplarShape, taller, tieredPineShape, willowShape } from './trees';
+import { type ShrubKind, type TreeBlock, acaciaShape, blossomShape, broadOakShape, bushShape, ceibaShape, cloudTreeShape, firShape, glowShape, fruitTreeShape, palmShape, pineShape, poplarShape, shrubShape, taller, tieredPineShape, willowShape } from './trees';
 import { type BuildingTemplate, templateCells } from './buildings';
 import { SHOP_BUILDING, shopOrigin } from './shopBuilding';
 import { MUSEUM, museumOrigin } from './museum';
@@ -29,7 +29,7 @@ export const GIANT_ISLAND_RADIUS = 185;
 export const ISLET_MIN_R = 12;
 export const ISLET_REACH = 1.7;
 /** Versión del terreno de las islas nuevas. Las guardadas siguen con el suyo para que no se mueva nada. */
-export const TERRAIN_VERSION = 5;
+export const TERRAIN_VERSION = 6;
 /** Desde este terreno (v5.2) la isla es más grande, los islotes el doble y los edificios son los nuevos. */
 export const NEW_BUILDINGS_TERRAIN = 3;
 /**
@@ -42,6 +42,12 @@ export const GENTLE_TERRAIN = 4;
  * lejos de la isla. En las islas de antes no cambian de sitio (moverían las casas y lo construido).
  */
 export const ROOMY_TERRAIN = 5;
+/**
+ * Desde este terreno (v5.11.1): la tienda vuelve a su tamaño de siempre (el museo sigue grande), los árboles no
+ * nacen pegados unos a otros, arbustos de varios tipos en vez de tanta hoja en el suelo y montañas de verdad, con
+ * una cumbre alta en el corazón de la zona de montaña.
+ */
+export const TIDY_TERRAIN = 6;
 /** Agua libre entre la costa y un islote: en las islas de antes, y desde el terreno 5. */
 export const ISLET_GAP = 5;
 export const ISLET_GAP_ROOMY = 30;
@@ -78,6 +84,22 @@ export const CLIMATE_BIOMES: Record<Climate, Biome[]> = {
 };
 /** Biomas altos, con más terrazas (el de cada clima). */
 const TALL_BIOMES: Biome[] = ['montaña', 'cañon', 'picos', 'volcanico'];
+/** Todo lo que nace en el suelo como un árbol: árboles, matas, rocas y setas gigantes. */
+type TreeKind = 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | 'mushroom' | 'spire' | 'acacia' | 'ceiba' | 'blossom' | 'willow' | 'fir' | 'glow' | 'giant' | 'column' | 'poplar' | 'oak' | 'bush';
+/**
+ * Sitio que necesita cada cosa a su alrededor (v5.11.1), más o menos el radio de su copa. Dos no nacen a menos de la
+ * suma de los dos menos uno: las copas pueden rozarse, pero los troncos nunca quedan juntos.
+ */
+const TREE_ROOM: Record<TreeKind, number> = {
+  bush: 2, column: 1.5, rock: 2, boulder: 2, spire: 2, poplar: 2.5, palm: 2.5, mushroom: 2.5,
+  pine: 3, fruit: 3, fir: 3, blossom: 3, glow: 3, acacia: 3.5, willow: 3.5, giant: 3.5, ceiba: 4, oak: 4,
+};
+const MAX_TREE_ROOM = 4;
+/** Biomas con cumbre (v5.11.1), lo alto que sube y el techo (deja sitio a un árbol encima). */
+const PEAK_BIOMES: Biome[] = ['montaña', 'picos'];
+const PEAK_FOOT = SEA_LEVEL + 2 + 6;
+const PEAK_LIFT = 29;
+const PEAK_TOP = 54;
 /** Rayas de los acantilados del cañón, de abajo arriba. */
 const STRATA: Block[] = [Block.TerracottaOrange, Block.TerracottaYellow, Block.RedSand, Block.TerracottaWhite, Block.TerracottaOrange, Block.Sandstone];
 /** Capas de los acantilados volcánicos (v4.20). */
@@ -273,6 +295,8 @@ function bigBuilding(p: Plot): { template: BuildingTemplate; origin: [number, nu
 const PLOT_HALF_V2: Record<Plot['kind'], number> = { museum: MUSEUM_HALF, shop: SHOP_HALF, house: 5, player: 5, townhall: 5 };
 /** v5.11 (terreno 5): el museo y la tienda, más grandes. */
 const PLOT_HALF_ROOMY: Record<Plot['kind'], number> = { ...PLOT_HALF_V2, museum: MUSEUM_HALF_BIG, shop: SHOP_HALF_BIG };
+/** v5.11.1 (terreno 6): el museo grande se queda, la tienda vuelve a la de siempre (la de la v5.2). */
+const PLOT_HALF_TIDY: Record<Plot['kind'], number> = { ...PLOT_HALF_V2, museum: MUSEUM_HALF_BIG, shop: SHOP_HALF };
 
 /** Medio lado de la parcela que se allana y se deja sin árboles. */
 export const PLOT_RADIUS = 5;
@@ -314,6 +338,8 @@ export interface WorldOptions {
   houses?: number;
   /** Árboles nuevos (v5.9) en las islas del archipiélago de una isla de casa del terreno 4. */
   gentle?: boolean;
+  /** Árboles separados, arbustos nuevos y montañas altas (v5.11.1) en el archipiélago de una isla del terreno 6. */
+  tidy?: boolean;
 }
 
 /** Una isla del archipiélago dentro del mundo de casa (v5.1): su terreno sale de su propia semilla, centrado en (x, z). */
@@ -403,6 +429,10 @@ export class World {
   readonly caveEntrances: { x: number; z: number; y: number }[];
   /** Posiciones "x,y,z" de las antorchas, que iluminan las cuevas. */
   private torches = new Map<string, [number, number, number]>();
+  /** La cumbre de la montaña (v5.11.1), calculada una vez. */
+  private peakSpot?: { x: number; z: number; r: number } | null;
+  /** Árboles ya calculados por columna (v5.11.1), para no repetir cuentas al mirar los vecinos de cada uno. */
+  private treeCache = new Map<number, TreeKind | null>();
   /** Luces que no son bloques (farolas, lámparas…): "x,y,z" → [x, y, z, nivel]. */
   private lamps = new Map<string, [number, number, number, number]>();
 
@@ -454,7 +484,7 @@ export class World {
     }
     this.plots = this.mystery ? (options.village ? this.findVillage() : []) : this.findPlots(6);
     for (const spot of options.sea ?? []) {
-      const world = new World(spot.seed, material, {}, { mystery: { kind: spot.kind, fruit: spot.fruit }, village: spot.village, houses: this.newBuildings ? BIG_HOUSE : undefined, gentle: this.gentle || undefined });
+      const world = new World(spot.seed, material, {}, { mystery: { kind: spot.kind, fruit: spot.fruit }, village: spot.village, houses: this.newBuildings ? BIG_HOUSE : undefined, gentle: this.gentle || undefined, tidy: this.tidy || undefined });
       this.seaWorlds.push({ spot, world, half: Math.ceil(world.radius * 1.45) + 4 });
     }
     this.caveEntrances = this.mystery ? [] : this.findCaveEntrances(2);
@@ -524,7 +554,7 @@ export class World {
   private findPlots(count: number): Plot[] {
     const plots: Plot[] = [];
     const v2 = this.newBuildings;
-    const halves = this.terrain >= ROOMY_TERRAIN && !this.mystery ? PLOT_HALF_ROOMY : PLOT_HALF_V2;
+    const halves = this.mystery ? PLOT_HALF_V2 : this.terrain >= TIDY_TERRAIN ? PLOT_HALF_TIDY : this.terrain >= ROOMY_TERRAIN ? PLOT_HALF_ROOMY : PLOT_HALF_V2;
     for (let tries = 0; tries < 600 && plots.length < count; tries++) {
       const a = columnRandom(tries, 77, this.seed) * Math.PI * 2;
       const d = (12 + columnRandom(tries, 78, this.seed) * 34) * this.spread;
@@ -657,6 +687,11 @@ export class World {
    */
   get gentle(): boolean {
     return this.mystery ? this.options.gentle === true : this.terrain >= GENTLE_TERRAIN;
+  }
+
+  /** Terreno ordenado (v5.11.1): árboles con su sitio, arbustos variados y montañas altas. */
+  get tidy(): boolean {
+    return this.mystery ? this.options.tidy === true : this.terrain >= TIDY_TERRAIN;
   }
 
   /** Si el jugador (o un edificio colocado después) ha cambiado ese bloque. */
@@ -1037,7 +1072,43 @@ export class World {
     if (this.terrain < 2) return SEA_LEVEL + 2 + (t > 0.85 ? 2 : t > 0.45 ? 1 : 0) * 4;
     t *= 1 + 1.6 * this.mountainWeight(x, z);
     const tier = t > 1.9 ? 4 : t > 1.3 ? 3 : t > 0.85 ? 2 : t > 0.45 ? 1 : 0;
-    return SEA_LEVEL + 2 + tier * 4;
+    const base = SEA_LEVEL + 2 + tier * 4;
+    if (!this.tidy) return base;
+    const lift = this.peakLift(x, z, mask);
+    return lift ? Math.min(PEAK_TOP, Math.max(base, PEAK_FOOT + lift)) : base;
+  }
+
+  /**
+   * La cumbre de la montaña (v5.11.1): en el corazón de la zona de montaña (o de los picos nevados) el suelo sube
+   * en escalones de 3, por encima de las terrazas, hasta una cima a unos 36 bloques sobre el mar, con el borde
+   * irregular. No se sale de su zona, baja antes de la costa y el río la atraviesa por un valle.
+   */
+  private peakLift(x: number, z: number, mask: number): number {
+    const peak = this.peak();
+    if (!peak) return 0;
+    const wobble = (fbm(x / 22, z / 22, this.seed + 131, 2) - 0.5) * peak.r * 0.7;
+    const d = Math.hypot(x - peak.x, z - peak.z) + wobble;
+    if (d >= peak.r) return 0;
+    const w = 1 - d / peak.r;
+    const smooth = w * w * (3 - 2 * w);
+    const valley = Math.max(0, Math.min(1, (this.riverAt(x, z).dist - 8) / 26));
+    const ridges = (fbm(x / 9, z / 9, this.seed + 132, 2) - 0.5) * 6 * w;
+    // Cerca de la costa baja otra vez, para que la playa no quede al pie de un muro.
+    const coast = Math.max(0, Math.min(1, (mask - 0.3) / 0.25));
+    const zone = Math.min(1, this.mountainWeight(x, z) * 1.5);
+    const lift = (smooth * PEAK_LIFT + ridges) * valley * coast * zone;
+    return lift < 3 ? 0 : Math.floor(lift / 3) * 3;
+  }
+
+  /** Centro y radio de la cumbre, en el medio del sector de la montaña; null si la isla no tiene. */
+  private peak(): { x: number; z: number; r: number } | null {
+    if (this.peakSpot !== undefined) return this.peakSpot;
+    const i = this.biomeOrder.findIndex((b) => PEAK_BIOMES.includes(b));
+    if (i < 0 || this.mystery) return (this.peakSpot = null);
+    const sector = (Math.PI * 2) / this.biomeOrder.length;
+    const a = (i + 0.5) * sector + this.biomeTurn;
+    const far = this.radius * 0.55;
+    return (this.peakSpot = { x: Math.cos(a) * far, z: Math.sin(a) * far, r: this.radius * 0.34 });
   }
 
   /** Ángulo alrededor del centro, deformado con ruido para que los biomas no tengan bordes rectos. */
@@ -1097,7 +1168,15 @@ export class World {
     // En la montaña los acantilados son de roca y las cumbres tienen nieve.
     if (this.terrain >= 2 && !this.plotAt(x, z) && this.biomeAt(x, z) === 'montaña') {
       const low = Math.min(this.heightAt(x + 1, z), this.heightAt(x - 1, z), this.heightAt(x, z + 1), this.heightAt(x, z - 1));
-      if (h - low >= 4) return { top: Block.Stone, under: Block.Stone, beach };
+      // v5.11.1: abajo solo los cortados altos son de roca; en lo alto de la cumbre, todos.
+      if (h - low >= (this.tidy && h >= SEA_LEVEL + 2 + 20 ? 3 : 4)) return { top: Block.Stone, under: Block.Stone, beach };
+      if (this.tidy) {
+        // v5.11.1: la cumbre. Prados hasta media ladera, luego roca y piedra suelta, y nieve arriba del todo.
+        if (h >= SEA_LEVEL + 2 + 30) return { top: Block.SnowGrass, under: Block.Stone, beach };
+        const rocky = fbm(x / 7, z / 7, this.seed + 133, 2);
+        if (h >= SEA_LEVEL + 2 + 22 && rocky > 0.42) return { top: rocky > 0.6 ? Block.Cobble : Block.Stone, under: Block.Stone, beach };
+        return { top: Block.Grass, under: Block.Dirt, beach };
+      }
       if (h >= SEA_LEVEL + 2 + 4 * 4) return { top: Block.SnowGrass, under: Block.Dirt, beach };
     }
     return { top: Block.Grass, under: Block.Dirt, beach };
@@ -1108,7 +1187,7 @@ export class World {
     const biome = this.biomeAt(x, z);
     if (this.plotAt(x, z)) return biome === 'desierto' || biome === 'cañon' ? { top: Block.Sand, under: Block.Sandstone } : null;
     const patch = fbm(x / 9, z / 9, this.seed + 71, 2);
-    const cliff = () => h - Math.min(this.heightAt(x + 1, z), this.heightAt(x - 1, z), this.heightAt(x, z + 1), this.heightAt(x, z - 1)) >= 4;
+    const cliff = () => h - Math.min(this.heightAt(x + 1, z), this.heightAt(x - 1, z), this.heightAt(x, z + 1), this.heightAt(x, z - 1)) >= (this.tidy ? 3 : 4);
     switch (biome) {
       case 'desierto':
         return { top: Block.Sand, under: Block.Sandstone };
@@ -1511,7 +1590,7 @@ export class World {
         else if (kind === 'pine') for (const [dx, dy, dz, b, replace] of this.gentle ? tieredPineShape(this.treeRandom(wx, wz)) : pineShape()) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
         else if (kind === 'poplar' || kind === 'oak' || kind === 'bush') {
           const rand = this.treeRandom(wx, wz);
-          const shape = kind === 'poplar' ? poplarShape(rand) : kind === 'oak' ? broadOakShape(this.fruit, rand) : bushShape(rand);
+          const shape = kind === 'poplar' ? poplarShape(rand) : kind === 'oak' ? broadOakShape(this.fruit, rand) : this.tidy ? shrubShape(this.shrubAt(wx, wz), rand) : bushShape(rand);
           for (const [dx, dy, dz, b, replace] of shape) set(tx + dx, this.heightAt(wx, wz) + 1 + dy, tz + dz, b, replace);
         }
         else if (kind === 'boulder') this.placeBoulder(wx, wz, tx, tz, set);
@@ -1749,12 +1828,69 @@ export class World {
     return null;
   }
 
+  /**
+   * Qué arbusto sale en (x, z) (v5.11.1): cada bioma tiene sus favoritos. Bayas y helechos en el bosque, flores en
+   * la pradera, boj y helechos en la montaña; la mata de hojas de antes queda como una más, y poco.
+   */
+  shrubAt(x: number, z: number): ShrubKind {
+    const r = columnRandom(x, z, this.seed + 98);
+    const biome = this.biomeAt(x, z);
+    const odds: [ShrubKind, number][] = biome === 'bosque' ? [['helechos', 0.3], ['bayas', 0.25], ['boj', 0.2], ['azalea', 0.1], ['mata', 0.15]]
+      : biome === 'pradera' ? [['azalea', 0.3], ['hortensia', 0.3], ['bayas', 0.2], ['boj', 0.1], ['mata', 0.1]]
+      : biome === 'montaña' ? [['boj', 0.4], ['helechos', 0.3], ['bayas', 0.2], ['mata', 0.1]]
+      : biome === 'bambu' ? [['helechos', 0.45], ['boj', 0.3], ['hortensia', 0.15], ['mata', 0.1]]
+      : [['boj', 0.25], ['bayas', 0.2], ['azalea', 0.2], ['hortensia', 0.15], ['helechos', 0.1], ['mata', 0.1]];
+    let acc = 0;
+    for (const [kind, p] of odds) if (r < (acc += p)) return kind;
+    return odds[odds.length - 1][0];
+  }
+
   /** Azar de cada árbol (0 a 1) para su forma y su altura (v5.9). */
   private treeRandom(x: number, z: number): number {
     return columnRandom(x, z, this.seed + 9);
   }
 
-  private treeAt(x: number, z: number): 'fruit' | 'palm' | 'rock' | 'pine' | 'boulder' | 'mushroom' | 'spire' | 'acacia' | 'ceiba' | 'blossom' | 'willow' | 'fir' | 'glow' | 'giant' | 'column' | 'poplar' | 'oak' | 'bush' | null {
+  /**
+   * El árbol (o mata, roca…) que nace en (x, z). Desde el terreno 6 (v5.11.1) cada uno guarda su sitio: si otro más
+   * grande (o, si son iguales, el que gana a suertes) nace demasiado cerca, este no sale. Así no hay troncos pegados
+   * ni copas metidas una dentro de otra.
+   */
+  private treeAt(x: number, z: number): TreeKind | null {
+    if (!this.tidy) return this.rawTreeAt(x, z);
+    const kind = this.cachedTree(x, z);
+    if (!kind) return null;
+    const mine = TREE_ROOM[kind];
+    const reach = Math.ceil(mine + MAX_TREE_ROOM - 1);
+    const luck = columnRandom(x, z, this.seed + 97);
+    for (let dz = -reach; dz <= reach; dz++) {
+      for (let dx = -reach; dx <= reach; dx++) {
+        if (!dx && !dz) continue;
+        const other = this.cachedTree(x + dx, z + dz);
+        if (!other) continue;
+        const room = TREE_ROOM[other];
+        if (Math.hypot(dx, dz) >= mine + room - 1) continue;
+        // Gana el más grande; entre iguales, el de más suerte.
+        if (room > mine || (room === mine && columnRandom(x + dx, z + dz, this.seed + 97) > luck)) return null;
+      }
+    }
+    return kind;
+  }
+
+  /** El árbol de (x, z) sin mirar a los vecinos, recordado (se pregunta muchas veces por las mismas columnas). */
+  private cachedTree(x: number, z: number): TreeKind | null {
+    // La mayoría de columnas no tienen nada: se descartan sin calcular nada más (ver los umbrales de rawTreeAt).
+    const r = columnRandom(x, z, this.seed);
+    if (r >= 0.07 && r <= 0.975) return null;
+    const key = (x + 32768) * 65536 + (z + 32768);
+    const known = this.treeCache.get(key);
+    if (known !== undefined) return known;
+    if (this.treeCache.size > 200_000) this.treeCache.clear();
+    const kind = this.rawTreeAt(x, z);
+    this.treeCache.set(key, kind);
+    return kind;
+  }
+
+  private rawTreeAt(x: number, z: number): TreeKind | null {
     if (this.plotAt(x, z, this.gentle ? 5 : 3) || this.zoneAt(x, z) === 'bambu') return null;
     if (this.village?.clear.has(`${x},${z}`)) return null;
     // En el pueblo hay menos árboles que en el resto de la isla, para que se vean las casas.
@@ -1781,6 +1917,14 @@ export class World {
         if (biome === 'volcanico') return r < 0.012 ? 'column' : null;
       }
       if (this.river(x, z) <= 6 || this.surfaceAt(x, z, h).top !== Block.Grass) return null;
+      if (this.tidy) {
+        // v5.11.1: los mismos bosques, con la mitad de matas (y ahora de muchos tipos).
+        if (biome === 'bosque') return r < 0.016 ? 'fruit' : r < 0.026 ? 'poplar' : r < 0.034 ? 'pine' : r < 0.038 ? 'oak' : r < 0.05 ? 'bush' : null;
+        if (biome === 'montaña') return r < 0.022 ? 'pine' : r < 0.027 ? 'poplar' : r < 0.034 ? 'bush' : r > 0.993 ? 'boulder' : null;
+        if (biome === 'pradera') return r < 0.004 ? 'fruit' : r < 0.0055 ? 'oak' : r < 0.013 ? 'bush' : null;
+        if (biome === 'bambu') return r < 0.01 ? 'fruit' : r < 0.016 ? 'poplar' : r < 0.024 ? 'bush' : null;
+        return r < 0.006 ? 'fruit' : r < 0.009 ? 'poplar' : r < 0.016 ? 'bush' : null;
+      }
       if (this.gentle) {
         // v5.9: bosques variados, de árboles bajos, medianos y muy altos, con matas entre medias.
         if (biome === 'bosque') return r < 0.016 ? 'fruit' : r < 0.026 ? 'poplar' : r < 0.034 ? 'pine' : r < 0.038 ? 'oak' : r < 0.06 ? 'bush' : null;
